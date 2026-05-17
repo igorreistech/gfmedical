@@ -17243,8 +17243,8 @@ window.buildCardHTML = function(proc) {
         }
 
         hospital  = campo('Local');
-        convenio  = campo('Conv[eê]nio');
-        var medRaw = campo('M[eé]dico');
+        convenio  = campo('Conv.nio');
+        var medRaw = campo('M.dico');
         var pacRaw = campo('Paciente');
         var datRaw = campo('Data[ _]?[Cc]irurgia');
 
@@ -17308,7 +17308,7 @@ window.buildCardHTML = function(proc) {
 
         // Extrair produtos a partir de cada ocorrência de "Cód.Alt.:"
         // Antes de cada Cód.Alt.: temos a descrição e os lotes do produto
-        var partes = t.split(/C[oó]d\.Alt\./i);
+        var partes = t.split(/C.d\.Alt\./i);
         var idx = 0;
         for (var i = 0; i < partes.length - 1; i++) {
             var antes = partes[i];
