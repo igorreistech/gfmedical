@@ -17342,12 +17342,12 @@ window.buildCardHTML = function(proc) {
             if (!mCod) continue;
             var code = mCod[1].trim();
 
-            // Lotes: todos os "Lote: XXXX" na seção anterior
-            var reLote = /Lote:\s*([\w\-\/]+)/gi;
+            // Lotes: cada "Lote: XXXX x<n>" vira um item separado
+            var reLote = /Lote:\s*([\w\-\/]+)\s*(?:x\s*(\d+))?/gi;
             var lotes = [];
             var ml;
             while ((ml = reLote.exec(antes)) !== null) {
-                lotes.push(ml[1]);
+                lotes.push({ lote: ml[1], qty: ml[2] ? parseInt(ml[2]) : null });
             }
 
             // Descrição: texto antes do primeiro "Lote:" nesta seção
@@ -17363,11 +17363,14 @@ window.buildCardHTML = function(proc) {
 
             if (!desc || lotes.length === 0) continue;
 
-            produtos.push({
-                code: code,
-                desc: desc,
-                lote: lotes.join(', '),
-                qty: qtdes[idx] !== undefined ? qtdes[idx] : 1
+            var totalQty = qtdes[idx] !== undefined ? qtdes[idx] : lotes.length;
+            lotes.forEach(function(l) {
+                produtos.push({
+                    code: code,
+                    desc: desc,
+                    lote: l.lote,
+                    qty: l.qty !== null ? l.qty : Math.round(totalQty / lotes.length)
+                });
             });
             idx++;
         }
