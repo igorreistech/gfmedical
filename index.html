@@ -17451,7 +17451,32 @@ window.buildCardHTML = function(proc) {
             for (var i = 1; i <= pdf.numPages; i++) {
                 var page = await pdf.getPage(i);
                 var content = await page.getTextContent();
-                texto += content.items.map(function (it) { return it.str; }).join(' ') + '\n';
+                var items = content.items.filter(function(it){ return typeof it.str === 'string'; });
+                if (!items.length) { texto += '\n'; continue; }
+                // Ordenar por y desc (topo→base) depois x asc (esq→dir)
+                items.sort(function(a, b){
+                    var dy = b.transform[5] - a.transform[5];
+                    if (Math.abs(dy) > 3) return dy;
+                    return a.transform[4] - b.transform[4];
+                });
+                var pageText = items[0].str;
+                var prevY = items[0].transform[5];
+                var prevEnd = items[0].transform[4] + (items[0].width || 0);
+                for (var j = 1; j < items.length; j++) {
+                    var it = items[j];
+                    var curX = it.transform[4];
+                    var curY = it.transform[5];
+                    var gap = curX - prevEnd;
+                    if (Math.abs(curY - prevY) > 3) {
+                        pageText += '\n';
+                    } else if (gap >= 1) {
+                        pageText += ' ';
+                    }
+                    pageText += it.str;
+                    prevY = curY;
+                    prevEnd = curX + (it.width || 0);
+                }
+                texto += pageText + '\n';
             }
             var dados = parsearTextoNF(texto);
             var produtos = parsearProdutos(texto);
@@ -17470,9 +17495,13 @@ window.buildCardHTML = function(proc) {
                 html += '<span style="color:#f59e0b;">– Produtos: não encontrados</span><br>';
             }
             if (!dados.medico || !dados.convenio || !dados.nf || !dados.valor || produtos.length === 0) {
-                html += '<p style="margin:8px 0 2px;color:#8a9e97;font-size:0.74rem;">Texto extraído do PDF (debug):</p>' +
+                var dbIdx = texto.toUpperCase().indexOf('COMPLEMENTAR');
+                var dbTxt = dbIdx >= 0
+                    ? texto.slice(Math.max(0, dbIdx - 50), dbIdx + 3000)
+                    : texto.slice(-3000);
+                html += '<p style="margin:8px 0 2px;color:#8a9e97;font-size:0.74rem;">Texto extraído (seção complementar):</p>' +
                     '<textarea readonly style="width:100%;height:160px;background:#0a0f0d;color:#8a9e97;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:8px;font-family:monospace;font-size:0.72rem;resize:vertical;display:block;">' +
-                    texto.slice(0, 4000).replace(/</g,'&lt;') + '</textarea>';
+                    dbTxt.replace(/</g,'&lt;') + '</textarea>';
             }
             result.innerHTML = html;
             result.style.display = 'block';
