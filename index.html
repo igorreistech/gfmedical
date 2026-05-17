@@ -33,6 +33,39 @@
       window._fbStorage = storage;
       window._fbStorageModules = { ref, uploadBytes, getDownloadURL };
 
+      // ─── NOTIFICAÇÕES PUSH ───
+      window._notifStatusAnterior = null; // null = primeira carga, não notifica
+
+      async function solicitarPermissaoNotificacoes() {
+        if (!('Notification' in window)) return;
+        if (Notification.permission === 'default') {
+          const perm = await Notification.requestPermission();
+          if (perm === 'granted') window.showSyncToast && window.showSyncToast('🔔 Notificações ativadas');
+        }
+      }
+
+      function notificarMudancaStatus(proc, statusAnterior) {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        const labels = {
+          a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
+          agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado',
+          reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
+          urgencia:'URGÊNCIA', coleta_urgente:'Coleta Prioritária'
+        };
+        const de   = labels[statusAnterior] || statusAnterior;
+        const para = labels[proc.status]    || proc.status;
+        const pac  = proc.paciente || 'Paciente';
+        const titulo = proc.status === 'urgencia' ? '🚨 URGÊNCIA — Monitor Cirúrgico' : '🔔 Monitor Cirúrgico';
+        try {
+          const n = new Notification(titulo, {
+            body: `${pac}: ${de} → ${para}`,
+            tag:  proc._docId,
+            requireInteraction: proc.status === 'urgencia'
+          });
+          n.onclick = () => { window.focus(); n.close(); };
+        } catch(e) { console.warn('Notificação:', e); }
+      }
+
       // ─── AUTH (dentro do módulo para ter acesso direto às funções) ───
       window.doLogin = async function() {
         const email = document.getElementById('loginUser').value.trim();
@@ -79,6 +112,7 @@
             if (user) {
                 overlay.classList.add('hidden');
                 if (logoutEl) logoutEl.style.display = 'block';
+                solicitarPermissaoNotificacoes();
             } else {
                 overlay.classList.remove('hidden');
                 if (logoutEl) logoutEl.style.display = 'none';
@@ -95,6 +129,21 @@
         const { collection: col, onSnapshot: snap } = window._fbModules;
         snap(col(db, COLL), (snapshot) => {
           const dados = snapshot.docs.map(d => ({ _docId: d.id, ...d.data() }));
+
+          // ─── Detectar mudanças de status e notificar ───
+          if (window._notifStatusAnterior === null) {
+            window._notifStatusAnterior = {};
+            dados.forEach(p => { window._notifStatusAnterior[p._docId] = p.status; });
+          } else {
+            dados.forEach(p => {
+              const prev = window._notifStatusAnterior[p._docId];
+              if (prev !== undefined && prev !== p.status) notificarMudancaStatus(p, prev);
+              window._notifStatusAnterior[p._docId] = p.status;
+            });
+            const ids = new Set(dados.map(p => p._docId));
+            Object.keys(window._notifStatusAnterior).forEach(id => { if (!ids.has(id)) delete window._notifStatusAnterior[id]; });
+          }
+
           // Aguarda o script principal E o DOM estarem prontos
           function aplicar() {
             if (!window.renderCards) { setTimeout(aplicar, 50); return; }
