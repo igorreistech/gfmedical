@@ -17265,8 +17265,9 @@ window.buildCardHTML = function(proc) {
         if (mNf) nf = mNf[1].replace(/\./g, '');
 
         // ── Data de emissão da NF ──
+        // "EMISSÃO" pode ser extraído como "EMISS Ã O" com espaços entre chars acentuados
         var dataEmissao = null;
-        var mEmissao = t.match(/EMISS.O[^\d]*(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i);
+        var mEmissao = t.match(/EMISS[\s\S]{0,8}O[^\d\n]*(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i);
         if (mEmissao) dataEmissao = converterData(mEmissao[1]);
 
         // ── Valor total da nota ──
