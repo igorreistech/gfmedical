@@ -17453,7 +17453,8 @@ window.buildCardHTML = function(proc) {
             if (container) {
                 container.innerHTML = '';
                 produtos.forEach(function (p) {
-                    addItemRow(p.code, p.desc, p.qty, p.lote);
+                    var nome = (window._prodMap && window._prodMap[p.code.toUpperCase()]) || '';
+                    addItemRow(p.code, nome, p.qty, p.lote);
                 });
             }
         }
