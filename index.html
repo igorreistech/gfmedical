@@ -5796,8 +5796,12 @@ function _tocarSomGeral(procs) {
 
 // ─── HELPER WHATSAPP: copia texto e abre app ───
 async function _abrirWhatsApp(texto) {
+    const textoLimpo = texto
+        .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?(‍[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?)*/gu, '')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/^ /gm, '');
     try {
-        await navigator.clipboard.writeText(texto);
+        await navigator.clipboard.writeText(textoLimpo);
         window.showSyncToast && window.showSyncToast('✅ Copiado! Cole no WhatsApp (Ctrl+V)');
     } catch(e) {
         window.showSyncToast && window.showSyncToast('⚠️ Não foi possível copiar automaticamente');
