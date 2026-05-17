@@ -5800,7 +5800,7 @@ async function _abrirWhatsApp(texto) {
         .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?(‍[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?)*/gu, '')
         .replace(/[ \t]+/g, ' ')
         .replace(/^ /gm, '');
-    window.open('https://wa.me/?text=' + encodeURIComponent(textoLimpo), '_blank');
+    window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(textoLimpo), '_blank');
 }
 
 // ─── EXPORTAR WHATSAPP — cirurgias realizadas ───
