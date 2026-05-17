@@ -1,7 +1,7 @@
-const CACHE = 'monitor-cgr-v1';
+const CACHE = 'monitor-cgr-v2';
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.add('/')));
+  e.waitUntil(caches.open(CACHE).then(c => c.add('/gfcampogrande/')));
   self.skipWaiting();
 });
 
@@ -16,6 +16,6 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.mode === 'navigate') {
-    e.respondWith(fetch(e.request).catch(() => caches.match('/')));
+    e.respondWith(fetch(e.request).catch(() => caches.match('/gfcampogrande/')));
   }
 });
