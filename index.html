@@ -17197,16 +17197,21 @@ window.buildCardHTML = function(proc) {
 <!-- ── PDF NF Import ── -->
 <script>
 (function () {
-    var PDF_JS_SRC    = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    var PDF_JS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    var PDF_JS_SRC    = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    var PDF_JS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
     function carregarPdfJs() {
         if (window.pdfjsLib) return Promise.resolve();
         return new Promise(function (ok, fail) {
+            var timer = setTimeout(function () { fail(new Error('Timeout ao carregar PDF.js')); }, 15000);
             var s = document.createElement('script');
             s.src = PDF_JS_SRC;
-            s.onload = function () { pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_JS_WORKER; ok(); };
-            s.onerror = fail;
+            s.onload = function () {
+                clearTimeout(timer);
+                try { pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_JS_WORKER; ok(); }
+                catch (e) { fail(e); }
+            };
+            s.onerror = function () { clearTimeout(timer); fail(new Error('Falha ao carregar PDF.js')); };
             document.head.appendChild(s);
         });
     }
