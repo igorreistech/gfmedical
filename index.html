@@ -17265,11 +17265,13 @@ window.buildCardHTML = function(proc) {
         if (mNf) nf = mNf[1].replace(/\./g, '');
 
         // ── Data de emissão da NF ──
-        // No DANFE os valores ficam antes dos rótulos na extração posicional.
-        // O padrão é: DATA_SAÍDA  HH:MM  DATA_EMISSÃO — a segunda data é a de emissão.
+        // Pega a última data dd/mm/yyyy antes do primeiro "Lote:" (área do cabeçalho).
+        // Datas de fabricação/validade dos lotes ficam depois de "Lote:" e são ignoradas.
         var dataEmissao = null;
-        var mDatas = t.match(/(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})\s+\d{1,2}:\d{2}\s+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/);
-        if (mDatas) dataEmissao = converterData(mDatas[2]);
+        var idxLote = t.search(/Lote\s*:/i);
+        var areaHeader = idxLote > 0 ? t.slice(0, idxLote) : t;
+        var datasHeader = areaHeader.match(/\d{2}[\/\-]\d{2}[\/\-]\d{4}/g);
+        if (datasHeader) dataEmissao = converterData(datasHeader[datasHeader.length - 1]);
 
         // ── Valor total da nota ──
         // Na extração posicional, o rótulo fica numa linha e os valores na linha seguinte;
