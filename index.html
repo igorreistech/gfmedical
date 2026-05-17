@@ -17237,9 +17237,12 @@ window.buildCardHTML = function(proc) {
         // ── Busca :: diretamente no texto (formato GF Medical) ──
         // Campo pode ter valor na mesma linha ou na linha seguinte
         function campo(label) {
-            var re = new RegExp('::\\s*' + label + '\\s*:\\s*([\\s\\S]+?)(?=\\s*\\||\\s*::|INFORMA[CÇ]|$)', 'i');
-            var m = t.match(re);
-            return m ? m[1].replace(/\n/g, ' ').trim() : null;
+            var re1 = new RegExp('::\\s*' + label + '\\s*:\\s*([\\s\\S]+?)(?=\\s*\\||\\s*::|INFORMA[CÇ]|$)', 'i');
+            var m = t.match(re1);
+            if (m && m[1].trim()) return m[1].replace(/\n/g, ' ').trim();
+            var re2 = new RegExp('(?:^|[ \\t])' + label + '[ \\t]*:[ \\t]*([^\\n|]{2,80})', 'im');
+            m = t.match(re2);
+            return m ? m[1].trim() : null;
         }
 
         hospital  = campo('Local');
@@ -17466,8 +17469,7 @@ window.buildCardHTML = function(proc) {
             } else {
                 html += '<span style="color:#f59e0b;">– Produtos: não encontrados</span><br>';
             }
-            var nenhum = Object.keys(labels).every(function(k){ return !dados[k]; }) && produtos.length === 0;
-            if (nenhum) {
+            if (!dados.medico || !dados.convenio || !dados.nf || !dados.valor || produtos.length === 0) {
                 html += '<details style="margin-top:8px;"><summary style="cursor:pointer;color:#8a9e97;font-size:0.74rem;">Ver texto extraído do PDF (debug)</summary>' +
                     '<textarea readonly style="width:100%;height:140px;margin-top:6px;background:#0a0f0d;color:#8a9e97;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:8px;font-family:var(--mono);font-size:0.72rem;resize:vertical;">' +
                     texto.slice(0, 3000).replace(/</g,'&lt;') + '</textarea></details>';
