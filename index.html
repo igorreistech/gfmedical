@@ -5800,14 +5800,7 @@ async function _abrirWhatsApp(texto) {
         .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?(‍[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?)*/gu, '')
         .replace(/[ \t]+/g, ' ')
         .replace(/^ /gm, '');
-    try {
-        await navigator.clipboard.writeText(textoLimpo);
-        window.showSyncToast && window.showSyncToast('✅ Copiado! Cole no WhatsApp (Ctrl+V)');
-    } catch(e) {
-        window.showSyncToast && window.showSyncToast('⚠️ Não foi possível copiar automaticamente');
-    }
-    const isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
-    window.open(isMobile ? 'https://wa.me/' : 'https://web.whatsapp.com', '_blank');
+    window.open('https://wa.me/?text=' + encodeURIComponent(textoLimpo), '_blank');
 }
 
 // ─── EXPORTAR WHATSAPP — cirurgias realizadas ───
