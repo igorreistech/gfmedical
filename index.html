@@ -17256,6 +17256,17 @@ window.buildCardHTML = function(proc) {
             if (dm) data = converterData(dm[0]);
         }
 
+        // ── Número da NF ──
+        var nf = null;
+        var mNf = t.match(/N[°º\s\.]{0,3}(\d[\d.]{2,})/i);
+        if (mNf) nf = mNf[1].replace(/\./g, '');
+
+        // ── Valor total da nota ──
+        var valor = null;
+        var mVal = t.match(/VALOR TOTAL DA NOTA\s+([\d.,]+)/i);
+        if (!mVal) mVal = t.match(/VALOR TOTAL\s+([\d.,]+)/i);
+        if (mVal) valor = parseFloat(mVal[1].replace(/\./g,'').replace(',','.'));
+
         // ── Fallback: regex genéricas (outros layouts de NF) ──
         function primeiro(patterns) {
             for (var i = 0; i < patterns.length; i++) {
@@ -17289,7 +17300,7 @@ window.buildCardHTML = function(proc) {
             /PLANO[:\s]+([A-ZÀ-ÿa-z\s&.']{3,60})(?=\s*(?:\n|CART[AÃ]O|\d))/i,
         ]);
 
-        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio };
+        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio, nf: nf, valor: valor };
     }
 
     // Retorna array de { code, desc, lote, qty }
@@ -17402,6 +17413,14 @@ window.buildCardHTML = function(proc) {
                 }
             }
         }
+        if (dados.nf) {
+            var fnf = document.getElementById('f-nf');
+            if (fnf) fnf.value = dados.nf;
+        }
+        if (dados.valor) {
+            var fval = document.getElementById('f-valor');
+            if (fval) fval.value = dados.valor;
+        }
         // Preencher itens
         if (produtos && produtos.length > 0 && typeof addItemRow === 'function') {
             var container = document.getElementById('itens-list');
@@ -17435,7 +17454,7 @@ window.buildCardHTML = function(proc) {
             var produtos = parsearProdutos(texto);
             preencherFormularioPdf(dados, produtos);
 
-            var labels = { paciente: 'Paciente', hospital: 'Hospital', data: 'Data Cirurgia', medico: 'Médico', convenio: 'Convênio' };
+            var labels = { paciente: 'Paciente', hospital: 'Hospital', data: 'Data Cirurgia', medico: 'Médico', convenio: 'Convênio', nf: 'Nº NF', valor: 'Valor Total' };
             var html = '';
             Object.keys(labels).forEach(function (k) {
                 var v = dados[k];
@@ -17456,7 +17475,7 @@ window.buildCardHTML = function(proc) {
             result.innerHTML = html;
             result.style.display = 'block';
             var nok = Object.keys(labels).filter(function (k) { return !dados[k]; }).length;
-            status.textContent = (5 - nok) + '/5 campos + ' + produtos.length + ' produto(s)';
+            status.textContent = (7 - nok) + '/7 campos + ' + produtos.length + ' produto(s)';
         } catch (err) {
             status.textContent = '⚠ Erro ao ler PDF. Verifique se o arquivo não está protegido.';
             console.error('PDF NF import:', err);
