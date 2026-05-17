@@ -1,8 +1,11 @@
+<!-- v1.0.0 -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2a9fbf">
+    <link rel="manifest" href="manifest.json">
     <title>Monitor Cirúrgico · Campo Grande - MS</title>
     <!-- Firebase SDK -->
     <script type="module">
@@ -166,7 +169,7 @@
                   try {
                     const { setDoc: sd, doc: docFn } = window._fbModules;
                     if (p._docId) sd(docFn(db, COLL, p._docId), { ...p });
-                  } catch(e2) { /* silencioso */ }
+                  } catch(e2) { console.warn('Auto-status:', e2); }
                 }
                 // Em Separação + hoje + não confirmado ainda nesta sessão → pede confirmação
                 else if (p.status === 'preparacao' && p.data && p.data === hoje
@@ -17161,5 +17164,8 @@ window.buildCardHTML = function(proc) {
 </script>
 
 <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:1.2rem;color:#8a9e97;z-index:9999;letter-spacing:0.05em;"><span style="color:#f5a623;">⚙ Projeto em andamento</span><span>·</span><span>Desenvolvido por <a href="https://devigorreis.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a></span></div>
+<script>
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+</script>
 </body>
 </html>
