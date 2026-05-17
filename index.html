@@ -17470,9 +17470,9 @@ window.buildCardHTML = function(proc) {
                 html += '<span style="color:#f59e0b;">– Produtos: não encontrados</span><br>';
             }
             if (!dados.medico || !dados.convenio || !dados.nf || !dados.valor || produtos.length === 0) {
-                html += '<details style="margin-top:8px;"><summary style="cursor:pointer;color:#8a9e97;font-size:0.74rem;">Ver texto extraído do PDF (debug)</summary>' +
-                    '<textarea readonly style="width:100%;height:140px;margin-top:6px;background:#0a0f0d;color:#8a9e97;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:8px;font-family:var(--mono);font-size:0.72rem;resize:vertical;">' +
-                    texto.slice(0, 3000).replace(/</g,'&lt;') + '</textarea></details>';
+                html += '<p style="margin:8px 0 2px;color:#8a9e97;font-size:0.74rem;">Texto extraído do PDF (debug):</p>' +
+                    '<textarea readonly style="width:100%;height:160px;background:#0a0f0d;color:#8a9e97;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:8px;font-family:monospace;font-size:0.72rem;resize:vertical;display:block;">' +
+                    texto.slice(0, 4000).replace(/</g,'&lt;') + '</textarea>';
             }
             result.innerHTML = html;
             result.style.display = 'block';
