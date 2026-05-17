@@ -5294,7 +5294,7 @@ function playUrgenciaBeep() {
 function startUrgenciaSound() {
     if (urgenciaSoundInterval) return;
     playUrgenciaBeep();
-    urgenciaSoundInterval = setInterval(playUrgenciaBeep, 300000);
+    urgenciaSoundInterval = setInterval(playUrgenciaBeep, 600000);
 }
 function stopUrgenciaSound() {
     if (urgenciaSoundInterval) { clearInterval(urgenciaSoundInterval); urgenciaSoundInterval = null; }
@@ -5324,7 +5324,7 @@ function playRetirarBeep() {
 function startRetirarSound() {
     if (retirarSoundInterval) return;
     playRetirarBeep();
-    retirarSoundInterval = setInterval(playRetirarBeep, 300000);
+    retirarSoundInterval = setInterval(playRetirarBeep, 600000);
 }
 function stopRetirarSound() {
     if (retirarSoundInterval) { clearInterval(retirarSoundInterval); retirarSoundInterval = null; }
@@ -5355,7 +5355,7 @@ function playAndamentoBeep() {
 function startAndamentoSound() {
     if (andamentoSoundInterval) return;
     playAndamentoBeep();
-    andamentoSoundInterval = setInterval(playAndamentoBeep, 300000);
+    andamentoSoundInterval = setInterval(playAndamentoBeep, 600000);
 }
 function stopAndamentoSound() {
     if (andamentoSoundInterval) { clearInterval(andamentoSoundInterval); andamentoSoundInterval = null; }
@@ -5378,7 +5378,7 @@ function playAutorizadoBeep() {
         beep(700, 0, 0.3);
     } catch(e) {}
 }
-function startAutorizadoSound() { if (autorizadoSoundInterval) return; playAutorizadoBeep(); autorizadoSoundInterval = setInterval(playAutorizadoBeep, 300000); }
+function startAutorizadoSound() { if (autorizadoSoundInterval) return; playAutorizadoBeep(); autorizadoSoundInterval = setInterval(playAutorizadoBeep, 600000); }
 function stopAutorizadoSound() { if (autorizadoSoundInterval) { clearInterval(autorizadoSoundInterval); autorizadoSoundInterval = null; } }
 
 // ─── AVISO SONORO PREPARAÇÃO ───
@@ -5398,7 +5398,7 @@ function playPreparacaoBeep() {
         beep(580, 0, 0.2); beep(720, 0.3, 0.2);
     } catch(e) {}
 }
-function startPreparacaoSound() { if (preparacaoSoundInterval) return; playPreparacaoBeep(); preparacaoSoundInterval = setInterval(playPreparacaoBeep, 300000); }
+function startPreparacaoSound() { if (preparacaoSoundInterval) return; playPreparacaoBeep(); preparacaoSoundInterval = setInterval(playPreparacaoBeep, 600000); }
 function stopPreparacaoSound() { if (preparacaoSoundInterval) { clearInterval(preparacaoSoundInterval); preparacaoSoundInterval = null; } }
 
 // ─── AVISO SONORO AGENDADO ───
@@ -5420,7 +5420,7 @@ function playAgendadoBeep() {
         beep(1047, 0.55, 0.07); beep(1047, 0.65, 0.07); beep(1047, 0.75, 0.07); beep(1047, 0.85, 0.12, 0.28);
     } catch(e) {}
 }
-function startAgendadoSound() { if (agendadoSoundInterval) return; playAgendadoBeep(); agendadoSoundInterval = setInterval(playAgendadoBeep, 300000); }
+function startAgendadoSound() { if (agendadoSoundInterval) return; playAgendadoBeep(); agendadoSoundInterval = setInterval(playAgendadoBeep, 600000); }
 function stopAgendadoSound() { if (agendadoSoundInterval) { clearInterval(agendadoSoundInterval); agendadoSoundInterval = null; } }
 
 // ─── AVISO SONORO REAGENDADO ───
@@ -5440,7 +5440,7 @@ function playReagendadoBeep() {
         beep(700, 0, 0.15); beep(500, 0.25, 0.15); beep(700, 0.5, 0.15); beep(500, 0.75, 0.15);
     } catch(e) {}
 }
-function startReagendadoSound() { if (reagendadoSoundInterval) return; playReagendadoBeep(); reagendadoSoundInterval = setInterval(playReagendadoBeep, 300000); }
+function startReagendadoSound() { if (reagendadoSoundInterval) return; playReagendadoBeep(); reagendadoSoundInterval = setInterval(playReagendadoBeep, 600000); }
 function stopReagendadoSound() { if (reagendadoSoundInterval) { clearInterval(reagendadoSoundInterval); reagendadoSoundInterval = null; } }
 
 // ─── AVISO SONORO CIRURGIA AMANHÃ ───
@@ -5461,7 +5461,7 @@ function playCirurgiaAmanhaBeep() {
         beep(523, 0, 0.18); beep(659, 0.25, 0.18); beep(784, 0.50, 0.30);
     } catch(e) {}
 }
-function startCirurgiaAmanhaSound() { if (cirurgiaAmanhaSound) return; playCirurgiaAmanhaBeep(); cirurgiaAmanhaSound = setInterval(playCirurgiaAmanhaBeep, 300000); }
+function startCirurgiaAmanhaSound() { if (cirurgiaAmanhaSound) return; playCirurgiaAmanhaBeep(); cirurgiaAmanhaSound = setInterval(playCirurgiaAmanhaBeep, 600000); }
 function stopCirurgiaAmanhaSound() { if (cirurgiaAmanhaSound) { clearInterval(cirurgiaAmanhaSound); cirurgiaAmanhaSound = null; } }
 
 // ─── AVISO SONORO RETIRAR VOLUMES URGENTES ───
@@ -5483,7 +5483,7 @@ function playColetaUrgenteBeep() {
         beep(1047, 0.75, 0.10); beep(1047, 0.90, 0.15, 0.28);
     } catch(e) {}
 }
-function startColetaUrgenteSound() { if (coletaUrgenteSoundInterval) return; playColetaUrgenteBeep(); coletaUrgenteSoundInterval = setInterval(playColetaUrgenteBeep, 300000); }
+function startColetaUrgenteSound() { if (coletaUrgenteSoundInterval) return; playColetaUrgenteBeep(); coletaUrgenteSoundInterval = setInterval(playColetaUrgenteBeep, 600000); }
 function stopColetaUrgenteSound() { if (coletaUrgenteSoundInterval) { clearInterval(coletaUrgenteSoundInterval); coletaUrgenteSoundInterval = null; } }
 
 // ─── AVISO SONORO DATA DE RETIRADA ───
@@ -5505,7 +5505,7 @@ function playDataRetiradaBeep() {
         beep(494, 0.44, 0.25);
     } catch(e) {}
 }
-function startDataRetiradaSound() { if (dataRetiradaSoundInterval) return; playDataRetiradaBeep(); dataRetiradaSoundInterval = setInterval(playDataRetiradaBeep, 300000); }
+function startDataRetiradaSound() { if (dataRetiradaSoundInterval) return; playDataRetiradaBeep(); dataRetiradaSoundInterval = setInterval(playDataRetiradaBeep, 600000); }
 function stopDataRetiradaSound() { if (dataRetiradaSoundInterval) { clearInterval(dataRetiradaSoundInterval); dataRetiradaSoundInterval = null; } }
 let currentFilter = 'all';
 let mostrarOcultos = false;
@@ -5770,7 +5770,7 @@ function _iniciarSomGeral(procs) {
     if (temQualquer && !_somGeralAtivo) {
         _somGeralAtivo = true;
         _tocarSomGeral(procs);
-        _somGeralInterval = setInterval(function() { _tocarSomGeral(procedimentos); }, 300000);
+        _somGeralInterval = setInterval(function() { _tocarSomGeral(procedimentos); }, 600000);
     } else if (!temQualquer && _somGeralAtivo) {
         _somGeralAtivo = false;
         if (_somGeralInterval) { clearInterval(_somGeralInterval); _somGeralInterval = null; }
