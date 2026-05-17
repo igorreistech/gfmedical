@@ -17226,30 +17226,37 @@ window.buildCardHTML = function(proc) {
     }
 
     function parsearTextoNF(raw) {
-        var t = raw.replace(/\r/g, '\n').replace(/[ \t]+/g, ' ');
+        // Normaliza mantendo quebras de linha reais
+        var t = raw.replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ');
+
+        // Debug: loga no console o texto extraído
+        console.log('[PDF NF] Texto completo extraído:\n' + t);
+
         var paciente = null, hospital = null, data = null, medico = null, convenio = null;
 
-        // ── Formato GF Medical: campos :: nas informações complementares ──
-        var secIC = t.match(/INFORMA[CÇ][OÕ]ES\s+COMPLEMENTARES[:\s]*([\s\S]*?)(?:INFORMA[CÇ][OÕ]ES\s+ADICIONAIS|RESERVADO|$)/i);
-        if (secIC) {
-            var ic = secIC[1];
-            var mLocal = ic.match(/::?\s*Local[:\s]+([^|]+)/i);
-            if (mLocal) hospital = mLocal[1].trim();
-
-            var mData = ic.match(/::?\s*Data\s*Cirurgia[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i);
-            if (mData) data = converterData(mData[1]);
-
-            var mConv = ic.match(/::?\s*Conv[eê]nio[:\s]+([^|]+)/i);
-            if (mConv) convenio = mConv[1].trim().replace(/\s*[\-–]\s*CONVENIO\s*$/i, '').trim();
-
-            var mMed = ic.match(/::?\s*M[eé]dico[:\s]+([^|]+)/i);
-            if (mMed) medico = mMed[1].replace(/\s*CRM[:\s].*$/i, '').trim();
-
-            var mPac = ic.match(/::?\s*Paciente[:\s]+([^|]+)/i);
-            if (mPac) paciente = mPac[1].trim();
+        // ── Busca :: diretamente no texto (formato GF Medical) ──
+        // Campo pode ter valor na mesma linha ou na linha seguinte
+        function campo(label) {
+            var re = new RegExp('::\\s*' + label + '\\s*:\\s*([\\s\\S]+?)(?=\\s*\\||\\s*::|INFORMA[CÇ]|$)', 'i');
+            var m = t.match(re);
+            return m ? m[1].replace(/\n/g, ' ').trim() : null;
         }
 
-        // ── Fallback: regex genéricas ──
+        hospital  = campo('Local');
+        convenio  = campo('Conv[eê]nio');
+        var medRaw = campo('M[eé]dico');
+        var pacRaw = campo('Paciente');
+        var datRaw = campo('Data[ _]?[Cc]irurgia');
+
+        if (convenio) convenio = convenio.replace(/\s*[-–]\s*CONVENIO\s*$/i, '').trim();
+        if (medRaw)   medico   = medRaw.replace(/\s*CRM[:\s].*/i, '').trim();
+        if (pacRaw)   paciente = pacRaw.trim();
+        if (datRaw) {
+            var dm = datRaw.match(/\d{2}[\/\-]\d{2}[\/\-]\d{2,4}/);
+            if (dm) data = converterData(dm[0]);
+        }
+
+        // ── Fallback: regex genéricas (outros layouts de NF) ──
         function primeiro(patterns) {
             for (var i = 0; i < patterns.length; i++) {
                 var m = t.match(patterns[i]);
@@ -17259,12 +17266,12 @@ window.buildCardHTML = function(proc) {
         }
 
         if (!paciente) paciente = primeiro([
-            /PACIENTE[:\s]+([A-ZÀ-ÿ\s]{4,60})(?=\s*(?:IDADE|SEXO|CPF|DATA|RG|\d{2}[\/\-]|\n\n))/i,
-            /BENEFICI[AÁ]RIO[:\s]+([A-ZÀ-ÿ\s]{4,60})(?=\s*(?:CPF|RG|DATA|\n\n))/i,
+            /PACIENTE[:\s]+([A-ZÀ-ÿa-z\s]{4,60})(?=\s*(?:IDADE|SEXO|CPF|DATA|RG|\d{2}[\/\-]|\n\n))/i,
+            /BENEFICI[AÁ]RIO[:\s]+([A-ZÀ-ÿa-z\s]{4,60})(?=\s*(?:CPF|RG|DATA|\n\n))/i,
         ]);
         if (!hospital) hospital = primeiro([
-            /TOMADOR[:\s]+([A-ZÀ-ÿ\s&.,'\-]{3,80})(?=\s*(?:CNPJ|CPF|END|RUA|AV\.))/i,
-            /DESTINAT[AÁ]RIO[:\s]+([A-ZÀ-ÿ\s&.,'\-]{3,80})(?=\s*(?:CNPJ|CPF|END))/i,
+            /TOMADOR[:\s]+([A-ZÀ-ÿa-z\s&.,'\-]{3,80})(?=\s*(?:CNPJ|CPF|END|RUA|AV\.))/i,
+            /DESTINAT[AÁ]RIO[:\s]+([A-ZÀ-ÿa-z\s&.,'\-]{3,80})(?=\s*(?:CNPJ|CPF|END))/i,
         ]);
         if (!data) {
             var rawData = primeiro([
@@ -17274,8 +17281,8 @@ window.buildCardHTML = function(proc) {
             if (rawData) data = converterData(rawData);
         }
         if (!medico) medico = primeiro([
-            /M[EÉ]DICO[:\s]+(?:DR\.?\s*|DRA\.?\s*)?([A-ZÀ-ÿ\s]{4,60})(?=\s*(?:CRM|CPF|\n))/i,
-            /(?:DR\.|DRA\.)\s+([A-ZÀ-ÿ\s]{5,60})(?=\s*(?:CRM|CPF|\n))/i,
+            /M[EÉ]DICO[:\s]+(?:DR\.?\s*|DRA\.?\s*)?([A-ZÀ-ÿa-z\s]{4,60})(?=\s*(?:CRM|CPF|\n))/i,
+            /(?:DR\.|DRA\.)\s+([A-ZÀ-ÿa-z\s]{5,60})(?=\s*(?:CRM|CPF|\n))/i,
         ]);
         if (!convenio) convenio = primeiro([
             /CONV[EÊ]NIO[:\s]+([A-ZÀ-ÿa-z\s&.']{3,60})(?=\s*(?:\n|CART[AÃ]O|MAT|\d))/i,
@@ -17439,6 +17446,12 @@ window.buildCardHTML = function(proc) {
                 html += '<span style="color:#4ade80;">✔ Produtos: <b>' + produtos.length + ' item(ns) importado(s)</b></span><br>';
             } else {
                 html += '<span style="color:#f59e0b;">– Produtos: não encontrados</span><br>';
+            }
+            var nenhum = Object.keys(labels).every(function(k){ return !dados[k]; }) && produtos.length === 0;
+            if (nenhum) {
+                html += '<details style="margin-top:8px;"><summary style="cursor:pointer;color:#8a9e97;font-size:0.74rem;">Ver texto extraído do PDF (debug)</summary>' +
+                    '<textarea readonly style="width:100%;height:140px;margin-top:6px;background:#0a0f0d;color:#8a9e97;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:8px;font-family:var(--mono);font-size:0.72rem;resize:vertical;">' +
+                    texto.slice(0, 3000).replace(/</g,'&lt;') + '</textarea></details>';
             }
             result.innerHTML = html;
             result.style.display = 'block';
