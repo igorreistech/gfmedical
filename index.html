@@ -17264,6 +17264,11 @@ window.buildCardHTML = function(proc) {
         var mNf = t.match(/N[°º\s\.]{0,3}(\d[\d.]{2,})/i);
         if (mNf) nf = mNf[1].replace(/\./g, '');
 
+        // ── Data de emissão da NF ──
+        var dataEmissao = null;
+        var mEmissao = t.match(/EMISS.O[^\d]*(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i);
+        if (mEmissao) dataEmissao = converterData(mEmissao[1]);
+
         // ── Valor total da nota ──
         // Na extração posicional, o rótulo fica numa linha e os valores na linha seguinte;
         // o total é o ÚLTIMO número da linha de valores (coluna mais à direita).
@@ -17312,7 +17317,7 @@ window.buildCardHTML = function(proc) {
             /PLANO[:\s]+([A-ZÀ-ÿa-z\s&.']{3,60})(?=\s*(?:\n|CART[AÃ]O|\d))/i,
         ]);
 
-        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio, nf: nf, valor: valor };
+        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio, nf: nf, valor: valor, dataEmissao: dataEmissao };
     }
 
     // Retorna array de { code, desc, lote, qty }
@@ -17350,16 +17355,17 @@ window.buildCardHTML = function(proc) {
                 lotes.push({ lote: ml[1], qty: ml[2] ? parseInt(ml[2]) : null });
             }
 
-            // Descrição: texto antes do primeiro "Lote:" nesta seção
+            // Descrição: último grupo de texto em MAIÚSCULAS antes do primeiro "Lote:"
             var parteAntesLote = antes.split(/Lote:/i)[0];
-            // Remover marcadores de produto anterior
-            parteAntesLote = parteAntesLote.replace(/Registro com Validade Indeterminada/gi, '')
-                                            .replace(/Dt\. Validade:[^\n]*/gi, '')
-                                            .replace(/MS:\s*\d+/gi, '')
-                                            .replace(/[-–]\s*$/, '');
-            var linhas = parteAntesLote.split(/\n+|\s{4,}/).map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 3; });
-            var desc = linhas.pop() || '';
-            desc = desc.replace(/\s+/g, ' ').trim();
+            parteAntesLote = parteAntesLote
+                .replace(/Registro com Validade Indeterminada/gi, ' ')
+                .replace(/Dt\. Validade:[^\n]*/gi, ' ')
+                .replace(/Dt\. Fab\.[^\n]*/gi, ' ')
+                .replace(/MS:\s*\d[\d.]*/gi, ' ')
+                .replace(/[-–]\s*$/, '')
+                .trim();
+            var capsMatches = parteAntesLote.match(/[A-Z]{2}[A-Z0-9\s\.\-\/\(\)]{3,}/g);
+            var desc = capsMatches ? capsMatches[capsMatches.length - 1].replace(/\s+/g, ' ').trim() : '';
 
             if (!desc || lotes.length === 0) continue;
 
@@ -17432,6 +17438,10 @@ window.buildCardHTML = function(proc) {
             var fnf = document.getElementById('f-nf');
             if (fnf) fnf.value = dados.nf;
         }
+        if (dados.dataEmissao) {
+            var fde = document.getElementById('f-nf-data');
+            if (fde) fde.value = dados.dataEmissao;
+        }
         if (dados.valor) {
             var fval = document.getElementById('f-valor');
             if (fval) fval.value = dados.valor;
@@ -17494,7 +17504,7 @@ window.buildCardHTML = function(proc) {
             var produtos = parsearProdutos(texto);
             preencherFormularioPdf(dados, produtos);
 
-            var labels = { paciente: 'Paciente', hospital: 'Hospital', data: 'Data Cirurgia', medico: 'Médico', convenio: 'Convênio', nf: 'Nº NF', valor: 'Valor Total' };
+            var labels = { paciente: 'Paciente', hospital: 'Hospital', data: 'Data Cirurgia', medico: 'Médico', convenio: 'Convênio', nf: 'Nº NF', dataEmissao: 'Emissão NF', valor: 'Valor Total' };
             var html = '';
             Object.keys(labels).forEach(function (k) {
                 var v = dados[k];
@@ -17518,7 +17528,7 @@ window.buildCardHTML = function(proc) {
             result.innerHTML = html;
             result.style.display = 'block';
             var nok = Object.keys(labels).filter(function (k) { return !dados[k]; }).length;
-            status.textContent = (7 - nok) + '/7 campos + ' + produtos.length + ' produto(s)';
+            status.textContent = (8 - nok) + '/8 campos + ' + produtos.length + ' produto(s)';
         } catch (err) {
             status.textContent = '⚠ Erro ao ler PDF. Verifique se o arquivo não está protegido.';
             console.error('PDF NF import:', err);
