@@ -17265,10 +17265,19 @@ window.buildCardHTML = function(proc) {
         if (mNf) nf = mNf[1].replace(/\./g, '');
 
         // ── Valor total da nota ──
+        // Na extração posicional, o rótulo fica numa linha e os valores na linha seguinte;
+        // o total é o ÚLTIMO número da linha de valores (coluna mais à direita).
         var valor = null;
-        var mVal = t.match(/VALOR TOTAL DA NOTA\s+([\d.,]+)/i);
-        if (!mVal) mVal = t.match(/VALOR TOTAL\s+([\d.,]+)/i);
-        if (mVal) valor = parseFloat(mVal[1].replace(/\./g,'').replace(',','.'));
+        var mValLine = t.match(/VALOR TOTAL DA NOTA[^\n]*\n([^\n]+)/i);
+        if (mValLine) {
+            var nums = mValLine[1].match(/[\d]+(?:\.[\d.]*)?(?:,\d{2})/g);
+            if (nums) valor = parseFloat(nums[nums.length - 1].replace(/\./g,'').replace(',','.'));
+        }
+        if (!valor) {
+            var mVal = t.match(/VALOR TOTAL DA NOTA\s+([\d.,]+)/i);
+            if (!mVal) mVal = t.match(/VALOR TOTAL\s+([\d.,]+)/i);
+            if (mVal) valor = parseFloat(mVal[1].replace(/\./g,'').replace(',','.'));
+        }
 
         // ── Fallback: regex genéricas (outros layouts de NF) ──
         function primeiro(patterns) {
