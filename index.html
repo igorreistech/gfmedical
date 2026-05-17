@@ -3985,6 +3985,15 @@
         </div>
         <form id="procForm" onsubmit="saveProcedure(event)" novalidate>
             <input type="hidden" id="editIndex">
+            <!-- ── Importar PDF NF ── -->
+            <div id="pdf-import-box" style="margin:0 0 14px;padding:12px 16px;background:rgba(0,212,255,0.05);border:1px dashed rgba(0,212,255,0.3);border-radius:10px;">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <label for="pdf-nf-input" style="display:inline-flex;align-items:center;gap:6px;background:rgba(0,212,255,0.10);border:1px solid rgba(0,212,255,0.4);color:var(--accent);padding:7px 14px;border-radius:7px;font-family:var(--mono);font-size:0.78rem;font-weight:700;letter-spacing:0.08em;cursor:pointer;text-transform:uppercase;transition:background 0.2s;" onmouseover="this.style.background='rgba(0,212,255,0.18)'" onmouseout="this.style.background='rgba(0,212,255,0.10)'">📄 Importar PDF da NF</label>
+                    <input type="file" id="pdf-nf-input" accept="application/pdf" style="display:none;" onchange="importarPdfNF(this)">
+                    <span id="pdf-import-status" style="font-size:0.78rem;color:#8a9e97;font-family:var(--mono);"></span>
+                </div>
+                <div id="pdf-import-result" style="display:none;margin-top:10px;font-family:var(--mono);font-size:0.76rem;line-height:1.9;"></div>
+            </div>
             <div class="form-grid">
                 <div class="form-group full">
                     <label class="form-label">Hospital *</label>
@@ -6158,16 +6167,20 @@ function buildCardHTML(proc) {
                     <div class="items-block-title">📋 Itens da Autorização / Solicitação</div>
                     <ul class="items-list">
                         ${linhas.map(l => {
-                            const qtyMatch = l.match(/\[QTY:(\d+)\]$/);
+                            const qtyMatch  = l.match(/\[QTY:(\d+)\]$/);
                             const codeMatch = l.match(/^\[COD:([^\]]+)\]\s*/);
-                            const qty = qtyMatch ? qtyMatch[1] : '1';
+                            const loteMatch = l.match(/\[LOTE:([^\]]+)\]/);
+                            const qty  = qtyMatch  ? qtyMatch[1]  : '1';
                             const code = codeMatch ? codeMatch[1].trim() : '';
+                            const lote = loteMatch ? loteMatch[1].trim() : '';
                             let name = l;
                             if (codeMatch) name = name.replace(/^\[COD:[^\]]+\]\s*/, '');
+                            if (loteMatch) name = name.replace(/\[LOTE:[^\]]+\]/, '');
                             name = name.replace(/\[QTY:\d+\]$/, '').trim();
                             if (!name && !code) return '';
-                            const codeBadge = code ? `<span style="background:rgba(0,0,0,0.08);color:#111111;border:1px solid rgba(0,0,0,0.18);border-radius:3px;padding:1px 5px;font-family:var(--mono);font-size:0.82rem;font-weight:700;margin-right:5px;">${code}</span>` : '';
-                            return `<li><span class="item-qty-badge">×${qty}</span>${codeBadge}${name}</li>`;
+                            const codeBadge  = code ? `<span style="background:rgba(0,0,0,0.08);color:#111111;border:1px solid rgba(0,0,0,0.18);border-radius:3px;padding:1px 5px;font-family:var(--mono);font-size:0.82rem;font-weight:700;margin-right:5px;">${code}</span>` : '';
+                            const loteBadge  = lote ? `<span style="color:var(--green);font-family:var(--mono);font-size:0.76rem;margin-left:4px;opacity:0.85;">Lote:${lote}</span>` : '';
+                            return `<li><span class="item-qty-badge">×${qty}</span>${codeBadge}${name}${loteBadge}</li>`;
                         }).join('')}
                     </ul>
                 </div>`;
@@ -8344,14 +8357,15 @@ async function importBackupJSON(event) {
 
 
 // ─── ITEMS BUILDER ───
-function addItemRow(code = '', name = '', qty = 1) {
+function addItemRow(code = '', name = '', qty = 1, lote = '') {
     const container = document.getElementById('itens-list');
     const row = document.createElement('div');
     row.className = 'item-row';
-    row.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:nowrap;';
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;';
     row.innerHTML = `
         <input class="item-code" type="text" placeholder="Cód. Fábrica" value="${code}" list="produtos-codigos-datalist" autocomplete="off" style="width:130px;flex-shrink:0;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px 10px;color:var(--accent2);font-family:var(--mono);font-size:0.78rem;font-weight:700;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" oninput="autoFillName(this)">
-        <input class="item-name" type="text" placeholder="Descrição do produto" value="${name}" list="produtos-datalist" autocomplete="off" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-family:var(--sans);font-size:0.82rem;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+        <input class="item-name" type="text" placeholder="Descrição do produto" value="${name}" list="produtos-datalist" autocomplete="off" style="flex:1;min-width:160px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-family:var(--sans);font-size:0.82rem;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+        <input class="item-lote" type="text" placeholder="Lote" value="${lote}" autocomplete="off" style="width:150px;flex-shrink:0;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px 10px;color:var(--green);font-family:var(--mono);font-size:0.78rem;font-weight:600;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='var(--green)'" onblur="this.style.borderColor='var(--border)'" title="Lote(s) do produto">
         <input class="item-qty" type="number" min="1" max="999" value="${qty}" title="Quantidade" style="width:70px;flex-shrink:0;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px 8px;color:var(--accent);font-family:var(--mono);font-size:0.85rem;font-weight:700;outline:none;text-align:center;transition:border-color 0.2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
         <button type="button" class="item-remove" onclick="this.parentElement.remove()" title="Remover" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border)'">✕</button>
     `;
@@ -8414,10 +8428,13 @@ function serializeItens() {
             const codeEl = r.querySelector('.item-code');
             const code = codeEl ? codeEl.value.trim() : '';
             const name = r.querySelector('.item-name').value.trim();
+            const loteEl = r.querySelector('.item-lote');
+            const lote = loteEl ? loteEl.value.trim() : '';
             const qty = parseInt(r.querySelector('.item-qty').value) || 1;
             if (!name && !code) return null;
             const prefix = code ? `[COD:${code}] ` : '';
-            return `${prefix}${name} [QTY:${qty}]`;
+            const loteSuffix = lote ? ` [LOTE:${lote}]` : '';
+            return `${prefix}${name}${loteSuffix} [QTY:${qty}]`;
         })
         .filter(Boolean)
         .join('\n');
@@ -8429,22 +8446,24 @@ function loadItensBuilder(itensStr) {
     if (!itensStr || !itensStr.trim()) return;
     const linhas = itensStr.split('\n').map(l => l.trim()).filter(l => l);
     linhas.forEach(l => {
-        const qtyMatch = l.match(/\[QTY:(\d+)\]$/);
+        const qtyMatch  = l.match(/\[QTY:(\d+)\]$/);
         const codeMatch = l.match(/^\[COD:([^\]]+)\]\s*/);
-        const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
-        const code = codeMatch ? codeMatch[1].trim() : '';
+        const loteMatch = l.match(/\[LOTE:([^\]]+)\]/);
+        const qty  = qtyMatch  ? parseInt(qtyMatch[1])  : 1;
+        const code = codeMatch ? codeMatch[1].trim()    : '';
+        const lote = loteMatch ? loteMatch[1].trim()    : '';
         let nameStr = l;
         if (codeMatch) nameStr = nameStr.replace(/^\[COD:[^\]]+\]\s*/, '');
-        if (qtyMatch) nameStr = nameStr.replace(/\[QTY:\d+\]$/, '').trim();
+        if (loteMatch) nameStr = nameStr.replace(/\[LOTE:[^\]]+\]/, '');
+        if (qtyMatch)  nameStr = nameStr.replace(/\[QTY:\d+\]$/, '').trim();
         if (nameStr || code) {
-            addItemRow(code, nameStr.trim(), qty);
+            addItemRow(code, nameStr.trim(), qty, lote);
         } else {
-            // Legacy: "Nome × 2" or plain text
             const legacyMatch = l.match(/^(.+?)\s*[×x]\s*(\d+)$/i);
             if (legacyMatch) {
-                addItemRow('', legacyMatch[1].trim(), parseInt(legacyMatch[2]));
+                addItemRow('', legacyMatch[1].trim(), parseInt(legacyMatch[2]), '');
             } else {
-                addItemRow('', l, 1);
+                addItemRow('', l, 1, '');
             }
         }
     });
@@ -17174,6 +17193,259 @@ window.buildCardHTML = function(proc) {
 <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:1.2rem;color:#8a9e97;z-index:9999;letter-spacing:0.05em;"><span style="color:#f5a623;">⚙ Projeto em andamento</span><span>·</span><span>Desenvolvido por <a href="https://devigorreis.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a></span></div>
 <script>
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+<!-- ── PDF NF Import ── -->
+<script>
+(function () {
+    var PDF_JS_SRC    = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    var PDF_JS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    function carregarPdfJs() {
+        if (window.pdfjsLib) return Promise.resolve();
+        return new Promise(function (ok, fail) {
+            var s = document.createElement('script');
+            s.src = PDF_JS_SRC;
+            s.onload = function () { pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_JS_WORKER; ok(); };
+            s.onerror = fail;
+            document.head.appendChild(s);
+        });
+    }
+
+    // Converte dd/mm/yy ou dd/mm/yyyy para yyyy-mm-dd
+    function converterData(raw) {
+        if (!raw) return null;
+        var s = raw.replace(/[;,\s]/g, '').replace(/[\/\-]/g, '');
+        if (s.length === 6) return '20' + s.slice(4,6) + '-' + s.slice(2,4) + '-' + s.slice(0,2);
+        if (s.length === 8) return s.slice(4) + '-' + s.slice(2,4) + '-' + s.slice(0,2);
+        return null;
+    }
+
+    function parsearTextoNF(raw) {
+        var t = raw.replace(/\r/g, '\n').replace(/[ \t]+/g, ' ');
+        var paciente = null, hospital = null, data = null, medico = null, convenio = null;
+
+        // ── Formato GF Medical: campos :: nas informações complementares ──
+        var secIC = t.match(/INFORMA[CÇ][OÕ]ES\s+COMPLEMENTARES[:\s]*([\s\S]*?)(?:INFORMA[CÇ][OÕ]ES\s+ADICIONAIS|RESERVADO|$)/i);
+        if (secIC) {
+            var ic = secIC[1];
+            var mLocal = ic.match(/::?\s*Local[:\s]+([^|]+)/i);
+            if (mLocal) hospital = mLocal[1].trim();
+
+            var mData = ic.match(/::?\s*Data\s*Cirurgia[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i);
+            if (mData) data = converterData(mData[1]);
+
+            var mConv = ic.match(/::?\s*Conv[eê]nio[:\s]+([^|]+)/i);
+            if (mConv) convenio = mConv[1].trim().replace(/\s*[\-–]\s*CONVENIO\s*$/i, '').trim();
+
+            var mMed = ic.match(/::?\s*M[eé]dico[:\s]+([^|]+)/i);
+            if (mMed) medico = mMed[1].replace(/\s*CRM[:\s].*$/i, '').trim();
+
+            var mPac = ic.match(/::?\s*Paciente[:\s]+([^|]+)/i);
+            if (mPac) paciente = mPac[1].trim();
+        }
+
+        // ── Fallback: regex genéricas ──
+        function primeiro(patterns) {
+            for (var i = 0; i < patterns.length; i++) {
+                var m = t.match(patterns[i]);
+                if (m && m[1] && m[1].trim().length > 1) return m[1].trim();
+            }
+            return null;
+        }
+
+        if (!paciente) paciente = primeiro([
+            /PACIENTE[:\s]+([A-ZÀ-ÿ\s]{4,60})(?=\s*(?:IDADE|SEXO|CPF|DATA|RG|\d{2}[\/\-]|\n\n))/i,
+            /BENEFICI[AÁ]RIO[:\s]+([A-ZÀ-ÿ\s]{4,60})(?=\s*(?:CPF|RG|DATA|\n\n))/i,
+        ]);
+        if (!hospital) hospital = primeiro([
+            /TOMADOR[:\s]+([A-ZÀ-ÿ\s&.,'\-]{3,80})(?=\s*(?:CNPJ|CPF|END|RUA|AV\.))/i,
+            /DESTINAT[AÁ]RIO[:\s]+([A-ZÀ-ÿ\s&.,'\-]{3,80})(?=\s*(?:CNPJ|CPF|END))/i,
+        ]);
+        if (!data) {
+            var rawData = primeiro([
+                /DATA\s*DA\s*CIRURGIA[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
+                /DATA[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
+            ]);
+            if (rawData) data = converterData(rawData);
+        }
+        if (!medico) medico = primeiro([
+            /M[EÉ]DICO[:\s]+(?:DR\.?\s*|DRA\.?\s*)?([A-ZÀ-ÿ\s]{4,60})(?=\s*(?:CRM|CPF|\n))/i,
+            /(?:DR\.|DRA\.)\s+([A-ZÀ-ÿ\s]{5,60})(?=\s*(?:CRM|CPF|\n))/i,
+        ]);
+        if (!convenio) convenio = primeiro([
+            /CONV[EÊ]NIO[:\s]+([A-ZÀ-ÿa-z\s&.']{3,60})(?=\s*(?:\n|CART[AÃ]O|MAT|\d))/i,
+            /PLANO[:\s]+([A-ZÀ-ÿa-z\s&.']{3,60})(?=\s*(?:\n|CART[AÃ]O|\d))/i,
+        ]);
+
+        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio };
+    }
+
+    // Retorna array de { code, desc, lote, qty }
+    function parsearProdutos(raw) {
+        var t = raw.replace(/\r/g, '\n').replace(/[ \t]+/g, ' ');
+        var produtos = [];
+
+        // Extrair quantidades dos rows NCM (NCM CST CFOP UNID QTDE ...)
+        // Padrão: \d{4}.\d{2}.\d{2} \d{3} \d.\d{3} PC 2,00 ...
+        var qtdes = [];
+        var reQtd = /\d{4}\.\d{2}\.\d{2}\s+\d{3,4}\s+\d+\.\d{3}\s+\w{2,3}\s+(\d+(?:,\d+)?)/g;
+        var mq;
+        while ((mq = reQtd.exec(t)) !== null) {
+            qtdes.push(Math.round(parseFloat(mq[1].replace(',', '.'))));
+        }
+
+        // Extrair produtos a partir de cada ocorrência de "Cód.Alt.:"
+        // Antes de cada Cód.Alt.: temos a descrição e os lotes do produto
+        var partes = t.split(/C[oó]d\.Alt\./i);
+        var idx = 0;
+        for (var i = 0; i < partes.length - 1; i++) {
+            var antes = partes[i];
+            var depois = partes[i + 1];
+
+            // Código: primeiro token após "Cód.Alt.:"
+            var mCod = depois.match(/^[:\s]*([\w.\-\/]+)/);
+            if (!mCod) continue;
+            var code = mCod[1].trim();
+
+            // Lotes: todos os "Lote: XXXX" na seção anterior
+            var reLote = /Lote:\s*([\w\-\/]+)/gi;
+            var lotes = [];
+            var ml;
+            while ((ml = reLote.exec(antes)) !== null) {
+                lotes.push(ml[1]);
+            }
+
+            // Descrição: texto antes do primeiro "Lote:" nesta seção
+            var parteAntesLote = antes.split(/Lote:/i)[0];
+            // Remover marcadores de produto anterior
+            parteAntesLote = parteAntesLote.replace(/Registro com Validade Indeterminada/gi, '')
+                                            .replace(/Dt\. Validade:[^\n]*/gi, '')
+                                            .replace(/MS:\s*\d+/gi, '')
+                                            .replace(/[-–]\s*$/, '');
+            var linhas = parteAntesLote.split(/\n+|\s{4,}/).map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 3; });
+            var desc = linhas.pop() || '';
+            desc = desc.replace(/\s+/g, ' ').trim();
+
+            if (!desc || lotes.length === 0) continue;
+
+            produtos.push({
+                code: code,
+                desc: desc,
+                lote: lotes.join(', '),
+                qty: qtdes[idx] !== undefined ? qtdes[idx] : 1
+            });
+            idx++;
+        }
+
+        return produtos;
+    }
+
+    function preencherFormularioPdf(dados, produtos) {
+        if (dados.hospital) {
+            var h = document.getElementById('f-hospital');
+            if (h) { h.value = dados.hospital; h.dispatchEvent(new Event('input')); }
+        }
+        if (dados.data) {
+            var d = document.getElementById('f-data');
+            if (d) d.value = dados.data;
+        }
+        if (dados.paciente) {
+            var p = document.getElementById('f-paciente');
+            if (p) p.value = dados.paciente;
+        }
+        if (dados.medico) {
+            var sel = document.getElementById('f-medico');
+            if (sel) {
+                var nomeU = dados.medico.toUpperCase().replace(/\s+/g, ' ').trim();
+                var opts = Array.from(sel.options);
+                var match = opts.find(function (o) { return o.value.toUpperCase() === nomeU; });
+                if (match) {
+                    sel.value = match.value;
+                    sel.dispatchEvent(new Event('change'));
+                } else {
+                    sel.value = '__outro';
+                    sel.dispatchEvent(new Event('change'));
+                    var om = document.getElementById('f-outro-medico');
+                    if (om) om.value = dados.medico;
+                }
+            }
+        }
+        if (dados.convenio) {
+            var selC = document.getElementById('f-convenio');
+            if (selC) {
+                var convU = dados.convenio.toUpperCase().replace(/\s+/g, ' ').trim();
+                var optsC = Array.from(selC.options);
+                var matchC = optsC.find(function (o) {
+                    var tv = o.text.toUpperCase();
+                    return tv === convU || tv.includes(convU) || convU.includes(tv);
+                });
+                if (matchC && matchC.value && matchC.value !== '' && matchC.value !== '__outro') {
+                    selC.value = matchC.value;
+                } else {
+                    selC.value = '__outro';
+                    var gOC = document.getElementById('g-outro-conv');
+                    if (gOC) gOC.style.display = 'block';
+                    var fOC = document.getElementById('f-outro-convenio');
+                    if (fOC) fOC.value = dados.convenio;
+                }
+            }
+        }
+        // Preencher itens
+        if (produtos && produtos.length > 0 && typeof addItemRow === 'function') {
+            var container = document.getElementById('itens-list');
+            if (container) {
+                container.innerHTML = '';
+                produtos.forEach(function (p) {
+                    addItemRow(p.code, p.desc, p.qty, p.lote);
+                });
+            }
+        }
+    }
+
+    window.importarPdfNF = async function (input) {
+        var file = input.files[0];
+        if (!file) return;
+        var status = document.getElementById('pdf-import-status');
+        var result = document.getElementById('pdf-import-result');
+        status.textContent = '⏳ Lendo PDF...';
+        result.style.display = 'none';
+        try {
+            await carregarPdfJs();
+            var buf = await file.arrayBuffer();
+            var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+            var texto = '';
+            for (var i = 1; i <= pdf.numPages; i++) {
+                var page = await pdf.getPage(i);
+                var content = await page.getTextContent();
+                texto += content.items.map(function (it) { return it.str; }).join(' ') + '\n';
+            }
+            var dados = parsearTextoNF(texto);
+            var produtos = parsearProdutos(texto);
+            preencherFormularioPdf(dados, produtos);
+
+            var labels = { paciente: 'Paciente', hospital: 'Hospital', data: 'Data Cirurgia', medico: 'Médico', convenio: 'Convênio' };
+            var html = '';
+            Object.keys(labels).forEach(function (k) {
+                var v = dados[k];
+                if (v) html += '<span style="color:#4ade80;">✔ ' + labels[k] + ': <b>' + v + '</b></span><br>';
+                else    html += '<span style="color:#f59e0b;">– ' + labels[k] + ': não encontrado</span><br>';
+            });
+            if (produtos.length > 0) {
+                html += '<span style="color:#4ade80;">✔ Produtos: <b>' + produtos.length + ' item(ns) importado(s)</b></span><br>';
+            } else {
+                html += '<span style="color:#f59e0b;">– Produtos: não encontrados</span><br>';
+            }
+            result.innerHTML = html;
+            result.style.display = 'block';
+            var nok = Object.keys(labels).filter(function (k) { return !dados[k]; }).length;
+            status.textContent = (5 - nok) + '/5 campos + ' + produtos.length + ' produto(s)';
+        } catch (err) {
+            status.textContent = '⚠ Erro ao ler PDF. Verifique se o arquivo não está protegido.';
+            console.error('PDF NF import:', err);
+        }
+        input.value = '';
+    };
+})();
 </script>
 </body>
 </html>
