@@ -17600,10 +17600,10 @@ window.buildCardHTML = function(proc) {
         });
     }
 
-    // Converte dd/mm/yy ou dd/mm/yyyy para yyyy-mm-dd
+    // Converte dd/mm/yy, dd/mm/yyyy, dd-mm-yyyy ou dd.mm.yyyy para yyyy-mm-dd
     function converterData(raw) {
         if (!raw) return null;
-        var s = raw.replace(/[;,\s]/g, '').replace(/[\/\-]/g, '');
+        var s = raw.replace(/[;,\s]/g, '').replace(/[\/\-\.]/g, '');
         if (s.length === 6) return '20' + s.slice(4,6) + '-' + s.slice(2,4) + '-' + s.slice(0,2);
         if (s.length === 8) return s.slice(4) + '-' + s.slice(2,4) + '-' + s.slice(0,2);
         return null;
@@ -17633,13 +17633,13 @@ window.buildCardHTML = function(proc) {
         convenio  = campo('Conv.nio');
         var medRaw = campo('M.dico');
         var pacRaw = campo('Paciente');
-        var datRaw = campo('Data(?:\\s*de)?\\s*[ _]?[Cc]irurgia');
+        var datRaw = campo('Data(?:\\s*d[ae])?\\s*[ _]?[Cc]irurgia');
 
         if (convenio) convenio = convenio.replace(/\s*[-–]\s*CONVENIO\s*$/i, '').trim();
         if (medRaw)   medico   = medRaw.replace(/\s*CRM[:\s].*/i, '').trim();
         if (pacRaw)   paciente = pacRaw.trim();
         if (datRaw) {
-            var dm = datRaw.match(/\d{2}[\/\-]\d{2}[\/\-]\d{2,4}/);
+            var dm = datRaw.match(/\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2,4}/);
             if (dm) data = converterData(dm[0]);
         }
 
@@ -17654,7 +17654,7 @@ window.buildCardHTML = function(proc) {
         var dataEmissao = null;
         var idxLote = t.search(/Lote\s*:/i);
         var areaHeader = idxLote > 0 ? t.slice(0, idxLote) : t;
-        var datasHeader = areaHeader.match(/\d{2}[\/\-]\d{2}[\/\-]\d{4}/g);
+        var datasHeader = areaHeader.match(/\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}/g);
         if (datasHeader) dataEmissao = converterData(datasHeader[datasHeader.length - 1]);
 
         // ── Valor total da nota ──
@@ -17691,9 +17691,8 @@ window.buildCardHTML = function(proc) {
         ]);
         if (!data) {
             var rawData = primeiro([
-                /DATA(?:\s*DA|\s*DE)?\s*CIRURGIA[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
-                /CIRURGIA[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
-                /DATA[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
+                /DATA(?:\s*D[AE])?\s*CIRURGIA[\s:]*\n?\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2,4})/i,
+                /CIRURGIA[\s:]*\n?\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2,4})/i,
             ]);
             if (rawData) data = converterData(rawData);
         }
