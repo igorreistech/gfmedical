@@ -17633,7 +17633,7 @@ window.buildCardHTML = function(proc) {
         convenio  = campo('Conv.nio');
         var medRaw = campo('M.dico');
         var pacRaw = campo('Paciente');
-        var datRaw = campo('Data[ _]?[Cc]irurgia');
+        var datRaw = campo('Data(?:\\s*de)?\\s*[ _]?[Cc]irurgia');
 
         if (convenio) convenio = convenio.replace(/\s*[-–]\s*CONVENIO\s*$/i, '').trim();
         if (medRaw)   medico   = medRaw.replace(/\s*CRM[:\s].*/i, '').trim();
@@ -17691,7 +17691,8 @@ window.buildCardHTML = function(proc) {
         ]);
         if (!data) {
             var rawData = primeiro([
-                /DATA\s*DA\s*CIRURGIA[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
+                /DATA(?:\s*DA|\s*DE)?\s*CIRURGIA[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
+                /CIRURGIA[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
                 /DATA[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
             ]);
             if (rawData) data = converterData(rawData);
