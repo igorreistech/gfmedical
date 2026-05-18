@@ -158,13 +158,15 @@
               const hoje = new Date().toISOString().split('T')[0];
               const amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
               const amanha = amanhaD.getFullYear() + '-' + String(amanhaD.getMonth()+1).padStart(2,'0') + '-' + String(amanhaD.getDate()).padStart(2,'0');
+              const doisDiasD = new Date(); doisDiasD.setDate(doisDiasD.getDate() + 2);
+              const doisDias = doisDiasD.getFullYear() + '-' + String(doisDiasD.getMonth()+1).padStart(2,'0') + '-' + String(doisDiasD.getDate()).padStart(2,'0');
 
               if (!window._confirmacaoInicioFeita) window._confirmacaoInicioFeita = new Set();
 
               const paraPromover = [];
               dados.forEach(p => {
-                // Agendado + véspera → Em Separação (silencioso)
-                if (p.status === 'agendado' && p.data && p.data === amanha) {
+                // Agendado + 2 dias antes (ou véspera) → Em Separação (silencioso)
+                if (p.status === 'agendado' && p.data && (p.data === doisDias || p.data === amanha)) {
                   p.status = 'preparacao';
                   try {
                     const { setDoc: sd, doc: docFn } = window._fbModules;
@@ -4615,6 +4617,9 @@
                     </select>
                 </div>
 
+                <div id="reagendado-data-hint" style="display:none;margin:0 0 10px;padding:9px 13px;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.5);border-radius:9px;font-size:0.83rem;color:#a78bfa;font-weight:600;">
+                    🔄 Reagendamento &mdash; informe a <strong>nova data da cirurgia</strong>. A data de retirada será preenchida automaticamente.
+                </div>
                 <div class="form-group">
                     <label class="form-label">Data de Cirurgia *</label>
                     <input class="form-input" type="date" id="f-data" required oninput="autoRetirada(this.value)">
@@ -8325,6 +8330,22 @@ document.getElementById('f-status').addEventListener('change', function() {
 
     if (grpColeta) grpColeta.style.display = isColeta ? 'block' : 'none';
 
+    // ─── Reagendado: destacar campo de data e auto-preencher retirada ───
+    const fDataEl = document.getElementById('f-data');
+    const reagHint = document.getElementById('reagendado-data-hint');
+    if (val === 'reagendado') {
+        if (reagHint) reagHint.style.display = '';
+        if (fDataEl) {
+            fDataEl.style.borderColor = '#a78bfa';
+            fDataEl.style.boxShadow = '0 0 0 3px rgba(167,139,250,0.3)';
+            autoRetirada(fDataEl.value);
+            setTimeout(() => fDataEl.focus(), 100);
+        }
+    } else {
+        if (reagHint) reagHint.style.display = 'none';
+        if (fDataEl) { fDataEl.style.borderColor = ''; fDataEl.style.boxShadow = ''; }
+    }
+
     if (!isColeta) {
         const isAndamento = val === 'andamento';
         const precisaRetirada = isRetirar || isAndamento;
@@ -8338,8 +8359,7 @@ document.getElementById('f-status').addEventListener('change', function() {
             if (!inp.value) inp.focus();
         } else {
             grp.style.animation = '';
-            inp.style.borderColor = '';
-            inp.style.boxShadow = '';
+            if (val !== 'reagendado') { inp.style.borderColor = ''; inp.style.boxShadow = ''; }
             inp.required = false;
             lbl.innerHTML = '📦 Data de Retirada';
         }
