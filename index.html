@@ -18109,6 +18109,20 @@ window.buildCardHTML = function(proc) {
         input.value = '';
     };
 })();
+
+// ─── PROTEÇÃO DE CÓDIGO ───
+(function() {
+    document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+    document.addEventListener('keydown', function(e) {
+        if (e.keyCode === 123) { e.preventDefault(); return false; }
+        if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) { e.preventDefault(); return false; }
+        if (e.ctrlKey && e.keyCode === 85) { e.preventDefault(); return false; }
+        if (e.ctrlKey && e.keyCode === 83) { e.preventDefault(); return false; }
+    });
+})();
 </script>
+<div style="position:fixed;bottom:0;left:0;right:0;height:22px;background:rgba(8,18,12,0.92);backdrop-filter:blur(8px);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:0.6rem;color:rgba(77,184,122,0.5);letter-spacing:0.09em;pointer-events:none;border-top:1px solid rgba(77,184,122,0.1);">
+    &copy; 2025 GF Medical &middot; Igor Reis &middot; Todos os direitos reservados &middot; Sistema protegido
+</div>
 </body>
 </html>
