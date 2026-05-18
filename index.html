@@ -17779,7 +17779,11 @@ window.buildCardHTML = function(proc) {
         }
         if (dados.data) {
             var d = document.getElementById('f-data');
-            if (d) d.value = dados.data;
+            if (d) {
+                d.value = dados.data;
+                d.dispatchEvent(new Event('change'));
+                d.dispatchEvent(new Event('input'));
+            }
         }
         if (dados.paciente) {
             var p = document.getElementById('f-paciente');
