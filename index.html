@@ -8111,6 +8111,7 @@ function renderTable() {
 
     table.querySelector('tbody').innerHTML = finalList.map((proc, idx) => {
         const realIndex = proc._docId || proc.id;
+        const isRetirar = (proc.status === 'a_retirar');
         const dataFmt = proc.data ? new Date(proc.data + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—';
         const cor = statusColors[proc.status] || '#94a3b8';
         const anim = pillAnim[proc.status] || '';
@@ -8154,7 +8155,6 @@ function renderTable() {
         row += '<td style="font-family:var(--mono);font-size:0.78rem;padding:9px 12px;white-space:nowrap;min-width:90px;'+(proc.nfData?'color:#2a7a6a;font-weight:600;':'color:var(--text-dim);')+'">'+ nfDataFmt +'</td>';
         row += '<td style="font-family:var(--mono);font-size:0.72rem;color:#4a6a75;padding:9px 12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+(proc.obs||'')+'">'+(proc.obs||'\u2014')+'</td>';
         // Célula de ações — diferente para a_retirar
-        var isRetirar = (proc.status === 'a_retirar');
         var tdAcoes = '<td onclick="event.stopPropagation()" style="padding:7px 8px;">';
         if (isRetirar) {
             tdAcoes += '<div style="display:flex;flex-direction:column;gap:4px;">';
