@@ -3202,6 +3202,32 @@
         /* Drag to scroll cursor */
         #table-view .table-wrap { cursor: grab; }
         #table-view .table-wrap.is-dragging { cursor: grabbing !important; user-select: none; }
+        /* Wrapper e botões de scroll */
+        .table-scroll-wrapper { position: relative; }
+        .tbl-scroll-btn {
+            position: absolute;
+            top: 50%; transform: translateY(-50%);
+            z-index: 20;
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            border: 1px solid rgba(135,195,150,0.45);
+            background: rgba(240,250,244,0.95);
+            backdrop-filter: blur(8px);
+            color: #2a9fbf;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+            transition: background 0.18s, opacity 0.18s, transform 0.18s;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .tbl-scroll-btn.visible { opacity: 1; pointer-events: auto; }
+        .tbl-scroll-btn:hover { background: rgba(214,239,222,0.98); transform: translateY(-50%) scale(1.08); }
+        .tbl-scroll-btn:active { transform: translateY(-50%) scale(0.95); }
+        .tbl-scroll-left { left: 6px; }
+        .tbl-scroll-right { right: 6px; }
         /* Ocultar cards e timeline views */
         #cards-view, #timeline-view { display: none !important; }
 
@@ -3955,7 +3981,10 @@
 
     <!-- TABLE VIEW -->
     <div id="table-view" style="display:block;">
-        <div class="table-wrap">
+        <div class="table-scroll-wrapper">
+            <button class="tbl-scroll-btn tbl-scroll-left" id="tblScrollLeft" onclick="tblScroll(-1)" aria-label="Rolar para esquerda">&#8592;</button>
+            <button class="tbl-scroll-btn tbl-scroll-right" id="tblScrollRight" onclick="tblScroll(1)" aria-label="Rolar para direita">&#8594;</button>
+        <div class="table-wrap" id="mainTableWrap">
             <table class="proc-table" id="procTable">
                 <thead></thead>
                 <tbody></tbody>
@@ -3965,6 +3994,7 @@
                 <span class="table-footer-sync"><div class="table-footer-dot"></div>Atualização automática · Hemodinâmica CGR</span>
             </div>
         </div>
+        </div><!-- /table-scroll-wrapper -->
     </div>
     </div>
 
@@ -8368,10 +8398,34 @@ document.getElementById('modalOverlay').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
 
-// ─── DRAG TO SCROLL — Central Cirúrgica ───
+// ─── DRAG TO SCROLL + BOTÕES — Central Cirúrgica ───
 (function() {
-    var wrap = document.querySelector('#table-view .table-wrap');
+    var wrap = document.getElementById('mainTableWrap');
     if (!wrap) return;
+
+    // Botões de seta
+    var btnL = document.getElementById('tblScrollLeft');
+    var btnR = document.getElementById('tblScrollRight');
+    var STEP = 280;
+
+    function updateBtns() {
+        if (!btnL || !btnR) return;
+        var atLeft  = wrap.scrollLeft <= 2;
+        var atRight = wrap.scrollLeft >= wrap.scrollWidth - wrap.clientWidth - 2;
+        btnL.classList.toggle('visible', !atLeft);
+        btnR.classList.toggle('visible', !atRight);
+    }
+
+    wrap.addEventListener('scroll', updateBtns, { passive: true });
+    // Verifica após render das linhas
+    setTimeout(updateBtns, 800);
+
+    window.tblScroll = function(dir) {
+        wrap.scrollBy({ left: dir * STEP, behavior: 'smooth' });
+        setTimeout(updateBtns, 350);
+    };
+
+    // Drag to scroll
     var isDown = false, moved = false, startX = 0, startScrollLeft = 0;
     wrap.addEventListener('mousedown', function(e) {
         if (e.button !== 0) return;
@@ -8395,6 +8449,7 @@ document.getElementById('modalOverlay').addEventListener('click', function(e) {
         if (!isDown) return;
         isDown = false;
         wrap.classList.remove('is-dragging');
+        updateBtns();
     });
     wrap.addEventListener('click', function(e) {
         if (moved) { e.stopPropagation(); moved = false; }
