@@ -13290,8 +13290,9 @@ window.fecharChecklist = fecharChecklist;
       const cor = statusColors[proc.status] || '#6b7280';
       const dia = getDateLabel(proc.data);
       const badgeDia = dia === 'today' ? '<span class="v2-badge today">Hoje</span>' : (dia === 'tomorrow' ? '<span class="v2-badge tomorrow">Amanhã</span>' : '');
+      const isRetirar = proc.status === 'a_retirar';
       return `
-      <tr class="row-${esc(proc.status)}" onclick="editProc('${esc(realIndex)}')" style="cursor:pointer;">
+      <tr class="row-${esc(proc.status)}" onclick="${isRetirar ? `confirmarRetiradaCirurgia('${esc(realIndex)}')` : `editProc('${esc(realIndex)}')`}" style="cursor:pointer;" title="${isRetirar ? 'Clique para confirmar retirada' : 'Clique para editar'}">
         <td><span class="v2-priority-pill ${prioridadeCls}">${esc(prioridade.label)}</span></td>
         <td style="white-space:nowrap;font-family:var(--mono);font-weight:700;">${proc.data ? new Date(proc.data+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—'}${proc.inicio ? `<div style="font-size:.72rem;color:#2a9fbf;margin-top:2px;">${esc(proc.inicio)}</div>` : ''}${badgeDia ? `<div style="margin-top:4px;">${badgeDia}</div>`:''}</td>
         <td><span class="table-status-pill" style="background:${cor}22;color:${cor};border:1px solid ${cor}55;">${esc(statusLabel(proc.status))}</span></td>
@@ -13303,7 +13304,7 @@ window.fecharChecklist = fecharChecklist;
         <td>${esc(proc.vendedor || '—')}</td>
         <td>${esc(proc.convenio || '—')}</td>
         <td>${sla}${prazo ? `<div style="font-size:.68rem;color:#5d7480;margin-top:4px;">${esc(prazo.label)}</div>` : ''}</td>
-        <td onclick="event.stopPropagation()"><div class="table-actions"><button class="table-btn t-edit" onclick="editProc('${esc(realIndex)}')">Editar</button><button class="table-btn" onclick="enviarWhatsAppIndividual('${esc(realIndex)}')">WhatsApp</button><button class="table-btn t-del" onclick="deleteProc('${esc(realIndex)}')">Excluir</button></div></td>
+        <td onclick="event.stopPropagation()"><div class="table-actions">${isRetirar ? `<button class="table-btn" style="background:rgba(249,115,22,0.12);border-color:#f97316;color:#f97316;font-weight:700;" onclick="confirmarRetiradaCirurgia('${esc(realIndex)}')">📦 Retirou?</button>` : ''}<button class="table-btn t-edit" onclick="editProc('${esc(realIndex)}')">Editar</button><button class="table-btn" onclick="enviarWhatsAppIndividual('${esc(realIndex)}')">WhatsApp</button><button class="table-btn t-del" onclick="deleteProc('${esc(realIndex)}')">Excluir</button></div></td>
       </tr>`;
     }).join('');
     const footer = document.getElementById('tblFooterTotal');
