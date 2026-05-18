@@ -4584,7 +4584,7 @@
 
                 <div class="form-group">
                     <label class="form-label">Data de Cirurgia *</label>
-                    <input class="form-input" type="date" id="f-data" required>
+                    <input class="form-input" type="date" id="f-data" required oninput="autoRetirada(this.value)">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Horário</label>
@@ -8483,6 +8483,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window._prodMap = _prodMap; // garantia após carga
 });
 
+
+function autoRetirada(dataCirurgia) {
+    if (!dataCirurgia) return;
+    const d = new Date(dataCirurgia + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    const retirada = d.toISOString().slice(0, 10);
+    const campo = document.getElementById('f-retirada');
+    if (campo) campo.value = retirada;
+}
 
 function toggleOutroHospital(valor) {
     const grp = document.getElementById('g-outro-hospital');
