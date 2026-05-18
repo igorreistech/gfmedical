@@ -7362,6 +7362,7 @@ function openModal() {
     document.getElementById('procForm').reset();
     document.getElementById('editIndex').value = '';
     document.getElementById('f-data').value = todayStr();
+    autoRetirada(todayStr());
     // Garante que o status seja resetado e os campos corretos apareçam
     const fStatus = document.getElementById('f-status');
     if (fStatus) { fStatus.value = 'a_agendar'; fStatus.dispatchEvent(new Event('change')); }
