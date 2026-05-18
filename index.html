@@ -3199,6 +3199,9 @@
         /* Scroll customizado */
         #table-view .table-wrap::-webkit-scrollbar { width: 5px; }
         #table-view .table-wrap::-webkit-scrollbar-thumb { background: rgba(135,195,150,0.5); border-radius: 3px; }
+        /* Drag to scroll cursor */
+        #table-view .table-wrap { cursor: grab; }
+        #table-view .table-wrap.is-dragging { cursor: grabbing !important; user-select: none; }
         /* Ocultar cards e timeline views */
         #cards-view, #timeline-view { display: none !important; }
 
@@ -8364,6 +8367,39 @@ document.getElementById('f-data').addEventListener('change', function() {
 document.getElementById('modalOverlay').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
+
+// ─── DRAG TO SCROLL — Central Cirúrgica ───
+(function() {
+    var wrap = document.querySelector('#table-view .table-wrap');
+    if (!wrap) return;
+    var isDown = false, moved = false, startX = 0, startScrollLeft = 0;
+    wrap.addEventListener('mousedown', function(e) {
+        if (e.button !== 0) return;
+        if (e.target.closest('button,a,input,select,.btn-act')) return;
+        isDown = true;
+        moved = false;
+        startX = e.clientX;
+        startScrollLeft = wrap.scrollLeft;
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!isDown) return;
+        var dx = startX - e.clientX;
+        if (Math.abs(dx) > 4) {
+            moved = true;
+            wrap.classList.add('is-dragging');
+            wrap.scrollLeft = startScrollLeft + dx;
+        }
+    });
+    document.addEventListener('mouseup', function() {
+        if (!isDown) return;
+        isDown = false;
+        wrap.classList.remove('is-dragging');
+    });
+    wrap.addEventListener('click', function(e) {
+        if (moved) { e.stopPropagation(); moved = false; }
+    }, true);
+})();
 
 // ─── EXPORT ───
 function openExportModal() {
