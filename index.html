@@ -17633,7 +17633,7 @@ window.buildCardHTML = function(proc) {
         convenio  = campo('Conv.nio');
         var medRaw = campo('M.dico');
         var pacRaw = campo('Paciente');
-        var datRaw = campo('Data[ _]?[Cc]irurgia');
+        var datRaw = campo('Data(?:\\s*de)?\\s*[ _]?\\s*[Cc]irurgia');
 
         if (convenio) convenio = convenio.replace(/\s*[-–]\s*CONVENIO\s*$/i, '').trim();
         if (medRaw)   medico   = medRaw.replace(/\s*CRM[:\s].*/i, '').trim();
