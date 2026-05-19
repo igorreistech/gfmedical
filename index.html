@@ -18466,12 +18466,13 @@ window.renderAgendaSemanal=function(){
     }).join('')}</div></div>`;
 };
 
-// Hook switchView para marcar aba calendário como ativa
+// Hook switchView para marcar aba calendário como ativa e injetar botões na tabela
 const _origSW3=window.switchView;
 window.switchView=function(v){
     const tabCal=document.getElementById('tab-calendar-btn');
     if(tabCal) tabCal.classList.toggle('active', v==='calendar');
     if(typeof _origSW3==='function') _origSW3.apply(this,arguments);
+    if(v==='table') setTimeout(_injetarBotoesModulo,150);
 };
 
 // ─── 1. CHECKLIST DE PREPARAÇÃO ───────────────────────────────────
@@ -18544,63 +18545,70 @@ window.buildCardHTML=function(proc){
     return html;
 };
 
-// ─── INJEÇÃO DE TODOS OS BOTÕES DE MÓDULO VIA MUTATIONOBSERVER ────
+// ─── INJEÇÃO DE BOTÕES DE MÓDULO ──────────────────────────────────
 function _injetarBotoesModulo(){
+    // ── Tabela (Central Cirúrgica — view principal) ─────────────────
+    const tbody=document.querySelector('#procTable tbody');
+    if(tbody){
+        tbody.querySelectorAll('tr').forEach(tr=>{
+            if(tr.querySelector('.btn-mod-ck,.btn-mod-lemb,.btn-mod-comt,.btn-mod-copiar')) return;
+            const oc=tr.getAttribute('onclick')||'';
+            const m=oc.match(/\('([^']+)'\)/);
+            if(!m) return;
+            const id=m[1];
+            const st=(tr.className.match(/row-(\S+)/)||[])[1]||'';
+            const tds=tr.querySelectorAll('td');
+            if(!tds.length) return;
+            const tdA=tds[tds.length-1];
+            const delB=[...tdA.querySelectorAll('button')].find(b=>b.textContent.trim()==='✕');
+            if(!delB) return;
+            const div=delB.parentElement; if(!div) return;
+            div.style.flexWrap='wrap';
+            const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(id));
+            const tb=(cls,sty,title,html,cb)=>{
+                const b=document.createElement('button');
+                b.className=cls;
+                b.style.cssText='padding:4px 8px;border-radius:6px;font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;white-space:nowrap;'+sty;
+                b.title=title; b.innerHTML=html;
+                b.onclick=e=>{e.stopPropagation();cb();};
+                div.insertBefore(b,delB);
+            };
+            if(['preparacao','agendado','reagendado','andamento'].includes(st))
+                tb('btn-mod-ck','border:1px solid rgba(77,184,122,0.5);background:rgba(77,184,122,0.1);color:#4db87a;','Checklist de preparação','☑ CK',()=>window.abrirChecklist&&window.abrirChecklist(id));
+            const nLemb=proc?(proc._lembretes||[]).filter(l=>new Date(l.em)>new Date()).length:0;
+            tb('btn-mod-lemb','border:1px solid rgba(99,102,241,0.5);background:rgba(99,102,241,0.1);color:#6366f1;','Lembretes','⏰'+(nLemb?` (${nLemb})`:''),()=>window.abrirModalLembrete&&window.abrirModalLembrete(id));
+            const nComt=proc?(proc._comentarios||[]).length:0;
+            tb('btn-mod-comt','border:1px solid rgba(75,180,210,0.5);background:rgba(75,180,210,0.1);color:#4bb4d2;','Comentários','💬'+(nComt?` (${nComt})`:''),()=>window.abrirComentarios&&window.abrirComentarios(id));
+            tb('btn-mod-copiar','border:1px solid rgba(75,180,210,0.35);background:rgba(75,180,210,0.1);color:#4bb4d2;','Copiar ficha','📋',()=>window.copiarFicha&&window.copiarFicha(id));
+        });
+    }
+    // ── Cards (view secundária) ─────────────────────────────────────
     document.querySelectorAll('.proc-card').forEach(card=>{
         const id=card.getAttribute('data-id'); if(!id) return;
         const actions=card.querySelector('.card-actions'); if(!actions) return;
         const delBtn=actions.querySelector('.btn-act.del'); if(!delBtn) return;
         const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(id));
         const st=card.className.match(/status-(\S+)/)?.[1]||'';
-        // Copiar
-        if(!card.querySelector('.btn-mod-copiar')){
-            const b=document.createElement('button'); b.className='btn-act btn-mod-copiar';
-            b.style.cssText='background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;';
-            b.title='Copiar dados da ficha'; b.innerHTML='📋 Copiar';
-            b.onclick=()=>window.copiarFicha&&window.copiarFicha(id);
-            actions.insertBefore(b,delBtn);
-        }
-        // QR Code
-        if(!card.querySelector('.btn-mod-qr')){
-            const b=document.createElement('button'); b.className='btn-act btn-mod-qr';
-            b.style.cssText='background:rgba(107,114,128,.1);border-color:rgba(107,114,128,.35);color:#6b7280;';
-            b.title='QR Code da ficha'; b.innerHTML='⬡ QR';
-            b.onclick=()=>window.abrirQRCode&&window.abrirQRCode(id);
-            actions.insertBefore(b,delBtn);
-        }
-        // Comentários
-        if(!card.querySelector('.btn-mod-comt')){
-            const nComt=proc?(proc._comentarios||[]).length:0;
-            const b=document.createElement('button'); b.className='btn-act btn-mod-comt';
-            b.style.cssText='background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;';
-            b.title='Comentários da equipe'; b.innerHTML='💬 Coment.'+(nComt?` (${nComt})`:'');
-            b.onclick=()=>window.abrirComentarios&&window.abrirComentarios(id);
-            actions.insertBefore(b,delBtn);
-        }
-        // Lembrete
-        if(!card.querySelector('.btn-mod-lemb')){
-            const nLemb=proc?(proc._lembretes||[]).filter(l=>new Date(l.em)>new Date()).length:0;
-            const b=document.createElement('button'); b.className='btn-act btn-mod-lemb';
-            b.style.cssText='background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.35);color:#6366f1;';
-            b.title='Lembretes'; b.innerHTML='⏰ Lembrete'+(nLemb?` (${nLemb})`:'');
-            b.onclick=()=>window.abrirModalLembrete&&window.abrirModalLembrete(id);
-            actions.insertBefore(b,delBtn);
-        }
-        // Checklist (preparacao/agendado/reagendado/andamento)
-        if(!card.querySelector('.btn-mod-ck')&&['preparacao','agendado','reagendado','andamento'].includes(st)){
-            const b=document.createElement('button'); b.className='btn-act btn-mod-ck';
-            b.style.cssText='background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;';
-            b.title='Checklist de preparação'; b.innerHTML='☑ Checklist';
-            b.onclick=()=>window.abrirChecklist&&window.abrirChecklist(id);
-            actions.insertBefore(b,delBtn);
-        }
+        const ins=(cls,sty,title,html,cb)=>{
+            if(card.querySelector('.'+cls)) return;
+            const b=document.createElement('button'); b.className='btn-act '+cls;
+            b.style.cssText=sty; b.title=title; b.innerHTML=html;
+            b.onclick=()=>cb(); actions.insertBefore(b,delBtn);
+        };
+        ins('btn-mod-copiar','background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;','Copiar','📋 Copiar',()=>window.copiarFicha&&window.copiarFicha(id));
+        ins('btn-mod-qr','background:rgba(107,114,128,.1);border-color:rgba(107,114,128,.35);color:#6b7280;','QR Code','⬡ QR',()=>window.abrirQRCode&&window.abrirQRCode(id));
+        const nComt=proc?(proc._comentarios||[]).length:0;
+        ins('btn-mod-comt','background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;','Comentários','💬 Coment.'+(nComt?` (${nComt})`:''),()=>window.abrirComentarios&&window.abrirComentarios(id));
+        const nLemb=proc?(proc._lembretes||[]).filter(l=>new Date(l.em)>new Date()).length:0;
+        ins('btn-mod-lemb','background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.35);color:#6366f1;','Lembretes','⏰ Lembrete'+(nLemb?` (${nLemb})`:''),()=>window.abrirModalLembrete&&window.abrirModalLembrete(id));
+        if(['preparacao','agendado','reagendado','andamento'].includes(st))
+            ins('btn-mod-ck','background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;','Checklist','☑ Checklist',()=>window.abrirChecklist&&window.abrirChecklist(id));
     });
 }
 function _iniciarObserverModulos(){
-    const alvo=document.getElementById('cards-view')||document.body;
     let _t=null;
     new MutationObserver(()=>{clearTimeout(_t);_t=setTimeout(_injetarBotoesModulo,80);})
-        .observe(alvo,{childList:true,subtree:true});
+        .observe(document.body,{childList:true,subtree:true});
     let n=0;
     const iv=setInterval(()=>{_injetarBotoesModulo();if(++n>=120)clearInterval(iv);},1000);
 }
