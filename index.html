@@ -18387,5 +18387,253 @@ window.buildCardHTML = function(proc) {
     });
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MÓDULO MELHORIAS: dark mode · cirurgia próxima · som vencido
+                       dias no status · exportar CSV
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+/* ─── DARK MODE ──────────────────────────────────────────────────── */
+html[data-theme="dark"] {
+    --bg: #0d1f2a; --surface: #112432; --surface2: #0a1a22;
+    --border: #1d3d52; --accent: #4bb4d2; --accent2: #4db87a;
+    --green: #4db87a; --yellow: #f59e0b; --red: #ef4444;
+    --gray: #6a8a96; --text: #e0f2f8; --text-dim: #7ab8c8;
+}
+html[data-theme="dark"] body {
+    background: #0d1f2a !important;
+    background-image:
+        radial-gradient(ellipse 70% 50% at 10% 5%, rgba(30,64,95,0.35) 0%, transparent 55%),
+        radial-gradient(ellipse 55% 45% at 90% 90%, rgba(30,80,110,0.2) 0%, transparent 55%) !important;
+}
+html[data-theme="dark"] body::before {
+    background-image:
+        linear-gradient(rgba(75,180,210,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(75,180,210,0.06) 1px, transparent 1px) !important;
+}
+html[data-theme="dark"] .header { background: #091820 !important; border-color: #1d3d52 !important; }
+html[data-theme="dark"] .proc-card { background: var(--surface) !important; border-color: var(--border) !important; }
+html[data-theme="dark"] .stat-card { background: var(--surface) !important; border-color: var(--border) !important; }
+html[data-theme="dark"] .filter-btn { background: rgba(255,255,255,0.04) !important; border-color: var(--border) !important; color: var(--text-dim) !important; }
+html[data-theme="dark"] .filter-btn.active, html[data-theme="dark"] .filter-btn:hover { background: rgba(75,180,210,0.15) !important; border-color: var(--accent) !important; color: var(--accent) !important; }
+html[data-theme="dark"] .search-box { background: #112432 !important; border-color: #1d3d52 !important; color: var(--text) !important; }
+html[data-theme="dark"] select { background: #112432 !important; border-color: #1d3d52 !important; color: var(--text) !important; }
+html[data-theme="dark"] #periodo-painel { background: #091820 !important; border-color: #1d3d52 !important; }
+html[data-theme="dark"] .login-box { background: #091820 !important; border-color: #1d3d52 !important; }
+html[data-theme="dark"] .login-input { background: #112432 !important; border-color: #1d3d52 !important; color: var(--text) !important; }
+html[data-theme="dark"] .proc-table { background: var(--surface) !important; }
+html[data-theme="dark"] .proc-table th { background: #091820 !important; color: var(--text-dim) !important; border-color: #1d3d52 !important; }
+html[data-theme="dark"] .proc-table tbody tr { border-color: #1d3d52 !important; }
+html[data-theme="dark"] .proc-table tbody td { color: var(--text) !important; }
+html[data-theme="dark"] .view-tab { background: rgba(255,255,255,0.04) !important; border-color: #1d3d52 !important; color: var(--text-dim) !important; }
+html[data-theme="dark"] .view-tab.active { background: rgba(75,180,210,0.15) !important; border-color: var(--accent) !important; color: var(--accent) !important; }
+html[data-theme="dark"] .card-label { color: var(--text-dim) !important; }
+html[data-theme="dark"] .card-value { color: var(--text) !important; }
+html[data-theme="dark"] .hospital-name { color: var(--text) !important; }
+html[data-theme="dark"] .btn-dark-mode { background: rgba(75,180,210,0.15) !important; border-color: var(--accent) !important; color: var(--accent) !important; }
+
+/* ─── FAIXA CIRURGIA PRÓXIMA ─────────────────────────────────────── */
+#cirurgia-proxima-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+    background: rgba(77,184,122,0.10);
+    border: 1.5px solid rgba(77,184,122,0.6);
+    border-radius: 12px; padding: 12px 18px; margin-bottom: 12px;
+    animation: cirurgiaProximaPulse 1.2s ease-in-out infinite;
+}
+@keyframes cirurgiaProximaPulse {
+    0%, 100% { background: rgba(77,184,122,0.10); border-color: rgba(77,184,122,0.6); box-shadow: none; }
+    50% { background: rgba(77,184,122,0.20); border-color: #4db87a; box-shadow: 0 0 18px rgba(77,184,122,0.35); }
+}
+</style>
+
+<script>
+(function() {
+'use strict';
+
+// ─── 1. DARK MODE ─────────────────────────────────────────────────
+window.toggleDarkMode = function() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    const novo = isDark ? 'light' : 'dark';
+    html.setAttribute('data-theme', novo);
+    localStorage.setItem('gf-theme', novo);
+    const icon = document.getElementById('dark-mode-icon');
+    const lbl = document.getElementById('dark-mode-label');
+    if (icon) icon.textContent = isDark ? '🌙' : '☀️';
+    if (lbl) lbl.textContent = isDark ? 'Escuro' : 'Claro';
+    const btn = document.getElementById('btn-dark-mode');
+    if (btn) btn.classList.toggle('btn-dark-mode', !isDark);
+};
+
+function injetarBotaoDarkMode() {
+    if (document.getElementById('btn-dark-mode')) return;
+    const headerRight = document.querySelector('.header > div[style*="display:flex"]');
+    if (!headerRight) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-dark-mode';
+    const saved = localStorage.getItem('gf-theme') || 'light';
+    btn.style.cssText = 'display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:10px;color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.06em;transition:all 0.2s;';
+    btn.innerHTML = `<span id="dark-mode-icon">${saved === 'dark' ? '☀️' : '🌙'}</span><span id="dark-mode-label">${saved === 'dark' ? 'Claro' : 'Escuro'}</span>`;
+    btn.onclick = window.toggleDarkMode;
+    headerRight.insertBefore(btn, headerRight.firstChild);
+    document.documentElement.setAttribute('data-theme', saved);
+}
+
+// ─── 2. FAIXA ALERTA CIRURGIA PRÓXIMA ────────────────────────────
+function injetarBarraCirurgiaProxima() {
+    if (document.getElementById('cirurgia-proxima-bar')) return;
+    const reagBar = document.getElementById('reagendado-alert-bar');
+    if (!reagBar) return;
+    const bar = document.createElement('div');
+    bar.id = 'cirurgia-proxima-bar';
+    bar.style.display = 'none';
+    reagBar.parentNode.insertBefore(bar, reagBar.nextSibling);
+}
+
+function atualizarBarraCirurgiaProxima() {
+    const bar = document.getElementById('cirurgia-proxima-bar');
+    if (!bar) return;
+    const hoje = typeof todayStr === 'function' ? todayStr() : new Date().toISOString().split('T')[0];
+    const aD = new Date(); aD.setDate(aD.getDate() + 1);
+    const amanha = `${aD.getFullYear()}-${String(aD.getMonth()+1).padStart(2,'0')}-${String(aD.getDate()).padStart(2,'0')}`;
+    const prox = (window.procedimentos || []).filter(p =>
+        (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanha)
+    );
+    if (!prox.length) { bar.style.display = 'none'; return; }
+    const lista = prox.slice(0,4).map(p => {
+        const nome = p.paciente || p.hospital || 'Procedimento';
+        const quando = p.data === hoje ? '🔴 HOJE' : '🟡 AMANHÃ';
+        const hora = p.inicio ? ` às ${p.inicio}` : '';
+        return `• ${quando} — ${nome}${hora}`;
+    }).join('<br>');
+    const extra = prox.length > 4 ? `<br><span style="opacity:0.6;">+${prox.length-4} outros</span>` : '';
+    bar.innerHTML = `
+        <div>
+            <div style="font-family:var(--mono);font-size:0.8rem;font-weight:700;color:#4db87a;letter-spacing:0.05em;margin-bottom:5px;">
+                🏥 ${prox.length} cirurgia${prox.length>1?'s':''} hoje/amanhã — preparar equipe
+            </div>
+            <div style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);line-height:1.7;">${lista}${extra}</div>
+        </div>
+        <button style="flex-shrink:0;padding:8px 16px;border-radius:10px;background:rgba(77,184,122,0.18);border:1.5px solid rgba(77,184,122,0.6);color:#4db87a;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;white-space:nowrap;" onclick="document.querySelector('[data-filter=agendado]').click()">Ver agendados →</button>`;
+    bar.style.display = 'flex';
+}
+
+// ─── 3. SOM URGENTE PARA REAGENDADO VENCIDO ──────────────────────
+let _rvAtivo = false, _rvTimer = null;
+function startReagVencidoSound() {
+    if (_rvAtivo) return; _rvAtivo = true;
+    _beepReagVencido(); _rvTimer = setInterval(_beepReagVencido, 9000);
+}
+function stopReagVencidoSound() {
+    if (!_rvAtivo) return; _rvAtivo = false;
+    if (_rvTimer) { clearInterval(_rvTimer); _rvTimer = null; }
+}
+function _beepReagVencido() {
+    if (typeof _somEstaAtivo === 'function' && !_somEstaAtivo()) return;
+    const ctx = typeof _getAudioCtx === 'function' ? _getAudioCtx() : null;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    [0, 0.22].forEach(off => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'square'; o.frequency.value = 880;
+        g.gain.setValueAtTime(0, t+off);
+        g.gain.linearRampToValueAtTime(0.08, t+off+0.03);
+        g.gain.exponentialRampToValueAtTime(0.001, t+off+0.18);
+        o.start(t+off); o.stop(t+off+0.2);
+    });
+}
+
+// ─── 4. CONTADOR DE DIAS NO STATUS ATUAL ─────────────────────────
+const _statusLabelMap = {
+    a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
+    agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado',
+    reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
+    urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária'
+};
+
+function _diasNoBadge(proc) {
+    const hist = proc._statusHistory || [];
+    let desde = null;
+    for (let i = hist.length - 1; i >= 0; i--) {
+        if (hist[i].para === proc.status) { desde = hist[i].em; break; }
+    }
+    if (!desde) return '';
+    const dias = Math.floor((Date.now() - new Date(desde).getTime()) / 86400000);
+    if (dias < 1) return '';
+    const cor = dias >= 7 ? '#ef4444' : (dias >= 3 ? '#f59e0b' : '#9ca3af');
+    const label = dias === 1 ? '1 dia' : `${dias} dias`;
+    return `<span title="Neste status há ${label}" style="display:inline-flex;align-items:center;background:rgba(0,0,0,0.07);border:1px solid ${cor}55;color:${cor};border-radius:999px;padding:1px 7px;font-family:var(--mono);font-size:0.62rem;font-weight:700;margin-left:4px;">⏱ ${label}</span>`;
+}
+
+const _origBldDias = window.buildCardHTML;
+window.buildCardHTML = function(proc) {
+    let html = typeof _origBldDias === 'function' ? _origBldDias.apply(this, arguments) : '';
+    if (!html) return html;
+    const badge = _diasNoBadge(proc);
+    if (badge) {
+        const lbl = (_statusLabelMap[proc.status] || proc.status).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        html = html.replace(new RegExp('(' + lbl + '<\\/div>)'), '$1' + badge);
+    }
+    return html;
+};
+
+// ─── 5. EXPORTAR CSV ─────────────────────────────────────────────
+window.exportarCSVFiltrado = function() {
+    const list = typeof window.getFiltered === 'function' ? window.getFiltered() : (window.procedimentos || []);
+    const labelS = s => (_statusLabelMap[s] || s);
+    const esc = v => v == null ? '' : `"${String(v).replace(/"/g,'""')}"`;
+    const header = ['Status','Paciente','Hospital','Médico','Procedimento','Vendedor','Convênio','Linha','Data Cirurgia','NF'];
+    const rows = list.map(p => [
+        labelS(p.status), p.paciente||'', p.hospital||'', p.medico||'',
+        p.procedimento||'', p.vendedor||'', p.convenio||'', p.linha||'',
+        p.data ? new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR') : '', p.nf||''
+    ].map(esc).join(','));
+    const csv = '﻿' + [header.map(esc).join(','), ...rows].join('\r\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cirurgias_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+function injetarBotaoCSV() {
+    if (document.getElementById('btn-export-csv')) return;
+    const btnExcel = document.querySelector('.btn-export');
+    if (!btnExcel) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-export-csv';
+    btn.className = 'btn-export';
+    btn.textContent = '⬇ CSV';
+    btn.title = 'Exportar lista filtrada como planilha CSV';
+    btn.style.cssText = 'background:rgba(77,184,122,0.15);border-color:rgba(77,184,122,0.5);color:#4db87a;';
+    btn.onclick = window.exportarCSVFiltrado;
+    btnExcel.insertAdjacentElement('afterend', btn);
+}
+
+// ─── HOOK updateStats ─────────────────────────────────────────────
+const _origUS_melhorias = window.updateStats;
+window.updateStats = function() {
+    if (typeof _origUS_melhorias === 'function') _origUS_melhorias.apply(this, arguments);
+    atualizarBarraCirurgiaProxima();
+    const hoje = typeof todayStr === 'function' ? todayStr() : new Date().toISOString().split('T')[0];
+    const temVencido = (window.procedimentos||[]).some(p => p.status === 'reagendado' && p.data && p.data < hoje);
+    temVencido ? startReagVencidoSound() : stopReagVencidoSound();
+};
+
+// ─── INIT ─────────────────────────────────────────────────────────
+function init() {
+    injetarBotaoDarkMode();
+    injetarBarraCirurgiaProxima();
+    injetarBotaoCSV();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+
+})();
+</script>
 </body>
 </html>
