@@ -957,16 +957,12 @@
         /* Card actions */
         .card-actions {
             display: flex;
-            gap: 8px;
-            padding: 12px 18px 14px;
+            gap: 6px;
+            padding: 10px 14px 12px;
             border-top: 1px solid rgba(135,195,150,0.12);
             background: rgba(220,242,228,0.3);
-            overflow-x: auto;
-            flex-wrap: nowrap;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
+            flex-wrap: wrap;
         }
-        .card-actions::-webkit-scrollbar { display: none; }
 
         .btn-act {
             flex: 1;
@@ -18582,8 +18578,9 @@ function _injetarBotoesModulo(){
 }
 function _iniciarObserverModulos(){
     const grid=document.getElementById('cards-view'); if(!grid) return;
-    new MutationObserver(()=>setTimeout(_injetarBotoesModulo,0)).observe(grid,{childList:true,subtree:false});
-    setTimeout(_injetarBotoesModulo,500);
+    new MutationObserver(()=>setTimeout(_injetarBotoesModulo,0)).observe(grid,{childList:true,subtree:true});
+    // fallback: tenta injetar em 500ms, 1.5s, 3s e 6s (Firebase pode demorar)
+    [500,1500,3000,6000].forEach(t=>setTimeout(_injetarBotoesModulo,t));
 }
 
 // ─── 2. LEMBRETES PERSONALIZADOS ─────────────────────────────────
