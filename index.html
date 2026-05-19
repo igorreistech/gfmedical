@@ -3093,6 +3093,38 @@
         .reagendado-btn-cancelar {
             background: transparent; border-color: var(--border); color: var(--text-dim);
         }
+        .reagendado-alert-box textarea {
+            width: 100%; box-sizing: border-box;
+            padding: 9px 12px; border-radius: 10px;
+            background: rgba(167,139,250,0.06);
+            border: 1.5px solid rgba(167,139,250,0.25);
+            color: var(--text); font-family: var(--mono);
+            font-size: 0.82rem; resize: none; outline: none;
+            margin-bottom: 18px; min-height: 64px;
+        }
+        .reagendado-alert-box textarea:focus { border-color: #a78bfa; }
+
+        /* ─── REAGENDADO VENCIDO ─── */
+        .proc-card.status-reagendado.reagendado-vencido {
+            border-top: 2px solid #ef4444 !important;
+            animation: cardPiscarReagVencido 1s ease-in-out infinite !important;
+        }
+        @keyframes cardPiscarReagVencido {
+            0%, 100% { box-shadow: 0 2px 0 rgba(239,68,68,0); }
+            50% { box-shadow: 0 0 14px rgba(239,68,68,0.30); }
+        }
+        .proc-table tbody tr.row-reagendado.reagendado-vencido {
+            border-left: 3px solid #ef4444 !important;
+            background: rgba(239,68,68,0.04) !important;
+        }
+        /* badge contagem de reagendamentos */
+        .reagend-count-badge {
+            display: inline-flex; align-items: center;
+            background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.40);
+            color: #a78bfa; border-radius: 999px; padding: 1px 7px;
+            font-family: var(--mono); font-size: 0.65rem; font-weight: 800;
+            letter-spacing: 0.04em; margin-left: 5px; vertical-align: middle;
+        }
 
         /* ─── CALENDÁRIO ─── */
         #calendar-view { display: none; padding: 16px 0; width: 100%; box-sizing: border-box; overflow: hidden; }
@@ -3902,6 +3934,7 @@
         <button class="filter-btn" data-filter="concluido">Concluídos</button>
         <button class="filter-btn" data-filter="cancelado">Cancelados</button>
         <button class="filter-btn" data-filter="reagendado">Reagendados</button>
+        <button class="filter-btn" data-filter="reagendado_vencido" style="color:#ef4444;border-color:rgba(239,68,68,0.5);">↺ Atrasados</button>
         <button class="filter-btn" data-filter="a_retirar">📦 Aguardando Retirada</button>
         <button class="filter-btn" data-filter="urgencia" style="color:#ff3333;border-color:rgba(255,0,0,0.5);">🚨 Urgência</button>
         <input class="search-box" type="text" id="searchBox" placeholder="Buscar hospital, médico, paciente, NF...">
@@ -6217,7 +6250,8 @@ function getFiltered() {
     const statusOrder = { a_agendar: 0, urgencia: 1, coleta_urgente: 2, agendado: 3, preparacao: 4, andamento: 5, cancelado: 6, reagendado: 7, a_retirar: 8, concluido: 9 };
     return procedimentos.filter(p => {
         if (_ehColeta(p) && currentFilter !== 'coleta_urgente') return false; // Volumes Urgentes só aparecem na aba própria
-        const matchFilter = currentFilter === 'all' || p.status === currentFilter;
+        const matchFilter = currentFilter === 'all'
+            || (currentFilter === 'reagendado_vencido' ? (p.status === 'reagendado' && p.data && p.data < todayStr()) : p.status === currentFilter);
         const matchCity = true; // arquivo CG — mostra todos
         const matchVendedor = currentVendedorFilter === 'all' || (p.vendedor || '') === currentVendedorFilter;
         const q = searchTerm.toLowerCase();
@@ -6392,11 +6426,14 @@ function buildCardHTML(proc) {
             ? 'animation:cardPiscarDataRetirada 1.2s ease-in-out infinite;'
             : cardAnimStyle_base;
 
+        const reagVencido = proc.status === 'reagendado' && proc.data && proc.data < todayStr();
+        const reagCount = ((proc._statusHistory || []).filter(h => h.para === 'reagendado').length) || (proc.status === 'reagendado' ? 1 : 0);
+        const reagBadge = reagCount > 0 ? `<span class="reagend-count-badge">↺ ${reagCount}x</span>` : '';
         return `
-        <div class="proc-card status-${proc.status}" data-id="${proc.id}" style="${cardAnimStyle}">
+        <div class="proc-card status-${proc.status}${reagVencido ? ' reagendado-vencido' : ''}" data-id="${proc.id}" style="${cardAnimStyle}">
             <div class="card-header">
                 <div class="hospital-name">${_ehColeta(proc) ? '✈️ Volumes Urgentes' : '🏥 ' + proc.hospital}</div>
-                <div class="status-pill pill-${proc.status}">${statusLabel(proc.status)}</div>${staleBadge(proc)}
+                <div class="status-pill pill-${proc.status}">${statusLabel(proc.status)}</div>${reagBadge}${staleBadge(proc)}
             </div>
             <div class="card-body">
                 ${!_ehColeta(proc) ? `
@@ -6447,6 +6484,7 @@ function buildCardHTML(proc) {
                     return `<div class="card-row" id="retirada-${proc.id}"><span class="card-label">📦 Retirada</span><span class="card-value">${dataBadge}</span></div>`;
                 })() : (proc.status === 'a_retirar' ? `<div class="card-row"><span class="card-label">📦 Retirada</span><span class="card-value" style="color:#f97316;font-weight:700;animation:pillPulseRetirar 0.8s ease-in-out infinite;">⚠ Data não informada!</span></div>` : '')}
                 ${proc.status === 'urgencia' ? `<div class="card-row" style="background:rgba(255,0,0,0.1);border-radius:6px;padding:6px 8px;margin-top:4px;animation:urgenciaRowBlink 0.5s ease-in-out infinite;"><span style="color:#ff3333;font-family:var(--mono);font-size:0.84rem;font-weight:700;letter-spacing:0.1em;">🚨 PROCEDIMENTO EM URGÊNCIA — AÇÃO IMEDIATA!</span></div>` : ''}
+                ${reagVencido ? `<div class="card-row" style="background:rgba(239,68,68,0.08);border-radius:6px;padding:6px 8px;margin-top:4px;animation:cardPiscarReagVencido 1s ease-in-out infinite;"><span style="color:#ef4444;font-family:var(--mono);font-size:0.82rem;font-weight:700;letter-spacing:0.08em;">⚠ REAGENDADO SEM NOVA DATA — ATUALIZAR DATA DA CIRURGIA!</span></div>` : ''}
                                 ${proc.status === 'coleta_urgente' ? `<div class="card-row" style="background:rgba(99,102,241,0.1);border-radius:6px;padding:6px 8px;margin-top:4px;animation:cardPiscarColeta 0.6s ease-in-out infinite;"><span style="color:#818cf8;font-family:var(--mono);font-size:0.84rem;font-weight:700;letter-spacing:0.08em;">✈️ AGUARDANDO RETIRADA — VOLUMES URGENTES</span></div>` : ''}
                 ${_ehColeta(proc) && proc.coletaDataCirurgia ? `<div class="card-row"><span class="card-label">🗓 Cirurgia</span><span class="card-value" style="color:#818cf8;font-weight:700;">${new Date(proc.coletaDataCirurgia+'T00:00:00').toLocaleDateString('pt-BR')}</span></div>` : ''}
                 ${_ehColeta(proc) && proc.coletaHoraCirurgia ? `<div class="card-row"><span class="card-label">⏰ Hr. Cir.</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.coletaHoraCirurgia}</span></div>` : ''}
@@ -8188,7 +8226,8 @@ function renderTable() {
             ? 'confirmarRetiradaCirurgia(\'' + realIndex + '\')'
             : 'editProc(\'' + realIndex + '\')';
         var trTitle = isRetirar ? 'Clique para confirmar retirada' : 'Clique para editar';
-        var row = '<tr class="row-'+proc.status+'" style="'+rowStyle+'cursor:pointer;" onclick="'+trOnclick+'" title="'+trTitle+'">';
+        const trReagVencido = proc.status === 'reagendado' && proc.data && proc.data < todayStr();
+        var row = '<tr class="row-'+proc.status+(trReagVencido?' reagendado-vencido':'')+'" style="'+rowStyle+'cursor:pointer;" onclick="'+trOnclick+'" title="'+trTitle+'">';
         row += '<td style="font-family:var(--mono);font-weight:800;font-size:0.9rem;color:#2a9fbf;padding:9px 12px;line-height:1.5;">'
             +(proc.inicio||'\u2014')
             +(proc.data ? '<div style="font-size:0.65rem;font-weight:600;color:#2a7a4a;margin-top:2px;">📅 '+new Date(proc.data+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+'</div>' : '')
@@ -9081,11 +9120,17 @@ async function quickSetStatus(docId, novoStatus, e) {
     const statusAnterior = proc.status;
     if (statusAnterior === novoStatus) return;
     if (novoStatus === 'reagendado') {
-        mostrarAlertaReagendado(proc, async (novaData) => {
+        const dataAnterior = proc.data || '';
+        mostrarAlertaReagendado(proc, async (novaData, motivo) => {
+            const userEmail = (window._fbAuth && window._fbAuth.currentUser) ? window._fbAuth.currentUser.email : 'sistema';
+            const hist = proc._statusHistory || [];
+            hist.push({ de: statusAnterior, para: 'reagendado', em: new Date().toISOString(), por: userEmail, dataAnterior, dataNova: novaData, motivo: motivo || '' });
+            proc._statusHistory = hist;
             proc.status = novoStatus;
             proc.data = novaData;
+            if (motivo) proc.motivoReagendamento = motivo;
             try { await fbSaveProc(proc); }
-            catch(err) { proc.status = statusAnterior; proc.data = proc.data; alert('Erro ao salvar: ' + err.message); }
+            catch(err) { proc.status = statusAnterior; proc.data = dataAnterior; alert('Erro ao salvar: ' + err.message); }
         });
         return;
     }
@@ -9246,9 +9291,11 @@ function mostrarAlertaReagendado(proc, onConfirm) {
     overlay.innerHTML = `
         <div class="reagendado-alert-box">
             <h3>📅 Reagendar Cirurgia</h3>
-            <p>${proc.paciente ? `<strong>${proc.paciente}</strong> — ` : ''}Informe a nova data da cirurgia para confirmar o reagendamento.</p>
+            <p>${proc.paciente ? `<strong>${proc.paciente}</strong> — ` : ''}Informe a nova data e o motivo do reagendamento.</p>
             <span class="alerta-data-label">Nova data de cirurgia</span>
             <input type="date" id="reagendadoNovaData" value="${dataAtual}" min="${hoje}">
+            <span class="alerta-data-label">Motivo do reagendamento <span style="font-weight:400;opacity:0.6;">(opcional)</span></span>
+            <textarea id="reagendadoMotivo" placeholder="Ex: Solicitação do médico, conflito de agenda, problema de material..."></textarea>
             <div class="reagendado-alert-actions">
                 <button class="reagendado-btn-cancelar" onclick="fecharAlertaReagendado()">Cancelar</button>
                 <button class="reagendado-btn-confirmar" onclick="confirmarAlertaReagendado()">↺ Confirmar Reagendamento</button>
@@ -9270,8 +9317,9 @@ function confirmarAlertaReagendado() {
         inp.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.25)';
         inp.focus(); return;
     }
+    const motivo = (document.getElementById('reagendadoMotivo') || {}).value || '';
     const cb = el._onConfirm; el.remove();
-    if (cb) cb(novaData);
+    if (cb) cb(novaData, motivo);
 }
 
 // ════════════════════════════════════════════
