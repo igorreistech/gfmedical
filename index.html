@@ -18586,8 +18586,8 @@ function _injetarBotoesModulo(){
             b.onclick=()=>window.abrirModalLembrete&&window.abrirModalLembrete(id);
             actions.insertBefore(b,delBtn);
         }
-        // Checklist (apenas preparacao/agendado/reagendado)
-        if(!card.querySelector('.btn-mod-ck')&&['preparacao','agendado','reagendado'].includes(st)){
+        // Checklist (preparacao/agendado/reagendado/andamento)
+        if(!card.querySelector('.btn-mod-ck')&&['preparacao','agendado','reagendado','andamento'].includes(st)){
             const b=document.createElement('button'); b.className='btn-act btn-mod-ck';
             b.style.cssText='background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;';
             b.title='Checklist de preparação'; b.innerHTML='☑ Checklist';
