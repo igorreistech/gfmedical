@@ -961,7 +961,12 @@
             padding: 12px 18px 14px;
             border-top: 1px solid rgba(135,195,150,0.12);
             background: rgba(220,242,228,0.3);
+            overflow-x: auto;
+            flex-wrap: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
         }
+        .card-actions::-webkit-scrollbar { display: none; }
 
         .btn-act {
             flex: 1;
