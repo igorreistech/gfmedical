@@ -244,9 +244,15 @@
         .container {
             position: relative;
             z-index: 1;
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
-            padding: 24px;
+            padding: 12px;
+        }
+        @media (min-width: 768px) {
+            .container { padding: 16px; }
+        }
+        @media (min-width: 1200px) {
+            .container { padding: 20px; }
         }
 
         /* ─── HEADER ─── */
@@ -18578,10 +18584,12 @@ function _injetarBotoesModulo(){
     });
 }
 function _iniciarObserverModulos(){
-    const grid=document.getElementById('cards-view'); if(!grid) return;
-    new MutationObserver(()=>setTimeout(_injetarBotoesModulo,0)).observe(grid,{childList:true,subtree:true});
-    // fallback: tenta injetar em 500ms, 1.5s, 3s e 6s (Firebase pode demorar)
-    [500,1500,3000,6000].forEach(t=>setTimeout(_injetarBotoesModulo,t));
+    const alvo=document.getElementById('cards-view')||document.body;
+    let _t=null;
+    new MutationObserver(()=>{clearTimeout(_t);_t=setTimeout(_injetarBotoesModulo,80);})
+        .observe(alvo,{childList:true,subtree:true});
+    let n=0;
+    const iv=setInterval(()=>{_injetarBotoesModulo();if(++n>=120)clearInterval(iv);},1000);
 }
 
 // ─── 2. LEMBRETES PERSONALIZADOS ─────────────────────────────────
@@ -18757,6 +18765,15 @@ window.updateStats=function(){
 };
 
 function init(){
+    // Hook renderCards para injetar botões sempre que os cards forem re-renderizados
+    const _origRC=window.renderCards;
+    if(typeof _origRC==='function'){
+        window.renderCards=function(){
+            const r=_origRC.apply(this,arguments);
+            setTimeout(_injetarBotoesModulo,80);
+            return r;
+        };
+    }
     injetarAbaCalendario();
     _iniciarObserverModulos();
     setTimeout(_agendarLembretes, 3000);
