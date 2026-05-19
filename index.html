@@ -18509,11 +18509,10 @@ window._ckSalvar=async function(docId){
     catch(e){alert('Erro ao salvar: '+e.message);}
 };
 
-// Badge checklist no card
+// Badge checklist no card (via buildCardHTML hook)
 const _origBldCk=window.buildCardHTML;
 window.buildCardHTML=function(proc){
     let html=typeof _origBldCk==='function'?_origBldCk.apply(this,arguments):''; if(!html) return html;
-    const id=proc._docId||proc.id;
     const ck=proc._checklist||{};
     const feitos=Object.values(ck).filter(Boolean).length;
     const total=_CKITENS.length;
@@ -18521,10 +18520,31 @@ window.buildCardHTML=function(proc){
     const cor=pct===100?'#4db87a':(pct>=50?'#f59e0b':'#9ca3af');
     const badge=feitos>0?`<span style="display:inline-flex;align-items:center;background:${cor}18;border:1px solid ${cor}44;color:${cor};border-radius:999px;padding:1px 7px;font-family:var(--mono);font-size:0.62rem;font-weight:700;margin-left:4px;" title="Checklist: ${feitos}/${total}">☑ ${pct}%</span>`:'';
     if(badge){const lbl=({'a_agendar':'Autorizado','andamento':'Em Procedimento','preparacao':'Em Separação','agendado':'Agendado','concluido':'Concluído','cancelado':'Cancelado','reagendado':'Reagendado','a_retirar':'Aguardando Retirada','urgencia':'🚨 URGÊNCIA','coleta_urgente':'✈️ Coleta Prioritária'}[proc.status]||proc.status).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp('('+lbl+'<\\/div>)'),'$1'+badge);}
-    if(proc.status==='preparacao'||proc.status==='agendado'||proc.status==='reagendado'){
-        html=html.replace('onclick="deleteProc(',`onclick="abrirChecklist('${id}')" style="background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;" title="Checklist de preparação">☑ Checklist</button><button class="btn-act del" onclick="deleteProc(`);
-    }
     return html;
+};
+
+// Botão checklist via injeção direta no DOM (mais confiável)
+function _injetarBotoesCk(){
+    ['status-preparacao','status-agendado','status-reagendado'].forEach(cls=>{
+        document.querySelectorAll('.proc-card.'+cls).forEach(card=>{
+            if(card.querySelector('.btn-ck-checklist')) return;
+            const id=card.getAttribute('data-id'); if(!id) return;
+            const actions=card.querySelector('.card-actions'); if(!actions) return;
+            const delBtn=actions.querySelector('.btn-act.del'); if(!delBtn) return;
+            const btn=document.createElement('button');
+            btn.className='btn-act btn-ck-checklist';
+            btn.style.cssText='background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;';
+            btn.title='Checklist de preparação'; btn.innerHTML='☑ Checklist';
+            btn.onclick=()=>window.abrirChecklist(id);
+            actions.insertBefore(btn,delBtn);
+        });
+    });
+}
+const _origRenderCardsCk=window.renderCards;
+window.renderCards=function(){
+    const r=typeof _origRenderCardsCk==='function'?_origRenderCardsCk.apply(this,arguments):undefined;
+    setTimeout(_injetarBotoesCk,0);
+    return r;
 };
 
 // ─── 2. LEMBRETES PERSONALIZADOS ─────────────────────────────────
