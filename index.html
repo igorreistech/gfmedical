@@ -3040,6 +3040,60 @@
             background: transparent; border-color: var(--border); color: var(--text-dim);
         }
 
+        /* ─── ALERTA REAGENDADO ─── */
+        .reagendado-alert-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.60);
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .reagendado-alert-box {
+            background: var(--surface);
+            border: 1.5px solid #a78bfa;
+            border-radius: 18px; padding: 28px;
+            width: 400px; max-width: 95vw;
+            box-shadow: 0 20px 60px rgba(167,139,250,0.30);
+        }
+        .reagendado-alert-box h3 {
+            font-family: var(--mono); font-size: 0.82rem;
+            color: #a78bfa; letter-spacing: 0.08em;
+            margin: 0 0 6px; text-transform: uppercase;
+        }
+        .reagendado-alert-box p {
+            font-size: 0.80rem; color: var(--text-dim); margin: 0 0 18px; line-height: 1.5;
+        }
+        .reagendado-alert-box .alerta-data-label {
+            font-family: var(--mono); font-size: 0.72rem;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-dim); margin-bottom: 6px; display: block;
+        }
+        .reagendado-alert-box input[type="date"] {
+            width: 100%; box-sizing: border-box;
+            padding: 10px 12px; border-radius: 10px;
+            background: rgba(167,139,250,0.08);
+            border: 1.5px solid rgba(167,139,250,0.4);
+            color: var(--text); font-family: var(--mono);
+            font-size: 0.88rem; margin-bottom: 18px; outline: none;
+        }
+        .reagendado-alert-box input[type="date"]:focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167,139,250,0.20);
+        }
+        .reagendado-alert-actions { display: flex; gap: 8px; }
+        .reagendado-alert-actions button {
+            flex: 1; padding: 10px; border-radius: 10px;
+            font-family: var(--mono); font-size: 0.78rem;
+            font-weight: 700; cursor: pointer; border: 1px solid;
+            transition: all 0.15s;
+        }
+        .reagendado-btn-confirmar {
+            background: rgba(167,139,250,0.15); border-color: #a78bfa; color: #a78bfa;
+        }
+        .reagendado-btn-confirmar:hover { background: rgba(167,139,250,0.28); }
+        .reagendado-btn-cancelar {
+            background: transparent; border-color: var(--border); color: var(--text-dim);
+        }
+
         /* ─── CALENDÁRIO ─── */
         #calendar-view { display: none; padding: 16px 0; width: 100%; box-sizing: border-box; overflow: hidden; }
         .cal-header {
@@ -9026,6 +9080,15 @@ async function quickSetStatus(docId, novoStatus, e) {
     if (!proc) return;
     const statusAnterior = proc.status;
     if (statusAnterior === novoStatus) return;
+    if (novoStatus === 'reagendado') {
+        mostrarAlertaReagendado(proc, async (novaData) => {
+            proc.status = novoStatus;
+            proc.data = novaData;
+            try { await fbSaveProc(proc); }
+            catch(err) { proc.status = statusAnterior; proc.data = proc.data; alert('Erro ao salvar: ' + err.message); }
+        });
+        return;
+    }
     mostrarChecklist(proc, novoStatus, async () => {
         proc.status = novoStatus;
         try { await fbSaveProc(proc); }
@@ -9169,6 +9232,46 @@ function fecharChecklist(confirmar) {
     const el=document.getElementById('checklistOverlay'); if(!el) return;
     if(confirmar&&el._onConfirm) el._onConfirm();
     el.remove();
+}
+
+// ════════════════════════════════════════════
+// ALERTA REAGENDADO — NOVA DATA DE CIRURGIA
+// ════════════════════════════════════════════
+function mostrarAlertaReagendado(proc, onConfirm) {
+    const dataAtual = proc.data || '';
+    const hoje = new Date().toISOString().split('T')[0];
+    const overlay = document.createElement('div');
+    overlay.className = 'reagendado-alert-overlay';
+    overlay.id = 'reagendadoAlertOverlay';
+    overlay.innerHTML = `
+        <div class="reagendado-alert-box">
+            <h3>📅 Reagendar Cirurgia</h3>
+            <p>${proc.paciente ? `<strong>${proc.paciente}</strong> — ` : ''}Informe a nova data da cirurgia para confirmar o reagendamento.</p>
+            <span class="alerta-data-label">Nova data de cirurgia</span>
+            <input type="date" id="reagendadoNovaData" value="${dataAtual}" min="${hoje}">
+            <div class="reagendado-alert-actions">
+                <button class="reagendado-btn-cancelar" onclick="fecharAlertaReagendado()">Cancelar</button>
+                <button class="reagendado-btn-confirmar" onclick="confirmarAlertaReagendado()">↺ Confirmar Reagendamento</button>
+            </div>
+        </div>`;
+    overlay._onConfirm = onConfirm;
+    document.body.appendChild(overlay);
+    setTimeout(() => { const inp = document.getElementById('reagendadoNovaData'); if (inp) inp.focus(); }, 50);
+}
+function fecharAlertaReagendado() {
+    const el = document.getElementById('reagendadoAlertOverlay'); if (el) el.remove();
+}
+function confirmarAlertaReagendado() {
+    const el = document.getElementById('reagendadoAlertOverlay'); if (!el) return;
+    const inp = document.getElementById('reagendadoNovaData');
+    const novaData = inp ? inp.value : '';
+    if (!novaData) {
+        inp.style.borderColor = '#ef4444';
+        inp.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.25)';
+        inp.focus(); return;
+    }
+    const cb = el._onConfirm; el.remove();
+    if (cb) cb(novaData);
 }
 
 // ════════════════════════════════════════════
