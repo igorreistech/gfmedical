@@ -3042,6 +3042,37 @@
             background: transparent; border-color: var(--border); color: var(--text-dim);
         }
 
+        /* ─── FAIXA ALERTA AUTORIZADO ─── */
+        #autorizado-alert-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; flex-wrap: wrap;
+            background: rgba(6,182,212,0.10);
+            border: 1.5px solid rgba(6,182,212,0.65);
+            border-radius: 12px; padding: 12px 18px;
+            margin-bottom: 12px;
+            animation: autorizAlertPulse 0.8s ease-in-out infinite;
+        }
+        @keyframes autorizAlertPulse {
+            0%, 100% { background: rgba(6,182,212,0.10); border-color: rgba(6,182,212,0.65); box-shadow: none; }
+            50% { background: rgba(6,182,212,0.22); border-color: #06b6d4; box-shadow: 0 0 18px rgba(6,182,212,0.38); }
+        }
+        #autorizado-alert-bar .autor-alert-text {
+            font-family: var(--mono); font-size: 0.82rem; font-weight: 700;
+            color: #06b6d4; letter-spacing: 0.06em; text-transform: uppercase;
+        }
+        #autorizado-alert-bar .autor-alert-list {
+            font-family: var(--mono); font-size: 0.74rem; color: var(--text-dim);
+            margin-top: 3px; line-height: 1.6;
+        }
+        #autorizado-alert-bar .autor-alert-btn {
+            padding: 7px 16px; border-radius: 8px;
+            background: rgba(6,182,212,0.15); border: 1.5px solid #06b6d4;
+            color: #06b6d4; font-family: var(--mono); font-size: 0.75rem;
+            font-weight: 700; cursor: pointer; white-space: nowrap;
+            transition: background 0.15s;
+        }
+        #autorizado-alert-bar .autor-alert-btn:hover { background: rgba(6,182,212,0.30); }
+
         /* ─── FAIXA ALERTA REAGENDADO ─── */
         #reagendado-alert-bar {
             display: flex; align-items: center; justify-content: space-between;
@@ -3959,6 +3990,9 @@
     </div>
 
     
+
+    <!-- ALERTA ATIVO AUTORIZADO -->
+    <div id="autorizado-alert-bar" style="display:none;"></div>
 
     <!-- ALERTA ATIVO REAGENDADO -->
     <div id="reagendado-alert-bar" style="display:none;"></div>
@@ -6001,9 +6035,32 @@ function updateStats() {
     setPisca('stat-card-andamento', 'statPiscarAndamento 1s ease-in-out infinite', temAndamento);
 
     // Autorizado — qualquer registro
-    const temAutorizado = procedimentos.some(p => p.status === 'a_agendar');
+    const autorizados = procedimentos.filter(p => p.status === 'a_agendar');
+    const temAutorizado = autorizados.length > 0;
     temAutorizado ? startAutorizadoSound() : stopAutorizadoSound();
     setPisca('stat-card-a_agendar', 'statPiscarAutorizado 1.8s ease-in-out infinite', temAutorizado);
+
+    // Faixa de alerta ativo autorizado
+    const autorBar = document.getElementById('autorizado-alert-bar');
+    if (autorBar) {
+        if (temAutorizado) {
+            const lista = autorizados.slice(0, 4).map(p => {
+                const nome = p.paciente || p.hospital || 'Procedimento';
+                const data = p.data ? new Date(p.data + 'T00:00:00').toLocaleDateString('pt-BR') : '⚠ SEM DATA';
+                return `• ${nome} — ${data}`;
+            }).join('<br>');
+            const extra = autorizados.length > 4 ? `<br><span style="opacity:0.6;">+${autorizados.length - 4} outros</span>` : '';
+            autorBar.innerHTML = `
+                <div>
+                    <div class="autor-alert-text">📅 ${autorizados.length} autorizado${autorizados.length > 1 ? 's' : ''} aguardando data de cirurgia — agendar</div>
+                    <div class="autor-alert-list">${lista}${extra}</div>
+                </div>
+                <button class="autor-alert-btn" onclick="document.querySelector('[data-filter=a_agendar]').click()">Ver autorizados →</button>`;
+            autorBar.style.display = 'flex';
+        } else {
+            autorBar.style.display = 'none';
+        }
+    }
 
     // Em Preparação — qualquer registro
     const temPreparacao = procedimentos.some(p => p.status === 'preparacao');
