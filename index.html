@@ -18523,7 +18523,7 @@ window.buildCardHTML=function(proc){
     return html;
 };
 
-// Botão checklist via injeção direta no DOM (mais confiável)
+// Botão checklist via MutationObserver no #cards-view
 function _injetarBotoesCk(){
     ['status-preparacao','status-agendado','status-reagendado'].forEach(cls=>{
         document.querySelectorAll('.proc-card.'+cls).forEach(card=>{
@@ -18540,12 +18540,10 @@ function _injetarBotoesCk(){
         });
     });
 }
-const _origRenderCardsCk=window.renderCards;
-window.renderCards=function(){
-    const r=typeof _origRenderCardsCk==='function'?_origRenderCardsCk.apply(this,arguments):undefined;
-    setTimeout(_injetarBotoesCk,0);
-    return r;
-};
+function _iniciarObserverCk(){
+    const grid=document.getElementById('cards-view'); if(!grid) return;
+    new MutationObserver(()=>setTimeout(_injetarBotoesCk,0)).observe(grid,{childList:true,subtree:false});
+}
 
 // ─── 2. LEMBRETES PERSONALIZADOS ─────────────────────────────────
 window.abrirModalLembrete=function(docId){
@@ -18721,6 +18719,7 @@ window.updateStats=function(){
 
 function init(){
     injetarAbaCalendario();
+    _iniciarObserverCk();
     setTimeout(_agendarLembretes, 3000);
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
