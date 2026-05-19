@@ -9922,6 +9922,9 @@ window.hookDupCheck    = hookDupCheck;
 window.mostrarAviso    = mostrarAviso;
 window.mostrarChecklist= mostrarChecklist;
 window.fecharChecklist = fecharChecklist;
+window.fbSaveProc      = fbSaveProc;
+window.todayStr        = todayStr;
+window.mostrarAlertaReagendado = mostrarAlertaReagendado;
 
 </script>
 <datalist id="produtos-codigos-datalist">
@@ -18385,6 +18388,209 @@ window.buildCardHTML = function(proc) {
         if (e.ctrlKey && e.keyCode === 85) { e.preventDefault(); return false; }
         if (e.ctrlKey && e.keyCode === 83) { e.preventDefault(); return false; }
     });
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MÓDULO MELHORIAS 2: notificação · kanban · SLA · vendedores
+                         resumo do dia · copiar ficha · e-mail
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+@keyframes slaPulse {
+    0%,100%{background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.55);box-shadow:none}
+    50%{background:rgba(245,158,11,.20);border-color:#f59e0b;box-shadow:0 0 18px rgba(245,158,11,.35)}
+}
+</style>
+<script>
+(function(){
+'use strict';
+
+// ─── 1. BOTÃO NOTIFICAÇÕES ────────────────────────────────────────
+function injetarBotaoNotif(){
+    if(document.getElementById('btn-notificacoes')) return;
+    const hdr=document.querySelector('.header > div[style*="display:flex"]');
+    if(!hdr) return;
+    const btn=document.createElement('button'); btn.id='btn-notificacoes';
+    btn.style.cssText='display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:10px;color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.06em;transition:all 0.2s;';
+    btn.innerHTML='<span>🔔</span><span id="notif-lbl">Notif.</span>';
+    btn.onclick=async()=>{
+        if(!('Notification' in window)){alert('Navegador não suporta notificações');return;}
+        const perm=await Notification.requestPermission();
+        if(perm==='granted') window.showSyncToast&&window.showSyncToast('🔔 Notificações ativadas!');
+        _atualizarBotaoNotif();
+    };
+    hdr.insertBefore(btn,hdr.firstChild); _atualizarBotaoNotif();
+}
+function _atualizarBotaoNotif(){
+    const btn=document.getElementById('btn-notificacoes');
+    const lbl=document.getElementById('notif-lbl'); if(!btn) return;
+    const perm='Notification' in window?Notification.permission:'denied';
+    if(perm==='granted'){btn.style.borderColor='rgba(77,184,122,0.6)';btn.style.color='#4db87a';if(lbl)lbl.textContent='Notif. ✓';}
+    else if(perm==='denied'){btn.style.opacity='0.45';}
+}
+
+// ─── 2. KANBAN + VENDEDORES ───────────────────────────────────────
+function injetarNovasAbas(){
+    const tabOpme=document.getElementById('tab-opme'); if(!tabOpme) return;
+    if(!document.getElementById('tab-kanban')){
+        const b=document.createElement('button'); b.id='tab-kanban'; b.className='view-tab'; b.textContent='📋 Kanban';
+        b.onclick=()=>_swMelhorias('kanban'); tabOpme.insertAdjacentElement('afterend',b);
+    }
+    if(!document.getElementById('tab-vendedor')){
+        const b=document.createElement('button'); b.id='tab-vendedor'; b.className='view-tab'; b.textContent='👤 Vendedores';
+        b.onclick=()=>_swMelhorias('vendedor'); document.getElementById('tab-kanban').insertAdjacentElement('afterend',b);
+    }
+    if(!document.getElementById('kanban-view')){
+        const d=document.createElement('div'); d.id='kanban-view'; d.style.display='none';
+        document.getElementById('table-view').insertAdjacentElement('afterend',d);
+    }
+    if(!document.getElementById('vendedor-view')){
+        const d=document.createElement('div'); d.id='vendedor-view'; d.style.display='none';
+        document.getElementById('kanban-view').insertAdjacentElement('afterend',d);
+    }
+}
+const _origSW2=window.switchView;
+window.switchView=function(v){
+    document.getElementById('kanban-view')&&(document.getElementById('kanban-view').style.display='none');
+    document.getElementById('vendedor-view')&&(document.getElementById('vendedor-view').style.display='none');
+    document.getElementById('tab-kanban')&&document.getElementById('tab-kanban').classList.remove('active');
+    document.getElementById('tab-vendedor')&&document.getElementById('tab-vendedor').classList.remove('active');
+    if(v==='kanban'||v==='vendedor'){_swMelhorias(v);return;}
+    if(typeof _origSW2==='function') _origSW2.apply(this,arguments);
+};
+function _swMelhorias(v){
+    if(typeof _origSW2==='function') _origSW2.call(window,'table');
+    setTimeout(()=>{
+        ['table-view','stats-bar','periodBar','main-controls'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+        if(v==='kanban'){const el=document.getElementById('kanban-view');if(el){el.style.display='';renderKanban();}document.getElementById('tab-kanban')&&document.getElementById('tab-kanban').classList.add('active');}
+        if(v==='vendedor'){const el=document.getElementById('vendedor-view');if(el){el.style.display='';renderVendedorPanel();}document.getElementById('tab-vendedor')&&document.getElementById('tab-vendedor').classList.add('active');}
+        document.getElementById('tab-table')&&document.getElementById('tab-table').classList.remove('active');
+        window.currentView=v;
+    },0);
+}
+const _KS=[{key:'urgencia',label:'🚨 Urgência',cor:'#ef4444'},{key:'a_agendar',label:'Autorizado',cor:'#06b6d4'},{key:'agendado',label:'Agendado',cor:'#4db87a'},{key:'preparacao',label:'Em Separação',cor:'#d4920a'},{key:'andamento',label:'Em Procedimento',cor:'#d94f4f'},{key:'reagendado',label:'Reagendado',cor:'#a78bfa'},{key:'a_retirar',label:'Aguard. Retirada',cor:'#f97316'}];
+function renderKanban(){
+    const c=document.getElementById('kanban-view'); if(!c) return;
+    const procs=(window.procedimentos||[]).filter(p=>!['concluido','cancelado','coleta_urgente'].includes(p.status));
+    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+    c.innerHTML=`<div style="padding:16px 0;"><div style="font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);margin-bottom:12px;text-align:right;">Arraste os cards para mover entre status</div><div id="kb-board" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:16px;align-items:flex-start;">${_KS.map(s=>{const cards=procs.filter(p=>p.status===s.key);return`<div style="flex:0 0 185px;background:rgba(0,0,0,0.03);border:1.5px dashed ${s.cor}44;border-radius:12px;padding:10px;"><div style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:${s.cor};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;display:flex;justify-content:space-between;"><span>${s.label}</span><span style="background:${s.cor}22;border-radius:99px;padding:1px 7px;">${cards.length}</span></div><div class="kb-zone" data-status="${s.key}" style="min-height:60px;">${cards.map(p=>{const id=p._docId||String(p.id);return`<div class="kb-card" draggable="true" data-id="${id}" style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${s.cor};border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:grab;"><div style="font-family:var(--mono);font-size:0.7rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.paciente||p.hospital||'—'}</div>${p.data?`<div style="font-family:var(--mono);font-size:0.62rem;color:var(--text-dim);">${fmt(p.data)}</div>`:''}</div>`;}).join('')}</div></div>`;}).join('')}</div></div>`;
+    c.querySelectorAll('.kb-card').forEach(card=>{card.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',card.dataset.id);card.style.opacity='0.45';});card.addEventListener('dragend',()=>{card.style.opacity='1';});});
+    c.querySelectorAll('.kb-zone').forEach(zone=>{
+        zone.addEventListener('dragover',e=>{e.preventDefault();zone.style.background='rgba(75,180,210,0.08)';});
+        zone.addEventListener('dragleave',()=>{zone.style.background='';});
+        zone.addEventListener('drop',async e=>{
+            e.preventDefault();zone.style.background='';
+            const id=e.dataTransfer.getData('text/plain');const ns=zone.dataset.status;
+            const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(id));
+            if(!proc||proc.status===ns) return;
+            if(ns==='reagendado'&&typeof window.mostrarAlertaReagendado==='function'){window.mostrarAlertaReagendado(proc,async(nd,m)=>{const sa=proc.status;const h=proc._statusHistory||[];h.push({de:sa,para:'reagendado',em:new Date().toISOString(),por:'sistema',dataNova:nd,motivo:m||''});proc._statusHistory=h;proc.status='reagendado';proc.data=nd;if(m)proc.motivoReagendamento=m;await window.fbSaveProc(proc);renderKanban();});return;}
+            const sa=proc.status;proc.status=ns;
+            try{await window.fbSaveProc(proc);window.showSyncToast&&window.showSyncToast('✅ Status atualizado');renderKanban();}catch(err){proc.status=sa;alert('Erro: '+err.message);}
+        });
+    });
+}
+
+// ─── 3. ALERTA SLA ────────────────────────────────────────────────
+const _SLA={a_agendar:15,agendado:10,reagendado:5,preparacao:4};
+const _SL={a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+function _diasStatus(proc){const h=proc._statusHistory||[];for(let i=h.length-1;i>=0;i--){if(h[i].para===proc.status)return Math.floor((Date.now()-new Date(h[i].em).getTime())/86400000);}return 0;}
+function injetarBarraSLA2(){
+    if(document.getElementById('sla-alert-bar')) return;
+    const ref=document.getElementById('cirurgia-proxima-bar')||document.getElementById('reagendado-alert-bar'); if(!ref) return;
+    const b=document.createElement('div'); b.id='sla-alert-bar';
+    b.style.cssText='display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:rgba(245,158,11,.10);border:1.5px solid rgba(245,158,11,.55);border-radius:12px;padding:12px 18px;margin-bottom:12px;animation:slaPulse 1.5s ease-in-out infinite;';
+    ref.insertAdjacentElement('afterend',b);
+}
+function atualizarSLA(){
+    const bar=document.getElementById('sla-alert-bar'); if(!bar) return;
+    const venc=(window.procedimentos||[]).filter(p=>{const l=_SLA[p.status];return l&&_diasStatus(p)>=l;});
+    if(!venc.length){bar.style.display='none';return;}
+    const lista=venc.slice(0,3).map(p=>`• ${p.paciente||p.hospital||'—'} — ${_diasStatus(p)}d em ${_SL[p.status]||p.status}`).join('<br>');
+    const extra=venc.length>3?`<br><span style="opacity:0.6">+${venc.length-3} outros</span>`:'';
+    bar.innerHTML=`<div><div style="font-family:var(--mono);font-size:0.8rem;font-weight:700;color:#f59e0b;letter-spacing:0.05em;margin-bottom:5px;">⚠ ${venc.length} procedimento${venc.length>1?'s':''} com SLA excedido — ação necessária</div><div style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);line-height:1.7;">${lista}${extra}</div></div><button style="flex-shrink:0;padding:8px 16px;border-radius:10px;background:rgba(245,158,11,.15);border:1.5px solid rgba(245,158,11,.6);color:#f59e0b;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;white-space:nowrap;" onclick="window.abrirModalSLA()">Ver detalhes →</button>`;
+    bar.style.display='flex';
+}
+window.abrirModalSLA=function(){
+    const venc=(window.procedimentos||[]).filter(p=>{const l=_SLA[p.status];return l&&_diasStatus(p)>=l;}).map(p=>({...p,_d:_diasStatus(p)})).sort((a,b)=>b._d-a._d);
+    const ov=document.createElement('div'); ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border:1.5px solid rgba(245,158,11,.5);border-radius:18px;padding:24px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:#f59e0b;text-transform:uppercase;">⚠ SLA excedido</div><button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #ccc;color:#9ca3af;width:28px;height:28px;border-radius:8px;cursor:pointer;">✕</button></div><div style="font-family:var(--mono);font-size:0.62rem;color:var(--text-dim);margin-bottom:12px;">Limites: Autorizado ${_SLA.a_agendar}d · Agendado ${_SLA.agendado}d · Reagendado ${_SLA.reagendado}d · Em Separação ${_SLA.preparacao}d</div>${venc.map(p=>{const cor=p._d>=_SLA[p.status]*2?'#ef4444':'#f59e0b';return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid ${cor}33;border-radius:10px;margin-bottom:7px;background:${cor}08;"><div><div style="font-family:var(--mono);font-size:0.78rem;font-weight:700;color:var(--text);">${p.paciente||p.hospital||'—'}</div><div style="font-family:var(--mono);font-size:0.64rem;color:var(--text-dim);">${_SL[p.status]||p.status} · ${p.vendedor||'—'}</div></div><span style="font-family:var(--mono);font-size:0.85rem;font-weight:800;color:${cor};">${p._d}d</span></div>`;}).join('')}<button onclick="this.closest('div[style*=fixed]').remove()" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;cursor:pointer;">Fechar</button></div>`;
+    document.body.appendChild(ov); ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+};
+
+// ─── 4. PAINEL VENDEDORES ─────────────────────────────────────────
+function renderVendedorPanel(){
+    const c=document.getElementById('vendedor-view'); if(!c) return;
+    const procs=window.procedimentos||[];const vm={};
+    procs.filter(p=>p.vendedor).forEach(p=>{if(!vm[p.vendedor])vm[p.vendedor]={total:0,ativos:0,concluidos:0,reagendados:0,urgentes:0};const v=vm[p.vendedor];v.total++;if(p.status==='concluido')v.concluidos++;else if(p.status==='reagendado')v.reagendados++;else if(p.status==='urgencia')v.urgentes++;else v.ativos++;});
+    const vends=Object.entries(vm).sort((a,b)=>b[1].total-a[1].total);
+    if(!vends.length){c.innerHTML='<div style="text-align:center;padding:48px;font-family:var(--mono);color:var(--text-dim);">Nenhum vendedor encontrado</div>';return;}
+    c.innerHTML=`<div style="padding:16px 0;"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;">${vends.map(([nome,v])=>{const taxa=v.total>0?Math.round(v.concluidos/v.total*100):0;const cor=taxa>=70?'#4db87a':(taxa>=40?'#f59e0b':'#ef4444');const safe=nome.replace(/'/g,"\\'");return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 20px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow=''" onclick="if(document.getElementById('vendedor-select'))document.getElementById('vendedor-select').value='${safe}';if(window.setVendedorFilter)window.setVendedorFilter('${safe}');window.switchView('table');"><div style="font-family:var(--mono);font-size:0.85rem;font-weight:700;color:var(--text);margin-bottom:10px;">👤 ${nome}</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"><span style="background:rgba(75,180,210,.1);border:1px solid rgba(75,180,210,.3);color:#4bb4d2;border-radius:6px;padding:2px 8px;font-family:var(--mono);font-size:0.66rem;font-weight:700;">${v.total} total</span><span style="background:rgba(77,184,122,.1);border:1px solid rgba(77,184,122,.3);color:#4db87a;border-radius:6px;padding:2px 8px;font-family:var(--mono);font-size:0.66rem;font-weight:700;">${v.ativos} ativos</span>${v.reagendados?`<span style="background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.3);color:#a78bfa;border-radius:6px;padding:2px 8px;font-family:var(--mono);font-size:0.66rem;font-weight:700;">↺ ${v.reagendados}</span>`:''}${v.urgentes?`<span style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:6px;padding:2px 8px;font-family:var(--mono);font-size:0.66rem;font-weight:700;">🚨 ${v.urgentes}</span>`:''}</div><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:5px;background:rgba(0,0,0,.1);border-radius:99px;overflow:hidden;"><div style="width:${taxa}%;height:100%;background:${cor};border-radius:99px;"></div></div><span style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:${cor};">${taxa}%</span></div><div style="font-family:var(--mono);font-size:0.6rem;color:var(--text-dim);margin-top:4px;">${v.concluidos} concluídos · clique para filtrar</div></div>`;}).join('')}</div>`;
+}
+
+// ─── 5. RESUMO DO DIA ─────────────────────────────────────────────
+window.abrirResumoDia=function(){
+    const procs=window.procedimentos||[];
+    const hoje=typeof window.todayStr==='function'?window.todayStr():new Date().toISOString().split('T')[0];
+    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'}):'—';
+    const cirHoje=procs.filter(p=>(p.status==='agendado'||p.status==='preparacao'||p.status==='andamento')&&p.data===hoje);
+    const concHoje=procs.filter(p=>p.status==='concluido'&&p._updatedAt&&p._updatedAt.startsWith(hoje));
+    const reagHoje=procs.filter(p=>(p._statusHistory||[]).some(h=>h.para==='reagendado'&&h.em&&h.em.startsWith(hoje)));
+    const novosHoje=procs.filter(p=>p._createdAt&&p._createdAt.startsWith(hoje));
+    const ov=document.createElement('div'); ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border:1px solid var(--border,#ccc);border-radius:20px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 16px 50px rgba(0,0,0,.3);"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;"><div><div style="font-family:var(--mono);font-size:0.66rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Resumo</div><div style="font-family:var(--mono);font-size:0.88rem;font-weight:700;color:var(--text);">${fmt(hoje)}</div></div><button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #ccc;color:#9ca3af;width:28px;height:28px;border-radius:8px;cursor:pointer;">✕</button></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">${[{icon:'🏥',label:'Cirurgias hoje',val:cirHoje.length,cor:'#4db87a'},{icon:'✅',label:'Concluídos',val:concHoje.length,cor:'#64748b'},{icon:'↺',label:'Reagendamentos',val:reagHoje.length,cor:'#a78bfa'},{icon:'➕',label:'Novos casos',val:novosHoje.length,cor:'#06b6d4'}].map(it=>`<div style="background:${it.cor}11;border:1px solid ${it.cor}33;border-radius:12px;padding:12px 14px;"><div style="font-size:1.2rem;margin-bottom:4px;">${it.icon}</div><div style="font-family:var(--mono);font-size:1.3rem;font-weight:800;color:${it.cor};">${it.val}</div><div style="font-family:var(--mono);font-size:0.64rem;color:var(--text-dim);">${it.label}</div></div>`).join('')}</div>${cirHoje.length?`<div style="margin-bottom:12px;"><div style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Cirurgias do dia</div>${cirHoje.map(p=>`<div style="display:flex;justify-content:space-between;padding:7px 10px;border:1px solid var(--border,#ccc);border-radius:8px;margin-bottom:5px;"><div style="font-family:var(--mono);font-size:0.72rem;color:var(--text);font-weight:600;">${p.paciente||p.hospital||'—'}</div><div style="font-family:var(--mono);font-size:0.68rem;color:var(--text-dim);">${p.inicio||'—'}</div></div>`).join('')}</div>`:''}
+<button onclick="this.closest('div[style*=fixed]').remove()" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;cursor:pointer;">Fechar</button></div>`;
+    document.body.appendChild(ov); ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+};
+
+// ─── 6. COPIAR FICHA ─────────────────────────────────────────────
+window.copiarFicha=function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',urgencia:'URGÊNCIA'};
+    const txt=[`── Ficha Cirúrgica ──`,proc.hospital?`Hospital: ${proc.hospital}`:'',proc.paciente?`Paciente: ${proc.paciente}`:'',proc.medico?`Médico: ${proc.medico}`:'',proc.procedimento?`Procedimento: ${proc.procedimento}`:'',proc.convenio?`Convênio: ${proc.convenio}`:'',proc.data?`Data: ${fmt(proc.data)}${proc.inicio?' às '+proc.inicio:''}`:'',`Status: ${sMap[proc.status]||proc.status}`,proc.vendedor?`Vendedor: ${proc.vendedor}`:'',proc.nf?`NF: ${proc.nf}`:'',proc.obs?`Obs: ${proc.obs}`:''].filter(Boolean).join('\n');
+    (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).catch(()=>{const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);});
+    window.showSyncToast&&window.showSyncToast('📋 Ficha copiada!');
+};
+const _origBldCopiar=window.buildCardHTML;
+window.buildCardHTML=function(proc){
+    let html=typeof _origBldCopiar==='function'?_origBldCopiar.apply(this,arguments):''; if(!html) return html;
+    const id=proc._docId||proc.id;
+    html=html.replace('onclick="deleteProc(',`onclick="copiarFicha('${id}')" style="background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;" title="Copiar dados da ficha">📋 Copiar</button><button class="btn-act del" onclick="deleteProc(`);
+    return html;
+};
+
+// ─── 7. RELATÓRIO POR E-MAIL ──────────────────────────────────────
+window.enviarRelatorioEmail=function(){
+    const procs=window.procedimentos||[];
+    const hoje=typeof window.todayStr==='function'?window.todayStr():new Date().toISOString().split('T')[0];
+    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+    const urg=procs.filter(p=>p.status==='urgencia');const reag=procs.filter(p=>p.status==='reagendado');const hj=procs.filter(p=>p.data===hoje);
+    let c=`RELATÓRIO CIRÚRGICO — ${new Date().toLocaleDateString('pt-BR')}\n${'─'.repeat(40)}\n\nRESUMO\nTotal ativo: ${procs.filter(p=>!['concluido','cancelado'].includes(p.status)).length}\nUrgências: ${urg.length}\nReagendados: ${reag.length}\nCirurgias hoje: ${hj.length}\n\n`;
+    if(urg.length){c+=`URGÊNCIAS\n${urg.map(p=>`• ${p.paciente||p.hospital||'—'} (${p.medico||'—'})`).join('\n')}\n\n`;}
+    if(hj.length){c+=`CIRURGIAS HOJE\n${hj.map(p=>`• ${p.paciente||p.hospital||'—'} — ${p.inicio||'—'} — ${p.medico||'—'}`).join('\n')}\n\n`;}
+    if(reag.length){c+=`REAGENDADOS\n${reag.map(p=>`• ${p.paciente||p.hospital||'—'} — ${fmt(p.data)} — ${p.vendedor||'—'}`).join('\n')}\n\n`;}
+    c+=`Monitor Cirúrgico GF Medical`;
+    window.open(`mailto:?subject=${encodeURIComponent('Monitor Cirúrgico — Relatório '+new Date().toLocaleDateString('pt-BR'))}&body=${encodeURIComponent(c)}`);
+};
+
+// ─── HOOKS ───────────────────────────────────────────────────────
+const _origUS2=window.updateStats;
+window.updateStats=function(){
+    if(typeof _origUS2==='function') _origUS2.apply(this,arguments);
+    atualizarSLA();
+    if(window.currentView==='kanban') renderKanban();
+    if(window.currentView==='vendedor') renderVendedorPanel();
+};
+
+function injetarBotoesControles(){
+    const ref=document.querySelector('[onclick="exportarWhatsApp()"]'); if(!ref) return;
+    if(!document.getElementById('btn-resumo-dia')){const b=document.createElement('button');b.id='btn-resumo-dia';b.textContent='📊 Resumo do Dia';b.style.cssText='padding:8px 18px;border-radius:10px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.4);color:#6366f1;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;';b.onclick=window.abrirResumoDia;ref.insertAdjacentElement('beforebegin',b);}
+    if(!document.getElementById('btn-email-rel')){const b=document.createElement('button');b.id='btn-email-rel';b.textContent='📧 E-mail';b.style.cssText='padding:8px 18px;border-radius:10px;background:rgba(75,180,210,.12);border:1px solid rgba(75,180,210,.4);color:#4bb4d2;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;';b.onclick=window.enviarRelatorioEmail;ref.insertAdjacentElement('beforebegin',b);}
+}
+
+function init(){injetarBotaoNotif();injetarNovasAbas();injetarBarraSLA2();injetarBotoesControles();}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+else init();
 })();
 </script>
 
