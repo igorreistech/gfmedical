@@ -8486,18 +8486,25 @@ function renderTable() {
         var nfDataFmt = proc.nfData ? new Date(proc.nfData+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '\u2014';
         row += '<td style="font-family:var(--mono);font-size:0.78rem;padding:9px 12px;white-space:nowrap;min-width:90px;'+(proc.nfData?'color:#2a7a6a;font-weight:600;':'color:var(--text-dim);')+'">'+ nfDataFmt +'</td>';
         row += '<td style="font-family:var(--mono);font-size:0.72rem;color:#4a6a75;padding:9px 12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+(proc.obs||'')+'">'+(proc.obs||'\u2014')+'</td>';
+        // Botões de módulo embutidos diretamente no HTML da tabela
+        const _ckBtn = ['preparacao','agendado','reagendado','andamento'].includes(proc.status)
+            ? '<button onclick="event.stopPropagation();window.abrirChecklist&&window.abrirChecklist(\''+realIndex+'\')" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(77,184,122,0.5);background:rgba(77,184,122,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#4db87a;white-space:nowrap;">☑ CK</button>' : '';
+        const _lembBtn = '<button onclick="event.stopPropagation();window.abrirModalLembrete&&window.abrirModalLembrete(\''+realIndex+'\')" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(99,102,241,0.5);background:rgba(99,102,241,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#6366f1;white-space:nowrap;">⏰</button>';
+        const _comtBtn = '<button onclick="event.stopPropagation();window.abrirComentarios&&window.abrirComentarios(\''+realIndex+'\')" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(75,180,210,0.5);background:rgba(75,180,210,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#4bb4d2;white-space:nowrap;">💬</button>';
         // Célula de ações — diferente para a_retirar
         var tdAcoes = '<td onclick="event.stopPropagation()" style="padding:7px 8px;">';
         if (isRetirar) {
             tdAcoes += '<div style="display:flex;flex-direction:column;gap:4px;">';
             tdAcoes += '<button onclick="confirmarRetiradaCirurgia(\'' + realIndex + '\')" style="padding:5px 10px;border-radius:7px;border:1px solid rgba(249,115,22,0.5);background:rgba(249,115,22,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#f97316;white-space:nowrap;">📦 Retirou?</button>';
-            tdAcoes += '<div style="display:flex;gap:4px;">';
+            tdAcoes += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+            tdAcoes += _lembBtn + _comtBtn;
             tdAcoes += '<button onclick="editProc(\'' + realIndex + '\')" style="flex:1;padding:4px 9px;border-radius:6px;border:1px solid rgba(135,195,150,0.4);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:var(--text-dim);">✏ Editar</button>';
             tdAcoes += '<button onclick="deleteProc(\'' + realIndex + '\')" style="padding:4px 9px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#d94f4f;">✕</button>';
             tdAcoes += '</div>';
             tdAcoes += '</div>';
         } else {
-            tdAcoes += '<div style="display:flex;gap:4px;align-items:center;">';
+            tdAcoes += '<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">';
+            tdAcoes += _ckBtn + _lembBtn + _comtBtn;
             tdAcoes += '<button onclick="editProc(\'' + realIndex + '\')" style="padding:4px 9px;border-radius:6px;border:1px solid rgba(135,195,150,0.4);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:var(--text-dim);">✏ Editar</button>';
             tdAcoes += '<button onclick="deleteProc(\'' + realIndex + '\')" style="padding:4px 9px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#d94f4f;">✕</button>';
             tdAcoes += '</div>';
