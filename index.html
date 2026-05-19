@@ -7675,7 +7675,9 @@ function editProc(docId) {
     if (document.getElementById('f-coleta-anexo')) document.getElementById('f-coleta-anexo').value = p.coletaAnexo || '';
     document.getElementById('f-anexo-data').value = p.anexo || '';
     if (p.anexo) {
-        document.getElementById('f-anexo-preview').innerHTML = p.anexo.startsWith('data:image') ? `<img src="${p.anexo}" style="max-width:100%;max-height:120px;border-radius:6px;border:1px solid var(--border);">` : '<span style="font-size:0.86rem;color:var(--green);">📎 Anexo salvo</span>';
+        document.getElementById('f-anexo-preview').innerHTML = p.anexo.startsWith('data:image')
+            ? `<img src="${p.anexo}" style="max-width:100%;max-height:120px;border-radius:6px;border:1px solid var(--border);cursor:pointer;" onclick="window.abrirAnexo(document.getElementById('f-anexo-data').value)" title="Clique para ver em tamanho cheio">`
+            : `<span style="font-size:0.86rem;color:var(--green);">📎 Anexo salvo &nbsp;<button type="button" onclick="window.abrirAnexo(document.getElementById('f-anexo-data').value)" style="background:none;border:1px solid var(--green);color:var(--green);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:0.78rem;font-family:var(--mono);">Ver →</button></span>`;
         document.getElementById('btn-remover-anexo').style.display = 'inline-block';
     } else {
         document.getElementById('f-anexo-preview').innerHTML = '';
@@ -9019,9 +9021,9 @@ document.addEventListener('change', function(e) {
             document.getElementById('f-anexo-data').value = ev.target.result;
             const preview = document.getElementById('f-anexo-preview');
             if (file.type.startsWith('image/')) {
-                preview.innerHTML = `<img src="${ev.target.result}" style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--border);margin-top:4px;">`;
+                preview.innerHTML = `<img src="${ev.target.result}" style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--border);margin-top:4px;cursor:pointer;" onclick="window.abrirAnexo(document.getElementById('f-anexo-data').value)" title="Clique para ver em tamanho cheio">`;
             } else {
-                preview.innerHTML = `<span style="font-size:0.86rem;color:var(--green);font-family:var(--mono);">📎 ${file.name} pronto para salvar</span>`;
+                preview.innerHTML = `<span style="font-size:0.86rem;color:var(--green);font-family:var(--mono);">📎 ${file.name} &nbsp;<button type="button" onclick="window.abrirAnexo(document.getElementById('f-anexo-data').value)" style="background:none;border:1px solid var(--green);color:var(--green);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:0.78rem;font-family:var(--mono);">Ver →</button></span>`;
             }
             document.getElementById('btn-remover-anexo').style.display = 'inline-block';
         };
