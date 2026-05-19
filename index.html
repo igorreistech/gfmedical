@@ -3042,6 +3042,37 @@
             background: transparent; border-color: var(--border); color: var(--text-dim);
         }
 
+        /* ─── FAIXA ALERTA REAGENDADO ─── */
+        #reagendado-alert-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; flex-wrap: wrap;
+            background: rgba(167,139,250,0.13);
+            border: 1.5px solid rgba(167,139,250,0.7);
+            border-radius: 12px; padding: 12px 18px;
+            margin-bottom: 12px;
+            animation: reagAlertPulse 0.8s ease-in-out infinite;
+        }
+        @keyframes reagAlertPulse {
+            0%, 100% { background: rgba(167,139,250,0.13); border-color: rgba(167,139,250,0.7); box-shadow: none; }
+            50% { background: rgba(167,139,250,0.25); border-color: #a78bfa; box-shadow: 0 0 18px rgba(167,139,250,0.40); }
+        }
+        #reagendado-alert-bar .reag-alert-text {
+            font-family: var(--mono); font-size: 0.82rem; font-weight: 700;
+            color: #a78bfa; letter-spacing: 0.06em; text-transform: uppercase;
+        }
+        #reagendado-alert-bar .reag-alert-list {
+            font-family: var(--mono); font-size: 0.74rem; color: var(--text-dim);
+            margin-top: 3px; line-height: 1.6;
+        }
+        #reagendado-alert-bar .reag-alert-btn {
+            padding: 7px 16px; border-radius: 8px;
+            background: rgba(167,139,250,0.18); border: 1.5px solid #a78bfa;
+            color: #a78bfa; font-family: var(--mono); font-size: 0.75rem;
+            font-weight: 700; cursor: pointer; white-space: nowrap;
+            transition: background 0.15s;
+        }
+        #reagendado-alert-bar .reag-alert-btn:hover { background: rgba(167,139,250,0.32); }
+
         /* ─── ALERTA REAGENDADO ─── */
         .reagendado-alert-overlay {
             position: fixed; inset: 0; z-index: 9999;
@@ -3928,6 +3959,9 @@
     </div>
 
     
+
+    <!-- ALERTA ATIVO REAGENDADO -->
+    <div id="reagendado-alert-bar" style="display:none;"></div>
 
     <!-- ALERTS (oculto — estilo monitor) -->
     <div class="alerts-panel" id="alertsPanel" style="display:none!important;"></div>
@@ -5977,9 +6011,33 @@ function updateStats() {
     setPisca('stat-card-preparacao', 'statPiscarPreparacao 1.5s ease-in-out infinite', temPreparacao);
 
     // Reagendado — qualquer registro
-    const temReagendado = procedimentos.some(p => p.status === 'reagendado');
+    const reagendados = procedimentos.filter(p => p.status === 'reagendado');
+    const temReagendado = reagendados.length > 0;
     temReagendado ? startReagendadoSound() : stopReagendadoSound();
     setPisca('stat-card-reagendado', 'statPiscarReagendado 0.8s ease-in-out infinite', temReagendado);
+
+    // Faixa de alerta ativo reagendado
+    const reagBar = document.getElementById('reagendado-alert-bar');
+    if (reagBar) {
+        if (temReagendado) {
+            const lista = reagendados.slice(0, 4).map(p => {
+                const nome = p.paciente || p.hospital || 'Procedimento';
+                const data = p.data ? new Date(p.data + 'T00:00:00').toLocaleDateString('pt-BR') : 'sem data';
+                const vencido = p.data && p.data < todayStr() ? ' ⚠ VENCIDO' : '';
+                return `• ${nome} — ${data}${vencido}`;
+            }).join('<br>');
+            const extra = reagendados.length > 4 ? `<br><span style="opacity:0.6;">+${reagendados.length - 4} outros</span>` : '';
+            reagBar.innerHTML = `
+                <div>
+                    <div class="reag-alert-text">↺ ${reagendados.length} reagendado${reagendados.length > 1 ? 's' : ''} aguardando nova data — cobrar com vendedor</div>
+                    <div class="reag-alert-list">${lista}${extra}</div>
+                </div>
+                <button class="reag-alert-btn" onclick="document.querySelector('[data-filter=reagendado]').click()">Ver reagendados →</button>`;
+            reagBar.style.display = 'flex';
+        } else {
+            reagBar.style.display = 'none';
+        }
+    }
 
     // Agendado — somente hoje ou amanhã
     const temAgendado = procedimentos.some(p => (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanhaStr));
