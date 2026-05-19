@@ -18523,26 +18523,62 @@ window.buildCardHTML=function(proc){
     return html;
 };
 
-// Botão checklist via MutationObserver no #cards-view
-function _injetarBotoesCk(){
-    ['status-preparacao','status-agendado','status-reagendado'].forEach(cls=>{
-        document.querySelectorAll('.proc-card.'+cls).forEach(card=>{
-            if(card.querySelector('.btn-ck-checklist')) return;
-            const id=card.getAttribute('data-id'); if(!id) return;
-            const actions=card.querySelector('.card-actions'); if(!actions) return;
-            const delBtn=actions.querySelector('.btn-act.del'); if(!delBtn) return;
-            const btn=document.createElement('button');
-            btn.className='btn-act btn-ck-checklist';
-            btn.style.cssText='background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;';
-            btn.title='Checklist de preparação'; btn.innerHTML='☑ Checklist';
-            btn.onclick=()=>window.abrirChecklist(id);
-            actions.insertBefore(btn,delBtn);
-        });
+// ─── INJEÇÃO DE TODOS OS BOTÕES DE MÓDULO VIA MUTATIONOBSERVER ────
+function _injetarBotoesModulo(){
+    document.querySelectorAll('.proc-card').forEach(card=>{
+        const id=card.getAttribute('data-id'); if(!id) return;
+        const actions=card.querySelector('.card-actions'); if(!actions) return;
+        const delBtn=actions.querySelector('.btn-act.del'); if(!delBtn) return;
+        const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(id));
+        const st=card.className.match(/status-(\S+)/)?.[1]||'';
+        // Copiar
+        if(!card.querySelector('.btn-mod-copiar')){
+            const b=document.createElement('button'); b.className='btn-act btn-mod-copiar';
+            b.style.cssText='background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;';
+            b.title='Copiar dados da ficha'; b.innerHTML='📋 Copiar';
+            b.onclick=()=>window.copiarFicha&&window.copiarFicha(id);
+            actions.insertBefore(b,delBtn);
+        }
+        // QR Code
+        if(!card.querySelector('.btn-mod-qr')){
+            const b=document.createElement('button'); b.className='btn-act btn-mod-qr';
+            b.style.cssText='background:rgba(107,114,128,.1);border-color:rgba(107,114,128,.35);color:#6b7280;';
+            b.title='QR Code da ficha'; b.innerHTML='⬡ QR';
+            b.onclick=()=>window.abrirQRCode&&window.abrirQRCode(id);
+            actions.insertBefore(b,delBtn);
+        }
+        // Comentários
+        if(!card.querySelector('.btn-mod-comt')){
+            const nComt=proc?(proc._comentarios||[]).length:0;
+            const b=document.createElement('button'); b.className='btn-act btn-mod-comt';
+            b.style.cssText='background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;';
+            b.title='Comentários da equipe'; b.innerHTML='💬 Coment.'+(nComt?` (${nComt})`:'');
+            b.onclick=()=>window.abrirComentarios&&window.abrirComentarios(id);
+            actions.insertBefore(b,delBtn);
+        }
+        // Lembrete
+        if(!card.querySelector('.btn-mod-lemb')){
+            const nLemb=proc?(proc._lembretes||[]).filter(l=>new Date(l.em)>new Date()).length:0;
+            const b=document.createElement('button'); b.className='btn-act btn-mod-lemb';
+            b.style.cssText='background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.35);color:#6366f1;';
+            b.title='Lembretes'; b.innerHTML='⏰ Lembrete'+(nLemb?` (${nLemb})`:'');
+            b.onclick=()=>window.abrirModalLembrete&&window.abrirModalLembrete(id);
+            actions.insertBefore(b,delBtn);
+        }
+        // Checklist (apenas preparacao/agendado/reagendado)
+        if(!card.querySelector('.btn-mod-ck')&&['preparacao','agendado','reagendado'].includes(st)){
+            const b=document.createElement('button'); b.className='btn-act btn-mod-ck';
+            b.style.cssText='background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;';
+            b.title='Checklist de preparação'; b.innerHTML='☑ Checklist';
+            b.onclick=()=>window.abrirChecklist&&window.abrirChecklist(id);
+            actions.insertBefore(b,delBtn);
+        }
     });
 }
-function _iniciarObserverCk(){
+function _iniciarObserverModulos(){
     const grid=document.getElementById('cards-view'); if(!grid) return;
-    new MutationObserver(()=>setTimeout(_injetarBotoesCk,0)).observe(grid,{childList:true,subtree:false});
+    new MutationObserver(()=>setTimeout(_injetarBotoesModulo,0)).observe(grid,{childList:true,subtree:false});
+    setTimeout(_injetarBotoesModulo,500);
 }
 
 // ─── 2. LEMBRETES PERSONALIZADOS ─────────────────────────────────
@@ -18719,7 +18755,7 @@ window.updateStats=function(){
 
 function init(){
     injetarAbaCalendario();
-    _iniciarObserverCk();
+    _iniciarObserverModulos();
     setTimeout(_agendarLembretes, 3000);
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
