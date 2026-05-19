@@ -10,7 +10,7 @@
     <!-- Firebase SDK -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-      import { getFirestore, collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+      import { getFirestore, collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
       import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
       import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
@@ -25,6 +25,7 @@
 
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
+      enableIndexedDbPersistence(db).catch(()=>{});
       const auth = getAuth(app);
       window._fbAuth = auth;
       const COLL = "procedimentos_cg";
@@ -18388,6 +18389,321 @@ window.buildCardHTML = function(proc) {
         if (e.ctrlKey && e.keyCode === 85) { e.preventDefault(); return false; }
         if (e.ctrlKey && e.keyCode === 83) { e.preventDefault(); return false; }
     });
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MÓDULO MELHORIAS 3: checklist · lembretes · comentários
+                         QR code · aba calendário · agenda semanal
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+.ck-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; transition:background 0.15s; }
+.ck-item:hover { background:rgba(0,0,0,0.04); }
+.ck-item input[type=checkbox] { width:16px; height:16px; accent-color:#4db87a; cursor:pointer; flex-shrink:0; }
+.ck-item label { font-family:var(--mono); font-size:0.78rem; color:var(--text); cursor:pointer; flex:1; }
+.ck-item.done label { text-decoration:line-through; opacity:0.5; }
+.coment-feed { display:flex; flex-direction:column; gap:6px; padding:10px 14px; max-height:220px; overflow-y:auto; }
+.coment-item { background:rgba(0,0,0,0.04); border-radius:8px; padding:8px 10px; }
+.coment-autor { font-family:var(--mono); font-size:0.62rem; color:var(--text-dim); margin-bottom:2px; }
+.coment-texto { font-family:var(--mono); font-size:0.75rem; color:var(--text); }
+.coment-input-wrap { display:flex; gap:6px; padding:8px 14px 12px; border-top:1px solid var(--border,#ccc); }
+.coment-input-wrap input { flex:1; padding:7px 10px; border-radius:8px; border:1px solid var(--border,#ccc); background:var(--surface); color:var(--text); font-family:var(--mono); font-size:0.75rem; }
+.coment-input-wrap button { padding:7px 14px; border-radius:8px; background:rgba(75,180,210,0.15); border:1px solid rgba(75,180,210,0.4); color:#4bb4d2; font-family:var(--mono); font-size:0.72rem; font-weight:700; cursor:pointer; }
+</style>
+<script>
+(function(){
+'use strict';
+
+// ─── ABA CALENDÁRIO (já existe renderCalendar, só falta o botão) ──
+function injetarAbaCalendario(){
+    if(document.getElementById('tab-calendar-btn')) return;
+    const tabVend=document.getElementById('tab-vendedor');
+    if(!tabVend) return;
+    const b=document.createElement('button');
+    b.id='tab-calendar-btn'; b.className='view-tab'; b.textContent='📅 Calendário';
+    b.onclick=()=>window.switchView&&window.switchView('calendar');
+    tabVend.insertAdjacentElement('afterend',b);
+}
+
+// ─── AGENDA SEMANAL (view dentro do calendário) ────────────────────
+window.renderAgendaSemanal=function(){
+    const container=document.getElementById('calendarContent'); if(!container) return;
+    const hoje=typeof window.todayStr==='function'?window.todayStr():new Date().toISOString().split('T')[0];
+    const hojeD=new Date(hoje+'T00:00:00');
+    const dow=hojeD.getDay();
+    const seg=new Date(hojeD); seg.setDate(hojeD.getDate()-dow+1);
+    const dias=Array.from({length:7},(_,i)=>{const d=new Date(seg);d.setDate(seg.getDate()+i);return d;});
+    const procs=window.procedimentos||[];
+    const fmt=d=>d.toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'});
+    const ptDias=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    container.innerHTML=`<div style="padding:0 0 16px;"><div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;"><span style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);">Semana de ${seg.toLocaleDateString('pt-BR')} a ${dias[6].toLocaleDateString('pt-BR')}</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">${dias.map(d=>{
+        const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const ev=procs.filter(p=>p.data===ds);
+        const isHoje=ds===hoje;
+        const sMap={urgencia:'#ef4444',agendado:'#4db87a',preparacao:'#d4920a',andamento:'#d94f4f',a_agendar:'#06b6d4',reagendado:'#a78bfa'};
+        return`<div style="background:${isHoje?'rgba(77,184,122,0.1)':'rgba(0,0,0,0.02)'};border:1.5px solid ${isHoje?'rgba(77,184,122,0.6)':'var(--border,#ccc)'};border-radius:10px;padding:8px 6px;min-height:80px;"><div style="font-family:var(--mono);font-size:0.65rem;font-weight:700;color:${isHoje?'#4db87a':'var(--text-dim)'};text-align:center;margin-bottom:4px;">${ptDias[d.getDay()]}<br>${d.getDate()}</div>${ev.length===0?`<div style="font-family:var(--mono);font-size:0.6rem;color:var(--text-dim);text-align:center;opacity:0.4;">—</div>`:ev.slice(0,4).map(p=>`<div style="background:${sMap[p.status]||'#888'}22;border-left:2px solid ${sMap[p.status]||'#888'};border-radius:3px;padding:2px 4px;margin-bottom:2px;font-family:var(--mono);font-size:0.58rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${p.paciente||p.hospital||'—'}">${p.inicio?p.inicio+' ':''}${p.paciente||p.hospital||'—'}</div>`).join('')}${ev.length>4?`<div style="font-family:var(--mono);font-size:0.58rem;color:var(--text-dim);text-align:center;">+${ev.length-4}</div>`:''}</div>`;
+    }).join('')}</div></div>`;
+};
+
+// Hook switchView para marcar aba calendário como ativa
+const _origSW3=window.switchView;
+window.switchView=function(v){
+    const tabCal=document.getElementById('tab-calendar-btn');
+    if(tabCal) tabCal.classList.toggle('active', v==='calendar');
+    if(typeof _origSW3==='function') _origSW3.apply(this,arguments);
+};
+
+// ─── 1. CHECKLIST DE PREPARAÇÃO ───────────────────────────────────
+const _CKITENS=['Materiais confirmados com o fornecedor','Equipe cirúrgica avisada','Sala reservada e confirmada','Anestesista confirmado','Autorização do convênio aprovada','NF emitida','Material entregue no hospital','Contato feito com o médico'];
+
+window.abrirChecklist=function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId));
+    if(!proc) return;
+    const ck=proc._checklist||{};
+    const total=_CKITENS.length, feitos=Object.values(ck).filter(Boolean).length;
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border:1.5px solid rgba(77,184,122,0.4);border-radius:18px;max-width:460px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+<div style="padding:18px 18px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border,#ccc);">
+    <div><div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:#4db87a;text-transform:uppercase;">☑ Checklist de Preparação</div>
+    <div style="font-family:var(--mono);font-size:0.65rem;color:var(--text-dim);">${proc.paciente||proc.hospital||'—'} · ${feitos}/${total} concluídos</div></div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #ccc;color:#9ca3af;width:28px;height:28px;border-radius:8px;cursor:pointer;">✕</button>
+</div>
+<div style="padding:8px 8px;">
+    <div style="height:4px;background:rgba(0,0,0,.08);border-radius:99px;margin:8px 10px 14px;"><div id="ck-progress-bar" style="height:100%;width:${Math.round(feitos/total*100)}%;background:#4db87a;border-radius:99px;transition:width 0.3s;"></div></div>
+    <div id="ck-list">
+    ${_CKITENS.map((item,i)=>`<div class="ck-item${ck[i]?' done':''}" onclick="window._ckToggle('${docId}',${i},this)">
+        <input type="checkbox" id="ck-${i}" ${ck[i]?'checked':''} onchange="window._ckToggle('${docId}',${i},this.closest('.ck-item'))">
+        <label for="ck-${i}">${item}</label>
+    </div>`).join('')}
+    </div>
+</div>
+<div style="padding:10px 18px 16px;border-top:1px solid var(--border,#ccc);display:flex;gap:8px;">
+    <button onclick="window._ckSalvar('${docId}');this.closest('div[style*=fixed]').remove();" style="flex:1;padding:10px;border-radius:10px;background:rgba(77,184,122,0.18);border:1.5px solid rgba(77,184,122,0.5);color:#4db87a;font-family:var(--mono);font-size:0.75rem;font-weight:700;cursor:pointer;">Salvar</button>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;padding:10px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;cursor:pointer;">Fechar</button>
+</div></div>`;
+    ov._docId=docId;
+    document.body.appendChild(ov);
+    ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+};
+
+window._ckToggle=function(docId,idx,row){
+    const cb=row.querySelector('input[type=checkbox]'); if(!cb) return;
+    cb.checked=!cb.checked;
+    row.classList.toggle('done',cb.checked);
+    const total=_CKITENS.length;
+    const feitos=row.closest('.ck-item')?.parentElement?.querySelectorAll('.ck-item.done').length||0;
+    const bar=document.getElementById('ck-progress-bar');
+    if(bar) bar.style.width=Math.round(feitos/total*100)+'%';
+};
+
+window._ckSalvar=async function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId));
+    if(!proc) return;
+    const ck={};
+    document.querySelectorAll('#ck-list .ck-item').forEach((row,i)=>{
+        const cb=row.querySelector('input'); if(cb) ck[i]=cb.checked;
+    });
+    proc._checklist=ck;
+    try{await window.fbSaveProc(proc);window.showSyncToast&&window.showSyncToast('☑ Checklist salvo!');}
+    catch(e){alert('Erro ao salvar: '+e.message);}
+};
+
+// Badge checklist no card
+const _origBldCk=window.buildCardHTML;
+window.buildCardHTML=function(proc){
+    let html=typeof _origBldCk==='function'?_origBldCk.apply(this,arguments):''; if(!html) return html;
+    const id=proc._docId||proc.id;
+    const ck=proc._checklist||{};
+    const feitos=Object.values(ck).filter(Boolean).length;
+    const total=_CKITENS.length;
+    const pct=Math.round(feitos/total*100);
+    const cor=pct===100?'#4db87a':(pct>=50?'#f59e0b':'#9ca3af');
+    const badge=feitos>0?`<span style="display:inline-flex;align-items:center;background:${cor}18;border:1px solid ${cor}44;color:${cor};border-radius:999px;padding:1px 7px;font-family:var(--mono);font-size:0.62rem;font-weight:700;margin-left:4px;" title="Checklist: ${feitos}/${total}">☑ ${pct}%</span>`:'';
+    if(badge){const lbl=({'a_agendar':'Autorizado','andamento':'Em Procedimento','preparacao':'Em Separação','agendado':'Agendado','concluido':'Concluído','cancelado':'Cancelado','reagendado':'Reagendado','a_retirar':'Aguardando Retirada','urgencia':'🚨 URGÊNCIA','coleta_urgente':'✈️ Coleta Prioritária'}[proc.status]||proc.status).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp('('+lbl+'<\\/div>)'),'$1'+badge);}
+    html=html.replace('onclick="deleteProc(',`onclick="abrirChecklist('${id}')" style="background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;" title="Checklist de preparação">☑ Checklist</button><button class="btn-act del" onclick="deleteProc(`);
+    return html;
+};
+
+// ─── 2. LEMBRETES PERSONALIZADOS ─────────────────────────────────
+window.abrirModalLembrete=function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId));
+    if(!proc) return;
+    const lembretes=proc._lembretes||[];
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border:1.5px solid rgba(99,102,241,0.4);border-radius:18px;max-width:420px;width:90%;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+<div style="padding:16px 18px 10px;border-bottom:1px solid var(--border,#ccc);display:flex;justify-content:space-between;align-items:center;">
+    <div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:#6366f1;text-transform:uppercase;">⏰ Lembrete</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #ccc;color:#9ca3af;width:28px;height:28px;border-radius:8px;cursor:pointer;">✕</button>
+</div>
+<div style="padding:16px 18px;">
+    <div style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);margin-bottom:10px;">${proc.paciente||proc.hospital||'—'}</div>
+    <label style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:4px;">Data e hora</label>
+    <input type="datetime-local" id="lembrete-dt" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--surface);color:var(--text);font-family:var(--mono);font-size:0.78rem;margin-bottom:10px;">
+    <label style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:4px;">Mensagem</label>
+    <input type="text" id="lembrete-msg" placeholder="Ex: Confirmar entrega do material" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--surface);color:var(--text);font-family:var(--mono);font-size:0.78rem;margin-bottom:14px;">
+    ${lembretes.length?`<div style="font-family:var(--mono);font-size:0.65rem;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;">Lembretes ativos</div>${lembretes.map((l,i)=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;border:1px solid var(--border,#ccc);border-radius:6px;margin-bottom:4px;"><span style="font-family:var(--mono);font-size:0.68rem;color:var(--text);">${new Date(l.em).toLocaleString('pt-BR')} — ${l.msg}</span><button onclick="window._removerLembrete('${docId}',${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:0.8rem;">✕</button></div>`).join('')}`:''}
+</div>
+<div style="padding:0 18px 16px;display:flex;gap:8px;">
+    <button onclick="window._salvarLembrete('${docId}')" style="flex:1;padding:10px;border-radius:10px;background:rgba(99,102,241,.18);border:1.5px solid rgba(99,102,241,.5);color:#6366f1;font-family:var(--mono);font-size:0.75rem;font-weight:700;cursor:pointer;">⏰ Adicionar</button>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;padding:10px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;cursor:pointer;">Fechar</button>
+</div></div>`;
+    document.body.appendChild(ov); ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+    const now=new Date(); now.setMinutes(now.getMinutes()+30);
+    const dt=document.getElementById('lembrete-dt');
+    if(dt) dt.value=now.toISOString().slice(0,16);
+};
+
+window._salvarLembrete=async function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    const dt=document.getElementById('lembrete-dt')?.value;
+    const msg=document.getElementById('lembrete-msg')?.value||'Lembrete';
+    if(!dt){alert('Selecione a data e hora');return;}
+    if(new Date(dt)<=new Date()){alert('A data deve ser no futuro');return;}
+    const lembretes=proc._lembretes||[];
+    lembretes.push({em:dt,msg,criado:new Date().toISOString()});
+    proc._lembretes=lembretes;
+    try{await window.fbSaveProc(proc);window.showSyncToast&&window.showSyncToast('⏰ Lembrete salvo!');_agendarLembretes();document.querySelector('.reagendado-alert-overlay,div[style*="9999"]')?.closest('div[style*="fixed"]')?.remove();}
+    catch(e){alert('Erro: '+e.message);}
+    const ov=document.querySelector('div[style*="fixed"]');
+    if(ov&&ov.querySelector('#lembrete-dt')) ov.remove();
+    window.abrirModalLembrete(docId);
+};
+
+window._removerLembrete=async function(docId,idx){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    proc._lembretes=(proc._lembretes||[]).filter((_,i)=>i!==idx);
+    try{await window.fbSaveProc(proc);window.showSyncToast&&window.showSyncToast('Lembrete removido');}catch(e){}
+    const ov=document.querySelector('div[style*="fixed"]');
+    if(ov&&ov.querySelector('#lembrete-dt')) ov.remove();
+    window.abrirModalLembrete(docId);
+};
+
+function _agendarLembretes(){
+    const procs=window.procedimentos||[];
+    const agora=Date.now();
+    procs.forEach(proc=>{
+        (proc._lembretes||[]).forEach(l=>{
+            const t=new Date(l.em).getTime()-agora;
+            if(t>0&&t<86400000){
+                setTimeout(()=>{
+                    if(Notification.permission==='granted'){
+                        new Notification('⏰ Lembrete — Monitor Cirúrgico',{body:`${proc.paciente||proc.hospital||'—'}: ${l.msg}`,tag:'lembrete-'+proc._docId+'-'+l.em});
+                    }else{
+                        window.showSyncToast&&window.showSyncToast('⏰ Lembrete: '+l.msg);
+                    }
+                },t);
+            }
+        });
+    });
+}
+
+// Hook no botão de lembrete no card
+const _origBldLemb=window.buildCardHTML;
+window.buildCardHTML=function(proc){
+    let html=typeof _origBldLemb==='function'?_origBldLemb.apply(this,arguments):''; if(!html) return html;
+    const id=proc._docId||proc.id;
+    const nLemb=(proc._lembretes||[]).filter(l=>new Date(l.em)>new Date()).length;
+    const lembBadge=nLemb?` (${nLemb})`:'';
+    html=html.replace('onclick="deleteProc(',`onclick="abrirModalLembrete('${id}')" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.35);color:#6366f1;" title="Lembretes">⏰ Lembrete${lembBadge}</button><button class="btn-act del" onclick="deleteProc(`);
+    return html;
+};
+
+// ─── 3. COMENTÁRIOS INTERNOS ──────────────────────────────────────
+window.abrirComentarios=function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    const comentarios=proc._comentarios||[];
+    const user=(window._fbAuth&&window._fbAuth.currentUser)?window._fbAuth.currentUser.email:'usuário';
+    const fmtTs=ts=>ts?new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:75vh;display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.25);">
+<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border,#ccc);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+    <div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:#4bb4d2;text-transform:uppercase;">💬 Comentários — ${proc.paciente||proc.hospital||'—'}</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #ccc;color:#9ca3af;width:28px;height:28px;border-radius:8px;cursor:pointer;">✕</button>
+</div>
+<div class="coment-feed" id="coment-feed-${docId}">${comentarios.length===0?'<div style="text-align:center;padding:24px;font-family:var(--mono);font-size:0.75rem;color:#9ca3af;">Nenhum comentário ainda</div>':comentarios.map(c=>`<div class="coment-item"><div class="coment-autor">👤 ${c.autor||'—'} · ${fmtTs(c.em)}</div><div class="coment-texto">${c.texto}</div></div>`).join('')}</div>
+<div class="coment-input-wrap">
+    <input type="text" id="coment-input-${docId}" placeholder="Escreva um comentário..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();window._enviarComentario('${docId}');}">
+    <button onclick="window._enviarComentario('${docId}')">Enviar</button>
+</div></div>`;
+    document.body.appendChild(ov); ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+    setTimeout(()=>{const f=document.getElementById('coment-feed-'+docId);if(f)f.scrollTop=f.scrollHeight;},50);
+};
+
+window._enviarComentario=async function(docId){
+    const inp=document.getElementById('coment-input-'+docId); if(!inp) return;
+    const txt=inp.value.trim(); if(!txt) return;
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    const user=(window._fbAuth&&window._fbAuth.currentUser)?window._fbAuth.currentUser.email:'usuário';
+    const comentarios=proc._comentarios||[];
+    comentarios.push({texto:txt,autor:user,em:new Date().toISOString()});
+    proc._comentarios=comentarios;
+    inp.value='';
+    try{
+        await window.fbSaveProc(proc);
+        const feed=document.getElementById('coment-feed-'+docId);
+        if(feed){
+            const div=document.createElement('div'); div.className='coment-item';
+            const fmtTs=ts=>ts?new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+            div.innerHTML=`<div class="coment-autor">👤 ${user} · ${fmtTs(new Date().toISOString())}</div><div class="coment-texto">${txt}</div>`;
+            const empty=feed.querySelector('div[style*="Nenhum"]'); if(empty) empty.remove();
+            feed.appendChild(div); feed.scrollTop=feed.scrollHeight;
+        }
+    }catch(e){alert('Erro: '+e.message);}
+};
+
+const _origBldComt=window.buildCardHTML;
+window.buildCardHTML=function(proc){
+    let html=typeof _origBldComt==='function'?_origBldComt.apply(this,arguments):''; if(!html) return html;
+    const id=proc._docId||proc.id;
+    const nComt=(proc._comentarios||[]).length;
+    const cBadge=nComt?` (${nComt})`:'';
+    html=html.replace('onclick="deleteProc(',`onclick="abrirComentarios('${id}')" style="background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;" title="Comentários da equipe">💬 Comentários${cBadge}</button><button class="btn-act del" onclick="deleteProc(`);
+    return html;
+};
+
+// ─── 4. QR CODE DA FICHA ──────────────────────────────────────────
+window.abrirQRCode=function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',urgencia:'URGÊNCIA'};
+    const txt=[`GF Medical — Ficha Cirúrgica`,proc.hospital||'',proc.paciente?`Paciente: ${proc.paciente}`:'',proc.medico?`Médico: ${proc.medico}`:'',proc.data?`Data: ${fmt(proc.data)}${proc.inicio?' às '+proc.inicio:''}`:'',`Status: ${sMap[proc.status]||proc.status}`,proc.vendedor?`Vendedor: ${proc.vendedor}`:''].filter(Boolean).join('\n');
+    const qrUrl=`https://api.qrserver.com/v1/create-qr-code/?size=200x200&format=svg&data=${encodeURIComponent(txt)}`;
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border:1px solid var(--border,#ccc);border-radius:18px;padding:24px;max-width:320px;width:90%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+<div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:var(--text);margin-bottom:4px;">QR Code — Ficha</div>
+<div style="font-family:var(--mono);font-size:0.68rem;color:var(--text-dim);margin-bottom:16px;">${proc.paciente||proc.hospital||'—'}</div>
+<img src="${qrUrl}" alt="QR Code" style="width:200px;height:200px;border-radius:10px;border:1px solid var(--border,#ccc);background:#fff;" onerror="this.src='';this.alt='Erro ao gerar QR. Verifique a conexão.'">
+<div style="font-family:var(--mono);font-size:0.62rem;color:var(--text-dim);margin-top:10px;">Escaneie para ver os dados da ficha</div>
+<button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:14px;width:100%;padding:9px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;cursor:pointer;">Fechar</button></div>`;
+    document.body.appendChild(ov); ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+};
+
+const _origBldQR=window.buildCardHTML;
+window.buildCardHTML=function(proc){
+    let html=typeof _origBldQR==='function'?_origBldQR.apply(this,arguments):''; if(!html) return html;
+    const id=proc._docId||proc.id;
+    html=html.replace('onclick="deleteProc(',`onclick="abrirQRCode('${id}')" style="background:rgba(107,114,128,.1);border-color:rgba(107,114,128,.35);color:#6b7280;" title="QR Code da ficha">⬡ QR Code</button><button class="btn-act del" onclick="deleteProc(`);
+    return html;
+};
+
+// ─── HOOKS ───────────────────────────────────────────────────────
+const _origUS3=window.updateStats;
+window.updateStats=function(){
+    if(typeof _origUS3==='function') _origUS3.apply(this,arguments);
+    if(window.currentView==='calendar') try{window.renderAgendaSemanal?window.renderAgendaSemanal():null;}catch(e){}
+};
+
+function init(){
+    injetarAbaCalendario();
+    setTimeout(_agendarLembretes, 3000);
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+else init();
+
 })();
 </script>
 
