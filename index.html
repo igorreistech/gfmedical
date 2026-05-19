@@ -760,7 +760,7 @@
         .pill-agendado { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.4); }
         .pill-concluido { background: rgba(107,114,128,0.15); color: var(--gray); border: 1px solid rgba(107,114,128,0.4); }
         .pill-cancelado { background: rgba(239,68,68,0.08); color: #f87171; border: 1px solid rgba(239,68,68,0.25); text-decoration: line-through; }
-        .pill-reagendado { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.4); animation: pillPulseReagendado 2.5s ease-in-out infinite; }
+        .pill-reagendado { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.4); animation: pillPulseReagendado 0.8s ease-in-out infinite; }
         .pill-a_retirar { background: rgba(249,115,22,0.15); color: #f97316; border: 1px solid rgba(249,115,22,0.4); animation: pillPulseRetirar 0.8s ease-in-out infinite; }
         .pill-coleta_urgente {
             background: rgba(99,102,241,0.15);
@@ -5941,7 +5941,7 @@ function updateStats() {
     // Reagendado — qualquer registro
     const temReagendado = procedimentos.some(p => p.status === 'reagendado');
     temReagendado ? startReagendadoSound() : stopReagendadoSound();
-    setPisca('stat-card-reagendado', 'statPiscarReagendado 1.8s ease-in-out infinite', temReagendado);
+    setPisca('stat-card-reagendado', 'statPiscarReagendado 0.8s ease-in-out infinite', temReagendado);
 
     // Agendado — somente hoje ou amanhã
     const temAgendado = procedimentos.some(p => (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanhaStr));
@@ -6409,7 +6409,7 @@ function buildCardHTML(proc) {
             'andamento':  'cardPiscarAndamento 1s ease-in-out infinite',
             'preparacao': 'cardPiscarPreparacao 1.5s ease-in-out infinite',
             'a_agendar':  'cardPiscarAutorizado 1.8s ease-in-out infinite',
-            'reagendado': 'cardPiscarReagendado 1.8s ease-in-out infinite',
+            'reagendado': 'cardPiscarReagendado 0.8s ease-in-out infinite',
             'a_retirar':  'cardPiscarRetirar 0.8s ease-in-out infinite',
             'coleta_urgente': 'cardPiscarColeta 0.6s ease-in-out infinite',
         };
