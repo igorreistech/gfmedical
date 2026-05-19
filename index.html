@@ -18521,7 +18521,9 @@ window.buildCardHTML=function(proc){
     const cor=pct===100?'#4db87a':(pct>=50?'#f59e0b':'#9ca3af');
     const badge=feitos>0?`<span style="display:inline-flex;align-items:center;background:${cor}18;border:1px solid ${cor}44;color:${cor};border-radius:999px;padding:1px 7px;font-family:var(--mono);font-size:0.62rem;font-weight:700;margin-left:4px;" title="Checklist: ${feitos}/${total}">☑ ${pct}%</span>`:'';
     if(badge){const lbl=({'a_agendar':'Autorizado','andamento':'Em Procedimento','preparacao':'Em Separação','agendado':'Agendado','concluido':'Concluído','cancelado':'Cancelado','reagendado':'Reagendado','a_retirar':'Aguardando Retirada','urgencia':'🚨 URGÊNCIA','coleta_urgente':'✈️ Coleta Prioritária'}[proc.status]||proc.status).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp('('+lbl+'<\\/div>)'),'$1'+badge);}
-    html=html.replace('onclick="deleteProc(',`onclick="abrirChecklist('${id}')" style="background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;" title="Checklist de preparação">☑ Checklist</button><button class="btn-act del" onclick="deleteProc(`);
+    if(proc.status==='preparacao'||proc.status==='agendado'){
+        html=html.replace('onclick="deleteProc(',`onclick="abrirChecklist('${id}')" style="background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;" title="Checklist de preparação">☑ Checklist</button><button class="btn-act del" onclick="deleteProc(`);
+    }
     return html;
 };
 
