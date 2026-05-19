@@ -6733,7 +6733,7 @@ function buildCardHTML(proc) {
                 ${_ehColeta(proc) && proc.cte ? `<div class="card-row"><span class="card-label">📦 CTE</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.cte}</span></div>` : ''}
                 ${_ehColeta(proc) && proc.coletaFornecedor ? `<div class="card-row"><span class="card-label">🏭 Fornecedor</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.coletaFornecedor}</span></div>` : ''}
                 ${_ehColeta(proc) && proc.coletaTransportadora ? `<div class="card-row"><span class="card-label">🚚 Transportadora</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.coletaTransportadora}</span></div>` : ''}
-                ${proc.anexo ? `<div class="card-row"><span class="card-label">📎 Anexo</span><span class="card-value"><a href="${proc.anexo}" target="_blank" style="color:var(--accent);font-size:0.86rem;">Ver imagem</a></span></div>` : ''}
+                ${proc.anexo ? `<div class="card-row"><span class="card-label">📎 Anexo</span><span class="card-value"><button onclick="window.abrirAnexoProc('${realIndex}','anexo')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:0.86rem;padding:0;font-family:inherit;text-decoration:underline;">📎 Ver imagem</button></span></div>` : ''}
                 ${timerHTML}
                 ${itensHTML}
                 ${obsHTML}
@@ -8343,9 +8343,9 @@ function renderColetaView() {
                 </div>
                 ${proc.coletaObs ? `<div style="margin-top:8px;padding:7px 10px;background:rgba(99,102,241,0.05);border-radius:8px;border:1px solid rgba(99,102,241,0.15);font-size:0.75rem;color:var(--text-dim);">📝 ${proc.coletaObs}</div>` : ''}
                 ${proc.coletaAnexo ? `<div style="margin-top:8px;">
-                    ${/\.(jpg|jpeg|png|webp|gif)$/i.test(proc.coletaAnexo) || proc.coletaAnexo.includes('firebasestorage') && !proc.coletaAnexo.includes('.pdf')
-                        ? `<a href="${proc.coletaAnexo}" target="_blank" style="display:block;"><img src="${proc.coletaAnexo}" alt="Anexo" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid rgba(99,102,241,0.25);object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);"><span>📎</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;">Ver anexo →</span></div></a>`
-                        : `<a href="${proc.coletaAnexo}" target="_blank" style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);text-decoration:none;"><span>📄</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;font-weight:700;">Ver anexo →</span></a>`
+                    ${/\.(jpg|jpeg|png|webp|gif)$/i.test(proc.coletaAnexo) || proc.coletaAnexo.startsWith('data:image') || (proc.coletaAnexo.includes('firebasestorage') && !proc.coletaAnexo.includes('.pdf'))
+                        ? `<img src="${proc.coletaAnexo}" alt="Anexo" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid rgba(99,102,241,0.25);object-fit:cover;cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')"><span>📎</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;">Ver anexo →</span></div>`
+                        : `<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')"><span>📄</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;font-weight:700;">Ver anexo →</span></div>`
                     }
                 </div>` : ''}
                 ${proc._updatedAt ? `<div style="margin-top:6px;font-family:var(--mono);font-size:0.62rem;color:#9ca3af;letter-spacing:0.05em;">🕐 Atualizado: ${window._fmtUpdatedAt ? window._fmtUpdatedAt(proc._updatedAt) : ''}</div>` : ''}
@@ -18482,8 +18482,28 @@ window.switchView=function(v){
     if(v==='table') setTimeout(_injetarBotoesModulo,150);
 };
 
+// ─── 0. VISUALIZAÇÃO DE ANEXOS (data URL → blob URL) ──────────────
+window.abrirAnexo=function(url){
+    if(!url) return;
+    if(url.startsWith('data:')){
+        try{
+            const arr=url.split(','), mime=arr[0].match(/:(.*?);/)[1];
+            const bstr=atob(arr[1]); const u8=new Uint8Array(bstr.length);
+            for(let i=0;i<bstr.length;i++) u8[i]=bstr.charCodeAt(i);
+            const blobUrl=URL.createObjectURL(new Blob([u8],{type:mime}));
+            window.open(blobUrl,'_blank');
+        }catch(e){
+            const a=document.createElement('a'); a.href=url; a.download='anexo'; a.click();
+        }
+    } else { window.open(url,'_blank'); }
+};
+window.abrirAnexoProc=function(docId,campo){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId));
+    if(proc) window.abrirAnexo(proc[campo||'anexo']);
+};
+
 // ─── 1. CHECKLIST DE PREPARAÇÃO ───────────────────────────────────
-const _CKITENS=['Materiais confirmados com o fornecedor','Equipe cirúrgica avisada','Sala reservada e confirmada','Anestesista confirmado','Autorização do convênio aprovada','NF emitida','Material entregue no hospital','Contato feito com o médico'];
+const _CKITENS=['Materiais confirmados com o hospital/hemodinâmica','Equipe cirúrgica avisada','Sala reservada e confirmada','Anestesista confirmado','Autorização do convênio aprovada','NF emitida','Material entregue no hospital','Contato feito com o médico'];
 
 window.abrirChecklist=function(docId){
     const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId));
