@@ -3672,7 +3672,7 @@
     <!-- ULTRA PREMIUM COMMAND CENTER -->
     <section class="ultra-hero" id="ultraHero" style="display:none;">
         <div class="ultra-hero-main">
-            <div class="ultra-badge">Ultra Premium · Central de Comando</div>
+            <div class="ultra-badge">Central de Comando</div>
             <h2>Mapa cirúrgico hospitalar com leitura executiva, operacional e crítica em uma única tela.</h2>
             <p class="ultra-subtitle">Acompanhe pressão da operação, próximos procedimentos, urgências, retirada e produtividade da base em tempo real.</p>
             <div class="ultra-chip-row">
@@ -13545,12 +13545,12 @@ window.fecharChecklist = fecharChecklist;
       </div>`;
   }
   function enhanceLabels(){
-    const t = document.title; if(t && !t.includes('Premium')) document.title = t.replace('Monitor Cirúrgico','Mapa Cirúrgico Hospitalar Premium');
-    const h1 = document.querySelector('.header-text h1'); if(h1) h1.textContent = 'Mapa Cirúrgico Hospitalar Premium';
+    const t = document.title; if(t) document.title = t.replace('Monitor Cirúrgico','Mapa Cirúrgico Hospitalar');
+    const h1 = document.querySelector('.header-text h1'); if(h1) h1.textContent = 'Mapa Cirúrgico Hospitalar';
     const p = document.querySelector('.header-text p'); if(p) p.textContent = 'Central operacional · Campo Grande/MS · GF Medical';
     const btnTable = document.getElementById('tab-table'); if(btnTable) btnTable.textContent = '🧭 Central Cirúrgica';
     const btnDash = document.getElementById('tab-dashboard'); if(btnDash) btnDash.textContent = '📊 Painel Executivo';
-    const footerSync = document.querySelector('.table-footer-sync'); if(footerSync) footerSync.innerHTML = '<div class="table-footer-dot"></div>Atualização automática · central premium';
+    const footerSync = document.querySelector('.table-footer-sync'); if(footerSync) footerSync.innerHTML = '<div class="table-footer-dot"></div>Atualização automática · central';
   }
   const oldRender = window.renderDashboard;
   window.renderDashboard = function(){ renderPremiumDashboard(); renderHeroStats(); };
