@@ -10,7 +10,7 @@
     <!-- Firebase SDK -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-      import { getFirestore, collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+      import { getFirestore, collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
       import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
       import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
@@ -25,6 +25,7 @@
 
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
+      enableIndexedDbPersistence(db).catch(()=>{});
       const auth = getAuth(app);
       window._fbAuth = auth;
       const COLL = "procedimentos_cg";
@@ -243,9 +244,15 @@
         .container {
             position: relative;
             z-index: 1;
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
-            padding: 24px;
+            padding: 12px;
+        }
+        @media (min-width: 768px) {
+            .container { padding: 16px; }
+        }
+        @media (min-width: 1200px) {
+            .container { padding: 20px; }
         }
 
         /* ─── HEADER ─── */
@@ -644,7 +651,7 @@
         /* ─── CARDS VIEW ─── */
         #cards-view {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr));
             gap: 16px;
         }
 
@@ -762,7 +769,7 @@
         .pill-agendado { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.4); }
         .pill-concluido { background: rgba(107,114,128,0.15); color: var(--gray); border: 1px solid rgba(107,114,128,0.4); }
         .pill-cancelado { background: rgba(239,68,68,0.08); color: #f87171; border: 1px solid rgba(239,68,68,0.25); text-decoration: line-through; }
-        .pill-reagendado { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.4); animation: pillPulseReagendado 2.5s ease-in-out infinite; }
+        .pill-reagendado { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.4); animation: pillPulseReagendado 0.8s ease-in-out infinite; }
         .pill-a_retirar { background: rgba(249,115,22,0.15); color: #f97316; border: 1px solid rgba(249,115,22,0.4); animation: pillPulseRetirar 0.8s ease-in-out infinite; }
         .pill-coleta_urgente {
             background: rgba(99,102,241,0.15);
@@ -956,15 +963,16 @@
         /* Card actions */
         .card-actions {
             display: flex;
-            gap: 8px;
-            padding: 12px 18px 14px;
+            gap: 6px;
+            padding: 10px 14px 12px;
             border-top: 1px solid rgba(135,195,150,0.12);
             background: rgba(220,242,228,0.3);
+            flex-wrap: wrap;
         }
 
         .btn-act {
-            flex: 1;
-            padding: 8px;
+            flex: 0 0 auto;
+            padding: 7px 12px;
             border: 2px solid #4db87a;
             border-radius: 8px;
             background: #4db87a;
@@ -972,9 +980,10 @@
             font-family: var(--mono);
             font-size: 0.68rem;
             font-weight: 700;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.06em;
             cursor: pointer;
             text-transform: uppercase;
+            white-space: nowrap;
             transition: all 0.15s cubic-bezier(0.4,0,0.2,1);
         }
 
@@ -1410,6 +1419,19 @@
         }
         .proc-table tbody tr:hover td:last-child {
             background: rgba(215,245,225,0.97);
+        }
+
+        .proc-table td:last-child {
+            max-width: 320px;
+            white-space: normal;
+        }
+        .proc-table td:last-child .table-actions {
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+        .proc-table td:last-child .table-btn {
+            min-width: 72px;
+            max-width: 100%;
         }
 
         .proc-table {
@@ -3042,6 +3064,154 @@
             background: transparent; border-color: var(--border); color: var(--text-dim);
         }
 
+        /* ─── FAIXA ALERTA AUTORIZADO ─── */
+        #autorizado-alert-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; flex-wrap: wrap;
+            background: rgba(6,182,212,0.10);
+            border: 1.5px solid rgba(6,182,212,0.65);
+            border-radius: 12px; padding: 12px 18px;
+            margin-bottom: 12px;
+            animation: autorizAlertPulse 0.8s ease-in-out infinite;
+        }
+        @keyframes autorizAlertPulse {
+            0%, 100% { background: rgba(6,182,212,0.10); border-color: rgba(6,182,212,0.65); box-shadow: none; }
+            50% { background: rgba(6,182,212,0.22); border-color: #06b6d4; box-shadow: 0 0 18px rgba(6,182,212,0.38); }
+        }
+        #autorizado-alert-bar .autor-alert-text {
+            font-family: var(--mono); font-size: 0.82rem; font-weight: 700;
+            color: #06b6d4; letter-spacing: 0.06em; text-transform: uppercase;
+        }
+        #autorizado-alert-bar .autor-alert-list {
+            font-family: var(--mono); font-size: 0.74rem; color: var(--text-dim);
+            margin-top: 3px; line-height: 1.6;
+        }
+        #autorizado-alert-bar .autor-alert-btn {
+            padding: 7px 16px; border-radius: 8px;
+            background: rgba(6,182,212,0.15); border: 1.5px solid #06b6d4;
+            color: #06b6d4; font-family: var(--mono); font-size: 0.75rem;
+            font-weight: 700; cursor: pointer; white-space: nowrap;
+            transition: background 0.15s;
+        }
+        #autorizado-alert-bar .autor-alert-btn:hover { background: rgba(6,182,212,0.30); }
+
+        /* ─── FAIXA ALERTA REAGENDADO ─── */
+        #reagendado-alert-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; flex-wrap: wrap;
+            background: rgba(167,139,250,0.13);
+            border: 1.5px solid rgba(167,139,250,0.7);
+            border-radius: 12px; padding: 12px 18px;
+            margin-bottom: 12px;
+            animation: reagAlertPulse 0.8s ease-in-out infinite;
+        }
+        @keyframes reagAlertPulse {
+            0%, 100% { background: rgba(167,139,250,0.13); border-color: rgba(167,139,250,0.7); box-shadow: none; }
+            50% { background: rgba(167,139,250,0.25); border-color: #a78bfa; box-shadow: 0 0 18px rgba(167,139,250,0.40); }
+        }
+        #reagendado-alert-bar .reag-alert-text {
+            font-family: var(--mono); font-size: 0.82rem; font-weight: 700;
+            color: #a78bfa; letter-spacing: 0.06em; text-transform: uppercase;
+        }
+        #reagendado-alert-bar .reag-alert-list {
+            font-family: var(--mono); font-size: 0.74rem; color: var(--text-dim);
+            margin-top: 3px; line-height: 1.6;
+        }
+        #reagendado-alert-bar .reag-alert-btn {
+            padding: 7px 16px; border-radius: 8px;
+            background: rgba(167,139,250,0.18); border: 1.5px solid #a78bfa;
+            color: #a78bfa; font-family: var(--mono); font-size: 0.75rem;
+            font-weight: 700; cursor: pointer; white-space: nowrap;
+            transition: background 0.15s;
+        }
+        #reagendado-alert-bar .reag-alert-btn:hover { background: rgba(167,139,250,0.32); }
+
+        /* ─── ALERTA REAGENDADO ─── */
+        .reagendado-alert-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.60);
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .reagendado-alert-box {
+            background: var(--surface);
+            border: 1.5px solid #a78bfa;
+            border-radius: 18px; padding: 28px;
+            width: 400px; max-width: 95vw;
+            box-shadow: 0 20px 60px rgba(167,139,250,0.30);
+        }
+        .reagendado-alert-box h3 {
+            font-family: var(--mono); font-size: 0.82rem;
+            color: #a78bfa; letter-spacing: 0.08em;
+            margin: 0 0 6px; text-transform: uppercase;
+        }
+        .reagendado-alert-box p {
+            font-size: 0.80rem; color: var(--text-dim); margin: 0 0 18px; line-height: 1.5;
+        }
+        .reagendado-alert-box .alerta-data-label {
+            font-family: var(--mono); font-size: 0.72rem;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-dim); margin-bottom: 6px; display: block;
+        }
+        .reagendado-alert-box input[type="date"] {
+            width: 100%; box-sizing: border-box;
+            padding: 10px 12px; border-radius: 10px;
+            background: rgba(167,139,250,0.08);
+            border: 1.5px solid rgba(167,139,250,0.4);
+            color: var(--text); font-family: var(--mono);
+            font-size: 0.88rem; margin-bottom: 18px; outline: none;
+        }
+        .reagendado-alert-box input[type="date"]:focus {
+            border-color: #a78bfa;
+            box-shadow: 0 0 0 3px rgba(167,139,250,0.20);
+        }
+        .reagendado-alert-actions { display: flex; gap: 8px; }
+        .reagendado-alert-actions button {
+            flex: 1; padding: 10px; border-radius: 10px;
+            font-family: var(--mono); font-size: 0.78rem;
+            font-weight: 700; cursor: pointer; border: 1px solid;
+            transition: all 0.15s;
+        }
+        .reagendado-btn-confirmar {
+            background: rgba(167,139,250,0.15); border-color: #a78bfa; color: #a78bfa;
+        }
+        .reagendado-btn-confirmar:hover { background: rgba(167,139,250,0.28); }
+        .reagendado-btn-cancelar {
+            background: transparent; border-color: var(--border); color: var(--text-dim);
+        }
+        .reagendado-alert-box textarea {
+            width: 100%; box-sizing: border-box;
+            padding: 9px 12px; border-radius: 10px;
+            background: rgba(167,139,250,0.06);
+            border: 1.5px solid rgba(167,139,250,0.25);
+            color: var(--text); font-family: var(--mono);
+            font-size: 0.82rem; resize: none; outline: none;
+            margin-bottom: 18px; min-height: 64px;
+        }
+        .reagendado-alert-box textarea:focus { border-color: #a78bfa; }
+
+        /* ─── REAGENDADO VENCIDO ─── */
+        .proc-card.status-reagendado.reagendado-vencido {
+            border-top: 2px solid #ef4444 !important;
+            animation: cardPiscarReagVencido 1s ease-in-out infinite !important;
+        }
+        @keyframes cardPiscarReagVencido {
+            0%, 100% { box-shadow: 0 2px 0 rgba(239,68,68,0); }
+            50% { box-shadow: 0 0 14px rgba(239,68,68,0.30); }
+        }
+        .proc-table tbody tr.row-reagendado.reagendado-vencido {
+            border-left: 3px solid #ef4444 !important;
+            background: rgba(239,68,68,0.04) !important;
+        }
+        /* badge contagem de reagendamentos */
+        .reagend-count-badge {
+            display: inline-flex; align-items: center;
+            background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.40);
+            color: #a78bfa; border-radius: 999px; padding: 1px 7px;
+            font-family: var(--mono); font-size: 0.65rem; font-weight: 800;
+            letter-spacing: 0.04em; margin-left: 5px; vertical-align: middle;
+        }
+
         /* ─── CALENDÁRIO ─── */
         #calendar-view { display: none; padding: 16px 0; width: 100%; box-sizing: border-box; overflow: hidden; }
         .cal-header {
@@ -3703,7 +3873,7 @@
     <!-- ULTRA PREMIUM COMMAND CENTER -->
     <section class="ultra-hero" id="ultraHero" style="display:none;">
         <div class="ultra-hero-main">
-            <div class="ultra-badge">Ultra Premium · Central de Comando</div>
+            <div class="ultra-badge">Central de Comando</div>
             <h2>Mapa cirúrgico hospitalar com leitura executiva, operacional e crítica em uma única tela.</h2>
             <p class="ultra-subtitle">Acompanhe pressão da operação, próximos procedimentos, urgências, retirada e produtividade da base em tempo real.</p>
             <div class="ultra-chip-row">
@@ -3843,6 +4013,12 @@
 
     
 
+    <!-- ALERTA ATIVO AUTORIZADO -->
+    <div id="autorizado-alert-bar" style="display:none;"></div>
+
+    <!-- ALERTA ATIVO REAGENDADO -->
+    <div id="reagendado-alert-bar" style="display:none;"></div>
+
     <!-- ALERTS (oculto — estilo monitor) -->
     <div class="alerts-panel" id="alertsPanel" style="display:none!important;"></div>
 
@@ -3879,6 +4055,7 @@
         <button class="filter-btn" data-filter="concluido">Concluídos</button>
         <button class="filter-btn" data-filter="cancelado">Cancelados</button>
         <button class="filter-btn" data-filter="reagendado">Reagendados</button>
+        <button class="filter-btn" data-filter="reagendado_vencido" style="color:#ef4444;border-color:rgba(239,68,68,0.5);">↺ Atrasados</button>
         <button class="filter-btn" data-filter="a_retirar">📦 Aguardando Retirada</button>
         <button class="filter-btn" data-filter="urgencia" style="color:#ff3333;border-color:rgba(255,0,0,0.5);">🚨 Urgência</button>
         <input class="search-box" type="text" id="searchBox" placeholder="Buscar hospital, médico, paciente, NF...">
@@ -5880,9 +6057,32 @@ function updateStats() {
     setPisca('stat-card-andamento', 'statPiscarAndamento 1s ease-in-out infinite', temAndamento);
 
     // Autorizado — qualquer registro
-    const temAutorizado = procedimentos.some(p => p.status === 'a_agendar');
+    const autorizados = procedimentos.filter(p => p.status === 'a_agendar');
+    const temAutorizado = autorizados.length > 0;
     temAutorizado ? startAutorizadoSound() : stopAutorizadoSound();
     setPisca('stat-card-a_agendar', 'statPiscarAutorizado 1.8s ease-in-out infinite', temAutorizado);
+
+    // Faixa de alerta ativo autorizado
+    const autorBar = document.getElementById('autorizado-alert-bar');
+    if (autorBar) {
+        if (temAutorizado) {
+            const lista = autorizados.slice(0, 4).map(p => {
+                const nome = p.paciente || p.hospital || 'Procedimento';
+                const data = p.data ? new Date(p.data + 'T00:00:00').toLocaleDateString('pt-BR') : '⚠ SEM DATA';
+                return `• ${nome} — ${data}`;
+            }).join('<br>');
+            const extra = autorizados.length > 4 ? `<br><span style="opacity:0.6;">+${autorizados.length - 4} outros</span>` : '';
+            autorBar.innerHTML = `
+                <div>
+                    <div class="autor-alert-text">📅 ${autorizados.length} autorizado${autorizados.length > 1 ? 's' : ''} aguardando data de cirurgia — agendar</div>
+                    <div class="autor-alert-list">${lista}${extra}</div>
+                </div>
+                <button class="autor-alert-btn" onclick="document.querySelector('[data-filter=a_agendar]').click()">Ver autorizados →</button>`;
+            autorBar.style.display = 'flex';
+        } else {
+            autorBar.style.display = 'none';
+        }
+    }
 
     // Em Preparação — qualquer registro
     const temPreparacao = procedimentos.some(p => p.status === 'preparacao');
@@ -5890,9 +6090,33 @@ function updateStats() {
     setPisca('stat-card-preparacao', 'statPiscarPreparacao 1.5s ease-in-out infinite', temPreparacao);
 
     // Reagendado — qualquer registro
-    const temReagendado = procedimentos.some(p => p.status === 'reagendado');
+    const reagendados = procedimentos.filter(p => p.status === 'reagendado');
+    const temReagendado = reagendados.length > 0;
     temReagendado ? startReagendadoSound() : stopReagendadoSound();
-    setPisca('stat-card-reagendado', 'statPiscarReagendado 1.8s ease-in-out infinite', temReagendado);
+    setPisca('stat-card-reagendado', 'statPiscarReagendado 0.8s ease-in-out infinite', temReagendado);
+
+    // Faixa de alerta ativo reagendado
+    const reagBar = document.getElementById('reagendado-alert-bar');
+    if (reagBar) {
+        if (temReagendado) {
+            const lista = reagendados.slice(0, 4).map(p => {
+                const nome = p.paciente || p.hospital || 'Procedimento';
+                const data = p.data ? new Date(p.data + 'T00:00:00').toLocaleDateString('pt-BR') : 'sem data';
+                const vencido = p.data && p.data < todayStr() ? ' ⚠ VENCIDO' : '';
+                return `• ${nome} — ${data}${vencido}`;
+            }).join('<br>');
+            const extra = reagendados.length > 4 ? `<br><span style="opacity:0.6;">+${reagendados.length - 4} outros</span>` : '';
+            reagBar.innerHTML = `
+                <div>
+                    <div class="reag-alert-text">↺ ${reagendados.length} reagendado${reagendados.length > 1 ? 's' : ''} aguardando nova data — cobrar com vendedor</div>
+                    <div class="reag-alert-list">${lista}${extra}</div>
+                </div>
+                <button class="reag-alert-btn" onclick="document.querySelector('[data-filter=reagendado]').click()">Ver reagendados →</button>`;
+            reagBar.style.display = 'flex';
+        } else {
+            reagBar.style.display = 'none';
+        }
+    }
 
     // Agendado — somente hoje ou amanhã
     const temAgendado = procedimentos.some(p => (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanhaStr));
@@ -6265,7 +6489,8 @@ function getFiltered() {
     const statusOrder = { a_agendar: 0, urgencia: 1, coleta_urgente: 2, agendado: 3, preparacao: 4, andamento: 5, cancelado: 6, reagendado: 7, a_retirar: 8, concluido: 9 };
     return procedimentos.filter(p => {
         if (_ehColeta(p) && currentFilter !== 'coleta_urgente') return false; // Volumes Urgentes só aparecem na aba própria
-        const matchFilter = currentFilter === 'all' || p.status === currentFilter;
+        const matchFilter = currentFilter === 'all'
+            || (currentFilter === 'reagendado_vencido' ? (p.status === 'reagendado' && p.data && p.data < todayStr()) : p.status === currentFilter);
         const matchCity = true; // arquivo CG — mostra todos
         const matchVendedor = currentVendedorFilter === 'all' || (p.vendedor || '') === currentVendedorFilter;
         const q = searchTerm.toLowerCase();
@@ -6423,7 +6648,7 @@ function buildCardHTML(proc) {
             'andamento':  'cardPiscarAndamento 1s ease-in-out infinite',
             'preparacao': 'cardPiscarPreparacao 1.5s ease-in-out infinite',
             'a_agendar':  'cardPiscarAutorizado 1.8s ease-in-out infinite',
-            'reagendado': 'cardPiscarReagendado 1.8s ease-in-out infinite',
+            'reagendado': 'cardPiscarReagendado 0.8s ease-in-out infinite',
             'a_retirar':  'cardPiscarRetirar 0.8s ease-in-out infinite',
             'coleta_urgente': 'cardPiscarColeta 0.6s ease-in-out infinite',
         };
@@ -6440,11 +6665,14 @@ function buildCardHTML(proc) {
             ? 'animation:cardPiscarDataRetirada 1.2s ease-in-out infinite;'
             : cardAnimStyle_base;
 
+        const reagVencido = proc.status === 'reagendado' && proc.data && proc.data < todayStr();
+        const reagCount = ((proc._statusHistory || []).filter(h => h.para === 'reagendado').length) || (proc.status === 'reagendado' ? 1 : 0);
+        const reagBadge = reagCount > 0 ? `<span class="reagend-count-badge">↺ ${reagCount}x</span>` : '';
         return `
-        <div class="proc-card status-${proc.status}" data-id="${proc.id}" style="${cardAnimStyle}">
+        <div class="proc-card status-${proc.status}${reagVencido ? ' reagendado-vencido' : ''}" data-id="${proc.id}" style="${cardAnimStyle}">
             <div class="card-header">
                 <div class="hospital-name">${_ehColeta(proc) ? '✈️ Volumes Urgentes' : '🏥 ' + proc.hospital}</div>
-                <div class="status-pill pill-${proc.status}">${statusLabel(proc.status)}</div>${staleBadge(proc)}
+                <div class="status-pill pill-${proc.status}">${statusLabel(proc.status)}</div>${reagBadge}${staleBadge(proc)}
             </div>
             <div class="card-body">
                 ${!_ehColeta(proc) ? `
@@ -6495,6 +6723,7 @@ function buildCardHTML(proc) {
                     return `<div class="card-row" id="retirada-${proc.id}"><span class="card-label">📦 Retirada</span><span class="card-value">${dataBadge}</span></div>`;
                 })() : (proc.status === 'a_retirar' ? `<div class="card-row"><span class="card-label">📦 Retirada</span><span class="card-value" style="color:#f97316;font-weight:700;animation:pillPulseRetirar 0.8s ease-in-out infinite;">⚠ Data não informada!</span></div>` : '')}
                 ${proc.status === 'urgencia' ? `<div class="card-row" style="background:rgba(255,0,0,0.1);border-radius:6px;padding:6px 8px;margin-top:4px;animation:urgenciaRowBlink 0.5s ease-in-out infinite;"><span style="color:#ff3333;font-family:var(--mono);font-size:0.84rem;font-weight:700;letter-spacing:0.1em;">🚨 PROCEDIMENTO EM URGÊNCIA — AÇÃO IMEDIATA!</span></div>` : ''}
+                ${reagVencido ? `<div class="card-row" style="background:rgba(239,68,68,0.08);border-radius:6px;padding:6px 8px;margin-top:4px;animation:cardPiscarReagVencido 1s ease-in-out infinite;"><span style="color:#ef4444;font-family:var(--mono);font-size:0.82rem;font-weight:700;letter-spacing:0.08em;">⚠ REAGENDADO SEM NOVA DATA — ATUALIZAR DATA DA CIRURGIA!</span></div>` : ''}
                                 ${proc.status === 'coleta_urgente' ? `<div class="card-row" style="background:rgba(99,102,241,0.1);border-radius:6px;padding:6px 8px;margin-top:4px;animation:cardPiscarColeta 0.6s ease-in-out infinite;"><span style="color:#818cf8;font-family:var(--mono);font-size:0.84rem;font-weight:700;letter-spacing:0.08em;">✈️ AGUARDANDO RETIRADA — VOLUMES URGENTES</span></div>` : ''}
                 ${_ehColeta(proc) && proc.coletaDataCirurgia ? `<div class="card-row"><span class="card-label">🗓 Cirurgia</span><span class="card-value" style="color:#818cf8;font-weight:700;">${new Date(proc.coletaDataCirurgia+'T00:00:00').toLocaleDateString('pt-BR')}</span></div>` : ''}
                 ${_ehColeta(proc) && proc.coletaHoraCirurgia ? `<div class="card-row"><span class="card-label">⏰ Hr. Cir.</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.coletaHoraCirurgia}</span></div>` : ''}
@@ -6504,7 +6733,7 @@ function buildCardHTML(proc) {
                 ${_ehColeta(proc) && proc.cte ? `<div class="card-row"><span class="card-label">📦 CTE</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.cte}</span></div>` : ''}
                 ${_ehColeta(proc) && proc.coletaFornecedor ? `<div class="card-row"><span class="card-label">🏭 Fornecedor</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.coletaFornecedor}</span></div>` : ''}
                 ${_ehColeta(proc) && proc.coletaTransportadora ? `<div class="card-row"><span class="card-label">🚚 Transportadora</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.coletaTransportadora}</span></div>` : ''}
-                ${proc.anexo ? `<div class="card-row"><span class="card-label">📎 Anexo</span><span class="card-value"><a href="${proc.anexo}" target="_blank" style="color:var(--accent);font-size:0.86rem;">Ver imagem</a></span></div>` : ''}
+                ${proc.anexo ? `<div class="card-row"><span class="card-label">📎 Anexo</span><span class="card-value"><button onclick="window.abrirAnexoProc('${realIndex}','anexo')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:0.86rem;padding:0;font-family:inherit;text-decoration:underline;">📎 Ver imagem</button></span></div>` : ''}
                 ${timerHTML}
                 ${itensHTML}
                 ${obsHTML}
@@ -7446,7 +7675,9 @@ function editProc(docId) {
     if (document.getElementById('f-coleta-anexo')) document.getElementById('f-coleta-anexo').value = p.coletaAnexo || '';
     document.getElementById('f-anexo-data').value = p.anexo || '';
     if (p.anexo) {
-        document.getElementById('f-anexo-preview').innerHTML = p.anexo.startsWith('data:image') ? `<img src="${p.anexo}" style="max-width:100%;max-height:120px;border-radius:6px;border:1px solid var(--border);">` : '<span style="font-size:0.86rem;color:var(--green);">📎 Anexo salvo</span>';
+        document.getElementById('f-anexo-preview').innerHTML = p.anexo.startsWith('data:image')
+            ? `<img src="${p.anexo}" style="max-width:100%;max-height:120px;border-radius:6px;border:1px solid var(--border);cursor:pointer;" onclick="window.abrirAnexo(document.getElementById('f-anexo-data').value)" title="Clique para ver em tamanho cheio">`
+            : `<span style="font-size:0.86rem;color:var(--green);">📎 Anexo salvo &nbsp;<button type="button" onclick="window.abrirAnexo(document.getElementById('f-anexo-data').value)" style="background:none;border:1px solid var(--green);color:var(--green);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:0.78rem;font-family:var(--mono);">Ver →</button></span>`;
         document.getElementById('btn-remover-anexo').style.display = 'inline-block';
     } else {
         document.getElementById('f-anexo-preview').innerHTML = '';
@@ -8114,9 +8345,9 @@ function renderColetaView() {
                 </div>
                 ${proc.coletaObs ? `<div style="margin-top:8px;padding:7px 10px;background:rgba(99,102,241,0.05);border-radius:8px;border:1px solid rgba(99,102,241,0.15);font-size:0.75rem;color:var(--text-dim);">📝 ${proc.coletaObs}</div>` : ''}
                 ${proc.coletaAnexo ? `<div style="margin-top:8px;">
-                    ${/\.(jpg|jpeg|png|webp|gif)$/i.test(proc.coletaAnexo) || proc.coletaAnexo.includes('firebasestorage') && !proc.coletaAnexo.includes('.pdf')
-                        ? `<a href="${proc.coletaAnexo}" target="_blank" style="display:block;"><img src="${proc.coletaAnexo}" alt="Anexo" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid rgba(99,102,241,0.25);object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);"><span>📎</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;">Ver anexo →</span></div></a>`
-                        : `<a href="${proc.coletaAnexo}" target="_blank" style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);text-decoration:none;"><span>📄</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;font-weight:700;">Ver anexo →</span></a>`
+                    ${/\.(jpg|jpeg|png|webp|gif)$/i.test(proc.coletaAnexo) || proc.coletaAnexo.startsWith('data:image') || (proc.coletaAnexo.includes('firebasestorage') && !proc.coletaAnexo.includes('.pdf'))
+                        ? `<img src="${proc.coletaAnexo}" alt="Anexo" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid rgba(99,102,241,0.25);object-fit:cover;cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')"><span>📎</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;">Ver anexo →</span></div>`
+                        : `<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')"><span>📄</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;font-weight:700;">Ver anexo →</span></div>`
                     }
                 </div>` : ''}
                 ${proc._updatedAt ? `<div style="margin-top:6px;font-family:var(--mono);font-size:0.62rem;color:#9ca3af;letter-spacing:0.05em;">🕐 Atualizado: ${window._fmtUpdatedAt ? window._fmtUpdatedAt(proc._updatedAt) : ''}</div>` : ''}
@@ -8237,7 +8468,8 @@ function renderTable() {
             ? 'confirmarRetiradaCirurgia(\'' + realIndex + '\')'
             : 'editProc(\'' + realIndex + '\')';
         var trTitle = isRetirar ? 'Clique para confirmar retirada' : 'Clique para editar';
-        var row = '<tr class="row-'+proc.status+'" style="'+rowStyle+'cursor:pointer;" onclick="'+trOnclick+'" title="'+trTitle+'">';
+        const trReagVencido = proc.status === 'reagendado' && proc.data && proc.data < todayStr();
+        var row = '<tr class="row-'+proc.status+(trReagVencido?' reagendado-vencido':'')+'" style="'+rowStyle+'cursor:pointer;" onclick="'+trOnclick+'" title="'+trTitle+'">';
         row += '<td style="font-family:var(--mono);font-weight:800;font-size:0.9rem;color:#2a9fbf;padding:9px 12px;line-height:1.5;">'
             +(proc.inicio||'\u2014')
             +(proc.data ? '<div style="font-size:0.65rem;font-weight:600;color:#2a7a4a;margin-top:2px;">📅 '+new Date(proc.data+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+'</div>' : '')
@@ -8256,18 +8488,25 @@ function renderTable() {
         var nfDataFmt = proc.nfData ? new Date(proc.nfData+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '\u2014';
         row += '<td style="font-family:var(--mono);font-size:0.78rem;padding:9px 12px;white-space:nowrap;min-width:90px;'+(proc.nfData?'color:#2a7a6a;font-weight:600;':'color:var(--text-dim);')+'">'+ nfDataFmt +'</td>';
         row += '<td style="font-family:var(--mono);font-size:0.72rem;color:#4a6a75;padding:9px 12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+(proc.obs||'')+'">'+(proc.obs||'\u2014')+'</td>';
+        // Botões de módulo embutidos diretamente no HTML da tabela
+        const _ckBtn = ['preparacao','agendado','reagendado','andamento'].includes(proc.status)
+            ? '<button onclick="event.stopPropagation();window.abrirChecklist&&window.abrirChecklist(\''+realIndex+'\')" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(77,184,122,0.5);background:rgba(77,184,122,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#4db87a;white-space:nowrap;">☑ CK</button>' : '';
+        const _lembBtn = '<button onclick="event.stopPropagation();window.abrirModalLembrete&&window.abrirModalLembrete(\''+realIndex+'\')" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(99,102,241,0.5);background:rgba(99,102,241,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#6366f1;white-space:nowrap;">⏰</button>';
+        const _comtBtn = '<button onclick="event.stopPropagation();window.abrirComentarios&&window.abrirComentarios(\''+realIndex+'\')" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(75,180,210,0.5);background:rgba(75,180,210,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#4bb4d2;white-space:nowrap;">💬</button>';
         // Célula de ações — diferente para a_retirar
         var tdAcoes = '<td onclick="event.stopPropagation()" style="padding:7px 8px;">';
         if (isRetirar) {
             tdAcoes += '<div style="display:flex;flex-direction:column;gap:4px;">';
             tdAcoes += '<button onclick="confirmarRetiradaCirurgia(\'' + realIndex + '\')" style="padding:5px 10px;border-radius:7px;border:1px solid rgba(249,115,22,0.5);background:rgba(249,115,22,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#f97316;white-space:nowrap;">📦 Retirou?</button>';
-            tdAcoes += '<div style="display:flex;gap:4px;">';
+            tdAcoes += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+            tdAcoes += _lembBtn + _comtBtn;
             tdAcoes += '<button onclick="editProc(\'' + realIndex + '\')" style="flex:1;padding:4px 9px;border-radius:6px;border:1px solid rgba(135,195,150,0.4);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:var(--text-dim);">✏ Editar</button>';
             tdAcoes += '<button onclick="deleteProc(\'' + realIndex + '\')" style="padding:4px 9px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#d94f4f;">✕</button>';
             tdAcoes += '</div>';
             tdAcoes += '</div>';
         } else {
-            tdAcoes += '<div style="display:flex;gap:4px;align-items:center;">';
+            tdAcoes += '<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">';
+            tdAcoes += _ckBtn + _lembBtn + _comtBtn;
             tdAcoes += '<button onclick="editProc(\'' + realIndex + '\')" style="padding:4px 9px;border-radius:6px;border:1px solid rgba(135,195,150,0.4);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:var(--text-dim);">✏ Editar</button>';
             tdAcoes += '<button onclick="deleteProc(\'' + realIndex + '\')" style="padding:4px 9px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#d94f4f;">✕</button>';
             tdAcoes += '</div>';
@@ -8782,9 +9021,9 @@ document.addEventListener('change', function(e) {
             document.getElementById('f-anexo-data').value = ev.target.result;
             const preview = document.getElementById('f-anexo-preview');
             if (file.type.startsWith('image/')) {
-                preview.innerHTML = `<img src="${ev.target.result}" style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--border);margin-top:4px;">`;
+                preview.innerHTML = `<img src="${ev.target.result}" style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--border);margin-top:4px;cursor:pointer;" onclick="window.abrirAnexo(document.getElementById('f-anexo-data').value)" title="Clique para ver em tamanho cheio">`;
             } else {
-                preview.innerHTML = `<span style="font-size:0.86rem;color:var(--green);font-family:var(--mono);">📎 ${file.name} pronto para salvar</span>`;
+                preview.innerHTML = `<span style="font-size:0.86rem;color:var(--green);font-family:var(--mono);">📎 ${file.name} &nbsp;<button type="button" onclick="window.abrirAnexo(document.getElementById('f-anexo-data').value)" style="background:none;border:1px solid var(--green);color:var(--green);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:0.78rem;font-family:var(--mono);">Ver →</button></span>`;
             }
             document.getElementById('btn-remover-anexo').style.display = 'inline-block';
         };
@@ -9201,6 +9440,21 @@ async function quickSetStatus(docId, novoStatus, e) {
     if (!proc) return;
     const statusAnterior = proc.status;
     if (statusAnterior === novoStatus) return;
+    if (novoStatus === 'reagendado') {
+        const dataAnterior = proc.data || '';
+        mostrarAlertaReagendado(proc, async (novaData, motivo) => {
+            const userEmail = (window._fbAuth && window._fbAuth.currentUser) ? window._fbAuth.currentUser.email : 'sistema';
+            const hist = proc._statusHistory || [];
+            hist.push({ de: statusAnterior, para: 'reagendado', em: new Date().toISOString(), por: userEmail, dataAnterior, dataNova: novaData, motivo: motivo || '' });
+            proc._statusHistory = hist;
+            proc.status = novoStatus;
+            proc.data = novaData;
+            if (motivo) proc.motivoReagendamento = motivo;
+            try { await fbSaveProc(proc); }
+            catch(err) { proc.status = statusAnterior; proc.data = dataAnterior; alert('Erro ao salvar: ' + err.message); }
+        });
+        return;
+    }
     mostrarChecklist(proc, novoStatus, async () => {
         proc.status = novoStatus;
         try { await fbSaveProc(proc); }
@@ -9344,6 +9598,49 @@ function fecharChecklist(confirmar) {
     const el=document.getElementById('checklistOverlay'); if(!el) return;
     if(confirmar&&el._onConfirm) el._onConfirm();
     el.remove();
+}
+
+// ════════════════════════════════════════════
+// ALERTA REAGENDADO — NOVA DATA DE CIRURGIA
+// ════════════════════════════════════════════
+function mostrarAlertaReagendado(proc, onConfirm) {
+    const dataAtual = proc.data || '';
+    const hoje = new Date().toISOString().split('T')[0];
+    const overlay = document.createElement('div');
+    overlay.className = 'reagendado-alert-overlay';
+    overlay.id = 'reagendadoAlertOverlay';
+    overlay.innerHTML = `
+        <div class="reagendado-alert-box">
+            <h3>📅 Reagendar Cirurgia</h3>
+            <p>${proc.paciente ? `<strong>${proc.paciente}</strong> — ` : ''}Informe a nova data e o motivo do reagendamento.</p>
+            <span class="alerta-data-label">Nova data de cirurgia</span>
+            <input type="date" id="reagendadoNovaData" value="${dataAtual}" min="${hoje}">
+            <span class="alerta-data-label">Motivo do reagendamento <span style="font-weight:400;opacity:0.6;">(opcional)</span></span>
+            <textarea id="reagendadoMotivo" placeholder="Ex: Solicitação do médico, conflito de agenda, problema de material..."></textarea>
+            <div class="reagendado-alert-actions">
+                <button class="reagendado-btn-cancelar" onclick="fecharAlertaReagendado()">Cancelar</button>
+                <button class="reagendado-btn-confirmar" onclick="confirmarAlertaReagendado()">↺ Confirmar Reagendamento</button>
+            </div>
+        </div>`;
+    overlay._onConfirm = onConfirm;
+    document.body.appendChild(overlay);
+    setTimeout(() => { const inp = document.getElementById('reagendadoNovaData'); if (inp) inp.focus(); }, 50);
+}
+function fecharAlertaReagendado() {
+    const el = document.getElementById('reagendadoAlertOverlay'); if (el) el.remove();
+}
+function confirmarAlertaReagendado() {
+    const el = document.getElementById('reagendadoAlertOverlay'); if (!el) return;
+    const inp = document.getElementById('reagendadoNovaData');
+    const novaData = inp ? inp.value : '';
+    if (!novaData) {
+        inp.style.borderColor = '#ef4444';
+        inp.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.25)';
+        inp.focus(); return;
+    }
+    const motivo = (document.getElementById('reagendadoMotivo') || {}).value || '';
+    const cb = el._onConfirm; el.remove();
+    if (cb) cb(novaData, motivo);
 }
 
 // ════════════════════════════════════════════
@@ -9656,6 +9953,9 @@ window.hookDupCheck    = hookDupCheck;
 window.mostrarAviso    = mostrarAviso;
 window.mostrarChecklist= mostrarChecklist;
 window.fecharChecklist = fecharChecklist;
+window.fbSaveProc      = fbSaveProc;
+window.todayStr        = todayStr;
+window.mostrarAlertaReagendado = mostrarAlertaReagendado;
 
 </script>
 <datalist id="produtos-codigos-datalist">
@@ -13483,7 +13783,7 @@ window.fecharChecklist = fecharChecklist;
         <td>${esc(proc.vendedor || '—')}</td>
         <td>${esc(proc.convenio || '—')}</td>
         <td>${sla}${prazo ? `<div style="font-size:.68rem;color:#5d7480;margin-top:4px;">${esc(prazo.label)}</div>` : ''}</td>
-        <td onclick="event.stopPropagation()"><div class="table-actions">${isRetirar ? `<button class="table-btn" style="background:rgba(249,115,22,0.12);border-color:#f97316;color:#f97316;font-weight:700;" onclick="confirmarRetiradaCirurgia('${esc(realIndex)}')">📦 Retirou?</button>` : ''}${isSeparacao ? `<button class="table-btn" style="background:rgba(212,146,10,0.12);border-color:#d4920a;color:#d4920a;font-weight:700;" onclick="confirmarSeparacao('${esc(realIndex)}')">⚙️ Procedimento?</button>` : ''}<button class="table-btn t-edit" onclick="editProc('${esc(realIndex)}')">Editar</button><button class="table-btn" onclick="enviarWhatsAppIndividual('${esc(realIndex)}')">WhatsApp</button><button class="table-btn t-del" onclick="deleteProc('${esc(realIndex)}')">Excluir</button></div></td>
+        <td onclick="event.stopPropagation()"><div class="table-actions">${isRetirar ? `<button class="table-btn" style="background:rgba(249,115,22,0.12);border-color:#f97316;color:#f97316;font-weight:700;" onclick="confirmarRetiradaCirurgia('${esc(realIndex)}')">📦 Retirou?</button>` : ''}${isSeparacao ? `<button class="table-btn" style="background:rgba(212,146,10,0.12);border-color:#d4920a;color:#d4920a;font-weight:700;" onclick="confirmarSeparacao('${esc(realIndex)}')">⚙️ Procedimento?</button>` : ''}${['preparacao','agendado','reagendado','andamento'].includes(proc.status)?`<button class="table-btn" style="background:rgba(77,184,122,0.1);border-color:rgba(77,184,122,0.5);color:#4db87a;font-weight:700;" onclick="event.stopPropagation();window.abrirChecklist&&window.abrirChecklist('${esc(realIndex)}')">☑ CK</button>`:''}<button class="table-btn" style="background:rgba(99,102,241,0.1);border-color:rgba(99,102,241,0.5);color:#6366f1;" onclick="event.stopPropagation();window.abrirModalLembrete&&window.abrirModalLembrete('${esc(realIndex)}')">⏰</button><button class="table-btn" style="background:rgba(75,180,210,0.1);border-color:rgba(75,180,210,0.5);color:#4bb4d2;" onclick="event.stopPropagation();window.abrirComentarios&&window.abrirComentarios('${esc(realIndex)}')">💬</button><button class="table-btn t-edit" onclick="editProc('${esc(realIndex)}')">Editar</button><button class="table-btn" onclick="enviarWhatsAppIndividual('${esc(realIndex)}')">WhatsApp</button><button class="table-btn t-del" onclick="deleteProc('${esc(realIndex)}')">Excluir</button></div></td>
       </tr>`;
     }).join('');
     const footer = document.getElementById('tblFooterTotal');
@@ -13725,12 +14025,12 @@ window.fecharChecklist = fecharChecklist;
       </div>`;
   }
   function enhanceLabels(){
-    const t = document.title; if(t && !t.includes('Premium')) document.title = t.replace('Monitor Cirúrgico','Mapa Cirúrgico Hospitalar Premium');
-    const h1 = document.querySelector('.header-text h1'); if(h1) h1.textContent = 'Mapa Cirúrgico Hospitalar Premium';
+    const t = document.title; if(t) document.title = t.replace('Monitor Cirúrgico','Mapa Cirúrgico Hospitalar');
+    const h1 = document.querySelector('.header-text h1'); if(h1) h1.textContent = 'Mapa Cirúrgico Hospitalar';
     const p = document.querySelector('.header-text p'); if(p) p.textContent = 'Central operacional · Campo Grande/MS · GF Medical';
     const btnTable = document.getElementById('tab-table'); if(btnTable) btnTable.textContent = '🧭 Central Cirúrgica';
     const btnDash = document.getElementById('tab-dashboard'); if(btnDash) btnDash.textContent = '📊 Painel Executivo';
-    const footerSync = document.querySelector('.table-footer-sync'); if(footerSync) footerSync.innerHTML = '<div class="table-footer-dot"></div>Atualização automática · central premium';
+    const footerSync = document.querySelector('.table-footer-sync'); if(footerSync) footerSync.innerHTML = '<div class="table-footer-dot"></div>Atualização automática · central';
   }
   const oldRender = window.renderDashboard;
   window.renderDashboard = function(){ renderPremiumDashboard(); renderHeroStats(); };
@@ -18251,6 +18551,869 @@ window.buildCardHTML = function(proc) {
         }
 
     });
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MÓDULO MELHORIAS 3: checklist · lembretes · comentários
+                         QR code · aba calendário · agenda semanal
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+.ck-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; transition:background 0.15s; }
+.ck-item:hover { background:rgba(0,0,0,0.04); }
+.ck-item input[type=checkbox] { width:16px; height:16px; accent-color:#4db87a; cursor:pointer; flex-shrink:0; }
+.ck-item label { font-family:var(--mono); font-size:0.78rem; color:var(--text); cursor:pointer; flex:1; }
+.ck-item.done label { text-decoration:line-through; opacity:0.5; }
+.coment-feed { display:flex; flex-direction:column; gap:6px; padding:10px 14px; max-height:220px; overflow-y:auto; }
+.coment-item { background:rgba(0,0,0,0.04); border-radius:8px; padding:8px 10px; }
+.coment-autor { font-family:var(--mono); font-size:0.62rem; color:var(--text-dim); margin-bottom:2px; }
+.coment-texto { font-family:var(--mono); font-size:0.75rem; color:var(--text); }
+.coment-input-wrap { display:flex; gap:6px; padding:8px 14px 12px; border-top:1px solid var(--border,#ccc); }
+.coment-input-wrap input { flex:1; padding:7px 10px; border-radius:8px; border:1px solid var(--border,#ccc); background:var(--surface); color:var(--text); font-family:var(--mono); font-size:0.75rem; }
+.coment-input-wrap button { padding:7px 14px; border-radius:8px; background:rgba(75,180,210,0.15); border:1px solid rgba(75,180,210,0.4); color:#4bb4d2; font-family:var(--mono); font-size:0.72rem; font-weight:700; cursor:pointer; }
+</style>
+<script>
+(function(){
+'use strict';
+
+// ─── ABA CALENDÁRIO (já existe renderCalendar, só falta o botão) ──
+function injetarAbaCalendario(){
+    if(document.getElementById('tab-calendar-btn')) return;
+    const tabVend=document.getElementById('tab-vendedor');
+    if(!tabVend) return;
+    const b=document.createElement('button');
+    b.id='tab-calendar-btn'; b.className='view-tab'; b.textContent='📅 Calendário';
+    b.onclick=()=>window.switchView&&window.switchView('calendar');
+    tabVend.insertAdjacentElement('afterend',b);
+}
+
+// ─── AGENDA SEMANAL (view dentro do calendário) ────────────────────
+window.renderAgendaSemanal=function(){
+    const container=document.getElementById('calendarContent'); if(!container) return;
+    const hoje=typeof window.todayStr==='function'?window.todayStr():new Date().toISOString().split('T')[0];
+    const hojeD=new Date(hoje+'T00:00:00');
+    const dow=hojeD.getDay();
+    const seg=new Date(hojeD); seg.setDate(hojeD.getDate()-dow+1);
+    const dias=Array.from({length:7},(_,i)=>{const d=new Date(seg);d.setDate(seg.getDate()+i);return d;});
+    const procs=window.procedimentos||[];
+    const fmt=d=>d.toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'});
+    const ptDias=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    container.innerHTML=`<div style="padding:0 0 16px;"><div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;"><span style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);">Semana de ${seg.toLocaleDateString('pt-BR')} a ${dias[6].toLocaleDateString('pt-BR')}</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">${dias.map(d=>{
+        const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const ev=procs.filter(p=>p.data===ds);
+        const isHoje=ds===hoje;
+        const sMap={urgencia:'#ef4444',agendado:'#4db87a',preparacao:'#d4920a',andamento:'#d94f4f',a_agendar:'#06b6d4',reagendado:'#a78bfa'};
+        return`<div style="background:${isHoje?'rgba(77,184,122,0.1)':'rgba(0,0,0,0.02)'};border:1.5px solid ${isHoje?'rgba(77,184,122,0.6)':'var(--border,#ccc)'};border-radius:10px;padding:8px 6px;min-height:80px;"><div style="font-family:var(--mono);font-size:0.65rem;font-weight:700;color:${isHoje?'#4db87a':'var(--text-dim)'};text-align:center;margin-bottom:4px;">${ptDias[d.getDay()]}<br>${d.getDate()}</div>${ev.length===0?`<div style="font-family:var(--mono);font-size:0.6rem;color:var(--text-dim);text-align:center;opacity:0.4;">—</div>`:ev.slice(0,4).map(p=>`<div style="background:${sMap[p.status]||'#888'}22;border-left:2px solid ${sMap[p.status]||'#888'};border-radius:3px;padding:2px 4px;margin-bottom:2px;font-family:var(--mono);font-size:0.58rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${p.paciente||p.hospital||'—'}">${p.inicio?p.inicio+' ':''}${p.paciente||p.hospital||'—'}</div>`).join('')}${ev.length>4?`<div style="font-family:var(--mono);font-size:0.58rem;color:var(--text-dim);text-align:center;">+${ev.length-4}</div>`:''}</div>`;
+    }).join('')}</div></div>`;
+};
+
+// Hook switchView para marcar aba calendário como ativa e injetar botões na tabela
+const _origSW3=window.switchView;
+window.switchView=function(v){
+    const tabCal=document.getElementById('tab-calendar-btn');
+    if(tabCal) tabCal.classList.toggle('active', v==='calendar');
+    if(typeof _origSW3==='function') _origSW3.apply(this,arguments);
+    if(v==='table') setTimeout(_injetarBotoesModulo,150);
+};
+
+// ─── 0. VISUALIZAÇÃO DE ANEXOS (data URL → blob URL) ──────────────
+window.abrirAnexo=function(url){
+    if(!url) return;
+    if(url.startsWith('data:')){
+        try{
+            const arr=url.split(','), mime=arr[0].match(/:(.*?);/)[1];
+            const bstr=atob(arr[1]); const u8=new Uint8Array(bstr.length);
+            for(let i=0;i<bstr.length;i++) u8[i]=bstr.charCodeAt(i);
+            const blobUrl=URL.createObjectURL(new Blob([u8],{type:mime}));
+            window.open(blobUrl,'_blank');
+        }catch(e){
+            const a=document.createElement('a'); a.href=url; a.download='anexo'; a.click();
+        }
+    } else { window.open(url,'_blank'); }
+};
+window.abrirAnexoProc=function(docId,campo){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId));
+    if(proc) window.abrirAnexo(proc[campo||'anexo']);
+};
+
+// ─── 1. CHECKLIST DE PREPARAÇÃO ───────────────────────────────────
+const _CKITENS=['Materiais confirmados com o hospital/hemodinâmica','Equipe cirúrgica avisada','Sala reservada e confirmada','Anestesista confirmado','Autorização do convênio aprovada','NF emitida','Material entregue no hospital','Contato feito com o médico'];
+
+window.abrirChecklist=function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId));
+    if(!proc) return;
+    const ck=proc._checklist||{};
+    const total=_CKITENS.length, feitos=Object.values(ck).filter(Boolean).length;
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border:1.5px solid rgba(77,184,122,0.4);border-radius:18px;max-width:460px;width:90%;max-height:85vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+<div style="padding:18px 18px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border,#ccc);">
+    <div><div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:#4db87a;text-transform:uppercase;">☑ Checklist de Preparação</div>
+    <div style="font-family:var(--mono);font-size:0.65rem;color:var(--text-dim);">${proc.paciente||proc.hospital||'—'} · ${feitos}/${total} concluídos</div></div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #ccc;color:#9ca3af;width:28px;height:28px;border-radius:8px;cursor:pointer;">✕</button>
+</div>
+<div style="padding:8px 8px;">
+    <div style="height:4px;background:rgba(0,0,0,.08);border-radius:99px;margin:8px 10px 14px;"><div id="ck-progress-bar" style="height:100%;width:${Math.round(feitos/total*100)}%;background:#4db87a;border-radius:99px;transition:width 0.3s;"></div></div>
+    <div id="ck-list">
+    ${_CKITENS.map((item,i)=>`<div class="ck-item${ck[i]?' done':''}" onclick="window._ckToggle('${docId}',${i},this)">
+        <input type="checkbox" id="ck-${i}" ${ck[i]?'checked':''} onchange="window._ckToggle('${docId}',${i},this.closest('.ck-item'))">
+        <label for="ck-${i}">${item}</label>
+    </div>`).join('')}
+    </div>
+</div>
+<div style="padding:10px 18px 16px;border-top:1px solid var(--border,#ccc);display:flex;gap:8px;">
+    <button onclick="window._ckSalvar('${docId}');this.closest('div[style*=fixed]').remove();" style="flex:1;padding:10px;border-radius:10px;background:rgba(77,184,122,0.18);border:1.5px solid rgba(77,184,122,0.5);color:#4db87a;font-family:var(--mono);font-size:0.75rem;font-weight:700;cursor:pointer;">Salvar</button>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;padding:10px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;cursor:pointer;">Fechar</button>
+</div></div>`;
+    ov._docId=docId;
+    document.body.appendChild(ov);
+    ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+};
+
+window._ckToggle=function(docId,idx,row){
+    const cb=row.querySelector('input[type=checkbox]'); if(!cb) return;
+    cb.checked=!cb.checked;
+    row.classList.toggle('done',cb.checked);
+    const total=_CKITENS.length;
+    const feitos=row.closest('.ck-item')?.parentElement?.querySelectorAll('.ck-item.done').length||0;
+    const bar=document.getElementById('ck-progress-bar');
+    if(bar) bar.style.width=Math.round(feitos/total*100)+'%';
+};
+
+window._ckSalvar=async function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId));
+    if(!proc) return;
+    const ck={};
+    document.querySelectorAll('#ck-list .ck-item').forEach((row,i)=>{
+        const cb=row.querySelector('input'); if(cb) ck[i]=cb.checked;
+    });
+    proc._checklist=ck;
+    try{await window.fbSaveProc(proc);window.showSyncToast&&window.showSyncToast('☑ Checklist salvo!');}
+    catch(e){alert('Erro ao salvar: '+e.message);}
+};
+
+// Badge checklist no card (via buildCardHTML hook)
+const _origBldCk=window.buildCardHTML;
+window.buildCardHTML=function(proc){
+    let html=typeof _origBldCk==='function'?_origBldCk.apply(this,arguments):''; if(!html) return html;
+    const ck=proc._checklist||{};
+    const feitos=Object.values(ck).filter(Boolean).length;
+    const total=_CKITENS.length;
+    const pct=Math.round(feitos/total*100);
+    const cor=pct===100?'#4db87a':(pct>=50?'#f59e0b':'#9ca3af');
+    const badge=feitos>0?`<span style="display:inline-flex;align-items:center;background:${cor}18;border:1px solid ${cor}44;color:${cor};border-radius:999px;padding:1px 7px;font-family:var(--mono);font-size:0.62rem;font-weight:700;margin-left:4px;" title="Checklist: ${feitos}/${total}">☑ ${pct}%</span>`:'';
+    if(badge){const lbl=({'a_agendar':'Autorizado','andamento':'Em Procedimento','preparacao':'Em Separação','agendado':'Agendado','concluido':'Concluído','cancelado':'Cancelado','reagendado':'Reagendado','a_retirar':'Aguardando Retirada','urgencia':'🚨 URGÊNCIA','coleta_urgente':'✈️ Coleta Prioritária'}[proc.status]||proc.status).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp('('+lbl+'<\\/div>)'),'$1'+badge);}
+    return html;
+};
+
+// ─── INJEÇÃO DE BOTÕES DE MÓDULO ──────────────────────────────────
+function _injetarBotoesModulo(){
+    // ── Tabela (Central Cirúrgica — view principal) ─────────────────
+    const tbody=document.querySelector('#procTable tbody');
+    if(tbody){
+        tbody.querySelectorAll('tr').forEach(tr=>{
+            if(tr.querySelector('.btn-mod-ck,.btn-mod-lemb,.btn-mod-comt,.btn-mod-copiar')) return;
+            const oc=tr.getAttribute('onclick')||'';
+            const m=oc.match(/\('([^']+)'\)/);
+            if(!m) return;
+            const id=m[1];
+            const st=(tr.className.match(/row-(\S+)/)||[])[1]||'';
+            const tds=tr.querySelectorAll('td');
+            if(!tds.length) return;
+            const tdA=tds[tds.length-1];
+            const delB=[...tdA.querySelectorAll('button')].find(b=>b.textContent.trim()==='✕');
+            if(!delB) return;
+            const div=delB.parentElement; if(!div) return;
+            div.style.flexWrap='wrap';
+            const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(id));
+            const tb=(cls,sty,title,html,cb)=>{
+                const b=document.createElement('button');
+                b.className=cls;
+                b.style.cssText='padding:4px 8px;border-radius:6px;font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;white-space:nowrap;'+sty;
+                b.title=title; b.innerHTML=html;
+                b.onclick=e=>{e.stopPropagation();cb();};
+                div.insertBefore(b,delB);
+            };
+            if(['preparacao','agendado','reagendado','andamento'].includes(st))
+                tb('btn-mod-ck','border:1px solid rgba(77,184,122,0.5);background:rgba(77,184,122,0.1);color:#4db87a;','Checklist de preparação','☑ CK',()=>window.abrirChecklist&&window.abrirChecklist(id));
+            const nLemb=proc?(proc._lembretes||[]).filter(l=>new Date(l.em)>new Date()).length:0;
+            tb('btn-mod-lemb','border:1px solid rgba(99,102,241,0.5);background:rgba(99,102,241,0.1);color:#6366f1;','Lembretes','⏰'+(nLemb?` (${nLemb})`:''),()=>window.abrirModalLembrete&&window.abrirModalLembrete(id));
+            const nComt=proc?(proc._comentarios||[]).length:0;
+            tb('btn-mod-comt','border:1px solid rgba(75,180,210,0.5);background:rgba(75,180,210,0.1);color:#4bb4d2;','Comentários','💬'+(nComt?` (${nComt})`:''),()=>window.abrirComentarios&&window.abrirComentarios(id));
+            tb('btn-mod-copiar','border:1px solid rgba(75,180,210,0.35);background:rgba(75,180,210,0.1);color:#4bb4d2;','Copiar ficha','📋',()=>window.copiarFicha&&window.copiarFicha(id));
+        });
+    }
+    // ── Cards (view secundária) ─────────────────────────────────────
+    document.querySelectorAll('.proc-card').forEach(card=>{
+        const id=card.getAttribute('data-id'); if(!id) return;
+        const actions=card.querySelector('.card-actions'); if(!actions) return;
+        const delBtn=actions.querySelector('.btn-act.del'); if(!delBtn) return;
+        const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(id));
+        const st=card.className.match(/status-(\S+)/)?.[1]||'';
+        const ins=(cls,sty,title,html,cb)=>{
+            if(card.querySelector('.'+cls)) return;
+            const b=document.createElement('button'); b.className='btn-act '+cls;
+            b.style.cssText=sty; b.title=title; b.innerHTML=html;
+            b.onclick=()=>cb(); actions.insertBefore(b,delBtn);
+        };
+        ins('btn-mod-copiar','background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;','Copiar','📋 Copiar',()=>window.copiarFicha&&window.copiarFicha(id));
+        ins('btn-mod-qr','background:rgba(107,114,128,.1);border-color:rgba(107,114,128,.35);color:#6b7280;','QR Code','⬡ QR',()=>window.abrirQRCode&&window.abrirQRCode(id));
+        const nComt=proc?(proc._comentarios||[]).length:0;
+        ins('btn-mod-comt','background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;','Comentários','💬 Coment.'+(nComt?` (${nComt})`:''),()=>window.abrirComentarios&&window.abrirComentarios(id));
+        const nLemb=proc?(proc._lembretes||[]).filter(l=>new Date(l.em)>new Date()).length:0;
+        ins('btn-mod-lemb','background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.35);color:#6366f1;','Lembretes','⏰ Lembrete'+(nLemb?` (${nLemb})`:''),()=>window.abrirModalLembrete&&window.abrirModalLembrete(id));
+        if(['preparacao','agendado','reagendado','andamento'].includes(st))
+            ins('btn-mod-ck','background:rgba(77,184,122,.1);border-color:rgba(77,184,122,.35);color:#4db87a;','Checklist','☑ Checklist',()=>window.abrirChecklist&&window.abrirChecklist(id));
+    });
+}
+function _iniciarObserverModulos(){
+    let _t=null;
+    new MutationObserver(()=>{clearTimeout(_t);_t=setTimeout(_injetarBotoesModulo,80);})
+        .observe(document.body,{childList:true,subtree:true});
+    let n=0;
+    const iv=setInterval(()=>{_injetarBotoesModulo();if(++n>=120)clearInterval(iv);},1000);
+}
+
+// ─── 2. LEMBRETES PERSONALIZADOS ─────────────────────────────────
+window.abrirModalLembrete=function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId));
+    if(!proc) return;
+    const lembretes=proc._lembretes||[];
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border:1.5px solid rgba(99,102,241,0.4);border-radius:18px;max-width:420px;width:90%;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+<div style="padding:16px 18px 10px;border-bottom:1px solid var(--border,#ccc);display:flex;justify-content:space-between;align-items:center;">
+    <div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:#6366f1;text-transform:uppercase;">⏰ Lembrete</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #ccc;color:#9ca3af;width:28px;height:28px;border-radius:8px;cursor:pointer;">✕</button>
+</div>
+<div style="padding:16px 18px;">
+    <div style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);margin-bottom:10px;">${proc.paciente||proc.hospital||'—'}</div>
+    <label style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:4px;">Data e hora</label>
+    <input type="datetime-local" id="lembrete-dt" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--surface);color:var(--text);font-family:var(--mono);font-size:0.78rem;margin-bottom:10px;">
+    <label style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:4px;">Mensagem</label>
+    <input type="text" id="lembrete-msg" placeholder="Ex: Confirmar entrega do material" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--surface);color:var(--text);font-family:var(--mono);font-size:0.78rem;margin-bottom:14px;">
+    ${lembretes.length?`<div style="font-family:var(--mono);font-size:0.65rem;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;">Lembretes ativos</div>${lembretes.map((l,i)=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;border:1px solid var(--border,#ccc);border-radius:6px;margin-bottom:4px;"><span style="font-family:var(--mono);font-size:0.68rem;color:var(--text);">${new Date(l.em).toLocaleString('pt-BR')} — ${l.msg}</span><button onclick="window._removerLembrete('${docId}',${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:0.8rem;">✕</button></div>`).join('')}`:''}
+</div>
+<div style="padding:0 18px 16px;display:flex;gap:8px;">
+    <button onclick="window._salvarLembrete('${docId}')" style="flex:1;padding:10px;border-radius:10px;background:rgba(99,102,241,.18);border:1.5px solid rgba(99,102,241,.5);color:#6366f1;font-family:var(--mono);font-size:0.75rem;font-weight:700;cursor:pointer;">⏰ Adicionar</button>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;padding:10px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;cursor:pointer;">Fechar</button>
+</div></div>`;
+    document.body.appendChild(ov); ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+    const now=new Date(); now.setMinutes(now.getMinutes()+30);
+    const dt=document.getElementById('lembrete-dt');
+    if(dt) dt.value=now.toISOString().slice(0,16);
+};
+
+window._salvarLembrete=async function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    const dt=document.getElementById('lembrete-dt')?.value;
+    const msg=document.getElementById('lembrete-msg')?.value||'Lembrete';
+    if(!dt){alert('Selecione a data e hora');return;}
+    if(new Date(dt)<=new Date()){alert('A data deve ser no futuro');return;}
+    const lembretes=proc._lembretes||[];
+    lembretes.push({em:dt,msg,criado:new Date().toISOString()});
+    proc._lembretes=lembretes;
+    try{await window.fbSaveProc(proc);window.showSyncToast&&window.showSyncToast('⏰ Lembrete salvo!');_agendarLembretes();document.querySelector('.reagendado-alert-overlay,div[style*="9999"]')?.closest('div[style*="fixed"]')?.remove();}
+    catch(e){alert('Erro: '+e.message);}
+    const ov=document.querySelector('div[style*="fixed"]');
+    if(ov&&ov.querySelector('#lembrete-dt')) ov.remove();
+    window.abrirModalLembrete(docId);
+};
+
+window._removerLembrete=async function(docId,idx){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    proc._lembretes=(proc._lembretes||[]).filter((_,i)=>i!==idx);
+    try{await window.fbSaveProc(proc);window.showSyncToast&&window.showSyncToast('Lembrete removido');}catch(e){}
+    const ov=document.querySelector('div[style*="fixed"]');
+    if(ov&&ov.querySelector('#lembrete-dt')) ov.remove();
+    window.abrirModalLembrete(docId);
+};
+
+function _agendarLembretes(){
+    const procs=window.procedimentos||[];
+    const agora=Date.now();
+    procs.forEach(proc=>{
+        (proc._lembretes||[]).forEach(l=>{
+            const t=new Date(l.em).getTime()-agora;
+            if(t>0&&t<86400000){
+                setTimeout(()=>{
+                    if(Notification.permission==='granted'){
+                        new Notification('⏰ Lembrete — Monitor Cirúrgico',{body:`${proc.paciente||proc.hospital||'—'}: ${l.msg}`,tag:'lembrete-'+proc._docId+'-'+l.em});
+                    }else{
+                        window.showSyncToast&&window.showSyncToast('⏰ Lembrete: '+l.msg);
+                    }
+                },t);
+            }
+        });
+    });
+}
+
+// Hook no botão de lembrete no card
+const _origBldLemb=window.buildCardHTML;
+window.buildCardHTML=function(proc){
+    let html=typeof _origBldLemb==='function'?_origBldLemb.apply(this,arguments):''; if(!html) return html;
+    const id=proc._docId||proc.id;
+    const nLemb=(proc._lembretes||[]).filter(l=>new Date(l.em)>new Date()).length;
+    const lembBadge=nLemb?` (${nLemb})`:'';
+    html=html.replace('onclick="deleteProc(',`onclick="abrirModalLembrete('${id}')" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.35);color:#6366f1;" title="Lembretes">⏰ Lembrete${lembBadge}</button><button class="btn-act del" onclick="deleteProc(`);
+    return html;
+};
+
+// ─── 3. COMENTÁRIOS INTERNOS ──────────────────────────────────────
+window.abrirComentarios=function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    const comentarios=proc._comentarios||[];
+    const user=(window._fbAuth&&window._fbAuth.currentUser)?window._fbAuth.currentUser.email:'usuário';
+    const fmtTs=ts=>ts?new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:75vh;display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.25);">
+<div style="padding:14px 18px 10px;border-bottom:1px solid var(--border,#ccc);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+    <div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:#4bb4d2;text-transform:uppercase;">💬 Comentários — ${proc.paciente||proc.hospital||'—'}</div>
+    <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #ccc;color:#9ca3af;width:28px;height:28px;border-radius:8px;cursor:pointer;">✕</button>
+</div>
+<div class="coment-feed" id="coment-feed-${docId}">${comentarios.length===0?'<div style="text-align:center;padding:24px;font-family:var(--mono);font-size:0.75rem;color:#9ca3af;">Nenhum comentário ainda</div>':comentarios.map(c=>`<div class="coment-item"><div class="coment-autor">👤 ${c.autor||'—'} · ${fmtTs(c.em)}</div><div class="coment-texto">${c.texto}</div></div>`).join('')}</div>
+<div class="coment-input-wrap">
+    <input type="text" id="coment-input-${docId}" placeholder="Escreva um comentário..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();window._enviarComentario('${docId}');}">
+    <button onclick="window._enviarComentario('${docId}')">Enviar</button>
+</div></div>`;
+    document.body.appendChild(ov); ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+    setTimeout(()=>{const f=document.getElementById('coment-feed-'+docId);if(f)f.scrollTop=f.scrollHeight;},50);
+};
+
+window._enviarComentario=async function(docId){
+    const inp=document.getElementById('coment-input-'+docId); if(!inp) return;
+    const txt=inp.value.trim(); if(!txt) return;
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    const user=(window._fbAuth&&window._fbAuth.currentUser)?window._fbAuth.currentUser.email:'usuário';
+    const comentarios=proc._comentarios||[];
+    comentarios.push({texto:txt,autor:user,em:new Date().toISOString()});
+    proc._comentarios=comentarios;
+    inp.value='';
+    try{
+        await window.fbSaveProc(proc);
+        const feed=document.getElementById('coment-feed-'+docId);
+        if(feed){
+            const div=document.createElement('div'); div.className='coment-item';
+            const fmtTs=ts=>ts?new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+            div.innerHTML=`<div class="coment-autor">👤 ${user} · ${fmtTs(new Date().toISOString())}</div><div class="coment-texto">${txt}</div>`;
+            const empty=feed.querySelector('div[style*="Nenhum"]'); if(empty) empty.remove();
+            feed.appendChild(div); feed.scrollTop=feed.scrollHeight;
+        }
+    }catch(e){alert('Erro: '+e.message);}
+};
+
+const _origBldComt=window.buildCardHTML;
+window.buildCardHTML=function(proc){
+    let html=typeof _origBldComt==='function'?_origBldComt.apply(this,arguments):''; if(!html) return html;
+    const id=proc._docId||proc.id;
+    const nComt=(proc._comentarios||[]).length;
+    const cBadge=nComt?` (${nComt})`:'';
+    html=html.replace('onclick="deleteProc(',`onclick="abrirComentarios('${id}')" style="background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;" title="Comentários da equipe">💬 Comentários${cBadge}</button><button class="btn-act del" onclick="deleteProc(`);
+    return html;
+};
+
+// ─── 4. QR CODE DA FICHA ──────────────────────────────────────────
+window.abrirQRCode=function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',urgencia:'URGÊNCIA'};
+    const txt=[`GF Medical — Ficha Cirúrgica`,proc.hospital||'',proc.paciente?`Paciente: ${proc.paciente}`:'',proc.medico?`Médico: ${proc.medico}`:'',proc.data?`Data: ${fmt(proc.data)}${proc.inicio?' às '+proc.inicio:''}`:'',`Status: ${sMap[proc.status]||proc.status}`,proc.vendedor?`Vendedor: ${proc.vendedor}`:''].filter(Boolean).join('\n');
+    const qrUrl=`https://api.qrserver.com/v1/create-qr-code/?size=200x200&format=svg&data=${encodeURIComponent(txt)}`;
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border:1px solid var(--border,#ccc);border-radius:18px;padding:24px;max-width:320px;width:90%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+<div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:var(--text);margin-bottom:4px;">QR Code — Ficha</div>
+<div style="font-family:var(--mono);font-size:0.68rem;color:var(--text-dim);margin-bottom:16px;">${proc.paciente||proc.hospital||'—'}</div>
+<img src="${qrUrl}" alt="QR Code" style="width:200px;height:200px;border-radius:10px;border:1px solid var(--border,#ccc);background:#fff;" onerror="this.src='';this.alt='Erro ao gerar QR. Verifique a conexão.'">
+<div style="font-family:var(--mono);font-size:0.62rem;color:var(--text-dim);margin-top:10px;">Escaneie para ver os dados da ficha</div>
+<button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:14px;width:100%;padding:9px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;cursor:pointer;">Fechar</button></div>`;
+    document.body.appendChild(ov); ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+};
+
+const _origBldQR=window.buildCardHTML;
+window.buildCardHTML=function(proc){
+    let html=typeof _origBldQR==='function'?_origBldQR.apply(this,arguments):''; if(!html) return html;
+    const id=proc._docId||proc.id;
+    html=html.replace('onclick="deleteProc(',`onclick="abrirQRCode('${id}')" style="background:rgba(107,114,128,.1);border-color:rgba(107,114,128,.35);color:#6b7280;" title="QR Code da ficha">⬡ QR Code</button><button class="btn-act del" onclick="deleteProc(`);
+    return html;
+};
+
+// ─── HOOKS ───────────────────────────────────────────────────────
+const _origUS3=window.updateStats;
+window.updateStats=function(){
+    if(typeof _origUS3==='function') _origUS3.apply(this,arguments);
+    if(window.currentView==='calendar') try{window.renderAgendaSemanal?window.renderAgendaSemanal():null;}catch(e){}
+};
+
+function init(){
+    // Hook renderCards para injetar botões sempre que os cards forem re-renderizados
+    const _origRC=window.renderCards;
+    if(typeof _origRC==='function'){
+        window.renderCards=function(){
+            const r=_origRC.apply(this,arguments);
+            setTimeout(_injetarBotoesModulo,80);
+            return r;
+        };
+    }
+    injetarAbaCalendario();
+    _iniciarObserverModulos();
+    setTimeout(_agendarLembretes, 3000);
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+else init();
+
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MÓDULO MELHORIAS 2: notificação · kanban · SLA · vendedores
+                         resumo do dia · copiar ficha · e-mail
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+@keyframes slaPulse {
+    0%,100%{background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.55);box-shadow:none}
+    50%{background:rgba(245,158,11,.20);border-color:#f59e0b;box-shadow:0 0 18px rgba(245,158,11,.35)}
+}
+</style>
+<script>
+(function(){
+'use strict';
+
+// ─── 1. BOTÃO NOTIFICAÇÕES ────────────────────────────────────────
+function injetarBotaoNotif(){
+    if(document.getElementById('btn-notificacoes')) return;
+    const hdr=document.querySelector('.header > div[style*="display:flex"]');
+    if(!hdr) return;
+    const btn=document.createElement('button'); btn.id='btn-notificacoes';
+    btn.style.cssText='display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:10px;color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.06em;transition:all 0.2s;';
+    btn.innerHTML='<span>🔔</span><span id="notif-lbl">Notif.</span>';
+    btn.onclick=async()=>{
+        if(!('Notification' in window)){alert('Navegador não suporta notificações');return;}
+        const perm=await Notification.requestPermission();
+        if(perm==='granted') window.showSyncToast&&window.showSyncToast('🔔 Notificações ativadas!');
+        _atualizarBotaoNotif();
+    };
+    hdr.insertBefore(btn,hdr.firstChild); _atualizarBotaoNotif();
+}
+function _atualizarBotaoNotif(){
+    const btn=document.getElementById('btn-notificacoes');
+    const lbl=document.getElementById('notif-lbl'); if(!btn) return;
+    const perm='Notification' in window?Notification.permission:'denied';
+    if(perm==='granted'){btn.style.borderColor='rgba(77,184,122,0.6)';btn.style.color='#4db87a';if(lbl)lbl.textContent='Notif. ✓';}
+    else if(perm==='denied'){btn.style.opacity='0.45';}
+}
+
+// ─── 2. KANBAN + VENDEDORES ───────────────────────────────────────
+function injetarNovasAbas(){
+    const tabOpme=document.getElementById('tab-opme'); if(!tabOpme) return;
+    if(!document.getElementById('tab-kanban')){
+        const b=document.createElement('button'); b.id='tab-kanban'; b.className='view-tab'; b.textContent='📋 Kanban';
+        b.onclick=()=>_swMelhorias('kanban'); tabOpme.insertAdjacentElement('afterend',b);
+    }
+    if(!document.getElementById('tab-vendedor')){
+        const b=document.createElement('button'); b.id='tab-vendedor'; b.className='view-tab'; b.textContent='👤 Vendedores';
+        b.onclick=()=>_swMelhorias('vendedor'); document.getElementById('tab-kanban').insertAdjacentElement('afterend',b);
+    }
+    if(!document.getElementById('kanban-view')){
+        const d=document.createElement('div'); d.id='kanban-view'; d.style.display='none';
+        document.getElementById('table-view').insertAdjacentElement('afterend',d);
+    }
+    if(!document.getElementById('vendedor-view')){
+        const d=document.createElement('div'); d.id='vendedor-view'; d.style.display='none';
+        document.getElementById('kanban-view').insertAdjacentElement('afterend',d);
+    }
+}
+const _origSW2=window.switchView;
+window.switchView=function(v){
+    document.getElementById('kanban-view')&&(document.getElementById('kanban-view').style.display='none');
+    document.getElementById('vendedor-view')&&(document.getElementById('vendedor-view').style.display='none');
+    document.getElementById('tab-kanban')&&document.getElementById('tab-kanban').classList.remove('active');
+    document.getElementById('tab-vendedor')&&document.getElementById('tab-vendedor').classList.remove('active');
+    if(v==='kanban'||v==='vendedor'){_swMelhorias(v);return;}
+    if(typeof _origSW2==='function') _origSW2.apply(this,arguments);
+};
+function _swMelhorias(v){
+    if(typeof _origSW2==='function') _origSW2.call(window,'table');
+    setTimeout(()=>{
+        ['table-view','stats-bar','periodBar','main-controls'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+        if(v==='kanban'){const el=document.getElementById('kanban-view');if(el){el.style.display='';renderKanban();}document.getElementById('tab-kanban')&&document.getElementById('tab-kanban').classList.add('active');}
+        if(v==='vendedor'){const el=document.getElementById('vendedor-view');if(el){el.style.display='';renderVendedorPanel();}document.getElementById('tab-vendedor')&&document.getElementById('tab-vendedor').classList.add('active');}
+        document.getElementById('tab-table')&&document.getElementById('tab-table').classList.remove('active');
+        window.currentView=v;
+    },0);
+}
+const _KS=[{key:'urgencia',label:'🚨 Urgência',cor:'#ef4444'},{key:'a_agendar',label:'Autorizado',cor:'#06b6d4'},{key:'agendado',label:'Agendado',cor:'#4db87a'},{key:'preparacao',label:'Em Separação',cor:'#d4920a'},{key:'andamento',label:'Em Procedimento',cor:'#d94f4f'},{key:'reagendado',label:'Reagendado',cor:'#a78bfa'},{key:'a_retirar',label:'Aguard. Retirada',cor:'#f97316'}];
+function renderKanban(){
+    const c=document.getElementById('kanban-view'); if(!c) return;
+    const procs=(window.procedimentos||[]).filter(p=>!['concluido','cancelado','coleta_urgente'].includes(p.status));
+    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+    c.innerHTML=`<div style="padding:16px 0;"><div style="font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);margin-bottom:12px;text-align:right;">Arraste os cards para mover entre status</div><div id="kb-board" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:16px;align-items:flex-start;">${_KS.map(s=>{const cards=procs.filter(p=>p.status===s.key);return`<div style="flex:0 0 185px;background:rgba(0,0,0,0.03);border:1.5px dashed ${s.cor}44;border-radius:12px;padding:10px;"><div style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:${s.cor};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;display:flex;justify-content:space-between;"><span>${s.label}</span><span style="background:${s.cor}22;border-radius:99px;padding:1px 7px;">${cards.length}</span></div><div class="kb-zone" data-status="${s.key}" style="min-height:60px;">${cards.map(p=>{const id=p._docId||String(p.id);return`<div class="kb-card" draggable="true" data-id="${id}" style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${s.cor};border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:grab;"><div style="font-family:var(--mono);font-size:0.7rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.paciente||p.hospital||'—'}</div>${p.data?`<div style="font-family:var(--mono);font-size:0.62rem;color:var(--text-dim);">${fmt(p.data)}</div>`:''}</div>`;}).join('')}</div></div>`;}).join('')}</div></div>`;
+    c.querySelectorAll('.kb-card').forEach(card=>{card.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',card.dataset.id);card.style.opacity='0.45';});card.addEventListener('dragend',()=>{card.style.opacity='1';});});
+    c.querySelectorAll('.kb-zone').forEach(zone=>{
+        zone.addEventListener('dragover',e=>{e.preventDefault();zone.style.background='rgba(75,180,210,0.08)';});
+        zone.addEventListener('dragleave',()=>{zone.style.background='';});
+        zone.addEventListener('drop',async e=>{
+            e.preventDefault();zone.style.background='';
+            const id=e.dataTransfer.getData('text/plain');const ns=zone.dataset.status;
+            const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(id));
+            if(!proc||proc.status===ns) return;
+            if(ns==='reagendado'&&typeof window.mostrarAlertaReagendado==='function'){window.mostrarAlertaReagendado(proc,async(nd,m)=>{const sa=proc.status;const h=proc._statusHistory||[];h.push({de:sa,para:'reagendado',em:new Date().toISOString(),por:'sistema',dataNova:nd,motivo:m||''});proc._statusHistory=h;proc.status='reagendado';proc.data=nd;if(m)proc.motivoReagendamento=m;await window.fbSaveProc(proc);renderKanban();});return;}
+            const sa=proc.status;proc.status=ns;
+            try{await window.fbSaveProc(proc);window.showSyncToast&&window.showSyncToast('✅ Status atualizado');renderKanban();}catch(err){proc.status=sa;alert('Erro: '+err.message);}
+        });
+    });
+}
+
+// ─── 3. ALERTA SLA ────────────────────────────────────────────────
+const _SLA={a_agendar:15,agendado:10,reagendado:5,preparacao:4};
+const _SL={a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+function _diasStatus(proc){const h=proc._statusHistory||[];for(let i=h.length-1;i>=0;i--){if(h[i].para===proc.status)return Math.floor((Date.now()-new Date(h[i].em).getTime())/86400000);}return 0;}
+function injetarBarraSLA2(){
+    if(document.getElementById('sla-alert-bar')) return;
+    const ref=document.getElementById('cirurgia-proxima-bar')||document.getElementById('reagendado-alert-bar'); if(!ref) return;
+    const b=document.createElement('div'); b.id='sla-alert-bar';
+    b.style.cssText='display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:rgba(245,158,11,.10);border:1.5px solid rgba(245,158,11,.55);border-radius:12px;padding:12px 18px;margin-bottom:12px;animation:slaPulse 1.5s ease-in-out infinite;';
+    ref.insertAdjacentElement('afterend',b);
+}
+function atualizarSLA(){
+    const bar=document.getElementById('sla-alert-bar'); if(!bar) return;
+    const venc=(window.procedimentos||[]).filter(p=>{const l=_SLA[p.status];return l&&_diasStatus(p)>=l;});
+    if(!venc.length){bar.style.display='none';return;}
+    const lista=venc.slice(0,3).map(p=>`• ${p.paciente||p.hospital||'—'} — ${_diasStatus(p)}d em ${_SL[p.status]||p.status}`).join('<br>');
+    const extra=venc.length>3?`<br><span style="opacity:0.6">+${venc.length-3} outros</span>`:'';
+    bar.innerHTML=`<div><div style="font-family:var(--mono);font-size:0.8rem;font-weight:700;color:#f59e0b;letter-spacing:0.05em;margin-bottom:5px;">⚠ ${venc.length} procedimento${venc.length>1?'s':''} com SLA excedido — ação necessária</div><div style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);line-height:1.7;">${lista}${extra}</div></div><button style="flex-shrink:0;padding:8px 16px;border-radius:10px;background:rgba(245,158,11,.15);border:1.5px solid rgba(245,158,11,.6);color:#f59e0b;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;white-space:nowrap;" onclick="window.abrirModalSLA()">Ver detalhes →</button>`;
+    bar.style.display='flex';
+}
+window.abrirModalSLA=function(){
+    const venc=(window.procedimentos||[]).filter(p=>{const l=_SLA[p.status];return l&&_diasStatus(p)>=l;}).map(p=>({...p,_d:_diasStatus(p)})).sort((a,b)=>b._d-a._d);
+    const ov=document.createElement('div'); ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border:1.5px solid rgba(245,158,11,.5);border-radius:18px;padding:24px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:#f59e0b;text-transform:uppercase;">⚠ SLA excedido</div><button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #ccc;color:#9ca3af;width:28px;height:28px;border-radius:8px;cursor:pointer;">✕</button></div><div style="font-family:var(--mono);font-size:0.62rem;color:var(--text-dim);margin-bottom:12px;">Limites: Autorizado ${_SLA.a_agendar}d · Agendado ${_SLA.agendado}d · Reagendado ${_SLA.reagendado}d · Em Separação ${_SLA.preparacao}d</div>${venc.map(p=>{const cor=p._d>=_SLA[p.status]*2?'#ef4444':'#f59e0b';return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid ${cor}33;border-radius:10px;margin-bottom:7px;background:${cor}08;"><div><div style="font-family:var(--mono);font-size:0.78rem;font-weight:700;color:var(--text);">${p.paciente||p.hospital||'—'}</div><div style="font-family:var(--mono);font-size:0.64rem;color:var(--text-dim);">${_SL[p.status]||p.status} · ${p.vendedor||'—'}</div></div><span style="font-family:var(--mono);font-size:0.85rem;font-weight:800;color:${cor};">${p._d}d</span></div>`;}).join('')}<button onclick="this.closest('div[style*=fixed]').remove()" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;cursor:pointer;">Fechar</button></div>`;
+    document.body.appendChild(ov); ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+};
+
+// ─── 4. PAINEL VENDEDORES ─────────────────────────────────────────
+function renderVendedorPanel(){
+    const c=document.getElementById('vendedor-view'); if(!c) return;
+    const procs=window.procedimentos||[];const vm={};
+    procs.filter(p=>p.vendedor).forEach(p=>{if(!vm[p.vendedor])vm[p.vendedor]={total:0,ativos:0,concluidos:0,reagendados:0,urgentes:0};const v=vm[p.vendedor];v.total++;if(p.status==='concluido')v.concluidos++;else if(p.status==='reagendado')v.reagendados++;else if(p.status==='urgencia')v.urgentes++;else v.ativos++;});
+    const vends=Object.entries(vm).sort((a,b)=>b[1].total-a[1].total);
+    if(!vends.length){c.innerHTML='<div style="text-align:center;padding:48px;font-family:var(--mono);color:var(--text-dim);">Nenhum vendedor encontrado</div>';return;}
+    c.innerHTML=`<div style="padding:16px 0;"><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;">${vends.map(([nome,v])=>{const taxa=v.total>0?Math.round(v.concluidos/v.total*100):0;const cor=taxa>=70?'#4db87a':(taxa>=40?'#f59e0b':'#ef4444');const safe=nome.replace(/'/g,"\\'");return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 20px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow=''" onclick="if(document.getElementById('vendedor-select'))document.getElementById('vendedor-select').value='${safe}';if(window.setVendedorFilter)window.setVendedorFilter('${safe}');window.switchView('table');"><div style="font-family:var(--mono);font-size:0.85rem;font-weight:700;color:var(--text);margin-bottom:10px;">👤 ${nome}</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"><span style="background:rgba(75,180,210,.1);border:1px solid rgba(75,180,210,.3);color:#4bb4d2;border-radius:6px;padding:2px 8px;font-family:var(--mono);font-size:0.66rem;font-weight:700;">${v.total} total</span><span style="background:rgba(77,184,122,.1);border:1px solid rgba(77,184,122,.3);color:#4db87a;border-radius:6px;padding:2px 8px;font-family:var(--mono);font-size:0.66rem;font-weight:700;">${v.ativos} ativos</span>${v.reagendados?`<span style="background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.3);color:#a78bfa;border-radius:6px;padding:2px 8px;font-family:var(--mono);font-size:0.66rem;font-weight:700;">↺ ${v.reagendados}</span>`:''}${v.urgentes?`<span style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:6px;padding:2px 8px;font-family:var(--mono);font-size:0.66rem;font-weight:700;">🚨 ${v.urgentes}</span>`:''}</div><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:5px;background:rgba(0,0,0,.1);border-radius:99px;overflow:hidden;"><div style="width:${taxa}%;height:100%;background:${cor};border-radius:99px;"></div></div><span style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:${cor};">${taxa}%</span></div><div style="font-family:var(--mono);font-size:0.6rem;color:var(--text-dim);margin-top:4px;">${v.concluidos} concluídos · clique para filtrar</div></div>`;}).join('')}</div>`;
+}
+
+// ─── 5. RESUMO DO DIA ─────────────────────────────────────────────
+window.abrirResumoDia=function(){
+    const procs=window.procedimentos||[];
+    const hoje=typeof window.todayStr==='function'?window.todayStr():new Date().toISOString().split('T')[0];
+    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'}):'—';
+    const cirHoje=procs.filter(p=>(p.status==='agendado'||p.status==='preparacao'||p.status==='andamento')&&p.data===hoje);
+    const concHoje=procs.filter(p=>p.status==='concluido'&&p._updatedAt&&p._updatedAt.startsWith(hoje));
+    const reagHoje=procs.filter(p=>(p._statusHistory||[]).some(h=>h.para==='reagendado'&&h.em&&h.em.startsWith(hoje)));
+    const novosHoje=procs.filter(p=>p._createdAt&&p._createdAt.startsWith(hoje));
+    const ov=document.createElement('div'); ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    ov.innerHTML=`<div style="background:var(--surface,#f0faf3);border:1px solid var(--border,#ccc);border-radius:20px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 16px 50px rgba(0,0,0,.3);"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;"><div><div style="font-family:var(--mono);font-size:0.66rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Resumo</div><div style="font-family:var(--mono);font-size:0.88rem;font-weight:700;color:var(--text);">${fmt(hoje)}</div></div><button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:1px solid #ccc;color:#9ca3af;width:28px;height:28px;border-radius:8px;cursor:pointer;">✕</button></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">${[{icon:'🏥',label:'Cirurgias hoje',val:cirHoje.length,cor:'#4db87a'},{icon:'✅',label:'Concluídos',val:concHoje.length,cor:'#64748b'},{icon:'↺',label:'Reagendamentos',val:reagHoje.length,cor:'#a78bfa'},{icon:'➕',label:'Novos casos',val:novosHoje.length,cor:'#06b6d4'}].map(it=>`<div style="background:${it.cor}11;border:1px solid ${it.cor}33;border-radius:12px;padding:12px 14px;"><div style="font-size:1.2rem;margin-bottom:4px;">${it.icon}</div><div style="font-family:var(--mono);font-size:1.3rem;font-weight:800;color:${it.cor};">${it.val}</div><div style="font-family:var(--mono);font-size:0.64rem;color:var(--text-dim);">${it.label}</div></div>`).join('')}</div>${cirHoje.length?`<div style="margin-bottom:12px;"><div style="font-family:var(--mono);font-size:0.68rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Cirurgias do dia</div>${cirHoje.map(p=>`<div style="display:flex;justify-content:space-between;padding:7px 10px;border:1px solid var(--border,#ccc);border-radius:8px;margin-bottom:5px;"><div style="font-family:var(--mono);font-size:0.72rem;color:var(--text);font-weight:600;">${p.paciente||p.hospital||'—'}</div><div style="font-family:var(--mono);font-size:0.68rem;color:var(--text-dim);">${p.inicio||'—'}</div></div>`).join('')}</div>`:''}
+<button onclick="this.closest('div[style*=fixed]').remove()" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;cursor:pointer;">Fechar</button></div>`;
+    document.body.appendChild(ov); ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+};
+
+// ─── 6. COPIAR FICHA ─────────────────────────────────────────────
+window.copiarFicha=function(docId){
+    const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
+    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',urgencia:'URGÊNCIA'};
+    const txt=[`── Ficha Cirúrgica ──`,proc.hospital?`Hospital: ${proc.hospital}`:'',proc.paciente?`Paciente: ${proc.paciente}`:'',proc.medico?`Médico: ${proc.medico}`:'',proc.procedimento?`Procedimento: ${proc.procedimento}`:'',proc.convenio?`Convênio: ${proc.convenio}`:'',proc.data?`Data: ${fmt(proc.data)}${proc.inicio?' às '+proc.inicio:''}`:'',`Status: ${sMap[proc.status]||proc.status}`,proc.vendedor?`Vendedor: ${proc.vendedor}`:'',proc.nf?`NF: ${proc.nf}`:'',proc.obs?`Obs: ${proc.obs}`:''].filter(Boolean).join('\n');
+    (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).catch(()=>{const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);});
+    window.showSyncToast&&window.showSyncToast('📋 Ficha copiada!');
+};
+const _origBldCopiar=window.buildCardHTML;
+window.buildCardHTML=function(proc){
+    let html=typeof _origBldCopiar==='function'?_origBldCopiar.apply(this,arguments):''; if(!html) return html;
+    const id=proc._docId||proc.id;
+    html=html.replace('onclick="deleteProc(',`onclick="copiarFicha('${id}')" style="background:rgba(75,180,210,.1);border-color:rgba(75,180,210,.35);color:#4bb4d2;" title="Copiar dados da ficha">📋 Copiar</button><button class="btn-act del" onclick="deleteProc(`);
+    return html;
+};
+
+// ─── 7. RELATÓRIO POR E-MAIL ──────────────────────────────────────
+window.enviarRelatorioEmail=function(){
+    const procs=window.procedimentos||[];
+    const hoje=typeof window.todayStr==='function'?window.todayStr():new Date().toISOString().split('T')[0];
+    const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+    const urg=procs.filter(p=>p.status==='urgencia');const reag=procs.filter(p=>p.status==='reagendado');const hj=procs.filter(p=>p.data===hoje);
+    let c=`RELATÓRIO CIRÚRGICO — ${new Date().toLocaleDateString('pt-BR')}\n${'─'.repeat(40)}\n\nRESUMO\nTotal ativo: ${procs.filter(p=>!['concluido','cancelado'].includes(p.status)).length}\nUrgências: ${urg.length}\nReagendados: ${reag.length}\nCirurgias hoje: ${hj.length}\n\n`;
+    if(urg.length){c+=`URGÊNCIAS\n${urg.map(p=>`• ${p.paciente||p.hospital||'—'} (${p.medico||'—'})`).join('\n')}\n\n`;}
+    if(hj.length){c+=`CIRURGIAS HOJE\n${hj.map(p=>`• ${p.paciente||p.hospital||'—'} — ${p.inicio||'—'} — ${p.medico||'—'}`).join('\n')}\n\n`;}
+    if(reag.length){c+=`REAGENDADOS\n${reag.map(p=>`• ${p.paciente||p.hospital||'—'} — ${fmt(p.data)} — ${p.vendedor||'—'}`).join('\n')}\n\n`;}
+    c+=`Monitor Cirúrgico GF Medical`;
+    window.open(`mailto:?subject=${encodeURIComponent('Monitor Cirúrgico — Relatório '+new Date().toLocaleDateString('pt-BR'))}&body=${encodeURIComponent(c)}`);
+};
+
+// ─── HOOKS ───────────────────────────────────────────────────────
+const _origUS2=window.updateStats;
+window.updateStats=function(){
+    if(typeof _origUS2==='function') _origUS2.apply(this,arguments);
+    atualizarSLA();
+    if(window.currentView==='kanban') renderKanban();
+    if(window.currentView==='vendedor') renderVendedorPanel();
+};
+
+function injetarBotoesControles(){
+    const ref=document.querySelector('[onclick="exportarWhatsApp()"]'); if(!ref) return;
+    if(!document.getElementById('btn-resumo-dia')){const b=document.createElement('button');b.id='btn-resumo-dia';b.textContent='📊 Resumo do Dia';b.style.cssText='padding:8px 18px;border-radius:10px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.4);color:#6366f1;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;';b.onclick=window.abrirResumoDia;ref.insertAdjacentElement('beforebegin',b);}
+    if(!document.getElementById('btn-email-rel')){const b=document.createElement('button');b.id='btn-email-rel';b.textContent='📧 E-mail';b.style.cssText='padding:8px 18px;border-radius:10px;background:rgba(75,180,210,.12);border:1px solid rgba(75,180,210,.4);color:#4bb4d2;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;';b.onclick=window.enviarRelatorioEmail;ref.insertAdjacentElement('beforebegin',b);}
+}
+
+function init(){injetarBotaoNotif();injetarNovasAbas();injetarBarraSLA2();injetarBotoesControles();}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+else init();
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MÓDULO MELHORIAS: dark mode · cirurgia próxima · som vencido
+                       dias no status · exportar CSV
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+/* ─── DARK MODE ──────────────────────────────────────────────────── */
+html[data-theme="dark"] {
+    --bg: #0d1f2a; --surface: #112432; --surface2: #0a1a22;
+    --border: #1d3d52; --accent: #4bb4d2; --accent2: #4db87a;
+    --green: #4db87a; --yellow: #f59e0b; --red: #ef4444;
+    --gray: #6a8a96; --text: #e0f2f8; --text-dim: #7ab8c8;
+}
+html[data-theme="dark"] body {
+    background: #0d1f2a !important;
+    background-image:
+        radial-gradient(ellipse 70% 50% at 10% 5%, rgba(30,64,95,0.35) 0%, transparent 55%),
+        radial-gradient(ellipse 55% 45% at 90% 90%, rgba(30,80,110,0.2) 0%, transparent 55%) !important;
+}
+html[data-theme="dark"] body::before {
+    background-image:
+        linear-gradient(rgba(75,180,210,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(75,180,210,0.06) 1px, transparent 1px) !important;
+}
+html[data-theme="dark"] .header { background: #091820 !important; border-color: #1d3d52 !important; }
+html[data-theme="dark"] .proc-card { background: var(--surface) !important; border-color: var(--border) !important; }
+html[data-theme="dark"] .stat-card { background: var(--surface) !important; border-color: var(--border) !important; }
+html[data-theme="dark"] .filter-btn { background: rgba(255,255,255,0.04) !important; border-color: var(--border) !important; color: var(--text-dim) !important; }
+html[data-theme="dark"] .filter-btn.active, html[data-theme="dark"] .filter-btn:hover { background: rgba(75,180,210,0.15) !important; border-color: var(--accent) !important; color: var(--accent) !important; }
+html[data-theme="dark"] .search-box { background: #112432 !important; border-color: #1d3d52 !important; color: var(--text) !important; }
+html[data-theme="dark"] select { background: #112432 !important; border-color: #1d3d52 !important; color: var(--text) !important; }
+html[data-theme="dark"] #periodo-painel { background: #091820 !important; border-color: #1d3d52 !important; }
+html[data-theme="dark"] .login-box { background: #091820 !important; border-color: #1d3d52 !important; }
+html[data-theme="dark"] .login-input { background: #112432 !important; border-color: #1d3d52 !important; color: var(--text) !important; }
+html[data-theme="dark"] .proc-table { background: var(--surface) !important; }
+html[data-theme="dark"] .proc-table th { background: #091820 !important; color: var(--text-dim) !important; border-color: #1d3d52 !important; }
+html[data-theme="dark"] .proc-table tbody tr { border-color: #1d3d52 !important; }
+html[data-theme="dark"] .proc-table tbody td { color: var(--text) !important; }
+html[data-theme="dark"] .view-tab { background: rgba(255,255,255,0.04) !important; border-color: #1d3d52 !important; color: var(--text-dim) !important; }
+html[data-theme="dark"] .view-tab.active { background: rgba(75,180,210,0.15) !important; border-color: var(--accent) !important; color: var(--accent) !important; }
+html[data-theme="dark"] .card-label { color: var(--text-dim) !important; }
+html[data-theme="dark"] .card-value { color: var(--text) !important; }
+html[data-theme="dark"] .hospital-name { color: var(--text) !important; }
+html[data-theme="dark"] .btn-dark-mode { background: rgba(75,180,210,0.15) !important; border-color: var(--accent) !important; color: var(--accent) !important; }
+
+/* ─── FAIXA CIRURGIA PRÓXIMA ─────────────────────────────────────── */
+#cirurgia-proxima-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+    background: rgba(77,184,122,0.10);
+    border: 1.5px solid rgba(77,184,122,0.6);
+    border-radius: 12px; padding: 12px 18px; margin-bottom: 12px;
+    animation: cirurgiaProximaPulse 1.2s ease-in-out infinite;
+}
+@keyframes cirurgiaProximaPulse {
+    0%, 100% { background: rgba(77,184,122,0.10); border-color: rgba(77,184,122,0.6); box-shadow: none; }
+    50% { background: rgba(77,184,122,0.20); border-color: #4db87a; box-shadow: 0 0 18px rgba(77,184,122,0.35); }
+}
+</style>
+
+<script>
+(function() {
+'use strict';
+
+// ─── 1. DARK MODE ─────────────────────────────────────────────────
+window.toggleDarkMode = function() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    const novo = isDark ? 'light' : 'dark';
+    html.setAttribute('data-theme', novo);
+    localStorage.setItem('gf-theme', novo);
+    const icon = document.getElementById('dark-mode-icon');
+    const lbl = document.getElementById('dark-mode-label');
+    if (icon) icon.textContent = isDark ? '🌙' : '☀️';
+    if (lbl) lbl.textContent = isDark ? 'Escuro' : 'Claro';
+    const btn = document.getElementById('btn-dark-mode');
+    if (btn) btn.classList.toggle('btn-dark-mode', !isDark);
+};
+
+function injetarBotaoDarkMode() {
+    if (document.getElementById('btn-dark-mode')) return;
+    const headerRight = document.querySelector('.header > div[style*="display:flex"]');
+    if (!headerRight) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-dark-mode';
+    const saved = localStorage.getItem('gf-theme') || 'light';
+    btn.style.cssText = 'display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:10px;color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.06em;transition:all 0.2s;';
+    btn.innerHTML = `<span id="dark-mode-icon">${saved === 'dark' ? '☀️' : '🌙'}</span><span id="dark-mode-label">${saved === 'dark' ? 'Claro' : 'Escuro'}</span>`;
+    btn.onclick = window.toggleDarkMode;
+    headerRight.insertBefore(btn, headerRight.firstChild);
+    document.documentElement.setAttribute('data-theme', saved);
+}
+
+// ─── 2. FAIXA ALERTA CIRURGIA PRÓXIMA ────────────────────────────
+function injetarBarraCirurgiaProxima() {
+    if (document.getElementById('cirurgia-proxima-bar')) return;
+    const reagBar = document.getElementById('reagendado-alert-bar');
+    if (!reagBar) return;
+    const bar = document.createElement('div');
+    bar.id = 'cirurgia-proxima-bar';
+    bar.style.display = 'none';
+    reagBar.parentNode.insertBefore(bar, reagBar.nextSibling);
+}
+
+function atualizarBarraCirurgiaProxima() {
+    const bar = document.getElementById('cirurgia-proxima-bar');
+    if (!bar) return;
+    const hoje = typeof todayStr === 'function' ? todayStr() : new Date().toISOString().split('T')[0];
+    const aD = new Date(); aD.setDate(aD.getDate() + 1);
+    const amanha = `${aD.getFullYear()}-${String(aD.getMonth()+1).padStart(2,'0')}-${String(aD.getDate()).padStart(2,'0')}`;
+    const prox = (window.procedimentos || []).filter(p =>
+        (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanha)
+    );
+    if (!prox.length) { bar.style.display = 'none'; return; }
+    const lista = prox.slice(0,4).map(p => {
+        const nome = p.paciente || p.hospital || 'Procedimento';
+        const quando = p.data === hoje ? '🔴 HOJE' : '🟡 AMANHÃ';
+        const hora = p.inicio ? ` às ${p.inicio}` : '';
+        return `• ${quando} — ${nome}${hora}`;
+    }).join('<br>');
+    const extra = prox.length > 4 ? `<br><span style="opacity:0.6;">+${prox.length-4} outros</span>` : '';
+    bar.innerHTML = `
+        <div>
+            <div style="font-family:var(--mono);font-size:0.8rem;font-weight:700;color:#4db87a;letter-spacing:0.05em;margin-bottom:5px;">
+                🏥 ${prox.length} cirurgia${prox.length>1?'s':''} hoje/amanhã — preparar equipe
+            </div>
+            <div style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);line-height:1.7;">${lista}${extra}</div>
+        </div>
+        <button style="flex-shrink:0;padding:8px 16px;border-radius:10px;background:rgba(77,184,122,0.18);border:1.5px solid rgba(77,184,122,0.6);color:#4db87a;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;white-space:nowrap;" onclick="document.querySelector('[data-filter=agendado]').click()">Ver agendados →</button>`;
+    bar.style.display = 'flex';
+}
+
+// ─── 3. SOM URGENTE PARA REAGENDADO VENCIDO ──────────────────────
+let _rvAtivo = false, _rvTimer = null;
+function startReagVencidoSound() {
+    if (_rvAtivo) return; _rvAtivo = true;
+    _beepReagVencido(); _rvTimer = setInterval(_beepReagVencido, 9000);
+}
+function stopReagVencidoSound() {
+    if (!_rvAtivo) return; _rvAtivo = false;
+    if (_rvTimer) { clearInterval(_rvTimer); _rvTimer = null; }
+}
+function _beepReagVencido() {
+    if (typeof _somEstaAtivo === 'function' && !_somEstaAtivo()) return;
+    const ctx = typeof _getAudioCtx === 'function' ? _getAudioCtx() : null;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    [0, 0.22].forEach(off => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'square'; o.frequency.value = 880;
+        g.gain.setValueAtTime(0, t+off);
+        g.gain.linearRampToValueAtTime(0.08, t+off+0.03);
+        g.gain.exponentialRampToValueAtTime(0.001, t+off+0.18);
+        o.start(t+off); o.stop(t+off+0.2);
+    });
+}
+
+// ─── 4. CONTADOR DE DIAS NO STATUS ATUAL ─────────────────────────
+const _statusLabelMap = {
+    a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
+    agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado',
+    reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
+    urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária'
+};
+
+function _diasNoBadge(proc) {
+    const hist = proc._statusHistory || [];
+    let desde = null;
+    for (let i = hist.length - 1; i >= 0; i--) {
+        if (hist[i].para === proc.status) { desde = hist[i].em; break; }
+    }
+    if (!desde) return '';
+    const dias = Math.floor((Date.now() - new Date(desde).getTime()) / 86400000);
+    if (dias < 1) return '';
+    const cor = dias >= 7 ? '#ef4444' : (dias >= 3 ? '#f59e0b' : '#9ca3af');
+    const label = dias === 1 ? '1 dia' : `${dias} dias`;
+    return `<span title="Neste status há ${label}" style="display:inline-flex;align-items:center;background:rgba(0,0,0,0.07);border:1px solid ${cor}55;color:${cor};border-radius:999px;padding:1px 7px;font-family:var(--mono);font-size:0.62rem;font-weight:700;margin-left:4px;">⏱ ${label}</span>`;
+}
+
+const _origBldDias = window.buildCardHTML;
+window.buildCardHTML = function(proc) {
+    let html = typeof _origBldDias === 'function' ? _origBldDias.apply(this, arguments) : '';
+    if (!html) return html;
+    const badge = _diasNoBadge(proc);
+    if (badge) {
+        const lbl = (_statusLabelMap[proc.status] || proc.status).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        html = html.replace(new RegExp('(' + lbl + '<\\/div>)'), '$1' + badge);
+    }
+    return html;
+};
+
+// ─── 5. EXPORTAR CSV ─────────────────────────────────────────────
+window.exportarCSVFiltrado = function() {
+    const list = typeof window.getFiltered === 'function' ? window.getFiltered() : (window.procedimentos || []);
+    const labelS = s => (_statusLabelMap[s] || s);
+    const esc = v => v == null ? '' : `"${String(v).replace(/"/g,'""')}"`;
+    const header = ['Status','Paciente','Hospital','Médico','Procedimento','Vendedor','Convênio','Linha','Data Cirurgia','NF'];
+    const rows = list.map(p => [
+        labelS(p.status), p.paciente||'', p.hospital||'', p.medico||'',
+        p.procedimento||'', p.vendedor||'', p.convenio||'', p.linha||'',
+        p.data ? new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR') : '', p.nf||''
+    ].map(esc).join(','));
+    const csv = '﻿' + [header.map(esc).join(','), ...rows].join('\r\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cirurgias_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+function injetarBotaoCSV() {
+    if (document.getElementById('btn-export-csv')) return;
+    const btnExcel = document.querySelector('.btn-export');
+    if (!btnExcel) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-export-csv';
+    btn.className = 'btn-export';
+    btn.textContent = '⬇ CSV';
+    btn.title = 'Exportar lista filtrada como planilha CSV';
+    btn.style.cssText = 'background:rgba(77,184,122,0.15);border-color:rgba(77,184,122,0.5);color:#4db87a;';
+    btn.onclick = window.exportarCSVFiltrado;
+    btnExcel.insertAdjacentElement('afterend', btn);
+}
+
+// ─── HOOK updateStats ─────────────────────────────────────────────
+const _origUS_melhorias = window.updateStats;
+window.updateStats = function() {
+    if (typeof _origUS_melhorias === 'function') _origUS_melhorias.apply(this, arguments);
+    atualizarBarraCirurgiaProxima();
+    const hoje = typeof todayStr === 'function' ? todayStr() : new Date().toISOString().split('T')[0];
+    const temVencido = (window.procedimentos||[]).some(p => p.status === 'reagendado' && p.data && p.data < hoje);
+    temVencido ? startReagVencidoSound() : stopReagVencidoSound();
+};
+
+// ─── INIT ─────────────────────────────────────────────────────────
+function init() {
+    injetarBotaoDarkMode();
+    injetarBarraCirurgiaProxima();
+    injetarBotaoCSV();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+
 })();
 </script>
 </body>
