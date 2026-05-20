@@ -169,6 +169,7 @@
                 // Agendado + véspera → Em Separação (silencioso)
                 if (p.status === 'agendado' && p.data && p.data === amanha) {
                   p.status = 'preparacao';
+                  try { notificarMudancaStatus(p, 'agendado'); } catch(e3) {}
                   try {
                     const { setDoc: sd, doc: docFn } = window._fbModules;
                     if (p._docId) sd(docFn(db, COLL, p._docId), { ...p });
@@ -2884,6 +2885,16 @@
             background: rgba(239,68,68,0.08);
             color: #ef4444;
         }
+        /* ─── CONTAGEM REGRESSIVA DE CIRURGIA ─── */
+        .dias-badge {
+            font-family: var(--mono); font-size: 0.65rem; font-weight: 700;
+            padding: 2px 7px; border-radius: 20px; margin-left: 6px;
+            border: 1px solid; display: inline-block;
+        }
+        .dias-badge.hoje { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.5); color: #ef4444; }
+        .dias-badge.amanha { background: rgba(249,115,22,0.12); border-color: rgba(249,115,22,0.5); color: #f97316; }
+        .dias-badge.futuro { background: rgba(77,184,122,0.12); border-color: rgba(77,184,122,0.5); color: #4db87a; }
+        .dias-badge.passado { background: rgba(156,163,175,0.12); border-color: rgba(156,163,175,0.4); color: #9ca3af; }
 
         /* ─── AGRUPAMENTO ─── */
         .group-toggle-wrap {
