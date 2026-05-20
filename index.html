@@ -175,8 +175,8 @@
                     if (p._docId) sd(docFn(db, COLL, p._docId), { ...p });
                   } catch(e2) { console.warn('Auto-status:', e2); }
                 }
-                // Em Trânsito + amanhã ou hoje → Em Procedimento (silencioso)
-                else if (p.status === 'em_transito' && p.data && (p.data === amanha || p.data === hoje)) {
+                // Em Trânsito + dia da cirurgia → Em Procedimento (silencioso)
+                else if (p.status === 'em_transito' && p.data && p.data === hoje) {
                   p.status = 'andamento';
                   try { notificarMudancaStatus(p, 'em_transito'); } catch(e3) {}
                   try {
