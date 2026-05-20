@@ -6015,7 +6015,25 @@ function minutesToStr(mins) {
 }
 
 function getElapsed(proc) {
-    return null; // fim field removed
+    // SLA de Em Procedimento: 8 horas (480 minutos)
+    const SLA_MINUTOS = 480;
+    const inicio = proc.inicio; // ex: "08:30"
+    if (!inicio) return null;
+    const [h, m] = inicio.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return null;
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const inicioMin = h * 60 + m;
+    const elapsed = nowMin - inicioMin;
+    if (elapsed < 0) return null; // ainda não começou
+    const remaining = SLA_MINUTOS - elapsed;
+    const progress = Math.min(100, Math.round((elapsed / SLA_MINUTOS) * 100));
+    return {
+        elapsed,
+        remaining,
+        progress,
+        overdue: elapsed > SLA_MINUTOS
+    };
 }
 
 // ─── STATS ───
