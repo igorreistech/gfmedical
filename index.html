@@ -4799,7 +4799,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Data de Cirurgia *</label>
-                    <input class="form-input" type="date" id="f-data" required oninput="autoRetirada(this.value)">
+                    <input class="form-input" type="date" id="f-data" required oninput="autoRetirada(this.value); autoStatusByDate(this.value)">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Horário</label>
@@ -5855,6 +5855,15 @@ function autoRetirada(dataCirurgia) {
     const retirada = d.toISOString().slice(0, 10);
     const campo = document.getElementById('f-retirada');
     if (campo) campo.value = retirada;
+}
+
+function autoStatusByDate(dataCirurgia) {
+    if (editingDocId !== null) return;
+    const fStatus = document.getElementById('f-status');
+    if (!fStatus || !dataCirurgia) return;
+    const novoStatus = dataCirurgia > todayStr() ? 'agendado' : 'andamento';
+    fStatus.value = novoStatus;
+    fStatus.dispatchEvent(new Event('change'));
 }
 
 function autoPreencherRetiradaColeta(dataCirurgia) {
@@ -7733,8 +7742,7 @@ function openModal() {
     document.getElementById('f-data').value = todayStr();
     autoRetirada(todayStr());
     // Garante que o status seja resetado e os campos corretos apareçam
-    const fStatus = document.getElementById('f-status');
-    if (fStatus) { fStatus.value = 'a_agendar'; fStatus.dispatchEvent(new Event('change')); }
+    autoStatusByDate(todayStr());
     loadItensBuilder('');
     document.getElementById('g-outro-conv').style.display = 'none';
     const sReset3 = document.getElementById('f-subgrupo3'); if(sReset3) { sReset3.innerHTML='<option value="">Selecione a linha primeiro</option>'; }
