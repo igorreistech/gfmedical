@@ -1,4 +1,4 @@
-const CACHE = 'monitor-cgr-v2';
+const CACHE = 'monitor-cgr-v3';
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.add('/gfcampogrande/')));
