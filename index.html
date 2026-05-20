@@ -166,8 +166,8 @@
 
               const paraPromover = [];
               dados.forEach(p => {
-                // Agendado + 2 dias antes (ou véspera) → Em Separação (silencioso)
-                if (p.status === 'agendado' && p.data && (p.data === doisDias || p.data === amanha)) {
+                // Agendado + véspera → Em Separação (silencioso)
+                if (p.status === 'agendado' && p.data && p.data === amanha) {
                   p.status = 'preparacao';
                   try {
                     const { setDoc: sd, doc: docFn } = window._fbModules;
