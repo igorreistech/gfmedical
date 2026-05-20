@@ -18121,5 +18121,137 @@ window.buildCardHTML = function(proc) {
     });
 })();
 </script>
+
+<!-- ─── MELHORIAS DE UX ─── -->
+<script>
+(function() {
+    function whenReady(cb) {
+        if (document.readyState === 'complete') cb();
+        else window.addEventListener('load', cb);
+    }
+
+    whenReady(function() {
+
+        // ── 1. DEBOUNCE NA BUSCA (300ms) ──
+        var searchEl = document.getElementById('searchBox');
+        if (searchEl) {
+            var clone = searchEl.cloneNode(true);
+            searchEl.parentNode.replaceChild(clone, searchEl);
+            var debTimer;
+            clone.addEventListener('input', function(e) {
+                clearTimeout(debTimer);
+                debTimer = setTimeout(function() {
+                    searchTerm = e.target.value;
+                    if (typeof renderCards === 'function') renderCards();
+                }, 300);
+            });
+        }
+
+        // ── 2. ATALHO Alt+N — NOVO PROCEDIMENTO ──
+        document.addEventListener('keydown', function(e) {
+            if (e.altKey && (e.key === 'n' || e.key === 'N') && !e.ctrlKey && !e.shiftKey) {
+                var overlay = document.getElementById('modalOverlay');
+                if (overlay && !overlay.classList.contains('open')) {
+                    e.preventDefault();
+                    if (typeof openModal === 'function') openModal();
+                }
+            }
+        });
+
+        // ── 3. PERSISTIR FILTRO NO LOCALSTORAGE ──
+        var FILTER_KEY = 'gf_last_filter_cgr';
+        var savedFilter = localStorage.getItem(FILTER_KEY);
+        if (savedFilter && savedFilter !== 'all') {
+            setTimeout(function() {
+                var btn = document.querySelector('.filter-btn[data-filter="' + savedFilter + '"]');
+                if (btn) {
+                    document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    currentFilter = savedFilter;
+                    if (typeof renderCards === 'function') renderCards();
+                }
+            }, 1500);
+        }
+        document.querySelectorAll('.filter-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                localStorage.setItem(FILTER_KEY, btn.dataset.filter);
+            });
+        });
+
+        // ── 4. RESUMO HOJE / AMANHÃ ACIMA DOS FILTROS ──
+        var hoje = new Date().toISOString().split('T')[0];
+        var amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
+        var amanha = amanhaD.toISOString().split('T')[0];
+
+        var bar = document.createElement('div');
+        bar.id = 'gf-date-summary';
+        bar.style.cssText = 'display:none;align-items:center;gap:14px;padding:5px 14px;background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.18);border-radius:8px;font-family:var(--mono);font-size:0.73rem;letter-spacing:0.04em;margin-bottom:6px;flex-wrap:wrap;';
+        var controls = document.getElementById('main-controls');
+        if (controls) controls.parentNode.insertBefore(bar, controls);
+
+        function atualizarResumoDatas() {
+            if (!bar || !window.procedimentos) return;
+            var list = window.procedimentos.filter(function(p) {
+                return p.status !== 'concluido' && p.status !== 'cancelado';
+            });
+            var nH = list.filter(function(p) { return p.data === hoje; }).length;
+            var nA = list.filter(function(p) { return p.data === amanha; }).length;
+            if (nH === 0 && nA === 0) { bar.style.display = 'none'; return; }
+            bar.style.display = 'flex';
+            var parts = [];
+            if (nH) parts.push('<span style="color:#10b981;font-weight:700;">📅 HOJE: ' + nH + ' cirurgia' + (nH > 1 ? 's' : '') + '</span>');
+            if (nA) parts.push('<span style="color:#f59e0b;font-weight:700;">📅 AMANHÃ: ' + nA + ' cirurgia' + (nA > 1 ? 's' : '') + '</span>');
+            bar.innerHTML = parts.join('<span style="color:var(--text-dim);">·</span>');
+        }
+        setTimeout(atualizarResumoDatas, 2000);
+        setInterval(atualizarResumoDatas, 8000);
+
+        // ── 5. MODAL SALVA RASCUNHO AO FECHAR ──
+        var DRAFT_KEY = 'gf_modal_draft_cgr';
+        var DRAFT_FIELDS = ['f-hospital','f-medico','f-paciente','f-procedimento','f-data','f-inicio','f-convenio','f-vendedor','f-linha','f-obs'];
+        var overlay2 = document.getElementById('modalOverlay');
+        if (overlay2) {
+            new MutationObserver(function() {
+                var isOpen = overlay2.classList.contains('open');
+                if (!isOpen) {
+                    // Modal fechou — salvar rascunho se for novo procedimento
+                    var editEl = document.getElementById('editIndex');
+                    if (editEl && !editEl.value) {
+                        var draft = {};
+                        var hasData = false;
+                        DRAFT_FIELDS.forEach(function(id) {
+                            var el = document.getElementById(id);
+                            if (el && el.value && el.value.trim()) { draft[id] = el.value; hasData = true; }
+                        });
+                        if (hasData) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+                        else sessionStorage.removeItem(DRAFT_KEY);
+                    }
+                } else {
+                    // Modal abriu — oferecer restaurar rascunho (só se for novo)
+                    setTimeout(function() {
+                        var editEl = document.getElementById('editIndex');
+                        if (editEl && editEl.value) return; // É edição — não restaurar
+                        var draftStr = sessionStorage.getItem(DRAFT_KEY);
+                        if (!draftStr) return;
+                        try {
+                            var draft = JSON.parse(draftStr);
+                            var hasContent = Object.values(draft).some(function(v) { return v && v.trim(); });
+                            if (!hasContent) return;
+                            if (confirm('💾 Existe um rascunho não salvo. Deseja restaurar os dados?')) {
+                                Object.entries(draft).forEach(function(entry) {
+                                    var el = document.getElementById(entry[0]);
+                                    if (el) el.value = entry[1];
+                                });
+                            }
+                            sessionStorage.removeItem(DRAFT_KEY);
+                        } catch(e) {}
+                    }, 250);
+                }
+            }).observe(overlay2, { attributes: true, attributeFilter: ['class'] });
+        }
+
+    });
+})();
+</script>
 </body>
 </html>
