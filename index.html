@@ -52,7 +52,7 @@
         if (!('Notification' in window) || Notification.permission !== 'granted') return;
         const labels = {
           a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
-          agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado',
+          agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
           reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
           urgencia:'URGÊNCIA', coleta_urgente:'Coleta Prioritária'
         };
@@ -170,6 +170,15 @@
                 if (p.status === 'agendado' && p.data && p.data === amanha) {
                   p.status = 'preparacao';
                   try { notificarMudancaStatus(p, 'agendado'); } catch(e3) {}
+                  try {
+                    const { setDoc: sd, doc: docFn } = window._fbModules;
+                    if (p._docId) sd(docFn(db, COLL, p._docId), { ...p });
+                  } catch(e2) { console.warn('Auto-status:', e2); }
+                }
+                // Em Trânsito + amanhã ou hoje → Em Procedimento (silencioso)
+                else if (p.status === 'em_transito' && p.data && (p.data === amanha || p.data === hoje)) {
+                  p.status = 'andamento';
+                  try { notificarMudancaStatus(p, 'em_transito'); } catch(e3) {}
                   try {
                     const { setDoc: sd, doc: docFn } = window._fbModules;
                     if (p._docId) sd(docFn(db, COLL, p._docId), { ...p });
@@ -473,6 +482,7 @@
         .stat-card.andamento::before { background: var(--red); }
         .stat-card.preparacao::before { background: var(--yellow); }
         .stat-card.agendado::before { background: var(--green); }
+        .stat-card.em_transito::before { background: #6366f1; }
         .stat-card.concluido::before { background: var(--gray); }
         .stat-card.cancelado::before { background: #f87171; }
         .stat-card.reagendado::before { background: #a78bfa; }
@@ -515,6 +525,7 @@
         .stat-card.andamento .stat-value { color: #111111; }
         .stat-card.preparacao .stat-value { color: #111111; }
         .stat-card.agendado .stat-value { color: #111111; }
+        .stat-card.em_transito .stat-value { color: #111111; }
         .stat-card.concluido .stat-value { color: #111111; }
         .stat-card.cancelado .stat-value { color: #111111; }
         .stat-card.reagendado .stat-value { color: #111111; }
@@ -682,6 +693,7 @@
         .proc-card.status-andamento { border-top: 2px solid var(--red); }
         .proc-card.status-preparacao { border-top: 2px solid var(--yellow); }
         .proc-card.status-agendado { border-top: 2px solid var(--green); }
+        .proc-card.status-em_transito { border-top: 2px solid #6366f1; }
         .proc-card.status-concluido { border-top: 2px solid var(--gray); opacity: 0.7; }
         .proc-card.status-cancelado { border-top: 2px solid #f87171; opacity: 0.5; }
         .proc-card.status-reagendado { border-top: 2px solid #a78bfa; }
@@ -768,6 +780,7 @@
         .pill-andamento { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.4); animation: pillPulseAndamento 1s ease-in-out infinite; }
         .pill-preparacao { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.4); animation: pillPulsePreparacao 2.2s ease-in-out infinite; }
         .pill-agendado { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.4); }
+        .pill-em_transito { background: rgba(99,102,241,0.15); color: #6366f1; border: 1px solid rgba(99,102,241,0.4); }
         .pill-concluido { background: rgba(107,114,128,0.15); color: var(--gray); border: 1px solid rgba(107,114,128,0.4); }
         .pill-cancelado { background: rgba(239,68,68,0.08); color: #f87171; border: 1px solid rgba(239,68,68,0.25); text-decoration: line-through; }
         .pill-reagendado { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.4); animation: pillPulseReagendado 0.8s ease-in-out infinite; }
@@ -1031,6 +1044,7 @@
         .tl-mini-card.status-andamento  { border-left-color: var(--red); }
         .tl-mini-card.status-preparacao { border-left-color: var(--yellow); }
         .tl-mini-card.status-agendado   { border-left-color: var(--green); }
+        .tl-mini-card.status-em_transito { border-left-color: #6366f1; }
         .tl-mini-card.status-concluido  { border-left-color: var(--gray); opacity: 0.75; }
         .tl-mini-card.status-cancelado  { border-left-color: #f87171; opacity: 0.6; }
         .tl-mini-card.status-urgencia   { border-left-color: var(--red); animation: pulse-border 1.5s infinite; }
@@ -3992,6 +4006,10 @@
             <div class="stat-label">Agendados</div>
             <div class="stat-value" id="stat-agendado">0</div>
         </div>
+        <div class="stat-card em_transito" id="stat-card-em_transito">
+            <div class="stat-label">Em Trânsito</div>
+            <div class="stat-value" id="stat-em_transito">0</div>
+        </div>
         <div class="stat-card preparacao" id="stat-card-preparacao">
             <div class="stat-label">Em Separação</div>
             <div class="stat-value" id="stat-preparacao">0</div>
@@ -4063,6 +4081,7 @@
         <button class="filter-btn" data-filter="andamento">Em Procedimento</button>
         <button class="filter-btn" data-filter="preparacao">Em Separação</button>
         <button class="filter-btn" data-filter="agendado">Agendados</button>
+        <button class="filter-btn" data-filter="em_transito">Em Trânsito</button>
         <button class="filter-btn" data-filter="concluido">Concluídos</button>
         <button class="filter-btn" data-filter="cancelado">Cancelados</button>
         <button class="filter-btn" data-filter="reagendado">Reagendados</button>
@@ -4794,6 +4813,7 @@
                     <select class="form-select" id="f-status" required>
                         <option value="a_agendar">Autorizado</option>
                         <option value="agendado">Agendado</option>
+                        <option value="em_transito">Em Trânsito</option>
                         <option value="preparacao">Em Separação</option>
                         <option value="andamento">Em Procedimento</option>
                         <option value="concluido">Concluído</option>
@@ -5442,6 +5462,9 @@
                     <input type="checkbox" class="exp-status" value="agendado" checked> Agendado
                 </label>
                 <label class="export-opt">
+                    <input type="checkbox" class="exp-status" value="em_transito" checked> Em Trânsito
+                </label>
+                <label class="export-opt">
                     <input type="checkbox" class="exp-status" value="preparacao" checked> Em Separação
                 </label>
                 <label class="export-opt">
@@ -6065,12 +6088,12 @@ function setPisca(id, anim, ativo) {
 
 function updateStats() {
     document.getElementById('stat-total').textContent = procedimentos.length;
-    ['a_agendar','andamento','preparacao','agendado','concluido','cancelado','reagendado','a_retirar','urgencia','coleta_urgente'].forEach(s => {
-        document.getElementById('stat-' + s).textContent = procedimentos.filter(p => p.status === s).length;
+    ['a_agendar','andamento','preparacao','agendado','em_transito','concluido','cancelado','reagendado','a_retirar','urgencia','coleta_urgente'].forEach(s => {
+        const el = document.getElementById('stat-' + s); if (el) el.textContent = procedimentos.filter(p => p.status === s).length;
     });
 
     // Limpar todas as animações antes de reaplicar
-    ['a_agendar','andamento','preparacao','agendado','reagendado','a_retirar','urgencia','coleta_urgente'].forEach(s => {
+    ['a_agendar','andamento','preparacao','agendado','em_transito','reagendado','a_retirar','urgencia','coleta_urgente'].forEach(s => {
         const el = document.getElementById('stat-card-' + s);
         if (el) el.style.animation = '';
     });
@@ -6188,7 +6211,7 @@ function updateStats() {
 let _somGeralInterval = null;
 let _somGeralAtivo = false;
 function _iniciarSomGeral(procs) {
-    const statusAtivos = ['a_agendar','andamento','preparacao','agendado','reagendado','a_retirar','urgencia','coleta_urgente'];
+    const statusAtivos = ['a_agendar','andamento','preparacao','agendado','em_transito','reagendado','a_retirar','urgencia','coleta_urgente'];
     const temQualquer = procs.some(p => statusAtivos.includes(p.status));
     if (temQualquer && !_somGeralAtivo) {
         _somGeralAtivo = true;
@@ -6570,7 +6593,7 @@ function setVendedorFilter(val) {
 }
 
 function statusLabel(s) {
-    return { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' }[s] || s;
+    return { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' }[s] || s;
 }
 
 function renderCards() {
@@ -6682,10 +6705,11 @@ function buildCardHTML(proc) {
         const amanhaC = new Date(); amanhaC.setDate(amanhaC.getDate() + 1);
         const amanhaCS = `${amanhaC.getFullYear()}-${String(amanhaC.getMonth()+1).padStart(2,"0")}-${String(amanhaC.getDate()).padStart(2,"0")}`;
         const cardAnimMap = {
-            'urgencia':   'cardPiscarUrgencia 0.5s ease-in-out infinite',
-            'andamento':  'cardPiscarAndamento 1s ease-in-out infinite',
-            'preparacao': 'cardPiscarPreparacao 1.5s ease-in-out infinite',
-            'a_agendar':  'cardPiscarAutorizado 1.8s ease-in-out infinite',
+            'urgencia':    'cardPiscarUrgencia 0.5s ease-in-out infinite',
+            'andamento':   'cardPiscarAndamento 1s ease-in-out infinite',
+            'preparacao':  'cardPiscarPreparacao 1.5s ease-in-out infinite',
+            'a_agendar':   'cardPiscarAutorizado 1.8s ease-in-out infinite',
+            'em_transito': 'cardPiscarAgendado 0.8s ease-in-out infinite',
             'reagendado': 'cardPiscarReagendado 0.8s ease-in-out infinite',
             'a_retirar':  'cardPiscarRetirar 0.8s ease-in-out infinite',
             'coleta_urgente': 'cardPiscarColeta 0.6s ease-in-out infinite',
@@ -7093,12 +7117,12 @@ function renderTimeline() {
 
     // Mini-cards coluna esquerda
     const statusColors = {
-        a_agendar:'#06b6d4', agendado:'#4db87a', preparacao:'#d4920a',
+        a_agendar:'#06b6d4', agendado:'#4db87a', em_transito:'#6366f1', preparacao:'#d4920a',
         andamento:'#d94f4f', concluido:'#64748b', cancelado:'#f87171',
         reagendado:'#a78bfa', a_retirar:'#f97316', urgencia:'#ff0000'
     };
     const statusNames = {
-        a_agendar:'Autorizado', agendado:'Agendado', preparacao:'Em Separação',
+        a_agendar:'Autorizado', agendado:'Agendado', em_transito:'Em Trânsito', preparacao:'Em Separação',
         andamento:'Em Procedimento', concluido:'Concluído', cancelado:'Cancelado',
         reagendado:'Reagendado', a_retirar:'A Retirar', urgencia:'🚨 Urgência'
     };
@@ -7945,8 +7969,8 @@ async function saveProcedure(e) {
 // ─── CURVA ABC ───
 function renderABC() {
     const list = getFiltered();
-    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
-    const statusColors = { a_agendar:'#06b6d4', andamento:'#ef4444', preparacao:'#f59e0b', agendado:'#10b981', concluido:'#6b7280', cancelado:'#f87171', reagendado:'#a78bfa', a_retirar:'#f97316', urgencia:'#ff0000' };
+    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
+    const statusColors = { a_agendar:'#06b6d4', andamento:'#ef4444', preparacao:'#f59e0b', agendado:'#10b981', em_transito:'#6366f1', concluido:'#6b7280', cancelado:'#f87171', reagendado:'#a78bfa', a_retirar:'#f97316', urgencia:'#ff0000' };
 
     // Build vendor stats
     const vendorMap = {};
@@ -8441,7 +8465,7 @@ function renderTable() {
     const list = mostrarOcultos
         ? getFiltered().filter(p => p.status === 'concluido' || p.status === 'cancelado')
         : getFiltered().filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
-    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
+    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
 
     // Ordenar por horário (padrão) ou coluna selecionada
     const finalList = [...list].sort((a, b) => {
@@ -8465,7 +8489,7 @@ function renderTable() {
     }
 
     const statusColors = {
-        a_agendar:'#06b6d4', agendado:'#4db87a', preparacao:'#d4920a',
+        a_agendar:'#06b6d4', agendado:'#4db87a', em_transito:'#6366f1', preparacao:'#d4920a',
         andamento:'#d94f4f', concluido:'#64748b', cancelado:'#f87171',
         reagendado:'#a78bfa', a_retirar:'#f97316', urgencia:'#ff0000',
         coleta_urgente:'#6366f1'
@@ -8790,7 +8814,7 @@ function doExport() {
         return;
     }
 
-    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
+    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
 
     // Sheet 1: Resumo completo
     const resumo = filtered.map(p => ({
@@ -9458,8 +9482,8 @@ window.showSyncToast = showSyncToast;
 // ════════════════════════════════════════════
 // ATALHO STATUS RÁPIDO
 // ════════════════════════════════════════════
-const STATUS_FLOW_QUICK = { a_agendar:'agendado', agendado:'preparacao', preparacao:'andamento', andamento:'concluido' };
-const STATUS_LABEL_QUICK = { a_agendar:'Autorizado', agendado:'Agendado', preparacao:'Em Separação', andamento:'Em Procedimento', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'A Retirar', urgencia:'🚨 Urgência' };
+const STATUS_FLOW_QUICK = { a_agendar:'agendado', agendado:'em_transito', em_transito:'andamento', preparacao:'andamento', andamento:'concluido' };
+const STATUS_LABEL_QUICK = { a_agendar:'Autorizado', agendado:'Agendado', em_transito:'Em Trânsito', preparacao:'Em Separação', andamento:'Em Procedimento', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'A Retirar', urgencia:'🚨 Urgência' };
 
 function buildQuickStatusHTML(proc, realIndex) {
     const btns = [];
@@ -9590,7 +9614,7 @@ function verificarDuplicatas(hospital, medico, data, excludeDocId) {
 function mostrarAviso(dups) {
     const el=document.getElementById('dup-warning-box'); if(!el) return;
     if(dups.length===0){ el.style.display='none'; return; }
-    const sMap={a_agendar:'Autorizado',agendado:'Agendado',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
     el.style.display='block';
     el.innerHTML=`<div class="dup-warning-title">⚠️ Possível duplicata (${dups.length})</div>`+dups.map(p=>`<div class="dup-warning-item">${p.hospital} · ${p.medico||'—'} · ${p.data?new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR'):''} · ${sMap[p.status]||p.status}</div>`).join('');
 }
@@ -9778,7 +9802,7 @@ function duplicarProc(docId) {
 function compartilharWhatsApp(docId) {
     const proc=procedimentos.find(p=>(p._docId||String(p.id))===String(docId));
     if(!proc) return;
-    const sMap={a_agendar:'✅ Autorizado',agendado:'📅 Agendado',preparacao:'🔧 Em Separação',andamento:'⚡ Em Procedimento',concluido:'✔️ Concluído',cancelado:'❌ Cancelado',reagendado:'🔄 Reagendado',a_retirar:'📦 Aguard. Retirada',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta Prioritária'};
+    const sMap={a_agendar:'✅ Autorizado',agendado:'📅 Agendado',em_transito:'🚚 Em Trânsito',preparacao:'🔧 Em Separação',andamento:'⚡ Em Procedimento',concluido:'✔️ Concluído',cancelado:'❌ Cancelado',reagendado:'🔄 Reagendado',a_retirar:'📦 Aguard. Retirada',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta Prioritária'};
     const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
     let linhas=[];
     if(proc.status==='coleta_urgente'){
@@ -9828,8 +9852,8 @@ function renderDashboard() {
     const hojeCirg=list.filter(p=>p.data===todayStr()).length;
     const urgentes=list.filter(p=>p.status==='urgencia').length;
     const taxa=total>0?Math.round(list.filter(p=>p.status==='concluido').length/total*100):0;
-    const sColors={a_agendar:'#06b6d4',agendado:'#4db87a',preparacao:'#d4920a',andamento:'#d94f4f',concluido:'#64748b',cancelado:'#f87171',reagendado:'#a78bfa',a_retirar:'#f97316',urgencia:'#ff0000',coleta_urgente:'#818cf8'};
-    const sNames={a_agendar:'Autorizado',agendado:'Agendado',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+    const sColors={a_agendar:'#06b6d4',agendado:'#4db87a',em_transito:'#6366f1',preparacao:'#d4920a',andamento:'#d94f4f',concluido:'#64748b',cancelado:'#f87171',reagendado:'#a78bfa',a_retirar:'#f97316',urgencia:'#ff0000',coleta_urgente:'#818cf8'};
+    const sNames={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
     const sCount={};
     list.forEach(p=>{ sCount[p.status]=(sCount[p.status]||0)+1; });
     const sEntries=Object.entries(sCount).sort((a,b)=>b[1]-a[1]).slice(0,8);
@@ -9966,7 +9990,7 @@ function calNav(dir){ calMonth+=dir; if(calMonth<0){calMonth=11;calYear--;} if(c
 function calDayClick(ds){
     const evts=procedimentos.filter(p=>p.data===ds); if(!evts.length) return;
     const dateFmt=new Date(ds+'T00:00:00').toLocaleDateString('pt-BR');
-    const sN={a_agendar:'Autorizado',agendado:'Agendado',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'🚨 Urgência',coleta_urgente:'✈️ Coleta Prioritária'};
+    const sN={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'🚨 Urgência',coleta_urgente:'✈️ Coleta Prioritária'};
     alert(`📅 ${dateFmt} — ${evts.length} procedimento(s)\n\n`+evts.map(p=>`• ${p.hospital} | ${p.medico||'—'} | ${sN[p.status]||p.status}`).join('\n'));
 }
 
@@ -13603,7 +13627,7 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
 </style>
 <script>
 (function(){
-  const statusColors = { a_agendar:'#06b6d4', urgencia:'#ff0000', coleta_urgente:'#6366f1', agendado:'#10b981', preparacao:'#f59e0b', andamento:'#ef4444', reagendado:'#a78bfa', a_retirar:'#f97316', concluido:'#6b7280', cancelado:'#f87171' };
+  const statusColors = { a_agendar:'#06b6d4', urgencia:'#ff0000', coleta_urgente:'#6366f1', agendado:'#10b981', em_transito:'#6366f1', preparacao:'#f59e0b', andamento:'#ef4444', reagendado:'#a78bfa', a_retirar:'#f97316', concluido:'#6b7280', cancelado:'#f87171' };
   window.currentHospitalFilter = 'all';
   window.currentMedicoFilter = 'all';
   window.currentTipoFilter = 'all';
@@ -16478,7 +16502,7 @@ window.verHistoricoStatus = function(docId) {
     const proc = (window.procedimentos||[]).find(p => (p._docId||String(p.id)) === String(docId));
     if (!proc) return;
     const hist = proc._statusHistory || [];
-    const labelMap = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta Prioritária'};
+    const labelMap = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta Prioritária'};
 
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);';
@@ -16679,7 +16703,7 @@ window.executarPesquisaGlobal = function(q) {
 
     if (!resultados.length) { el.innerHTML = '<div style="text-align:center;padding:30px;color:#9ca3af;font-family:var(--mono);font-size:0.8rem;">Nenhum resultado encontrado</div>'; return; }
 
-    const labelSt = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta'};
+    const labelSt = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta'};
     el.innerHTML = `<div style="font-family:var(--mono);font-size:0.68rem;color:#9ca3af;margin-bottom:8px;">${resultados.length} resultado(s)</div>` +
     resultados.map(p => {
         const id = p._docId || p.id;
@@ -16750,7 +16774,7 @@ window.imprimirRelatorio = function() {
     const procs = window.procedimentos || [];
     const hojeStr = hoje();
     const doHoje = procs.filter(p => p.data === hojeStr && !window._ehColeta(p));
-    const labelSt = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'URGÊNCIA',coleta_urgente:'Coleta Prioritária'};
+    const labelSt = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'URGÊNCIA',coleta_urgente:'Coleta Prioritária'};
 
     const win = window.open('','_blank');
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Cirurgias — ${fmtData(hojeStr)}</title>
@@ -18639,7 +18663,7 @@ window.renderAgendaSemanal=function(){
         const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         const ev=procs.filter(p=>p.data===ds);
         const isHoje=ds===hoje;
-        const sMap={urgencia:'#ef4444',agendado:'#4db87a',preparacao:'#d4920a',andamento:'#d94f4f',a_agendar:'#06b6d4',reagendado:'#a78bfa'};
+        const sMap={urgencia:'#ef4444',agendado:'#4db87a',em_transito:'#6366f1',preparacao:'#d4920a',andamento:'#d94f4f',a_agendar:'#06b6d4',reagendado:'#a78bfa'};
         return`<div style="background:${isHoje?'rgba(77,184,122,0.1)':'rgba(0,0,0,0.02)'};border:1.5px solid ${isHoje?'rgba(77,184,122,0.6)':'var(--border,#ccc)'};border-radius:10px;padding:8px 6px;min-height:80px;"><div style="font-family:var(--mono);font-size:0.65rem;font-weight:700;color:${isHoje?'#4db87a':'var(--text-dim)'};text-align:center;margin-bottom:4px;">${ptDias[d.getDay()]}<br>${d.getDate()}</div>${ev.length===0?`<div style="font-family:var(--mono);font-size:0.6rem;color:var(--text-dim);text-align:center;opacity:0.4;">—</div>`:ev.slice(0,4).map(p=>`<div style="background:${sMap[p.status]||'#888'}22;border-left:2px solid ${sMap[p.status]||'#888'};border-radius:3px;padding:2px 4px;margin-bottom:2px;font-family:var(--mono);font-size:0.58rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${p.paciente||p.hospital||'—'}">${p.inicio?p.inicio+' ':''}${p.paciente||p.hospital||'—'}</div>`).join('')}${ev.length>4?`<div style="font-family:var(--mono);font-size:0.58rem;color:var(--text-dim);text-align:center;">+${ev.length-4}</div>`:''}</div>`;
     }).join('')}</div></div>`;
 };
@@ -18739,7 +18763,7 @@ window.buildCardHTML=function(proc){
     const pct=Math.round(feitos/total*100);
     const cor=pct===100?'#4db87a':(pct>=50?'#f59e0b':'#9ca3af');
     const badge=feitos>0?`<span style="display:inline-flex;align-items:center;background:${cor}18;border:1px solid ${cor}44;color:${cor};border-radius:999px;padding:1px 7px;font-family:var(--mono);font-size:0.62rem;font-weight:700;margin-left:4px;" title="Checklist: ${feitos}/${total}">☑ ${pct}%</span>`:'';
-    if(badge){const lbl=({'a_agendar':'Autorizado','andamento':'Em Procedimento','preparacao':'Em Separação','agendado':'Agendado','concluido':'Concluído','cancelado':'Cancelado','reagendado':'Reagendado','a_retirar':'Aguardando Retirada','urgencia':'🚨 URGÊNCIA','coleta_urgente':'✈️ Coleta Prioritária'}[proc.status]||proc.status).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp('('+lbl+'<\\/div>)'),'$1'+badge);}
+    if(badge){const lbl=({'a_agendar':'Autorizado','andamento':'Em Procedimento','preparacao':'Em Separação','agendado':'Agendado','em_transito':'Em Trânsito','concluido':'Concluído','cancelado':'Cancelado','reagendado':'Reagendado','a_retirar':'Aguardando Retirada','urgencia':'🚨 URGÊNCIA','coleta_urgente':'✈️ Coleta Prioritária'}[proc.status]||proc.status).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp('('+lbl+'<\\/div>)'),'$1'+badge);}
     return html;
 };
 
@@ -18954,7 +18978,7 @@ window.buildCardHTML=function(proc){
 window.abrirQRCode=function(docId){
     const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
     const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
-    const sMap={a_agendar:'Autorizado',agendado:'Agendado',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',urgencia:'URGÊNCIA'};
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',urgencia:'URGÊNCIA'};
     const txt=[`GF Medical — Ficha Cirúrgica`,proc.hospital||'',proc.paciente?`Paciente: ${proc.paciente}`:'',proc.medico?`Médico: ${proc.medico}`:'',proc.data?`Data: ${fmt(proc.data)}${proc.inicio?' às '+proc.inicio:''}`:'',`Status: ${sMap[proc.status]||proc.status}`,proc.vendedor?`Vendedor: ${proc.vendedor}`:''].filter(Boolean).join('\n');
     const qrUrl=`https://api.qrserver.com/v1/create-qr-code/?size=200x200&format=svg&data=${encodeURIComponent(txt)}`;
     const ov=document.createElement('div');
@@ -19080,7 +19104,7 @@ function _swMelhorias(v){
         window.currentView=v;
     },0);
 }
-const _KS=[{key:'urgencia',label:'🚨 Urgência',cor:'#ef4444'},{key:'a_agendar',label:'Autorizado',cor:'#06b6d4'},{key:'agendado',label:'Agendado',cor:'#4db87a'},{key:'preparacao',label:'Em Separação',cor:'#d4920a'},{key:'andamento',label:'Em Procedimento',cor:'#d94f4f'},{key:'reagendado',label:'Reagendado',cor:'#a78bfa'},{key:'a_retirar',label:'Aguard. Retirada',cor:'#f97316'}];
+const _KS=[{key:'urgencia',label:'🚨 Urgência',cor:'#ef4444'},{key:'a_agendar',label:'Autorizado',cor:'#06b6d4'},{key:'agendado',label:'Agendado',cor:'#4db87a'},{key:'em_transito',label:'Em Trânsito',cor:'#6366f1'},{key:'preparacao',label:'Em Separação',cor:'#d4920a'},{key:'andamento',label:'Em Procedimento',cor:'#d94f4f'},{key:'reagendado',label:'Reagendado',cor:'#a78bfa'},{key:'a_retirar',label:'Aguard. Retirada',cor:'#f97316'}];
 function renderKanban(){
     const c=document.getElementById('kanban-view'); if(!c) return;
     const procs=(window.procedimentos||[]).filter(p=>!['concluido','cancelado','coleta_urgente'].includes(p.status));
@@ -19104,7 +19128,7 @@ function renderKanban(){
 
 // ─── 3. ALERTA SLA ────────────────────────────────────────────────
 const _SLA={a_agendar:15,agendado:10,reagendado:5,preparacao:4};
-const _SL={a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+const _SL={a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
 function _diasStatus(proc){const h=proc._statusHistory||[];for(let i=h.length-1;i>=0;i--){if(h[i].para===proc.status)return Math.floor((Date.now()-new Date(h[i].em).getTime())/86400000);}return 0;}
 function injetarBarraSLA2(){
     if(document.getElementById('sla-alert-bar')) return;
@@ -19158,7 +19182,7 @@ window.abrirResumoDia=function(){
 window.copiarFicha=function(docId){
     const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
     const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
-    const sMap={a_agendar:'Autorizado',agendado:'Agendado',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',urgencia:'URGÊNCIA'};
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',urgencia:'URGÊNCIA'};
     const txt=[`── Ficha Cirúrgica ──`,proc.hospital?`Hospital: ${proc.hospital}`:'',proc.paciente?`Paciente: ${proc.paciente}`:'',proc.medico?`Médico: ${proc.medico}`:'',proc.procedimento?`Procedimento: ${proc.procedimento}`:'',proc.convenio?`Convênio: ${proc.convenio}`:'',proc.data?`Data: ${fmt(proc.data)}${proc.inicio?' às '+proc.inicio:''}`:'',`Status: ${sMap[proc.status]||proc.status}`,proc.vendedor?`Vendedor: ${proc.vendedor}`:'',proc.nf?`NF: ${proc.nf}`:'',proc.obs?`Obs: ${proc.obs}`:''].filter(Boolean).join('\n');
     (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).catch(()=>{const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);});
     window.showSyncToast&&window.showSyncToast('📋 Ficha copiada!');
@@ -19366,7 +19390,7 @@ function _beepReagVencido() {
 // ─── 4. CONTADOR DE DIAS NO STATUS ATUAL ─────────────────────────
 const _statusLabelMap = {
     a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
-    agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado',
+    agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
     reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
     urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária'
 };
