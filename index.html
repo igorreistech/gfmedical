@@ -3849,7 +3849,6 @@
         <button class="filter-btn" data-filter="cancelado">Cancelados</button>
         <button class="filter-btn" data-filter="reagendado">Reagendados</button>
         <button class="filter-btn" data-filter="a_retirar">📦 Aguardando Retirada</button>
-        <button class="filter-btn" onclick="gerarMsgWhatsApp()" style="color:#25D366;border-color:rgba(37,211,102,0.5);">📲 WhatsApp A Retirar</button>
         <button class="filter-btn" data-filter="urgencia" style="color:#ff3333;border-color:rgba(255,0,0,0.5);">🚨 Urgência</button>
         <input class="search-box" type="text" id="searchBox" placeholder="Buscar hospital, médico, paciente, NF...">
         <div id="vendedor-filter-wrap">
@@ -5813,10 +5812,10 @@ async function exportarWhatsApp() {
     var amanha = amanhaD.getFullYear() + '-' + String(amanhaD.getMonth()+1).padStart(2,'0') + '-' + String(amanhaD.getDate()).padStart(2,'0');
     var fmt = function(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—'; };
 
-    // 1. Aguardando retirada vencida
+    // 1. Aguardando retirada — todos os pendentes
     var cirurgias = procedimentos.filter(function(p) {
         if (_ehColeta(p) || p.isColeta) return false;
-        return p.status === 'a_retirar' && p.retirada && p.retirada <= hoje;
+        return p.status === 'a_retirar';
     });
     cirurgias.sort(function(a,b) { return (a.retirada||'').localeCompare(b.retirada||''); });
 
@@ -5898,22 +5897,23 @@ async function exportarWhatsApp() {
     // ── Aguardando Retirada ──
     if (cirurgias.length > 0) {
         linhas.push('');
-        linhas.push('📦 *AGUARDANDO RETIRADA (' + cirurgias.length + ')*');
-        cirurgias.forEach(function(p) {
-            var nomePaciente = (p.paciente && p.paciente !== '—' && p.paciente.trim()) ? p.paciente.trim().toUpperCase() : ((p.hospital||'').replace(/^Hospital /i,'').substring(0,25) + ' — ' + (p.medico||'').split(' ').slice(0,2).join(' '));
+        linhas.push('Olá! 😊');
+        linhas.push('Segue as pendências de *Monitor Cirúrgico* que ainda não foram devolvidos ao estoque:');
+        cirurgias.forEach(function(p, i) {
             linhas.push('');
-            linhas.push('*' + contador + '. ' + nomePaciente + '*');
-            linhas.push('📅 Data cirurgia: ' + fmt(p.data));
-            linhas.push('🏥 Hospital: ' + (p.hospital||'—'));
-            if (p.procedimento && p.procedimento !== '—') linhas.push('🔬 Procedimento: ' + p.procedimento);
-            linhas.push('👨‍⚕️ Cirurgião: ' + (p.medico||'—'));
-            if (p.convenio && p.convenio !== '—') linhas.push('🏦 Convênio: ' + p.convenio);
-            if (p.nf) linhas.push('🧾 NF: ' + p.nf);
-            if (p.vendedor && p.vendedor !== '—') linhas.push('👤 Vendedor: ' + p.vendedor);
-            linhas.push('📦 Retirada: *' + fmt(p.retirada) + '*');
-            linhas.push('');
-            contador++;
+            linhas.push('---');
+            linhas.push('🖥️ *Monitor ' + String(i+1).padStart(2,'0') + '*');
+            linhas.push('📦 *Estoque:* Campo Grande');
+            linhas.push('👤 *Paciente:* ' + (p.paciente || '—'));
+            linhas.push('🏥 *Hospital:* ' + (p.hospital || '—'));
+            linhas.push('🧾 *Nº da Nota Fiscal:* ' + (p.nf || '—'));
+            linhas.push('🙍 *Vendedor:* ' + (p.vendedor || '—'));
+            linhas.push('📅 *Data de retirada:* ' + fmt(p.retirada));
         });
+        linhas.push('');
+        linhas.push('---');
+        linhas.push('Por favor, providencie a devolução o quanto antes para garantir a disponibilidade dos produtos no estoque.');
+        linhas.push('Qualquer dúvida, é só me chamar! 🙏');
     }
 
     // ── Retirar Volumes Urgentes ──
@@ -17168,39 +17168,6 @@ window.buildCardHTML = function(proc) {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (e.key === 'o' || e.key === 'O') { e.preventDefault(); window.switchView && window.switchView('opme'); }
     });
-
-    // ── WhatsApp: mensagem de pendências a retirar ──
-    window.gerarMsgWhatsApp = function() {
-        const pendentes = procedimentos.filter(p => p.status === 'a_retirar');
-        if (!pendentes.length) { alert('Nenhum procedimento aguardando retirada no momento.'); return; }
-        let msg = 'Olá! 😊\nSegue as pendências de *Monitor Cirúrgico* que ainda não foram devolvidos ao estoque:\n\n';
-        pendentes.forEach((proc, i) => {
-            const dataRet = proc.retirada ? new Date(proc.retirada + 'T00:00:00').toLocaleDateString('pt-BR') : 'Não informada';
-            msg += '---\n';
-            msg += `🖥️ *Monitor ${String(i+1).padStart(2,'0')}*\n`;
-            msg += `📦 *Estoque:* Campo Grande\n`;
-            msg += `👤 *Paciente:* ${proc.paciente || '—'}\n`;
-            msg += `🏥 *Hospital:* ${proc.hospital || '—'}\n`;
-            msg += `🧾 *Nº da Nota Fiscal:* ${proc.nf || '—'}\n`;
-            msg += `🙍 *Vendedor:* ${proc.vendedor || '—'}\n`;
-            msg += `📅 *Data de retirada:* ${dataRet}\n\n`;
-        });
-        msg += '---\nPor favor, providencie a devolução o quanto antes para garantir a disponibilidade dos produtos no estoque.\nQualquer dúvida, é só me chamar! 🙏';
-        window._whatsappMsg = msg;
-        const modal = document.createElement('div');
-        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
-        modal.innerHTML = `<div style="background:#1a2420;border:1px solid rgba(37,211,102,0.3);border-radius:16px;padding:24px;max-width:480px;width:100%;max-height:80vh;display:flex;flex-direction:column;gap:16px;"><div style="display:flex;align-items:center;justify-content:space-between;"><span style="color:#25D366;font-weight:700;font-size:1rem;">📲 Mensagem WhatsApp — A Retirar</span><button id="_waClose" style="background:transparent;border:none;color:#8a9e97;font-size:1.3rem;cursor:pointer;line-height:1;">✕</button></div><textarea id="_waMsg" readonly style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#eef2f0;font-family:monospace;font-size:0.82rem;padding:12px;flex:1;resize:none;min-height:300px;line-height:1.6;"></textarea><button id="_waCopyBtn" style="background:rgba(37,211,102,0.15);border:1.5px solid #25D366;color:#25D366;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;font-size:0.9rem;">📋 Copiar Mensagem</button></div>`;
-        document.body.appendChild(modal);
-        document.getElementById('_waMsg').value = msg;
-        document.getElementById('_waClose').addEventListener('click', () => modal.remove());
-        document.getElementById('_waCopyBtn').addEventListener('click', function() {
-            navigator.clipboard.writeText(window._whatsappMsg).then(() => {
-                this.textContent = '✅ Copiado!';
-                setTimeout(() => { this.textContent = '📋 Copiar Mensagem'; }, 2000);
-            });
-        });
-        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-    };
 
 })();
 </script>
