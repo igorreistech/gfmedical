@@ -5902,8 +5902,6 @@ async function exportarWhatsApp() {
         cirurgias.forEach(function(p, i) {
             linhas.push('');
             linhas.push('---');
-            linhas.push('🖥️ *Monitor ' + String(i+1).padStart(2,'0') + '*');
-            linhas.push('📦 *Estoque:* Campo Grande');
             linhas.push('👤 *Paciente:* ' + (p.paciente || '—'));
             linhas.push('🏥 *Hospital:* ' + (p.hospital || '—'));
             linhas.push('🧾 *Nº da Nota Fiscal:* ' + (p.nf || '—'));
