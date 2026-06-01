@@ -52,7 +52,7 @@
         if (!('Notification' in window) || Notification.permission !== 'granted') return;
         const labels = {
           a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
-          agendado:'Agendado', concluido:'Concluído', cancelado:'Cancelado',
+          agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
           reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
           urgencia:'URGÊNCIA', coleta_urgente:'Coleta Prioritária'
         };
@@ -166,16 +166,8 @@
 
               const paraPromover = [];
               dados.forEach(p => {
-                // Agendado + 2 dias antes (ou véspera) → Em Separação (silencioso)
-                if (p.status === 'agendado' && p.data && (p.data === doisDias || p.data === amanha)) {
-                  p.status = 'preparacao';
-                  try {
-                    const { setDoc: sd, doc: docFn } = window._fbModules;
-                    if (p._docId) sd(docFn(db, COLL, p._docId), { ...p });
-                  } catch(e2) { console.warn('Auto-status:', e2); }
-                }
                 // Em Separação + hoje + não confirmado ainda nesta sessão → pede confirmação
-                else if (p.status === 'preparacao' && p.data && p.data === hoje
+                if (p.status === 'preparacao' && p.data && p.data === hoje
                          && !window._confirmacaoInicioFeita.has(p._docId)) {
                   paraPromover.push(p);
                 }
@@ -476,6 +468,7 @@
         .stat-card.cancelado::before { background: #f87171; }
         .stat-card.reagendado::before { background: #a78bfa; }
         .stat-card.a_retirar::before { background: #f97316; }
+        .stat-card.em_transito::before { background: #0ea5e9; }
         .stat-card.urgencia::before { background: #ff0000; }
 
         .stat-label {
@@ -518,6 +511,7 @@
         .stat-card.cancelado .stat-value { color: #111111; }
         .stat-card.reagendado .stat-value { color: #111111; }
         .stat-card.a_retirar .stat-value { color: #111111; }
+        .stat-card.em_transito .stat-value { color: #111111; }
         .stat-retirar-frase {
             font-size: 0.75rem !important;
             font-weight: 700;
@@ -684,6 +678,7 @@
         .proc-card.status-concluido { border-top: 2px solid var(--gray); opacity: 0.7; }
         .proc-card.status-cancelado { border-top: 2px solid #f87171; opacity: 0.5; }
         .proc-card.status-reagendado { border-top: 2px solid #a78bfa; }
+        .proc-card.status-em_transito { border-top: 2px solid #0ea5e9; }
         .proc-card.status-a_retirar { border-top: 2px solid #f97316; }
         @keyframes cardPiscarUrgencia {
             0%, 100% { box-shadow: none; border-color: transparent; }
@@ -767,6 +762,7 @@
         .pill-andamento { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.4); animation: pillPulseAndamento 1s ease-in-out infinite; }
         .pill-preparacao { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.4); animation: pillPulsePreparacao 2.2s ease-in-out infinite; }
         .pill-agendado { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.4); }
+        .pill-em_transito { background: rgba(14,165,233,0.15); color: #0ea5e9; border: 1px solid rgba(14,165,233,0.4); }
         .pill-concluido { background: rgba(107,114,128,0.15); color: var(--gray); border: 1px solid rgba(107,114,128,0.4); }
         .pill-cancelado { background: rgba(239,68,68,0.08); color: #f87171; border: 1px solid rgba(239,68,68,0.25); text-decoration: line-through; }
         .pill-reagendado { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.4); animation: pillPulseReagendado 0.8s ease-in-out infinite; }
@@ -1030,6 +1026,7 @@
         .tl-mini-card.status-andamento  { border-left-color: var(--red); }
         .tl-mini-card.status-preparacao { border-left-color: var(--yellow); }
         .tl-mini-card.status-agendado   { border-left-color: var(--green); }
+        .tl-mini-card.status-em_transito { border-left-color: #0ea5e9; }
         .tl-mini-card.status-concluido  { border-left-color: var(--gray); opacity: 0.75; }
         .tl-mini-card.status-cancelado  { border-left-color: #f87171; opacity: 0.6; }
         .tl-mini-card.status-urgencia   { border-left-color: var(--red); animation: pulse-border 1.5s infinite; }
@@ -1194,6 +1191,7 @@
         .tl-bar.andamento { background: rgba(239,68,68,0.3); border: 1px solid var(--red); color: var(--red); }
         .tl-bar.preparacao { background: rgba(245,158,11,0.3); border: 1px solid var(--yellow); color: var(--yellow); }
         .tl-bar.agendado { background: rgba(16,185,129,0.3); border: 1px solid var(--green); color: var(--green); }
+        .tl-bar.em_transito { background: rgba(14,165,233,0.3); border: 1px solid #0ea5e9; color: #0ea5e9; }
         .tl-bar.concluido { background: rgba(107,114,128,0.2); border: 1px solid var(--gray); color: var(--gray); }
         .tl-bar.cancelado { background: rgba(248,113,113,0.1); border: 1px dashed #f87171; color: #f87171; opacity: 0.5; }
         .tl-bar.reagendado { background: rgba(167,139,250,0.2); border: 1px dashed #a78bfa; color: #a78bfa; }
@@ -1489,6 +1487,7 @@
         .proc-table tbody tr.row-concluido { border-left: 3px solid var(--gray); opacity: 0.7; }
         .proc-table tbody tr.row-cancelado { border-left: 3px solid #f87171; opacity: 0.5; }
         .proc-table tbody tr.row-reagendado { border-left: 3px solid #a78bfa; }
+        .proc-table tbody tr.row-em_transito { border-left: 3px solid #0ea5e9; }
         .proc-table tbody tr.row-urgencia { 
             border-left: 4px solid #ff0000; 
             background: rgba(255,0,0,0.06) !important;
@@ -3981,6 +3980,10 @@
             <div class="stat-label">Agendados</div>
             <div class="stat-value" id="stat-agendado">0</div>
         </div>
+        <div class="stat-card em_transito" id="stat-card-em_transito">
+            <div class="stat-label">Em Trânsito</div>
+            <div class="stat-value" id="stat-em_transito">0</div>
+        </div>
         <div class="stat-card preparacao" id="stat-card-preparacao">
             <div class="stat-label">Em Separação</div>
             <div class="stat-value" id="stat-preparacao">0</div>
@@ -4783,6 +4786,7 @@
                     <select class="form-select" id="f-status" required>
                         <option value="a_agendar">Autorizado</option>
                         <option value="agendado">Agendado</option>
+                        <option value="em_transito">Em Trânsito</option>
                         <option value="preparacao">Em Separação</option>
                         <option value="andamento">Em Procedimento</option>
                         <option value="concluido">Concluído</option>
@@ -6027,12 +6031,12 @@ function setPisca(id, anim, ativo) {
 
 function updateStats() {
     document.getElementById('stat-total').textContent = procedimentos.length;
-    ['a_agendar','andamento','preparacao','agendado','concluido','cancelado','reagendado','a_retirar','urgencia','coleta_urgente'].forEach(s => {
+    ['a_agendar','andamento','preparacao','agendado','em_transito','concluido','cancelado','reagendado','a_retirar','urgencia','coleta_urgente'].forEach(s => {
         document.getElementById('stat-' + s).textContent = procedimentos.filter(p => p.status === s).length;
     });
 
     // Limpar todas as animações antes de reaplicar
-    ['a_agendar','andamento','preparacao','agendado','reagendado','a_retirar','urgencia','coleta_urgente'].forEach(s => {
+    ['a_agendar','andamento','preparacao','agendado','em_transito','reagendado','a_retirar','urgencia','coleta_urgente'].forEach(s => {
         const el = document.getElementById('stat-card-' + s);
         if (el) el.style.animation = '';
     });
@@ -7894,6 +7898,11 @@ async function saveProcedure(e) {
 
     if (existingProc && existingProc._docId) {
         proc._docId = existingProc._docId;
+    }
+
+    // Auto: Agendado + NF inserida → Em Trânsito
+    if (proc.status === 'agendado' && proc.nf && proc.nf.trim()) {
+        proc.status = 'em_transito';
     }
 
     try {
