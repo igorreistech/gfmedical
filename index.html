@@ -4976,8 +4976,9 @@
 
                                 <div class="form-group full">
                     <label class="form-label">Médico *</label>
-                    <select class="form-select" id="f-medico" onchange="toggleOutroMedico(this.value)" required>
-                        <option value="">Selecione o médico</option>
+                    <input class="form-input" id="f-medico" list="medico-list" placeholder="Digite ou selecione o médico" autocomplete="off" required style="width:100%;">
+                    <datalist id="medico-list">
+                        <option value="Não informado">
                     <option value="ADRIANO FELIPE GROFF">ADRIANO FELIPE GROFF</option>
                     <option value="AIRTON AVEDES CARAMALAC JUNIOR">AIRTON AVEDES CARAMALAC JUNIOR</option>
                     <option value="ALAN VINICIUS GAMERO OSTI">ALAN VINICIUS GAMERO OSTI</option>
@@ -5312,15 +5313,10 @@
                     <option value="WELLINGTON CESAR DE SOUZA">WELLINGTON CESAR DE SOUZA</option>
                     <option value="WILLIAM GRAUPNER PEREIRA">WILLIAM GRAUPNER PEREIRA</option>
                     <option value="WILLIAN RICARDO CAMARÇO">WILLIAN RICARDO CAMARÇO</option>
-                        <option value="Não informado">Não informado</option>
-                        <option value="__outro">─── Outro (não cadastrado)... ───</option>
-                    </select>
+                    </datalist>
                 </div>
 
-                <div class="form-group full" id="g-outro-medico" style="display:none;">
-                    <label class="form-label">Nome do Médico (não cadastrado)</label>
-                    <input class="form-input" id="f-outro-medico" placeholder="Digite o nome completo do médico" autocomplete="off">
-                </div>
+                <div class="form-group full" id="g-outro-medico" style="display:none;"></div>
 
                 <div class="form-group">
                     <label class="form-label">Nome do Paciente</label>
@@ -5353,6 +5349,7 @@
                         <option>MT Saúde</option>
                         <option>Geap</option>
                         <option>SES</option>
+                        <option>UFMS</option>
                         <option>Particular</option>
                         <option value="__outro">Outro...</option>
                     </select>
@@ -5366,7 +5363,6 @@
                         <option>Marcos Gonçalves da Silva</option>
                         <option>Marcella Fernandes Ricci</option>
                         <option>Wilson Cordeiro</option>
-                        <option>Lucas Matheus</option>
                         <option>Roberto Alex Cândido</option>
                         <option>Gabriely Amorim Dias</option>
                         <option>Regiane da Silva Ramos</option>
@@ -5490,10 +5486,6 @@
                 <label class="export-opt">
                     <input type="checkbox" class="exp-vendedor" value="Wilson Cordeiro" checked>
                     Wilson Cordeiro
-                </label>
-                <label class="export-opt">
-                    <input type="checkbox" class="exp-vendedor" value="Lucas Matheus" checked>
-                    Lucas Matheus
                 </label>
                 <label class="export-opt">
                     <input type="checkbox" class="exp-vendedor" value="Roberto Alex Cândido" checked>
@@ -7757,17 +7749,7 @@ function editProc(docId) {
     }
     document.getElementById('f-data').value = p.data;
     // Carregar médico: verificar se está na lista ou colocar no "outro"
-    const selMedico = document.getElementById('f-medico');
-    const medicoNaLista = Array.from(selMedico.options).some(o => o.value === p.medico);
-    if (medicoNaLista) {
-        selMedico.value = p.medico;
-        document.getElementById('g-outro-medico').style.display = 'none';
-        document.getElementById('f-outro-medico').value = '';
-    } else {
-        selMedico.value = '__outro';
-        document.getElementById('g-outro-medico').style.display = 'block';
-        document.getElementById('f-outro-medico').value = p.medico || '';
-    }
+    document.getElementById('f-medico').value = p.medico || '';
     document.getElementById('f-paciente').value = p.paciente || '';
     if (document.getElementById('f-pacienteIdade')) document.getElementById('f-pacienteIdade').value = p.pacienteIdade || '';
     document.getElementById('f-procedimento').value = p.procedimento;
@@ -7930,12 +7912,8 @@ async function saveProcedure(e) {
     if (_isColeta && (!convenio || convenio === '__outro')) convenio = '—';
 
     // Validação médico
-    let medico = document.getElementById('f-medico').value;
-    if (!_isColeta && !medico) { alert('Selecione o médico'); document.getElementById('f-medico').focus(); return; }
-    if (!_isColeta && medico === '__outro') {
-        medico = document.getElementById('f-outro-medico').value.trim().toUpperCase();
-        if (!medico) { alert('Informe o nome do médico'); document.getElementById('f-outro-medico').focus(); return; }
-    }
+    let medico = document.getElementById('f-medico').value.trim().toUpperCase();
+    if (!_isColeta && !medico) { alert('Informe o nome do médico'); document.getElementById('f-medico').focus(); return; }
     if (_isColeta && !medico) medico = '';
 
     // Validação: status A Retirar, Em Procedimento e Retirar Volumes Urgentes exigem data de retirada
