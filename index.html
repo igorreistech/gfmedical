@@ -11,7 +11,7 @@
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
       import { getFirestore, collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDocs, query, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-      import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+      import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
       import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
       const firebaseConfig = {
@@ -71,6 +71,63 @@
       }
 
       // ─── AUTH ───
+      window.doLogin = async function() {
+        const email = document.getElementById('loginUser').value.trim();
+        const pass  = document.getElementById('loginPass').value;
+        const btn   = document.getElementById('loginBtn');
+        const err   = document.getElementById('loginError');
+        if (!email || !pass) { err.textContent = 'Preencha e-mail e senha.'; err.style.display = 'block'; return; }
+        btn.disabled = true; btn.textContent = 'Entrando...'; err.style.display = 'none';
+        try {
+          await signInWithEmailAndPassword(auth, email, pass);
+        } catch(e) {
+          let msg = 'E-mail ou senha incorretos.';
+          if (e.code === 'auth/invalid-email')          msg = 'E-mail inválido.';
+          if (e.code === 'auth/too-many-requests')      msg = 'Muitas tentativas. Tente mais tarde.';
+          if (e.code === 'auth/network-request-failed') msg = 'Erro de rede. Verifique sua conexão.';
+          err.textContent = msg; err.style.display = 'block';
+          document.getElementById('loginPass').value = '';
+          const box = document.querySelector('.login-box');
+          if (box) { box.style.transform='translateX(-8px)'; setTimeout(()=>{box.style.transform='translateX(8px)';},80); setTimeout(()=>{box.style.transform='translateX(-5px)';},160); setTimeout(()=>{box.style.transform='translateX(0)';},240); }
+        } finally { btn.disabled = false; btn.textContent = 'Entrar'; }
+      };
+
+      window.doRegister = async function() {
+        const nome  = document.getElementById('regNome').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
+        const pass  = document.getElementById('regPass').value;
+        const pass2 = document.getElementById('regPass2').value;
+        const btn   = document.getElementById('regBtn');
+        const err   = document.getElementById('loginError');
+        err.style.display = 'none';
+        if (!nome)          { err.textContent = 'Informe seu nome.'; err.style.display = 'block'; return; }
+        if (!email)         { err.textContent = 'Informe seu e-mail.'; err.style.display = 'block'; return; }
+        if (pass.length < 6){ err.textContent = 'Senha deve ter ao menos 6 caracteres.'; err.style.display = 'block'; return; }
+        if (pass !== pass2) { err.textContent = 'As senhas não coincidem.'; err.style.display = 'block'; return; }
+        btn.disabled = true; btn.textContent = 'Criando conta...';
+        try {
+          const cred = await createUserWithEmailAndPassword(auth, email, pass);
+          await setDoc(doc(db, 'usuarios', cred.user.uid), { email: email.toLowerCase(), nome, role: 'agendador', uid: cred.user.uid });
+        } catch(e) {
+          let msg = 'Erro ao criar conta.';
+          if (e.code === 'auth/email-already-in-use') msg = 'E-mail já cadastrado. Faça login.';
+          if (e.code === 'auth/invalid-email')        msg = 'E-mail inválido.';
+          if (e.code === 'auth/weak-password')        msg = 'Senha muito fraca (mínimo 6 caracteres).';
+          err.textContent = msg; err.style.display = 'block';
+        } finally { btn.disabled = false; btn.textContent = 'Criar conta'; }
+      };
+
+      window.showRegister = function() {
+        document.getElementById('loginPanel').style.display = 'none';
+        document.getElementById('registerPanel').style.display = 'block';
+        document.getElementById('loginError').style.display = 'none';
+      };
+      window.showLogin = function() {
+        document.getElementById('loginPanel').style.display = 'block';
+        document.getElementById('registerPanel').style.display = 'none';
+        document.getElementById('loginError').style.display = 'none';
+      };
+
       async function _loginOAuth(provider, btnId) {
         const btn = document.getElementById(btnId);
         const err = document.getElementById('loginError');
@@ -2277,6 +2334,16 @@
             text-transform: uppercase;
             margin-bottom: 32px;
         }
+        .login-group { margin-bottom: 14px; text-align: left; }
+        .login-label { font-family: var(--mono); font-size: 0.82rem; letter-spacing: 0.10em; text-transform: uppercase; color: rgba(60,160,90,0.85); margin-bottom: 6px; display: block; }
+        .login-input { width: 100%; background: rgba(135,195,150,0.07); border: 1px solid rgba(135,195,150,0.3); border-radius: 10px; padding: 12px 14px; color: #0d2d38; font-family: var(--mono); font-size: 1rem; outline: none; transition: all 0.2s; }
+        .login-input:focus { border-color: #87c396; box-shadow: 0 0 0 3px rgba(135,195,150,0.15); }
+        .login-btn { width: 100%; margin-top: 6px; padding: 14px; background: linear-gradient(135deg, #4bb4d2 0%, #87c396 100%); color: #ffffff; border: none; border-radius: 12px; font-family: 'Space Grotesk', sans-serif; font-size: 1.05rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; cursor: pointer; transition: all 0.25s cubic-bezier(0.4,0,0.2,1); box-shadow: 0 4px 22px rgba(75,180,210,0.4); }
+        .login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(75,180,210,0.5); }
+        .login-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0 14px; color: rgba(75,140,150,0.55); font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em; }
+        .login-divider::before, .login-divider::after { content: ''; flex: 1; height: 1px; background: rgba(135,195,150,0.25); }
+        .login-toggle { margin-top: 18px; text-align: center; font-family: var(--mono); font-size: 0.80rem; color: var(--text-dim); }
+        .login-toggle-link { background: none; border: none; color: var(--accent); font-family: var(--mono); font-size: 0.80rem; cursor: pointer; text-decoration: underline; padding: 0; }
         .login-oauth-buttons { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
         .login-oauth-btn {
             display: flex; align-items: center; justify-content: center; gap: 12px;
@@ -2883,6 +2950,8 @@
             .login-box { padding: 24px 18px; border-radius: 16px; max-width: 340px; width: calc(100% - 32px); }
             .login-logo { font-size: 1.3rem; }
             .login-sub { font-size: 0.75rem; }
+            .login-input { font-size: 1rem; padding: 10px 12px; }
+            .login-btn { font-size: 0.9rem; padding: 12px; }
             .login-oauth-btn { font-size: 0.88rem; padding: 12px 14px; }
             /* Agendador */
             .agendador-header { padding: 12px 16px; }
@@ -4103,16 +4172,58 @@
         <img class="login-logo-img" src="data:image/jpeg;base64,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" alt="GF Medical">
         <div class="login-logo">⬡ GF Medical</div>
         <div class="login-sub">Monitor Cirúrgico · Campo Grande, MS</div>
-        <div class="login-oauth-buttons">
-            <button class="login-oauth-btn" id="loginBtnGoogle" onclick="doLoginGoogle()">
-                <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-                Entrar com Google
-            </button>
-            <button class="login-oauth-btn" id="loginBtnMicrosoft" onclick="doLoginMicrosoft()">
-                <svg width="20" height="20" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
-                Entrar com Microsoft
-            </button>
+
+        <!-- Painel de login -->
+        <div id="loginPanel">
+            <form id="loginForm" onsubmit="doLogin(); return false;" autocomplete="on">
+                <div class="login-group">
+                    <label class="login-label">E-mail</label>
+                    <input class="login-input" type="email" id="loginUser" name="email" placeholder="seu@email.com" autocomplete="email">
+                </div>
+                <div class="login-group">
+                    <label class="login-label">Senha</label>
+                    <input class="login-input" type="password" id="loginPass" name="password" placeholder="••••••••" autocomplete="current-password">
+                </div>
+                <button type="submit" class="login-btn" id="loginBtn">Entrar</button>
+            </form>
+            <div class="login-divider"><span>ou continue com</span></div>
+            <div class="login-oauth-buttons">
+                <button class="login-oauth-btn" id="loginBtnGoogle" onclick="doLoginGoogle()">
+                    <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                    Entrar com Google
+                </button>
+                <button class="login-oauth-btn" id="loginBtnMicrosoft" onclick="doLoginMicrosoft()">
+                    <svg width="20" height="20" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+                    Entrar com Microsoft
+                </button>
+            </div>
+            <div class="login-toggle">Não tem conta? <button class="login-toggle-link" onclick="showRegister()">Cadastrar-se</button></div>
         </div>
+
+        <!-- Painel de cadastro -->
+        <div id="registerPanel" style="display:none;">
+            <form onsubmit="doRegister(); return false;" autocomplete="on">
+                <div class="login-group">
+                    <label class="login-label">Nome</label>
+                    <input class="login-input" type="text" id="regNome" placeholder="Seu nome completo" autocomplete="name">
+                </div>
+                <div class="login-group">
+                    <label class="login-label">E-mail</label>
+                    <input class="login-input" type="email" id="regEmail" placeholder="seu@email.com" autocomplete="email">
+                </div>
+                <div class="login-group">
+                    <label class="login-label">Senha</label>
+                    <input class="login-input" type="password" id="regPass" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+                </div>
+                <div class="login-group">
+                    <label class="login-label">Confirmar senha</label>
+                    <input class="login-input" type="password" id="regPass2" placeholder="Repita a senha" autocomplete="new-password">
+                </div>
+                <button type="submit" class="login-btn" id="regBtn">Criar conta</button>
+            </form>
+            <div class="login-toggle">Já tem conta? <button class="login-toggle-link" onclick="showLogin()">Fazer login</button></div>
+        </div>
+
         <div class="login-error" id="loginError" style="display:none;"></div>
     </div>
 </div>
