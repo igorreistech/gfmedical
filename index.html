@@ -10,7 +10,7 @@
     <!-- Firebase SDK -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-      import { getFirestore, collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDocs, query, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+      import { getFirestore, collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDoc, getDocs, query, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
       import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
       import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
@@ -32,7 +32,7 @@
 
       window._fbDb = db;
       window._fbColl = COLL;
-      window._fbModules = { collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDocs, query, where };
+      window._fbModules = { collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDoc, getDocs, query, where };
       const storage = getStorage(app);
       window._fbStorage = storage;
       window._fbStorageModules = { ref, uploadBytes, getDownloadURL };
@@ -93,12 +93,13 @@
       };
 
       window.doRegister = async function() {
-        const nome  = document.getElementById('regNome').value.trim();
-        const email = document.getElementById('regEmail').value.trim();
-        const pass  = document.getElementById('regPass').value;
-        const pass2 = document.getElementById('regPass2').value;
-        const btn   = document.getElementById('regBtn');
-        const err   = document.getElementById('loginError');
+        const nome   = document.getElementById('regNome').value.trim();
+        const email  = document.getElementById('regEmail').value.trim();
+        const pass   = document.getElementById('regPass').value;
+        const pass2  = document.getElementById('regPass2').value;
+        const codigo = (document.getElementById('regCodigo')?.value || '').trim();
+        const btn    = document.getElementById('regBtn');
+        const err    = document.getElementById('loginError');
         err.style.display = 'none';
         if (!nome)          { err.textContent = 'Informe seu nome.'; err.style.display = 'block'; return; }
         if (!email)         { err.textContent = 'Informe seu e-mail.'; err.style.display = 'block'; return; }
@@ -106,8 +107,15 @@
         if (pass !== pass2) { err.textContent = 'As senhas não coincidem.'; err.style.display = 'block'; return; }
         btn.disabled = true; btn.textContent = 'Criando conta...';
         try {
+          let role = 'agendador';
+          if (codigo) {
+            const acessoSnap = await getDoc(doc(db, 'config', 'acesso'));
+            if (acessoSnap.exists() && acessoSnap.data().codigo && acessoSnap.data().codigo === codigo) {
+              role = 'admin';
+            }
+          }
           const cred = await createUserWithEmailAndPassword(auth, email, pass);
-          await setDoc(doc(db, 'usuarios', cred.user.uid), { email: email.toLowerCase(), nome, role: 'agendador', uid: cred.user.uid });
+          await setDoc(doc(db, 'usuarios', cred.user.uid), { email: email.toLowerCase(), nome, role, uid: cred.user.uid });
         } catch(e) {
           let msg = 'Erro ao criar conta.';
           if (e.code === 'auth/email-already-in-use') msg = 'E-mail já cadastrado. Faça login.';
@@ -115,6 +123,22 @@
           if (e.code === 'auth/weak-password')        msg = 'Senha muito fraca (mínimo 6 caracteres).';
           err.textContent = msg; err.style.display = 'block';
         } finally { btn.disabled = false; btn.textContent = 'Criar conta'; }
+      };
+
+      window.doAdminLoadCodigo = async function() {
+        try {
+          const snap = await getDoc(doc(db, 'config', 'acesso'));
+          const el = document.getElementById('admin-codigo');
+          if (el && snap.exists()) el.value = snap.data().codigo || '';
+        } catch(e) {}
+      };
+      window.doAdminSaveCodigo = async function() {
+        const el = document.getElementById('admin-codigo');
+        const codigo = (el?.value || '').trim();
+        try {
+          await setDoc(doc(db, 'config', 'acesso'), { codigo });
+          if (el) { el.style.borderColor = '#87c396'; setTimeout(()=>{ el.style.borderColor=''; }, 1500); }
+        } catch(e) { alert('Erro ao salvar: '+e.message); }
       };
 
       window.showRegister = function() {
@@ -202,7 +226,7 @@
       };
       window.openAdminModal = function() {
         const m = document.getElementById('adminModal');
-        if (m) { m.style.display = 'flex'; doAdminLoadUsers(); }
+        if (m) { m.style.display = 'flex'; doAdminLoadUsers(); doAdminLoadCodigo(); }
       };
       window.closeAdminModal = function() {
         const m = document.getElementById('adminModal');
@@ -791,28 +815,53 @@
             box-shadow: 0 8px 28px rgba(75,180,210,0.5);
         }
 
-        .fab-nova-cirurgia {
+        .fab-group {
             position: fixed;
             bottom: calc(24px + env(safe-area-inset-bottom, 0px));
             right: 20px;
-            width: 58px; height: 58px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 990;
+            align-items: center;
+        }
+        .fab-btn {
+            width: 56px; height: 56px;
             border-radius: 50%;
-            background: var(--green);
             color: #fff;
             border: none;
-            font-size: 2rem;
-            font-weight: 300;
+            font-size: 1.55rem;
             cursor: pointer;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.35);
-            z-index: 990;
-            display: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.32);
+            display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.18s;
+            transition: transform 0.18s, box-shadow 0.18s;
             -webkit-tap-highlight-color: transparent;
+            position: relative;
+            overflow: visible;
         }
-        .fab-nova-cirurgia:active { transform: scale(0.92); }
-        @media (max-width: 960px) { .fab-nova-cirurgia { display: flex; } }
+        .fab-btn:active { transform: scale(0.91); }
+        .fab-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,0.38); }
+        .fab-cirurgia { background: var(--green); }
+        .fab-coleta   { background: linear-gradient(135deg, #6366f1, #818cf8); }
+        .fab-btn-label {
+            position: absolute;
+            right: 64px;
+            background: rgba(10,42,53,0.88);
+            color: #fff;
+            padding: 5px 12px;
+            border-radius: 8px;
+            font-size: 0.70rem;
+            font-family: var(--mono);
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateX(6px);
+            transition: opacity 0.15s, transform 0.15s;
+            letter-spacing: 0.04em;
+        }
+        .fab-btn:hover .fab-btn-label { opacity: 1; transform: translateX(0); }
 
         /* ─── TIMELINE VIEW ─── */
         .view-tabs {
@@ -4219,6 +4268,10 @@
                     <label class="login-label">Confirmar senha</label>
                     <input class="login-input" type="password" id="regPass2" placeholder="Repita a senha" autocomplete="new-password">
                 </div>
+                <div class="login-group">
+                    <label class="login-label">Código de acesso <span style="font-size:0.75em;opacity:0.65;">(opcional)</span></label>
+                    <input class="login-input" type="text" id="regCodigo" placeholder="Se tiver um código, informe aqui" autocomplete="off">
+                </div>
                 <button type="submit" class="login-btn" id="regBtn">Criar conta</button>
             </form>
             <div class="login-toggle">Já tem conta? <button class="login-toggle-link" onclick="showLogin()">Fazer login</button></div>
@@ -4274,6 +4327,14 @@
                 </select>
             </div>
             <button class="admin-add-btn" onclick="doAdminAddUser()">Adicionar Usuário</button>
+        </div>
+        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+            <div style="font-family:'Space Grotesk',sans-serif;font-size:0.95rem;font-weight:700;color:var(--text);margin-bottom:8px;">Código de Acesso Completo</div>
+            <div style="font-family:var(--mono);font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;">Novos usuários que informarem este código no cadastro recebem acesso completo ao monitor.</div>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <input class="admin-add-input" type="text" id="admin-codigo" placeholder="Defina um código..." style="flex:1;">
+                <button class="admin-add-btn" onclick="doAdminSaveCodigo()" style="padding:10px 18px;white-space:nowrap;border-radius:9px;font-size:0.88rem;">Salvar</button>
+            </div>
         </div>
         <button class="admin-close-btn" onclick="closeAdminModal()">Fechar</button>
     </div>
@@ -19879,6 +19940,15 @@ else init();
 
 })();
 </script>
-<button class="fab-nova-cirurgia" onclick="openModal()" aria-label="Nova cirurgia">+</button>
+<div class="fab-group">
+    <button class="fab-btn fab-coleta" onclick="openModalVolumes()" aria-label="Nova coleta prioritária">
+        <span class="fab-btn-label">Coleta Prioritária</span>
+        ✈
+    </button>
+    <button class="fab-btn fab-cirurgia" onclick="openModal()" aria-label="Nova cirurgia">
+        <span class="fab-btn-label">Nova Cirurgia</span>
+        +
+    </button>
+</div>
 </body>
 </html>
