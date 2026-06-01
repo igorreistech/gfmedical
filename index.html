@@ -158,9 +158,8 @@
               // - Em Trânsito + hoje é a cirurgia → Em Procedimento (automático)
               // - Em Separação + hoje é a cirurgia → pede confirmação UMA VEZ por sessão
               const hoje = new Date().toISOString().split('T')[0];
-              function diffDias(dataStr) {
-                return Math.round((new Date(dataStr) - new Date(hoje)) / 86400000);
-              }
+              const amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
+              const amanha = amanhaD.getFullYear() + '-' + String(amanhaD.getMonth()+1).padStart(2,'0') + '-' + String(amanhaD.getDate()).padStart(2,'0');
               function autoTransitar(p, statusAnterior) {
                 p.autoTransicaoEm = new Date().toISOString();
                 try { notificarMudancaStatus(p, statusAnterior); } catch(e3) {}
@@ -174,6 +173,11 @@
 
               const paraPromover = [];
               dados.forEach(p => {
+                // Agendado + véspera (D+1) → Em Separação (silencioso)
+                if (p.status === 'agendado' && p.data && p.data === amanha) {
+                  p.status = 'preparacao';
+                  autoTransitar(p, 'agendado');
+                }
                 // Em Separação + hoje + não confirmado ainda nesta sessão → pede confirmação
                 if (p.status === 'preparacao' && p.data && p.data === hoje
                          && !window._confirmacaoInicioFeita.has(p._docId)) {
@@ -618,6 +622,29 @@
             transform: translateY(-2px) scale(1.02);
             box-shadow: 0 8px 28px rgba(75,180,210,0.5);
         }
+
+        .fab-nova-cirurgia {
+            position: fixed;
+            bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+            right: 20px;
+            width: 58px; height: 58px;
+            border-radius: 50%;
+            background: var(--green);
+            color: #fff;
+            border: none;
+            font-size: 2rem;
+            font-weight: 300;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+            z-index: 990;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.18s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .fab-nova-cirurgia:active { transform: scale(0.92); }
+        @media (max-width: 960px) { .fab-nova-cirurgia { display: flex; } }
 
         /* ─── TIMELINE VIEW ─── */
         .view-tabs {
@@ -7982,8 +8009,8 @@ async function saveProcedure(e) {
         proc._docId = existingProc._docId;
     }
 
-    // Auto: Agendado + NF inserida → Em Trânsito
-    if (proc.status === 'agendado' && proc.nf && proc.nf.trim()) {
+    // Auto: Em Separação + NF inserida → Em Trânsito
+    if (proc.status === 'preparacao' && proc.nf && proc.nf.trim()) {
         proc.status = 'em_transito';
     }
 
@@ -19507,5 +19534,6 @@ else init();
 
 })();
 </script>
+<button class="fab-nova-cirurgia" onclick="openModal()" aria-label="Nova cirurgia">+</button>
 </body>
 </html>
