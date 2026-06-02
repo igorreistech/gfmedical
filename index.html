@@ -6465,7 +6465,7 @@ function autoStatusByDate(dataCirurgia) {
 function autoTransitoNF(nfValue) {
     const fStatus = document.getElementById('f-status');
     if (!fStatus || !nfValue.trim()) return;
-    if (fStatus.value === 'agendado' || fStatus.value === 'preparacao') {
+    if (fStatus.value === 'preparacao') {
         // Não reverter se o registro já estava em trânsito antes da edição
         const _existente = editingDocId ? procedimentos.find(p => p._docId === editingDocId) : null;
         if (_existente && _existente.status === 'em_transito') return;
