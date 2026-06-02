@@ -8557,12 +8557,6 @@ async function saveProcedure(e) {
         proc._docId = existingProc._docId;
     }
 
-    // Auto: Em Separação + NF inserida → Em Trânsito (só se não estava já em trânsito — evita bloquear retorno manual)
-    const _statusAnteriorSalvar = existingProc ? existingProc.status : null;
-    if (proc.status === 'preparacao' && proc.nf && proc.nf.trim() && _statusAnteriorSalvar !== 'em_transito') {
-        proc.status = 'em_transito';
-    }
-
     if (existingProc && existingProc.cadastradoPor) {
         proc.cadastradoPor = existingProc.cadastradoPor;
     } else if (window._currentUser && !proc.cadastradoPor) {
@@ -18934,7 +18928,7 @@ window.buildCardHTML = function(proc) {
         }
         if (dados.nf) {
             var fnf = document.getElementById('f-nf');
-            if (fnf) fnf.value = dados.nf;
+            if (fnf) { fnf.value = dados.nf; fnf.dispatchEvent(new Event('input')); }
         }
         if (dados.dataEmissao) {
             var fde = document.getElementById('f-nf-data');
