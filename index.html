@@ -188,6 +188,27 @@
         }
       };
 
+      window.renderAgendadorLista = function() {
+        if (!window._currentUser || window._currentUser.role !== 'agendador') return;
+        const listaEl = document.getElementById('agendador-lista');
+        if (!listaEl) return;
+        const dados = window.procedimentos || [];
+        const meus = dados.filter(p => p.cadastradoPor === window._currentUser.uid);
+        const labels = { agendado:'Agendado', preparacao:'Em Separação', em_transito:'Em Trânsito', andamento:'Em Procedimento', concluido:'Concluído', a_agendar:'Autorizado', a_retirar:'Aguardando Retirada', cancelado:'Cancelado' };
+        listaEl.innerHTML = meus.length === 0
+          ? '<div class="agendador-empty">Nenhuma cirurgia cadastrada ainda.</div>'
+          : `<table class="agendador-table"><thead><tr><th>Paciente</th><th>Hospital</th><th>Cirurgião</th><th>Data</th><th>Status</th><th></th></tr></thead><tbody>${
+              meus.map(p => `<tr>
+                <td>${p.paciente||'-'}</td>
+                <td>${p.hospital||'-'}</td>
+                <td>${p.medico||'-'}</td>
+                <td>${p.data||'-'}</td>
+                <td><span class="agendador-status status-${p.status||''}">${labels[p.status]||p.status||'-'}</span></td>
+                <td><button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button></td>
+              </tr>`).join('')
+            }</tbody></table>`;
+      };
+
       // Gerenciamento de usuários (admin)
       window.doAdminLoadUsers = async function() {
         const lista = document.getElementById('admin-users-list');
@@ -287,6 +308,8 @@
                 const nomeEl = document.getElementById('agendador-nome');
                 if (nomeEl) nomeEl.textContent = (window._currentUser.nome||'').split(' ')[0] || user.email;
               }
+              // Re-renderiza a lista usando dados já carregados
+              setTimeout(() => window.renderAgendadorLista && window.renderAgendadorLista(), 300);
             } else {
               if (mainCont)  mainCont.style.display  = '';
               if (adminBtn)  adminBtn.style.display  = '';
@@ -383,25 +406,8 @@
               window.nextId = window.procedimentos.length > 0 ? Math.max(...window.procedimentos.map(p => p.id || 0)) + 1 : 1;
 
               // Renderizar lista do agendador (só para role agendador)
-              if (window._currentUser && window._currentUser.role === 'agendador') {
-                const meus = dados.filter(p => p.cadastradoPor === window._currentUser.uid);
-                const listaEl = document.getElementById('agendador-lista');
-                if (listaEl) {
-                  const labels = { agendado:'Agendado', preparacao:'Em Separação', em_transito:'Em Trânsito', andamento:'Em Procedimento', concluido:'Concluído', a_agendar:'Autorizado', a_retirar:'Aguardando Retirada', cancelado:'Cancelado' };
-                  listaEl.innerHTML = meus.length === 0
-                    ? '<div class="agendador-empty">Nenhuma cirurgia cadastrada ainda.</div>'
-                    : `<table class="agendador-table"><thead><tr><th>Paciente</th><th>Hospital</th><th>Cirurgião</th><th>Data</th><th>Status</th><th></th></tr></thead><tbody>${
-                        meus.map(p => `<tr>
-                          <td>${p.paciente||'-'}</td>
-                          <td>${p.hospital||'-'}</td>
-                          <td>${p.medico||'-'}</td>
-                          <td>${p.data||'-'}</td>
-                          <td><span class="agendador-status status-${p.status||''}">${labels[p.status]||p.status||'-'}</span></td>
-                          <td><button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button></td>
-                        </tr>`).join('')
-                      }</tbody></table>`;
-                }
-              }
+              window.renderAgendadorLista();
+
 
               window.renderCards();
               window.updateStats();
