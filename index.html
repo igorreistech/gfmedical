@@ -14243,7 +14243,8 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
   }
   function getFilteredV2(){
     return procedimentos.filter(p => {
-      const matchFilter = currentFilter === 'all' || p.status === currentFilter;
+      const matchFilter = currentFilter === 'all'
+        || (currentFilter === 'reagendado_vencido' ? (p.status === 'reagendado' && p.data && p.data < todayStr()) : p.status === currentFilter);
       const matchVendedor = currentVendedorFilter === 'all' || (p.vendedor || '') === currentVendedorFilter;
       const matchHospital = currentHospitalFilter === 'all' || (p.hospital || '') === currentHospitalFilter;
       const matchMedico = currentMedicoFilter === 'all' || (p.medico || '') === currentMedicoFilter;
