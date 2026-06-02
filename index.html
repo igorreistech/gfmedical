@@ -204,9 +204,18 @@
                 <td>${p.medico||'-'}</td>
                 <td>${p.data||'-'}</td>
                 <td><span class="agendador-status status-${p.status||''}">${labels[p.status]||p.status||'-'}</span></td>
-                <td><button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button></td>
+                <td style="display:flex;gap:6px;align-items:center;">
+                  <button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button>
+                  <button class="agendador-btn-del" onclick="deleteProc('${p._docId}')">🗑</button>
+                </td>
               </tr>`).join('')
             }</tbody></table>`;
+      };
+
+      // Retry renderAgendadorLista após login para garantir que dados do Firestore já chegaram
+      window._renderAgendadorRetry = function() {
+        const tentativas = [400, 1000, 2000, 4000];
+        tentativas.forEach(t => setTimeout(() => window.renderAgendadorLista && window.renderAgendadorLista(), t));
       };
 
       // Gerenciamento de usuários (admin)
@@ -308,8 +317,8 @@
                 const nomeEl = document.getElementById('agendador-nome');
                 if (nomeEl) nomeEl.textContent = (window._currentUser.nome||'').split(' ')[0] || user.email;
               }
-              // Re-renderiza a lista usando dados já carregados
-              setTimeout(() => window.renderAgendadorLista && window.renderAgendadorLista(), 300);
+              // Re-renderiza com retry para garantir que dados do Firestore já chegaram
+              window._renderAgendadorRetry && window._renderAgendadorRetry();
             } else {
               if (mainCont)  mainCont.style.display  = '';
               if (adminBtn)  adminBtn.style.display  = '';
@@ -2493,6 +2502,8 @@
         .agendador-status { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; font-family: var(--mono); }
         .agendador-btn-edit { background: rgba(75,180,210,0.1); border: 1px solid rgba(75,180,210,0.3); color: #2a9fbf; font-size: 0.75rem; font-weight: 700; font-family: var(--mono); cursor: pointer; padding: 5px 12px; border-radius: 8px; transition: all 0.15s; white-space: nowrap; }
         .agendador-btn-edit:hover { background: rgba(75,180,210,0.2); border-color: rgba(75,180,210,0.5); }
+        .agendador-table .agendador-btn-del { background: rgba(217,79,79,0.08); border: 1px solid rgba(217,79,79,0.25); color: #d94f4f; font-size: 0.8rem; cursor: pointer; padding: 5px 8px; border-radius: 8px; transition: all 0.15s; }
+        .agendador-table .agendador-btn-del:hover { background: rgba(217,79,79,0.18); }
         .status-agendado { background: rgba(75,180,210,0.12); color: #2a9fbf; }
         .status-preparacao { background: rgba(245,158,11,0.12); color: #d4920a; }
         .status-em_transito { background: rgba(14,165,233,0.12); color: #0ea5e9; }
@@ -4328,10 +4339,6 @@
         </div>
     </div>
     <div class="agendador-body">
-        <button class="agendador-btn-nova" onclick="openModal()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Nova Cirurgia
-        </button>
         <div class="agendador-section-title">Minhas cirurgias cadastradas</div>
         <div id="agendador-lista"><div class="agendador-empty">Nenhuma cirurgia cadastrada ainda.</div></div>
     </div>
