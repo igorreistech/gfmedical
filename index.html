@@ -8380,10 +8380,13 @@ function openModal() {
     document.getElementById('modalOverlay').classList.add('open');
 }
 
+let _modalCooldown = false;
 function closeModal() {
     const btnSave = document.getElementById('btn-save-main');
     if (btnSave) btnSave.textContent = 'Salvar Procedimento';
     document.getElementById('modalOverlay').classList.remove('open');
+    _modalCooldown = true;
+    setTimeout(() => { _modalCooldown = false; }, 600);
 }
 
 function openModalVolumes() {
@@ -10097,6 +10100,7 @@ function buildQuickStatusHTML(proc, realIndex) {
 
 async function quickSetStatus(docId, novoStatus, e) {
     e.stopPropagation();
+    if (_modalCooldown) return;
     const proc = procedimentos.find(p => (p._docId || String(p.id)) === String(docId));
     if (!proc) return;
     const statusAnterior = proc.status;
@@ -10234,6 +10238,7 @@ const CHECKLIST_RULES = {
     concluido:  [{label:'NF de venda preenchida',check:p=>!!p.nf},{label:'Data da NF preenchida',check:p=>!!p.nfData},{label:'Vendedor definido',check:p=>!!p.vendedor}],
     andamento:  [{label:'Data de cirurgia definida',check:p=>!!p.data},{label:'Médico definido',check:p=>!!p.medico}],
     preparacao: [{label:'Vendedor definido',check:p=>!!p.vendedor},{label:'Linha preenchida',check:p=>!!p.linha}],
+    em_transito:[{label:'Número da NF preenchido',check:p=>!!(p.nf&&p.nf.trim())}],
 };
 function mostrarChecklist(proc, novoStatus, onConfirm) {
     const regras=CHECKLIST_RULES[novoStatus];
