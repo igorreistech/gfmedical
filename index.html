@@ -202,7 +202,7 @@
             return `<div class="admin-user-row">
               <div><div class="admin-user-name">${u.nome||u.email}</div><div class="admin-user-email">${u.email}</div></div>
               <span class="admin-role-badge role-${u.role}">${u.role==='admin'?'Admin':'Agendador'}</span>
-              <button class="admin-btn-del" onclick="doAdminDeleteUser('${d.id}')" ${isMe?'disabled title="Não pode remover a si mesmo"':''}>✕</button>
+              <button class="admin-btn-del" onclick="doAdminDeleteUser('${d.id}')" ${isMe?'disabled title="Não pode remover a si mesmo"':''}>🗑 Excluir</button>
             </div>`;
           }).join('');
         } catch(e) { lista.innerHTML = '<div style="color:var(--red);font-size:0.85rem;">Erro ao carregar.</div>'; }
@@ -2510,8 +2510,8 @@
         .admin-role-badge { padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; font-family: var(--mono); white-space: nowrap; }
         .role-admin { background: rgba(75,180,210,0.12); color: #2a9fbf; }
         .role-agendador { background: rgba(77,184,122,0.12); color: #3aa066; }
-        .admin-btn-del { background: none; border: none; color: var(--text-dim); font-size: 1rem; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: all 0.15s; }
-        .admin-btn-del:hover:not(:disabled) { color: var(--red); background: rgba(217,79,79,0.08); }
+        .admin-btn-del { background: rgba(217,79,79,0.08); border: 1px solid rgba(217,79,79,0.25); color: #d94f4f; font-size: 0.78rem; font-weight: 700; font-family: var(--mono); cursor: pointer; padding: 5px 12px; border-radius: 8px; transition: all 0.15s; white-space: nowrap; }
+        .admin-btn-del:hover:not(:disabled) { background: rgba(217,79,79,0.18); border-color: rgba(217,79,79,0.5); }
         .admin-btn-del:disabled { opacity: 0.3; cursor: not-allowed; }
         .admin-add-form { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
         .admin-add-form label { font-family: var(--mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); display: block; margin-bottom: 4px; }
