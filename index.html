@@ -18628,23 +18628,33 @@ window.buildCardHTML = function(proc) {
 <!-- ── PDF NF Import ── -->
 <script>
 (function () {
-    var PDF_JS_SRC    = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
-    var PDF_JS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    var PDF_JS_SRCS = [
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+        'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js'
+    ];
+    var PDF_JS_WORKERS = [
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+        'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js'
+    ];
 
     function carregarPdfJs() {
         if (window.pdfjsLib) return Promise.resolve();
-        return new Promise(function (ok, fail) {
-            var timer = setTimeout(function () { fail(new Error('Timeout ao carregar PDF.js')); }, 15000);
-            var s = document.createElement('script');
-            s.src = PDF_JS_SRC;
-            s.onload = function () {
-                clearTimeout(timer);
-                try { pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_JS_WORKER; ok(); }
-                catch (e) { fail(e); }
-            };
-            s.onerror = function () { clearTimeout(timer); fail(new Error('Falha ao carregar PDF.js')); };
-            document.head.appendChild(s);
-        });
+        function tentarCarregar(idx) {
+            if (idx >= PDF_JS_SRCS.length) return Promise.reject(new Error('Falha ao carregar PDF.js (todas as fontes falharam)'));
+            return new Promise(function (ok, fail) {
+                var timer = setTimeout(function () { fail(new Error('timeout')); }, 12000);
+                var s = document.createElement('script');
+                s.src = PDF_JS_SRCS[idx];
+                s.onload = function () {
+                    clearTimeout(timer);
+                    try { pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_JS_WORKERS[idx]; ok(); }
+                    catch (e) { fail(e); }
+                };
+                s.onerror = function () { clearTimeout(timer); fail(new Error('onerror')); };
+                document.head.appendChild(s);
+            }).catch(function() { return tentarCarregar(idx + 1); });
+        }
+        return tentarCarregar(0);
     }
 
     // Converte dd/mm/yy, dd/mm/yyyy, dd-mm-yyyy ou dd.mm.yyyy para yyyy-mm-dd
@@ -18908,7 +18918,9 @@ window.buildCardHTML = function(proc) {
         try {
             await carregarPdfJs();
             var buf = await file.arrayBuffer();
-            var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+            var loadTask = pdfjsLib.getDocument({ data: new Uint8Array(buf), disableRange: true, disableStream: true });
+            loadTask.onPassword = function(cb) { cb(''); };
+            var pdf = await loadTask.promise;
             var texto = '';
             for (var i = 1; i <= pdf.numPages; i++) {
                 var page = await pdf.getPage(i);
@@ -18970,7 +18982,13 @@ window.buildCardHTML = function(proc) {
             var nok = Object.keys(labels).filter(function (k) { return !dados[k]; }).length;
             status.textContent = (8 - nok) + '/8 campos + ' + produtos.length + ' produto(s)';
         } catch (err) {
-            status.textContent = '⚠ Erro ao ler PDF. Verifique se o arquivo não está protegido.';
+            var msg = err && err.message ? err.message : String(err);
+            var dica = msg.toLowerCase().includes('password') || msg.toLowerCase().includes('encrypt')
+                ? '⚠ PDF protegido por senha — não é possível ler automaticamente.'
+                : msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('falha') || msg.toLowerCase().includes('load')
+                    ? '⚠ Falha ao carregar leitor de PDF. Verifique sua conexão e tente novamente.'
+                    : '⚠ Erro ao ler PDF: ' + msg;
+            status.textContent = dica;
             console.error('PDF NF import:', err);
         }
         input.value = '';
