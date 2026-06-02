@@ -8280,8 +8280,28 @@ function editProc(docId) {
         setTimeout(() => { document.getElementById('f-status').value = p.status; }, 10);
     }
     document.getElementById('f-data').value = p.data;
-    // Carregar médico: verificar se está na lista ou colocar no "outro"
-    document.getElementById('f-medico').value = p.medico || '';
+    // Médico: verificar se está na lista, senão usa 'outro'
+    (function() {
+        const selMed = document.getElementById('f-medico');
+        const gMed   = document.getElementById('g-outro-medico');
+        const omInput= document.getElementById('f-outro-medico');
+        const medico = p.medico || '';
+        const nomeU  = medico.toUpperCase().replace(/\s+/g,' ').trim();
+        const match  = Array.from(selMed.options).find(o => o.value.toUpperCase().replace(/\s+/g,' ').trim() === nomeU);
+        if (match && match.value && match.value !== '__outro') {
+            selMed.value = match.value;
+            if (gMed) gMed.style.display = 'none';
+            if (omInput) omInput.value = '';
+        } else if (medico) {
+            selMed.value = '__outro';
+            if (gMed) gMed.style.display = 'block';
+            if (omInput) omInput.value = medico;
+        } else {
+            selMed.value = '';
+            if (gMed) gMed.style.display = 'none';
+            if (omInput) omInput.value = '';
+        }
+    })();
     document.getElementById('f-paciente').value = p.paciente || '';
     if (document.getElementById('f-pacienteIdade')) document.getElementById('f-pacienteIdade').value = p.pacienteIdade || '';
     document.getElementById('f-procedimento').value = p.procedimento;
@@ -8444,7 +8464,11 @@ async function saveProcedure(e) {
     if (_isColeta && (!convenio || convenio === '__outro')) convenio = '—';
 
     // Validação médico
-    let medico = document.getElementById('f-medico').value.trim().toUpperCase();
+    let medico = document.getElementById('f-medico').value.trim();
+    if (medico === '__outro') {
+        medico = (document.getElementById('f-outro-medico')?.value || '').trim();
+    }
+    medico = medico.toUpperCase();
     if (!_isColeta && !medico) { alert('Informe o nome do médico'); document.getElementById('f-medico').focus(); return; }
     if (_isColeta && !medico) medico = '';
 
