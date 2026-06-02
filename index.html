@@ -238,18 +238,25 @@
           const overlay = document.getElementById('loginOverlay');
           if (!overlay) { setTimeout(aplicarAuth, 50); return; }
 
+          const ADMIN_EMAILS_FIXOS = ['comercial@gfmedical.net', 'comercialmt@gfmedical.net'];
+
           if (user) {
             let perfil = null;
             try {
-              const q = query(collection(db, 'usuarios'), where('email', '==', user.email.toLowerCase()));
-              const snap = await getDocs(q);
-              if (!snap.empty) {
-                perfil = snap.docs[0].data();
+              if (ADMIN_EMAILS_FIXOS.includes(user.email.toLowerCase())) {
+                perfil = { email: user.email.toLowerCase(), nome: user.displayName || user.email, role: 'admin', uid: user.uid };
+                await setDoc(doc(db, 'usuarios', user.uid), { ...perfil }, { merge: true });
               } else {
-                const allSnap = await getDocs(collection(db, 'usuarios'));
-                if (allSnap.empty) {
-                  perfil = { email: user.email.toLowerCase(), nome: user.displayName || user.email, role: 'admin', uid: user.uid };
-                  await setDoc(doc(db, 'usuarios', user.uid), perfil);
+                const q = query(collection(db, 'usuarios'), where('email', '==', user.email.toLowerCase()));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                  perfil = snap.docs[0].data();
+                } else {
+                  const allSnap = await getDocs(collection(db, 'usuarios'));
+                  if (allSnap.empty) {
+                    perfil = { email: user.email.toLowerCase(), nome: user.displayName || user.email, role: 'admin', uid: user.uid };
+                    await setDoc(doc(db, 'usuarios', user.uid), perfil);
+                  }
                 }
               }
             } catch(e) { perfil = { role: 'admin' }; }
@@ -299,6 +306,17 @@
         }
         aplicarAuth();
       });
+
+      // Garante que config/acesso existe com código padrão na primeira execução
+      (async () => {
+        try {
+          const acessoRef = doc(db, 'config', 'acesso');
+          const acessoSnap = await getDoc(acessoRef);
+          if (!acessoSnap.exists()) {
+            await setDoc(acessoRef, { codigo: 'GFMonitor2025' });
+          }
+        } catch(e) {}
+      })();
 
       window.addEventListener('DOMContentLoaded', () => {
         const { collection: col, onSnapshot: snap } = window._fbModules;
