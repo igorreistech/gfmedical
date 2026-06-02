@@ -444,10 +444,11 @@
                   p.status = 'em_transito';
                   autoTransitar(p, 'preparacao');
                 }
-                // Em Trânsito + hoje é a cirurgia → pede confirmação para Em Procedimento
-                if (p.status === 'em_transito' && p.data && p.data === hoje
-                         && !window._confirmacaoInicioFeita.has(p._docId)) {
-                  paraPromover.push(p);
+                // Qualquer status pré-procedimento com data hoje → Em Procedimento (silencioso)
+                if (['a_agendar','agendado','preparacao','em_transito'].includes(p.status) && p.data && p.data === hoje) {
+                  const anterior = p.status;
+                  p.status = 'andamento';
+                  autoTransitar(p, anterior);
                 }
               });
 
