@@ -454,6 +454,7 @@
 
 
               window.renderCards();
+              window.renderTable && window.renderTable();
               window.updateStats();
               window.updatePeriodResult();
               window.updateAlerts();
@@ -8221,6 +8222,8 @@ async function deleteProc(docId) {
         const idx = window.procedimentos.findIndex(p => p._docId === proc._docId);
         if (idx !== -1) window.procedimentos.splice(idx, 1);
         window.renderAgendadorLista && window.renderAgendadorLista();
+        window.renderCards && window.renderCards();
+        window.renderTable && window.renderTable();
         if (proc._docId) fbDeleteProc(proc._docId);
     };
 }
