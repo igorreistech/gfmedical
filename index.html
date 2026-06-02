@@ -6824,140 +6824,39 @@ async function _abrirWhatsApp(texto) {
     window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(textoLimpo), '_blank');
 }
 
-// ─── EXPORTAR WHATSAPP — cirurgias realizadas ───
+// ─── EXPORTAR WHATSAPP — aguardando retirada ───
 async function exportarWhatsApp() {
     await verificarPromocaoRetirada();
 
-    var hoje = todayStr();
-    var amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
-    var amanha = amanhaD.getFullYear() + '-' + String(amanhaD.getMonth()+1).padStart(2,'0') + '-' + String(amanhaD.getDate()).padStart(2,'0');
     var fmt = function(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—'; };
 
-    // 1. Aguardando retirada — todos os pendentes
     var cirurgias = procedimentos.filter(function(p) {
         if (_ehColeta(p) || p.isColeta) return false;
         return p.status === 'a_retirar';
     });
     cirurgias.sort(function(a,b) { return (a.retirada||'').localeCompare(b.retirada||''); });
 
-    // 2. Volumes urgentes com retirada hoje ou amanhã (1 dia antes)
-    var coletas = procedimentos.filter(function(p) {
-        if (!_ehColeta(p)) return false;
-        if (p.status === 'concluido' || p.status === 'cancelado') return false;
-        var ret = p.retirada || p.dataRetirar || '';
-        return ret && ret <= amanha;
-    });
-    coletas.sort(function(a,b) {
-        var ra = a.retirada||a.dataRetirar||'', rb = b.retirada||b.dataRetirar||'';
-        return ra.localeCompare(rb);
-    });
-
-    // 3. Agendados e Em Separação hoje e amanhã
-    var agendados = procedimentos.filter(function(p) {
-        return (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanha);
-    });
-    agendados.sort(function(a,b) {
-        return (a.data||'').localeCompare(b.data||'') || (a.inicio||'').localeCompare(b.inicio||'');
-    });
-
-    if (cirurgias.length === 0 && coletas.length === 0 && agendados.length === 0) {
-        alert('✅ Sem pendências!\n\nNenhuma retirada vencida ou cirurgia agendada para hoje/amanhã.');
+    if (cirurgias.length === 0) {
+        alert('✅ Sem pendências!\n\nNenhum material aguardando retirada.');
         return;
     }
 
     var linhas = [];
-    linhas.push('📋 *GF Medical — Resumo do Dia* 🟢');
-    linhas.push('📅 Gerado em: ' + new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
-    linhas.push('━━━━━━━━━━━━━━━━━━━━━━');
-
-    var contador = 1;
-
-    // ── Agendados ──
-    if (agendados.length > 0) {
-        var hojeArr = agendados.filter(function(p){ return p.data === hoje; });
-        var amanhaArr = agendados.filter(function(p){ return p.data === amanha; });
-
-        if (hojeArr.length > 0) {
-            linhas.push('');
-            linhas.push('📅 *CIRURGIAS HOJE — ' + fmt(hoje) + ' (' + hojeArr.length + ')*');
-            hojeArr.forEach(function(p) {
-                var nomePac = (p.paciente && p.paciente.trim()) ? p.paciente.trim().toUpperCase() : ((p.hospital||'').replace(/^Hospital /i,'').substring(0,25) + ' — ' + (p.medico||'').split(' ').slice(0,2).join(' '));
-                linhas.push('');
-                var statusLabel = p.status === 'preparacao' ? ' 🔧 Em Separação' : '';
-                linhas.push('*' + contador + '. ' + nomePac + statusLabel + '*');
-                if (p.inicio) linhas.push('⏰ Horário: ' + p.inicio);
-                linhas.push('🏥 Hospital: ' + (p.hospital||'—'));
-                linhas.push('👨‍⚕️ Cirurgião: ' + (p.medico||'—'));
-                if (p.procedimento && p.procedimento !== '—') linhas.push('🔬 Procedimento: ' + p.procedimento);
-                if (p.convenio && p.convenio !== '—') linhas.push('🏦 Convênio: ' + p.convenio);
-                if (p.vendedor && p.vendedor !== '—') linhas.push('👤 Vendedor: ' + p.vendedor);
-                linhas.push('');
-                contador++;
-            });
-        }
-        if (amanhaArr.length > 0) {
-            linhas.push('');
-            linhas.push('📅 *CIRURGIAS AMANHÃ — ' + fmt(amanha) + ' (' + amanhaArr.length + ')*');
-            amanhaArr.forEach(function(p) {
-                var nomePac = (p.paciente && p.paciente.trim()) ? p.paciente.trim().toUpperCase() : ((p.hospital||'').replace(/^Hospital /i,'').substring(0,25) + ' — ' + (p.medico||'').split(' ').slice(0,2).join(' '));
-                linhas.push('');
-                var statusLabel2 = p.status === 'preparacao' ? ' 🔧 Em Separação' : '';
-                linhas.push('*' + contador + '. ' + nomePac + statusLabel2 + '*');
-                if (p.inicio) linhas.push('⏰ Horário: ' + p.inicio);
-                linhas.push('🏥 Hospital: ' + (p.hospital||'—'));
-                linhas.push('👨‍⚕️ Cirurgião: ' + (p.medico||'—'));
-                if (p.procedimento && p.procedimento !== '—') linhas.push('🔬 Procedimento: ' + p.procedimento);
-                if (p.convenio && p.convenio !== '—') linhas.push('🏦 Convênio: ' + p.convenio);
-                if (p.vendedor && p.vendedor !== '—') linhas.push('👤 Vendedor: ' + p.vendedor);
-                linhas.push('');
-                contador++;
-            });
-        }
-    }
-
-    // ── Aguardando Retirada ──
-    if (cirurgias.length > 0) {
-        linhas.push('');
-        linhas.push('Olá! 😊');
-        linhas.push('Segue as pendências de *Monitor Cirúrgico* que ainda não foram devolvidos ao estoque:');
-        cirurgias.forEach(function(p, i) {
-            linhas.push('');
-            linhas.push('---');
-            linhas.push('👤 *Paciente:* ' + (p.paciente || '—'));
-            linhas.push('🏥 *Hospital:* ' + (p.hospital || '—'));
-            linhas.push('🧾 *Nº da Nota Fiscal:* ' + (p.nf || '—'));
-            linhas.push('🙍 *Vendedor:* ' + (p.vendedor || '—'));
-            linhas.push('📅 *Data de retirada:* ' + fmt(p.retirada));
-        });
+    linhas.push('Olá! 😊');
+    linhas.push('Segue as pendências de *Monitor Cirúrgico* que ainda não foram devolvidos ao estoque:');
+    cirurgias.forEach(function(p) {
         linhas.push('');
         linhas.push('---');
-        linhas.push('Por favor, providencie a devolução o quanto antes para garantir a disponibilidade dos produtos no estoque.');
-        linhas.push('Qualquer dúvida, é só me chamar! 🙏');
-    }
-
-    // ── Retirar Volumes Urgentes ──
-    if (coletas.length > 0) {
-        linhas.push('');
-        linhas.push('✈️ *RETIRAR VOLUMES URGENTES (' + coletas.length + ')*');
-        coletas.forEach(function(p) {
-            var retData = p.retirada || p.dataRetirar || '';
-            linhas.push('');
-            linhas.push('*' + contador + '. ✈️ RETIRAR VOLUMES URGENTES*');
-            linhas.push('📦 *Data de Retirada: ' + fmt(retData) + (p.horaRetirar?' às '+p.horaRetirar:'') + '*');
-            if (p.nfCompra) linhas.push('🧾 NF de Compra: ' + p.nfCompra);
-            if (p.cte) linhas.push('📋 N° CTE: ' + p.cte);
-            if (p.coletaFornecedor) linhas.push('🏭 Fornecedor: ' + p.coletaFornecedor);
-            if (p.coletaTransportadora) linhas.push('🚚 Transportadora: ' + p.coletaTransportadora);
-            if (p.coletaDataCirurgia) linhas.push('📅 Data Cirurgia: ' + fmt(p.coletaDataCirurgia) + (p.coletaHoraCirurgia?' às '+p.coletaHoraCirurgia:''));
-            if (p.vendedor) linhas.push('👤 Vendedor: ' + p.vendedor);
-            if (p.obs) linhas.push('📝 Obs: ' + p.obs);
-            linhas.push('');
-            contador++;
-        });
-    }
-
-    linhas.push('━━━━━━━━━━━━━━━━━━━━━━');
-    linhas.push('Total: *' + (cirurgias.length + coletas.length + agendados.length) + ' item(ns)*');
+        linhas.push('👤 *Paciente:* ' + (p.paciente || '—'));
+        linhas.push('🏥 *Hospital:* ' + (p.hospital || '—'));
+        linhas.push('🧾 *Nº da Nota Fiscal:* ' + (p.nf || '—'));
+        linhas.push('🙍 *Vendedor:* ' + (p.vendedor || '—'));
+        linhas.push('📅 *Data de retirada:* ' + fmt(p.retirada));
+    });
+    linhas.push('');
+    linhas.push('---');
+    linhas.push('Por favor, providencie a devolução o quanto antes para garantir a disponibilidade dos produtos no estoque.');
+    linhas.push('Qualquer dúvida, é só me chamar! 🙏');
 
     _abrirWhatsApp(linhas.join('\n'));
 }
