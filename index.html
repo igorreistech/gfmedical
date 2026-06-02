@@ -862,8 +862,13 @@
             position: relative;
             overflow: visible;
         }
-        .fab-btn:active { transform: scale(0.91); }
-        .fab-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,0.38); }
+        @keyframes fab-float {
+            0%   { transform: translateY(0px); }
+            50%  { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .fab-btn:active { transform: scale(0.91) !important; animation: none !important; }
+        .fab-btn:hover { animation: fab-float 0.8s ease-in-out infinite; box-shadow: 0 12px 32px rgba(0,0,0,0.42); }
         .fab-cirurgia { background: var(--green); }
         .fab-coleta   { background: linear-gradient(135deg, #6366f1, #818cf8); }
         .fab-btn-label {
@@ -4629,8 +4634,8 @@
         </div>
         <button class="btn-export" onclick="openExportModal()">⬇ Exportar Excel</button>
         <button onclick="exportarWhatsApp()" style="padding:8px 18px;border-radius:10px;background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;cursor:pointer;">💬 Cobrar via WhatsApp</button>
-        <button id="btn-nova-cirurgia" class="btn-add" onclick="openModal()">+ Cirurgia</button>
-        <button id="btn-nova-coleta" class="btn-add" onclick="openModalVolumes()" style="background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;margin-left:6px;">✈️ + Adicionar Coleta Prioritária</button>
+        <button id="btn-nova-cirurgia" class="btn-add" onclick="openModal()" style="display:none;"></button>
+        <button id="btn-nova-coleta" class="btn-add" onclick="openModalVolumes()" style="display:none;"></button>
     </div>
 
     
