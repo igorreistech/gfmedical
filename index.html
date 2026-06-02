@@ -19067,49 +19067,6 @@ window.buildCardHTML = function(proc) {
         setTimeout(atualizarResumoDatas, 2000);
         setInterval(atualizarResumoDatas, 8000);
 
-        // ── 5. MODAL SALVA RASCUNHO AO FECHAR ──
-        var DRAFT_KEY = 'gf_modal_draft_cgr';
-        var DRAFT_FIELDS = ['f-hospital','f-medico','f-paciente','f-procedimento','f-data','f-inicio','f-convenio','f-vendedor','f-linha','f-obs'];
-        var overlay2 = document.getElementById('modalOverlay');
-        if (overlay2) {
-            new MutationObserver(function() {
-                var isOpen = overlay2.classList.contains('open');
-                if (!isOpen) {
-                    // Modal fechou — salvar rascunho se for novo procedimento
-                    var editEl = document.getElementById('editIndex');
-                    if (editEl && !editEl.value) {
-                        var draft = {};
-                        var hasData = false;
-                        DRAFT_FIELDS.forEach(function(id) {
-                            var el = document.getElementById(id);
-                            if (el && el.value && el.value.trim()) { draft[id] = el.value; hasData = true; }
-                        });
-                        if (hasData) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-                        else sessionStorage.removeItem(DRAFT_KEY);
-                    }
-                } else {
-                    // Modal abriu — oferecer restaurar rascunho (só se for novo)
-                    setTimeout(function() {
-                        var editEl = document.getElementById('editIndex');
-                        if (editEl && editEl.value) return; // É edição — não restaurar
-                        var draftStr = sessionStorage.getItem(DRAFT_KEY);
-                        if (!draftStr) return;
-                        try {
-                            var draft = JSON.parse(draftStr);
-                            var hasContent = Object.values(draft).some(function(v) { return v && v.trim(); });
-                            if (!hasContent) return;
-                            if (confirm('💾 Existe um rascunho não salvo. Deseja restaurar os dados?')) {
-                                Object.entries(draft).forEach(function(entry) {
-                                    var el = document.getElementById(entry[0]);
-                                    if (el) el.value = entry[1];
-                                });
-                            }
-                            sessionStorage.removeItem(DRAFT_KEY);
-                        } catch(e) {}
-                    }, 250);
-                }
-            }).observe(overlay2, { attributes: true, attributeFilter: ['class'] });
-        }
 
     });
 })();
