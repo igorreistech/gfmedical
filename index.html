@@ -414,13 +414,10 @@
             try {
                             // Auto-status por data de cirurgia:
               // - Agendado + véspera (D-1) → Em Separação (automático)
-              // - Em Separação + 1 ou 2 dias antes → Em Trânsito (nota fiscal emitida)
-              // - Em Trânsito + hoje é a cirurgia → pede confirmação para Em Procedimento
+              // - Em Separação ou Em Trânsito + hoje é a cirurgia → pede confirmação para Em Procedimento
               const hoje = new Date().toISOString().split('T')[0];
               const amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
               const amanha = amanhaD.getFullYear() + '-' + String(amanhaD.getMonth()+1).padStart(2,'0') + '-' + String(amanhaD.getDate()).padStart(2,'0');
-              const depoisAmanhaD = new Date(); depoisAmanhaD.setDate(depoisAmanhaD.getDate() + 2);
-              const depoisAmanha = depoisAmanhaD.getFullYear() + '-' + String(depoisAmanhaD.getMonth()+1).padStart(2,'0') + '-' + String(depoisAmanhaD.getDate()).padStart(2,'0');
               function autoTransitar(p, statusAnterior) {
                 p.autoTransicaoEm = new Date().toISOString();
                 try { notificarMudancaStatus(p, statusAnterior); } catch(e3) {}
@@ -439,16 +436,10 @@
                   p.status = 'preparacao';
                   autoTransitar(p, 'agendado');
                 }
-                // Em Separação + 1 ou 2 dias antes da cirurgia → Em Trânsito (nota fiscal emitida)
-                if (p.status === 'preparacao' && p.data && (p.data === amanha || p.data === depoisAmanha)) {
-                  p.status = 'em_transito';
-                  autoTransitar(p, 'preparacao');
-                }
-                // Qualquer status pré-procedimento com data hoje → Em Procedimento (silencioso)
-                if (['a_agendar','agendado','preparacao','em_transito'].includes(p.status) && p.data && p.data === hoje) {
-                  const anterior = p.status;
-                  p.status = 'andamento';
-                  autoTransitar(p, anterior);
+                // Em Separação ou Em Trânsito + dia da cirurgia → pede confirmação
+                else if ((p.status === 'preparacao' || p.status === 'em_transito') && p.data && p.data === hoje
+                         && !window._confirmacaoInicioFeita.has(p._docId)) {
+                  paraPromover.push(p);
                 }
               });
 
@@ -5417,7 +5408,7 @@
 
                 <div class="form-group">
                     <label class="form-label">Nº Nota Fiscal</label>
-                    <input class="form-input" id="f-nf" placeholder="Ex: 000123">
+                    <input class="form-input" id="f-nf" placeholder="Ex: 000123" oninput="autoTransitoNF(this.value)">
                 </div>
                 <div class="form-group">
                     <label class="form-label">💰 Valor (R$)</label>
@@ -6463,6 +6454,15 @@ function autoStatusByDate(dataCirurgia) {
     const novoStatus = dataCirurgia > todayStr() ? 'agendado' : 'andamento';
     fStatus.value = novoStatus;
     fStatus.dispatchEvent(new Event('change'));
+}
+
+function autoTransitoNF(nfValue) {
+    const fStatus = document.getElementById('f-status');
+    if (!fStatus || !nfValue.trim()) return;
+    if (fStatus.value === 'agendado' || fStatus.value === 'preparacao') {
+        fStatus.value = 'em_transito';
+        fStatus.dispatchEvent(new Event('change'));
+    }
 }
 
 function autoPreencherRetiradaColeta(dataCirurgia) {
@@ -9696,8 +9696,7 @@ async function verificarPromocaoRetirada() {
 
 // ─── CONFIRMAÇÃO: Em Separação → Em Procedimento ───
 async function confirmarInicioCircurgia(lista, db, COLL) {
-    // Filtra apenas os que ainda estão em em_transito (evita dupla execução)
-    const pendentes = lista.filter(p => p.status === 'em_transito' && p._docId);
+    const pendentes = lista.filter(p => (p.status === 'preparacao' || p.status === 'em_transito') && p._docId);
     if (pendentes.length === 0) return;
 
     // Mostra um modal para cada procedimento
