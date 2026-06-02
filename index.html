@@ -277,19 +277,20 @@
           const ADMIN_EMAILS_FIXOS = ['comercial@gfmedical.net', 'comercialmt@gfmedical.net'];
 
           if (user) {
+            const emailLower = (user.email || '').toLowerCase();
+            const isAdminFixo = ADMIN_EMAILS_FIXOS.includes(emailLower);
             let perfil = null;
-            if (ADMIN_EMAILS_FIXOS.includes(user.email.toLowerCase())) {
-              perfil = { email: user.email.toLowerCase(), nome: user.displayName || user.email, role: 'admin', uid: user.uid };
-              try { await setDoc(doc(db, 'usuarios', user.uid), { ...perfil }, { merge: true }); } catch(e) {}
+            if (isAdminFixo) {
+              perfil = { email: emailLower, nome: user.displayName || user.email, role: 'admin', uid: user.uid };
+              try { await setDoc(doc(db, 'usuarios', user.uid), { ...perfil }); } catch(e) {}
             } else {
               try {
-                const q = query(collection(db, 'usuarios'), where('email', '==', user.email.toLowerCase()));
-                const snap = await getDocs(q);
-                if (!snap.empty) {
-                  perfil = snap.docs[0].data();
+                const snap = await getDoc(doc(db, 'usuarios', user.uid));
+                if (snap.exists()) {
+                  perfil = snap.data();
                 } else {
                   // Novo usuário via OAuth: auto-cadastra como agendador
-                  perfil = { email: user.email.toLowerCase(), nome: user.displayName || user.email, role: 'agendador', uid: user.uid };
+                  perfil = { email: emailLower, nome: user.displayName || user.email, role: 'agendador', uid: user.uid };
                   await setDoc(doc(db, 'usuarios', user.uid), perfil);
                 }
               } catch(e) { perfil = null; }
@@ -297,9 +298,12 @@
 
             // Garante que sempre há um perfil válido (somente para não-admins)
             if (!perfil) {
-              perfil = { email: (user.email||'').toLowerCase(), nome: user.displayName || user.email, role: 'agendador', uid: user.uid };
+              perfil = { email: emailLower, nome: user.displayName || user.email, role: 'agendador', uid: user.uid };
               try { await setDoc(doc(db, 'usuarios', user.uid), perfil, { merge: true }); } catch(e2) {}
             }
+
+            // Segurança final: emails fixos SEMPRE são admin, nunca agendador
+            if (isAdminFixo) perfil.role = 'admin';
 
             window._currentUser = { uid: user.uid, email: user.email, nome: perfil.nome || user.displayName || user.email, role: perfil.role };
             overlay.classList.add('hidden');
