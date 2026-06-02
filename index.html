@@ -8160,7 +8160,10 @@ async function deleteProc(docId) {
     overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
     overlay.querySelector('#btnConfirmDel').onclick = async () => {
         overlay.remove();
-        if (proc._docId) await fbDeleteProc(proc._docId);
+        const idx = window.procedimentos.findIndex(p => p._docId === proc._docId);
+        if (idx !== -1) window.procedimentos.splice(idx, 1);
+        window.renderAgendadorLista && window.renderAgendadorLista();
+        if (proc._docId) fbDeleteProc(proc._docId);
     };
 }
 
