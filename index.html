@@ -8516,8 +8516,9 @@ async function saveProcedure(e) {
         proc._docId = existingProc._docId;
     }
 
-    // Auto: Em Separação + NF inserida → Em Trânsito
-    if (proc.status === 'preparacao' && proc.nf && proc.nf.trim()) {
+    // Auto: Em Separação + NF inserida → Em Trânsito (só se não estava já em trânsito — evita bloquear retorno manual)
+    const _statusAnteriorSalvar = existingProc ? existingProc.status : null;
+    if (proc.status === 'preparacao' && proc.nf && proc.nf.trim() && _statusAnteriorSalvar !== 'em_transito') {
         proc.status = 'em_transito';
     }
 
