@@ -8783,12 +8783,6 @@ function switchView(v) {
     const tabColeta = document.getElementById('tab-coleta');
     if (tabColeta) tabColeta.classList.toggle('active', isColeta);
 
-    // ── Botões de ação contextuais ────────────────────────────────
-    const btnCirurgia = document.getElementById('btn-nova-cirurgia');
-    const btnColeta   = document.getElementById('btn-nova-coleta');
-    if (btnCirurgia) btnCirurgia.style.display = isCentral ? '' : 'none';
-    if (btnColeta)   btnColeta.style.display   = isColeta  ? '' : 'none';
-
     // ── Renderizar ────────────────────────────────────────────────
     if (isCentral)   renderTable();
     if (isDashboard) renderDashboard();
