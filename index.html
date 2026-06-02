@@ -263,14 +263,12 @@
                   await setDoc(doc(db, 'usuarios', user.uid), perfil);
                 }
               }
-            } catch(e) { perfil = { role: 'admin' }; }
+            } catch(e) { perfil = null; }
 
+            // Garante que sempre há um perfil válido
             if (!perfil) {
-              const err = document.getElementById('loginError');
-              if (err) { err.textContent = 'Usuário não cadastrado. Contate o administrador.'; err.style.display = 'block'; }
-              overlay.classList.remove('hidden');
-              await signOut(auth);
-              return;
+              perfil = { email: (user.email||'').toLowerCase(), nome: user.displayName || user.email, role: 'agendador', uid: user.uid };
+              try { await setDoc(doc(db, 'usuarios', user.uid), perfil, { merge: true }); } catch(e2) {}
             }
 
             window._currentUser = { uid: user.uid, email: user.email, nome: perfil.nome || user.displayName || user.email, role: perfil.role };
