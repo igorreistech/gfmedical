@@ -8373,7 +8373,8 @@ async function saveProcedure(e) {
     // Validação: status A Retirar, Em Procedimento e Retirar Volumes Urgentes exigem data de retirada
     const status = document.getElementById('f-status').value;
     const retirada = document.getElementById('f-retirada').value;
-    const statusExigeRetirada = status === 'a_retirar' || status === 'andamento' || status === 'coleta_urgente';
+    const _isAgendador = window._currentUser && window._currentUser.role === 'agendador';
+    const statusExigeRetirada = !_isAgendador && (status === 'a_retirar' || status === 'andamento' || status === 'coleta_urgente');
     if (statusExigeRetirada && !retirada) {
         const inp = document.getElementById('f-retirada');
         inp.style.borderColor = '#f97316';
@@ -8448,7 +8449,9 @@ async function saveProcedure(e) {
         proc.status = 'em_transito';
     }
 
-    if (window._currentUser && !proc.cadastradoPor) {
+    if (existingProc && existingProc.cadastradoPor) {
+        proc.cadastradoPor = existingProc.cadastradoPor;
+    } else if (window._currentUser && !proc.cadastradoPor) {
         proc.cadastradoPor = window._currentUser.uid;
     }
 
