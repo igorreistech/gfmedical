@@ -11,7 +11,7 @@
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
       import { getFirestore, collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDoc, getDocs, query, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-      import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+      import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
       import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
       const firebaseConfig = {
@@ -149,7 +149,36 @@
       window.showLogin = function() {
         document.getElementById('loginPanel').style.display = 'block';
         document.getElementById('registerPanel').style.display = 'none';
+        document.getElementById('resetPanel').style.display = 'none';
         document.getElementById('loginError').style.display = 'none';
+      };
+      window.showResetPassword = function() {
+        document.getElementById('loginPanel').style.display = 'none';
+        document.getElementById('registerPanel').style.display = 'none';
+        document.getElementById('resetPanel').style.display = 'block';
+        document.getElementById('loginError').style.display = 'none';
+        document.getElementById('resetSuccessMsg').style.display = 'none';
+        const emailField = document.getElementById('loginUser');
+        if (emailField && emailField.value) document.getElementById('resetEmail').value = emailField.value;
+      };
+      window.doResetPassword = async function() {
+        const email = (document.getElementById('resetEmail').value || '').trim();
+        const err = document.getElementById('loginError');
+        const btn = document.getElementById('resetBtn');
+        if (!email) { err.textContent = 'Informe seu e-mail.'; err.style.display = 'block'; return; }
+        btn.disabled = true; btn.textContent = 'Enviando…';
+        try {
+          await sendPasswordResetEmail(auth, email);
+          err.style.display = 'none';
+          document.getElementById('resetSuccessMsg').style.display = 'block';
+        } catch(e) {
+          let msg = 'Erro ao enviar e-mail.';
+          if (e.code === 'auth/user-not-found') msg = 'E-mail não encontrado.';
+          else if (e.code === 'auth/invalid-email') msg = 'E-mail inválido.';
+          err.textContent = msg; err.style.display = 'block';
+        } finally {
+          btn.disabled = false; btn.textContent = 'Enviar link';
+        }
       };
 
       async function _loginOAuth(provider, btnId) {
@@ -4285,6 +4314,7 @@
                     <input class="login-input" type="password" id="loginPass" name="password" placeholder="••••••••" autocomplete="current-password">
                 </div>
                 <button type="submit" class="login-btn" id="loginBtn">Entrar</button>
+                <div style="text-align:right;margin-top:6px;"><button type="button" class="login-toggle-link" onclick="showResetPassword()" style="font-size:0.78rem;opacity:0.75;">Esqueci minha senha</button></div>
             </form>
             <div class="login-divider"><span>ou continue com</span></div>
             <div class="login-oauth-buttons">
@@ -4322,6 +4352,18 @@
                 <button type="submit" class="login-btn" id="regBtn">Criar conta</button>
             </form>
             <div class="login-toggle">Já tem conta? <button class="login-toggle-link" onclick="showLogin()">Fazer login</button></div>
+        </div>
+
+        <!-- Painel de recuperação de senha -->
+        <div id="resetPanel" style="display:none;">
+            <p style="font-size:0.84rem;color:var(--text-dim,#8aa4b1);margin:0 0 18px;line-height:1.5;">Informe seu e-mail e enviaremos um link para redefinir sua senha.</p>
+            <div class="login-group">
+                <label class="login-label">E-mail</label>
+                <input class="login-input" type="email" id="resetEmail" placeholder="seu@email.com" autocomplete="email">
+            </div>
+            <div id="resetSuccessMsg" style="display:none;background:rgba(5,150,105,0.1);border:1px solid rgba(5,150,105,0.3);color:#059669;padding:10px 14px;border-radius:8px;font-size:0.82rem;margin-bottom:12px;">✓ Link enviado! Verifique sua caixa de entrada.</div>
+            <button type="button" class="login-btn" id="resetBtn" onclick="doResetPassword()">Enviar link</button>
+            <div class="login-toggle">Lembrou a senha? <button class="login-toggle-link" onclick="showLogin()">Voltar ao login</button></div>
         </div>
 
         <div class="login-error" id="loginError" style="display:none;"></div>
