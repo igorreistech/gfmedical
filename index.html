@@ -319,7 +319,7 @@
           const acessoRef = doc(db, 'config', 'acesso');
           const acessoSnap = await getDoc(acessoRef);
           if (!acessoSnap.exists()) {
-            await setDoc(acessoRef, { codigo: 'GFMonitor2025' });
+            await setDoc(acessoRef, { codigo: '140424' });
           }
         } catch(e) {}
       })();
