@@ -8472,8 +8472,19 @@ async function saveProcedure(e) {
     if (!_isColeta && !medico) { alert('Informe o nome do médico'); document.getElementById('f-medico').focus(); return; }
     if (_isColeta && !medico) medico = '';
 
-    // Validação: status A Retirar, Em Procedimento e Retirar Volumes Urgentes exigem data de retirada
+    // Validação: status Em Trânsito exige NF preenchida
     const status = document.getElementById('f-status').value;
+    const nfVal = document.getElementById('f-nf').value.trim();
+    if (status === 'em_transito' && !nfVal) {
+        const inp = document.getElementById('f-nf');
+        inp.style.borderColor = '#f97316';
+        inp.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.3)';
+        inp.focus();
+        alert('⚠️ Informe o Número da NF para o status "Em Trânsito"!');
+        return;
+    }
+
+    // Validação: status A Retirar, Em Procedimento e Retirar Volumes Urgentes exigem data de retirada
     const retirada = document.getElementById('f-retirada').value;
     const _isAgendador = window._currentUser && window._currentUser.role === 'agendador';
     const statusExigeRetirada = !_isAgendador && (status === 'a_retirar' || status === 'andamento' || status === 'coleta_urgente');
