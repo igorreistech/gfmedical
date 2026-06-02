@@ -342,9 +342,11 @@
             const mainCont  = document.querySelector('.container');
             if (logoutEl) logoutEl.style.display = 'block';
 
+            const fabGroup = document.querySelector('.fab-group');
             if (perfil.role === 'agendador') {
               if (mainCont)  mainCont.style.display  = 'none';
               if (adminBtn)  adminBtn.style.display  = 'none';
+              if (fabGroup)  fabGroup.style.display  = 'none';
               if (agendView) {
                 agendView.style.display = 'flex';
                 const nomeEl = document.getElementById('agendador-nome');
@@ -355,6 +357,7 @@
             } else {
               if (mainCont)  mainCont.style.display  = '';
               if (adminBtn)  adminBtn.style.display  = '';
+              if (fabGroup)  fabGroup.style.display  = '';
               if (agendView) agendView.style.display = 'none';
               solicitarPermissaoNotificacoes();
             }
@@ -16476,66 +16479,15 @@ window._marcarSyncOk = function() {
 })();
 
 // ════════════════════════════════════════════
-// FIX 9 — Botão flutuante +
-// ════════════════════════════════════════════
-function criarBotaoFlutuante() {
-    if (document.getElementById('fab-btn')) return;
-
-    const fab = document.createElement('div');
-    fab.id = 'fab-btn';
-    fab.style.cssText = `
-        position:fixed;bottom:16px;right:16px;z-index:9995;
-        display:flex;flex-direction:column;align-items:flex-end;gap:10px;
-    `;
-    fab.innerHTML = `
-        <div id="fab-menu" style="display:none;flex-direction:column;gap:8px;align-items:flex-end;">
-            <button onclick="switchView('coleta');openModalVolumes();document.getElementById('fab-menu').style.display='none';document.getElementById('fab-main').style.transform='rotate(0deg)';"
-                style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:14px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;border:none;font-family:var(--mono);font-size:0.75rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,0.4);white-space:nowrap;">
-                ✈️ Coleta Prioritária
-            </button>
-            <button onclick="openModal();document.getElementById('fab-menu').style.display='none';document.getElementById('fab-main').style.transform='rotate(0deg)';"
-                style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:14px;background:linear-gradient(135deg,#2a9fbf,#4db87a);color:#fff;border:none;font-family:var(--mono);font-size:0.75rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(42,159,191,0.4);white-space:nowrap;">
-                🏥 Nova Cirurgia
-            </button>
-        </div>
-        <button id="fab-main" onclick="toggleFab()"
-            style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#2a9fbf,#4db87a);color:#fff;border:none;font-size:1.5rem;cursor:pointer;box-shadow:0 6px 20px rgba(42,159,191,0.45);transition:transform 0.25s cubic-bezier(0.34,1.56,0.64,1);display:flex;align-items:center;justify-content:center;font-weight:900;">
-            +
-        </button>
-    `;
-    document.body.appendChild(fab);
-
-    window.toggleFab = function() {
-        const menu = document.getElementById('fab-menu');
-        const main = document.getElementById('fab-main');
-        const open = menu.style.display === 'none';
-        menu.style.display = open ? 'flex' : 'none';
-        main.style.transform = open ? 'rotate(45deg)' : 'rotate(0deg)';
-    };
-    // Fechar ao clicar fora
-    document.addEventListener('click', function(e) {
-        const fab = document.getElementById('fab-btn');
-        if (fab && !fab.contains(e.target)) {
-            const menu = document.getElementById('fab-menu');
-            const main = document.getElementById('fab-main');
-            if (menu) menu.style.display = 'none';
-            if (main) main.style.transform = 'rotate(0deg)';
-        }
-    });
-}
-
-// ════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
     criarIndicadorSync();
-    criarBotaoFlutuante();
     setTimeout(injetarOrdenacaoRapida, 800);
     setTimeout(window._marcarSyncOk, 2000);
 });
 setTimeout(function() {
     criarIndicadorSync();
-    criarBotaoFlutuante();
     injetarOrdenacaoRapida();
     window._marcarSyncOk();
 }, 1500);
