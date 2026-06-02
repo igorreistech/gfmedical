@@ -258,11 +258,9 @@
                 if (!snap.empty) {
                   perfil = snap.docs[0].data();
                 } else {
-                  const allSnap = await getDocs(collection(db, 'usuarios'));
-                  if (allSnap.empty) {
-                    perfil = { email: user.email.toLowerCase(), nome: user.displayName || user.email, role: 'admin', uid: user.uid };
-                    await setDoc(doc(db, 'usuarios', user.uid), perfil);
-                  }
+                  // Novo usuário via OAuth: auto-cadastra como agendador
+                  perfil = { email: user.email.toLowerCase(), nome: user.displayName || user.email, role: 'agendador', uid: user.uid };
+                  await setDoc(doc(db, 'usuarios', user.uid), perfil);
                 }
               }
             } catch(e) { perfil = { role: 'admin' }; }
