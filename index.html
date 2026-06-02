@@ -390,13 +390,14 @@
                   const labels = { agendado:'Agendado', preparacao:'Em Separação', em_transito:'Em Trânsito', andamento:'Em Procedimento', concluido:'Concluído', a_agendar:'Autorizado', a_retirar:'Aguardando Retirada', cancelado:'Cancelado' };
                   listaEl.innerHTML = meus.length === 0
                     ? '<div class="agendador-empty">Nenhuma cirurgia cadastrada ainda.</div>'
-                    : `<table class="agendador-table"><thead><tr><th>Paciente</th><th>Hospital</th><th>Cirurgião</th><th>Data</th><th>Status</th></tr></thead><tbody>${
+                    : `<table class="agendador-table"><thead><tr><th>Paciente</th><th>Hospital</th><th>Cirurgião</th><th>Data</th><th>Status</th><th></th></tr></thead><tbody>${
                         meus.map(p => `<tr>
                           <td>${p.paciente||'-'}</td>
                           <td>${p.hospital||'-'}</td>
                           <td>${p.medico||'-'}</td>
                           <td>${p.data||'-'}</td>
                           <td><span class="agendador-status status-${p.status||''}">${labels[p.status]||p.status||'-'}</span></td>
+                          <td><button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button></td>
                         </tr>`).join('')
                       }</tbody></table>`;
                 }
@@ -2479,6 +2480,8 @@
         .agendador-table td { padding: 11px 12px; border-bottom: 1px solid var(--border2); font-size: 0.9rem; color: var(--text); }
         .agendador-table tr:last-child td { border-bottom: none; }
         .agendador-status { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; font-family: var(--mono); }
+        .agendador-btn-edit { background: rgba(75,180,210,0.1); border: 1px solid rgba(75,180,210,0.3); color: #2a9fbf; font-size: 0.75rem; font-weight: 700; font-family: var(--mono); cursor: pointer; padding: 5px 12px; border-radius: 8px; transition: all 0.15s; white-space: nowrap; }
+        .agendador-btn-edit:hover { background: rgba(75,180,210,0.2); border-color: rgba(75,180,210,0.5); }
         .status-agendado { background: rgba(75,180,210,0.12); color: #2a9fbf; }
         .status-preparacao { background: rgba(245,158,11,0.12); color: #d4920a; }
         .status-em_transito { background: rgba(14,165,233,0.12); color: #0ea5e9; }
