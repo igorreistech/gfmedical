@@ -6466,9 +6466,10 @@ function autoTransitoNF(nfValue) {
     const fStatus = document.getElementById('f-status');
     if (!fStatus || !nfValue.trim()) return;
     if (fStatus.value === 'preparacao') {
-        // Não reverter se o registro já estava em trânsito antes da edição
         const _existente = editingDocId ? procedimentos.find(p => p._docId === editingDocId) : null;
-        if (_existente && _existente.status === 'em_transito') return;
+        // Só auto-promover se: registro novo (sem editingDocId)
+        // OU registro existente que NÃO tinha NF antes E NÃO estava em trânsito
+        if (_existente && (_existente.status === 'em_transito' || (_existente.nf && _existente.nf.trim()))) return;
         fStatus.value = 'em_transito';
         fStatus.dispatchEvent(new Event('change'));
     }
@@ -18928,7 +18929,7 @@ window.buildCardHTML = function(proc) {
         }
         if (dados.nf) {
             var fnf = document.getElementById('f-nf');
-            if (fnf) { fnf.value = dados.nf; fnf.dispatchEvent(new Event('input')); }
+            if (fnf) fnf.value = dados.nf;
         }
         if (dados.dataEmissao) {
             var fde = document.getElementById('f-nf-data');
