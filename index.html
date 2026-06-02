@@ -278,11 +278,11 @@
 
           if (user) {
             let perfil = null;
-            try {
-              if (ADMIN_EMAILS_FIXOS.includes(user.email.toLowerCase())) {
-                perfil = { email: user.email.toLowerCase(), nome: user.displayName || user.email, role: 'admin', uid: user.uid };
-                await setDoc(doc(db, 'usuarios', user.uid), { ...perfil }, { merge: true });
-              } else {
+            if (ADMIN_EMAILS_FIXOS.includes(user.email.toLowerCase())) {
+              perfil = { email: user.email.toLowerCase(), nome: user.displayName || user.email, role: 'admin', uid: user.uid };
+              try { await setDoc(doc(db, 'usuarios', user.uid), { ...perfil }, { merge: true }); } catch(e) {}
+            } else {
+              try {
                 const q = query(collection(db, 'usuarios'), where('email', '==', user.email.toLowerCase()));
                 const snap = await getDocs(q);
                 if (!snap.empty) {
@@ -292,10 +292,10 @@
                   perfil = { email: user.email.toLowerCase(), nome: user.displayName || user.email, role: 'agendador', uid: user.uid };
                   await setDoc(doc(db, 'usuarios', user.uid), perfil);
                 }
-              }
-            } catch(e) { perfil = null; }
+              } catch(e) { perfil = null; }
+            }
 
-            // Garante que sempre há um perfil válido
+            // Garante que sempre há um perfil válido (somente para não-admins)
             if (!perfil) {
               perfil = { email: (user.email||'').toLowerCase(), nome: user.displayName || user.email, role: 'agendador', uid: user.uid };
               try { await setDoc(doc(db, 'usuarios', user.uid), perfil, { merge: true }); } catch(e2) {}
