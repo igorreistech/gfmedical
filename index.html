@@ -5485,9 +5485,8 @@
 
                                 <div class="form-group full">
                     <label class="form-label">Médico *</label>
-                    <input class="form-input" id="f-medico" list="medico-list" placeholder="Digite ou selecione o médico" autocomplete="off" required style="width:100%;">
-                    <datalist id="medico-list">
-                        <option value="Não informado">
+                    <select class="form-select" id="f-medico" onchange="toggleOutroMedico(this.value)" required>
+                        <option value="">Selecione o médico</option>
                     <option value="ADRIANO FELIPE GROFF">ADRIANO FELIPE GROFF</option>
                     <option value="AIRTON AVEDES CARAMALAC JUNIOR">AIRTON AVEDES CARAMALAC JUNIOR</option>
                     <option value="ALAN VINICIUS GAMERO OSTI">ALAN VINICIUS GAMERO OSTI</option>
@@ -5822,7 +5821,9 @@
                     <option value="WELLINGTON CESAR DE SOUZA">WELLINGTON CESAR DE SOUZA</option>
                     <option value="WILLIAM GRAUPNER PEREIRA">WILLIAM GRAUPNER PEREIRA</option>
                     <option value="WILLIAN RICARDO CAMARÇO">WILLIAN RICARDO CAMARÇO</option>
-                    </datalist>
+                        <option value="Não informado">Não informado</option>
+                        <option value="__outro">─── Outro (não cadastrado)... ───</option>
+                    </select>
                 </div>
 
                 <div class="form-group full" id="g-outro-medico" style="display:none;"></div>
@@ -18851,22 +18852,17 @@ window.buildCardHTML = function(proc) {
         if (dados.medico) {
             var sel = document.getElementById('f-medico');
             if (sel) {
-                if (sel.tagName === 'SELECT') {
-                    var nomeU = dados.medico.toUpperCase().replace(/\s+/g, ' ').trim();
-                    var opts = Array.from(sel.options);
-                    var match = opts.find(function (o) { return o.value.toUpperCase() === nomeU; });
-                    if (match) {
-                        sel.value = match.value;
-                        sel.dispatchEvent(new Event('change'));
-                    } else {
-                        sel.value = '__outro';
-                        sel.dispatchEvent(new Event('change'));
-                        var om = document.getElementById('f-outro-medico');
-                        if (om) om.value = dados.medico;
-                    }
+                var nomeU = dados.medico.toUpperCase().replace(/\s+/g, ' ').trim();
+                var opts = Array.from(sel.options);
+                var match = opts.find(function (o) { return o.value.toUpperCase() === nomeU; });
+                if (match) {
+                    sel.value = match.value;
+                    sel.dispatchEvent(new Event('change'));
                 } else {
-                    sel.value = dados.medico;
-                    sel.dispatchEvent(new Event('input'));
+                    sel.value = '__outro';
+                    sel.dispatchEvent(new Event('change'));
+                    var om = document.getElementById('f-outro-medico');
+                    if (om) om.value = dados.medico;
                 }
             }
         }
