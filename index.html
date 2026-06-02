@@ -18851,17 +18851,22 @@ window.buildCardHTML = function(proc) {
         if (dados.medico) {
             var sel = document.getElementById('f-medico');
             if (sel) {
-                var nomeU = dados.medico.toUpperCase().replace(/\s+/g, ' ').trim();
-                var opts = Array.from(sel.options);
-                var match = opts.find(function (o) { return o.value.toUpperCase() === nomeU; });
-                if (match) {
-                    sel.value = match.value;
-                    sel.dispatchEvent(new Event('change'));
+                if (sel.tagName === 'SELECT') {
+                    var nomeU = dados.medico.toUpperCase().replace(/\s+/g, ' ').trim();
+                    var opts = Array.from(sel.options);
+                    var match = opts.find(function (o) { return o.value.toUpperCase() === nomeU; });
+                    if (match) {
+                        sel.value = match.value;
+                        sel.dispatchEvent(new Event('change'));
+                    } else {
+                        sel.value = '__outro';
+                        sel.dispatchEvent(new Event('change'));
+                        var om = document.getElementById('f-outro-medico');
+                        if (om) om.value = dados.medico;
+                    }
                 } else {
-                    sel.value = '__outro';
-                    sel.dispatchEvent(new Event('change'));
-                    var om = document.getElementById('f-outro-medico');
-                    if (om) om.value = dados.medico;
+                    sel.value = dados.medico;
+                    sel.dispatchEvent(new Event('input'));
                 }
             }
         }
