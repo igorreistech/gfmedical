@@ -14323,7 +14323,6 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
         <div class="card-actions">
           <button class="btn-act" onclick="editProc('${esc(realIndex)}')">✏ Editar</button>
           ${proc.status === 'a_retirar' ? `<button class="btn-act" style="background:rgba(249,115,22,0.15);border:1.5px solid #f97316;color:#f97316;font-weight:700;" onclick="confirmarRetiradaCirurgia('${esc(realIndex)}')">📦 Retirou?</button>` : ''}
-          ${proc.status === 'preparacao' ? `<button class="btn-act" style="background:rgba(212,146,10,0.15);border:1.5px solid #d4920a;color:#d4920a;font-weight:700;" onclick="confirmarSeparacao('${esc(realIndex)}')">⚙️ Em Procedimento?</button>` : ''}
           <button class="btn-act" style="background:#25d366;border-color:#25d366;" onclick="enviarWhatsAppIndividual('${esc(realIndex)}')">💬 WhatsApp</button>
           <button class="btn-act del" onclick="deleteProc('${esc(realIndex)}')">✕ Excluir</button>
         </div>
@@ -14386,9 +14385,8 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
       const dia = getDateLabel(proc.data);
       const badgeDia = dia === 'today' ? '<span class="v2-badge today">Hoje</span>' : (dia === 'tomorrow' ? '<span class="v2-badge tomorrow">Amanhã</span>' : '');
       const isRetirar = proc.status === 'a_retirar';
-      const isSeparacao = proc.status === 'preparacao';
-      const trOnclick = isRetirar ? `confirmarRetiradaCirurgia('${esc(realIndex)}')` : isSeparacao ? `confirmarSeparacao('${esc(realIndex)}')` : `editProc('${esc(realIndex)}')`;
-      const trTitle = isRetirar ? 'Clique para confirmar retirada' : isSeparacao ? 'Clique para confirmar procedimento' : 'Clique para editar';
+      const trOnclick = isRetirar ? `confirmarRetiradaCirurgia('${esc(realIndex)}')` : `editProc('${esc(realIndex)}')`;
+      const trTitle = isRetirar ? 'Clique para confirmar retirada' : 'Clique para editar';
       return `
       <tr class="row-${esc(proc.status)}" onclick="${trOnclick}" style="cursor:pointer;" title="${trTitle}">
         <td><span class="v2-priority-pill ${prioridadeCls}">${esc(prioridade.label)}</span></td>
