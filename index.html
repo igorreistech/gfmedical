@@ -18629,10 +18629,12 @@ window.buildCardHTML = function(proc) {
 <script>
 (function () {
     var PDF_JS_SRCS = [
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/legacy/build/pdf.min.js',
         'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
         'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js'
     ];
     var PDF_JS_WORKERS = [
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/legacy/build/pdf.worker.min.js',
         'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
         'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js'
     ];
@@ -18918,39 +18920,44 @@ window.buildCardHTML = function(proc) {
         try {
             await carregarPdfJs();
             var buf = await file.arrayBuffer();
-            var loadTask = pdfjsLib.getDocument({ data: new Uint8Array(buf), disableRange: true, disableStream: true });
-            loadTask.onPassword = function(cb) { cb(''); };
+            var loadTask = pdfjsLib.getDocument({ data: new Uint8Array(buf) });
+            loadTask.onPassword = function(updateCb) { updateCb(''); };
             var pdf = await loadTask.promise;
             var texto = '';
             for (var i = 1; i <= pdf.numPages; i++) {
-                var page = await pdf.getPage(i);
-                var content = await page.getTextContent();
-                var items = content.items.filter(function(it){ return typeof it.str === 'string'; });
-                if (!items.length) { texto += '\n'; continue; }
-                // Ordenar por y desc (topo→base) depois x asc (esq→dir)
-                items.sort(function(a, b){
-                    var dy = b.transform[5] - a.transform[5];
-                    if (Math.abs(dy) > 3) return dy;
-                    return a.transform[4] - b.transform[4];
-                });
-                var pageText = items[0].str;
-                var prevY = items[0].transform[5];
-                var prevEnd = items[0].transform[4] + (items[0].width || 0);
-                for (var j = 1; j < items.length; j++) {
-                    var it = items[j];
-                    var curX = it.transform[4];
-                    var curY = it.transform[5];
-                    var gap = curX - prevEnd;
-                    if (Math.abs(curY - prevY) > 3) {
-                        pageText += '\n';
-                    } else if (gap >= 1) {
-                        pageText += ' ';
+                try {
+                    var page = await pdf.getPage(i);
+                    var content = await page.getTextContent({ includeMarkedContent: false });
+                    var items = (content && content.items || []).filter(function(it){ return it && typeof it.str === 'string' && it.str !== ''; });
+                    if (!items.length) { texto += '\n'; continue; }
+                    // Ordenar por y desc (topo→base) depois x asc (esq→dir)
+                    items.sort(function(a, b){
+                        var dy = (b.transform && b.transform[5] || 0) - (a.transform && a.transform[5] || 0);
+                        if (Math.abs(dy) > 3) return dy;
+                        return (a.transform && a.transform[4] || 0) - (b.transform && b.transform[4] || 0);
+                    });
+                    var pageText = items[0].str;
+                    var prevY = items[0].transform && items[0].transform[5] || 0;
+                    var prevEnd = (items[0].transform && items[0].transform[4] || 0) + (items[0].width || 0);
+                    for (var j = 1; j < items.length; j++) {
+                        var it = items[j];
+                        var curX = it.transform && it.transform[4] || 0;
+                        var curY = it.transform && it.transform[5] || 0;
+                        var gap = curX - prevEnd;
+                        if (Math.abs(curY - prevY) > 3) {
+                            pageText += '\n';
+                        } else if (gap >= 1) {
+                            pageText += ' ';
+                        }
+                        pageText += it.str;
+                        prevY = curY;
+                        prevEnd = curX + (it.width || 0);
                     }
-                    pageText += it.str;
-                    prevY = curY;
-                    prevEnd = curX + (it.width || 0);
+                    texto += pageText + '\n';
+                } catch(pageErr) {
+                    console.warn('[PDF NF] Erro na página ' + i + ':', pageErr);
+                    texto += '\n';
                 }
-                texto += pageText + '\n';
             }
             var dados = parsearTextoNF(texto);
             var produtos = parsearProdutos(texto);
