@@ -50,6 +50,9 @@
 
       function notificarMudancaStatus(proc, statusAnterior) {
         if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        // Agendador só recebe notificações das próprias cirurgias
+        const u = window._currentUser;
+        if (u && u.role === 'agendador' && proc.cadastradoPor !== u.uid) return;
         const labels = {
           a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
           agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
@@ -233,12 +236,41 @@
                 <td>${p.medico||'-'}</td>
                 <td>${p.data||'-'}</td>
                 <td><span class="agendador-status status-${p.status||''}">${labels[p.status]||p.status||'-'}</span></td>
-                <td style="display:flex;gap:6px;align-items:center;">
-                  <button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button>
+                <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                  ${p.status === 'a_retirar' ? `<button class="agendador-btn-retirada" onclick="confirmarRetiradaAgendador('${p._docId}')">📦 Confirmar Retirada</button>` : `<button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button>`}
                   <button class="agendador-btn-del" onclick="deleteProc('${p._docId}')">🗑</button>
                 </td>
               </tr>`).join('')
             }</tbody></table>`;
+      };
+
+      window.confirmarRetiradaAgendador = async function(docId) {
+        const proc = (window.procedimentos||[]).find(p => p._docId === docId);
+        if (!proc) return;
+        const nome = proc.paciente || proc.hospital || 'este registro';
+        const ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);';
+        ov.innerHTML = `<div style="background:var(--surface,#fff);border:1px solid var(--border);border-top:3px solid #059669;border-radius:18px;padding:28px 24px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);font-family:'Inter',sans-serif;">
+          <div style="font-size:2rem;text-align:center;margin-bottom:10px;">📦</div>
+          <div style="font-weight:700;font-size:1rem;color:#111;text-align:center;margin-bottom:6px;">Confirmar Retirada?</div>
+          <div style="color:#666;font-size:0.83rem;text-align:center;margin-bottom:22px;font-family:var(--mono);">${nome}</div>
+          <div style="display:flex;gap:10px;">
+            <button id="btnCancelRet" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:transparent;color:#555;font-family:var(--mono);font-size:0.8rem;font-weight:700;cursor:pointer;">Cancelar</button>
+            <button id="btnConfirmRet" style="flex:1;padding:11px;border-radius:10px;border:none;background:#059669;color:#fff;font-family:var(--mono);font-size:0.8rem;font-weight:700;cursor:pointer;">✓ Confirmar</button>
+          </div>
+        </div>`;
+        document.body.appendChild(ov);
+        ov.querySelector('#btnCancelRet').onclick = () => ov.remove();
+        ov.onclick = e => { if (e.target === ov) ov.remove(); };
+        ov.querySelector('#btnConfirmRet').onclick = async () => {
+          ov.remove();
+          const idx = window.procedimentos.findIndex(p => p._docId === docId);
+          if (idx !== -1) window.procedimentos[idx].status = 'concluido';
+          window.renderAgendadorLista();
+          const { deleteDoc: _d, doc: docFn, setDoc: sd } = window._fbModules;
+          try { await sd(docFn(window._fbDb, window._fbColl, docId), { ...window.procedimentos[idx] }); }
+          catch(e) { alert('Erro ao confirmar: ' + e.message); }
+        };
       };
 
       // Retry renderAgendadorLista após login para garantir que dados do Firestore já chegaram
@@ -352,6 +384,7 @@
                 const nomeEl = document.getElementById('agendador-nome');
                 if (nomeEl) nomeEl.textContent = (window._currentUser.nome||'').split(' ')[0] || user.email;
               }
+              solicitarPermissaoNotificacoes();
               // Re-renderiza com retry para garantir que dados do Firestore já chegaram
               window._renderAgendadorRetry && window._renderAgendadorRetry();
             } else {
@@ -2540,6 +2573,8 @@
         .agendador-btn-edit:hover { background: rgba(75,180,210,0.2); border-color: rgba(75,180,210,0.5); }
         .agendador-table .agendador-btn-del { background: rgba(217,79,79,0.08); border: 1px solid rgba(217,79,79,0.25); color: #d94f4f; font-size: 0.8rem; cursor: pointer; padding: 5px 8px; border-radius: 8px; transition: all 0.15s; }
         .agendador-table .agendador-btn-del:hover { background: rgba(217,79,79,0.18); }
+        .agendador-btn-retirada { background: rgba(5,150,105,0.1); border: 1px solid rgba(5,150,105,0.3); color: #059669; font-size: 0.78rem; font-weight: 700; cursor: pointer; padding: 6px 10px; border-radius: 8px; transition: all 0.15s; white-space: nowrap; }
+        .agendador-btn-retirada:hover { background: rgba(5,150,105,0.2); }
         .status-agendado { background: rgba(75,180,210,0.12); color: #2a9fbf; }
         .status-preparacao { background: rgba(245,158,11,0.12); color: #d4920a; }
         .status-em_transito { background: rgba(14,165,233,0.12); color: #0ea5e9; }
@@ -4708,6 +4743,7 @@
         <button class="view-tab" id="tab-dashboard" onclick="switchView('dashboard')">📊 Dashboard</button>
         <button class="view-tab" id="tab-coleta" onclick="switchView('coleta')" style="color:#818cf8;border-color:rgba(99,102,241,0.5);">✈️ Coleta Prioritária</button>
         <button class="view-tab" id="tab-opme" onclick="switchView('opme')" style="color:#f59e0b;border-color:rgba(245,158,11,0.5);">📋 Fichas OPME</button>
+        <button class="view-tab" id="tab-semana" onclick="switchView('semana')" style="color:#06b6d4;border-color:rgba(6,182,212,0.5);">📅 Semana</button>
         <button id="btn-toggle-ocultos" onclick="toggleOcultos()" style="margin-left:auto;padding:7px 14px;background:rgba(107,114,128,0.12);border:1.5px solid rgba(107,114,128,0.35);color:#6b7280;border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.05em;transition:all 0.2s;" title="Mostrar/ocultar Concluídos e Cancelados">👁 Ocultos</button>
     </div>
 
@@ -10020,10 +10056,39 @@ async function quickSetStatus(docId, novoStatus, e) {
         return;
     }
     mostrarChecklist(proc, novoStatus, async () => {
-        proc.status = novoStatus;
-        try { await fbSaveProc(proc); }
-        catch(err) { proc.status = statusAnterior; alert('Erro ao salvar: ' + err.message); }
+        pedirObsStatus(statusAnterior, novoStatus, async (obs) => {
+            const userEmail = (window._fbAuth && window._fbAuth.currentUser) ? window._fbAuth.currentUser.email : 'sistema';
+            const hist = proc._statusHistory || [];
+            hist.push({ de: statusAnterior, para: novoStatus, em: new Date().toISOString(), por: userEmail, obs: obs || '' });
+            proc._statusHistory = hist;
+            proc.status = novoStatus;
+            try { await fbSaveProc(proc); }
+            catch(err) { proc.status = statusAnterior; proc._statusHistory = hist.slice(0,-1); alert('Erro ao salvar: ' + err.message); }
+        });
     });
+}
+
+function pedirObsStatus(de, para, callback) {
+    const labels = { a_agendar:'Autorizado', agendado:'Agendado', preparacao:'Em Separação', em_transito:'Em Trânsito', andamento:'Em Procedimento', a_retirar:'Aguardando Retirada', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', urgencia:'Urgência' };
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);';
+    ov.innerHTML = `<div style="background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);font-family:'Inter',sans-serif;">
+        <div style="font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.08em;color:var(--text-dim);text-transform:uppercase;margin-bottom:12px;">📝 Observação (opcional)</div>
+        <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:14px;">${labels[de]||de} → <strong style="color:var(--text)">${labels[para]||para}</strong></div>
+        <textarea id="obsStatusInput" placeholder="Adicione uma observação sobre esta mudança..." rows="3" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid var(--border,#e5e7eb);background:var(--surface,#fff);color:var(--text);font-family:var(--mono);font-size:0.82rem;resize:vertical;outline:none;"></textarea>
+        <div style="display:flex;gap:10px;margin-top:14px;">
+            <button id="obsSkipBtn" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border,#e5e7eb);background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.78rem;font-weight:700;cursor:pointer;">Pular</button>
+            <button id="obsOkBtn" style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--green,#059669);color:#fff;font-family:var(--mono);font-size:0.78rem;font-weight:700;cursor:pointer;">Confirmar</button>
+        </div>
+    </div>`;
+    document.body.appendChild(ov);
+    const inp = ov.querySelector('#obsStatusInput');
+    setTimeout(() => inp && inp.focus(), 100);
+    const finish = (obs) => { ov.remove(); callback(obs); };
+    ov.querySelector('#obsOkBtn').onclick = () => finish(inp.value.trim());
+    ov.querySelector('#obsSkipBtn').onclick = () => finish('');
+    ov.onclick = e => { if (e.target === ov) finish(''); };
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) finish(inp.value.trim()); });
 }
 
 // ════════════════════════════════════════════
@@ -16976,6 +17041,7 @@ window.verHistoricoStatus = function(docId) {
                         <div style="font-family:var(--mono);font-size:0.68rem;color:#9ca3af;margin-top:2px;">
                             🕐 ${fmtTS(h.em)} · 👤 ${h.por||'sistema'}
                         </div>
+                        ${h.obs ? `<div style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);margin-top:4px;padding:6px 10px;background:rgba(99,102,241,0.06);border-radius:6px;border-left:2px solid #6366f1;">💬 ${h.obs}</div>` : ''}
                     </div>
                 </div>`).join('')
             }
@@ -19911,6 +19977,9 @@ else init();
 
 })();
 </script>
+<!-- CALENDÁRIO SEMANAL -->
+<div id="semana-view" style="display:none;padding:24px 0 60px;"></div>
+
 <div class="fab-group">
     <button class="fab-btn fab-coleta" onclick="openModalVolumes()" aria-label="Nova coleta prioritária">
         <span class="fab-btn-label">Coleta Prioritária</span>
@@ -19921,5 +19990,90 @@ else init();
         +
     </button>
 </div>
+
+<style>
+.sem-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-top:16px; }
+@media(max-width:700px){ .sem-grid { grid-template-columns:repeat(2,1fr); } }
+.sem-col { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.sem-col-head { padding:10px 12px; font-family:var(--mono); font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; border-bottom:1px solid var(--border); }
+.sem-col-head.hoje { background:rgba(5,150,105,0.12); color:#059669; border-bottom-color:rgba(5,150,105,0.3); }
+.sem-col-head.passado { color:var(--text-dim); }
+.sem-item { padding:8px 10px; border-bottom:1px solid var(--border2,rgba(0,0,0,0.05)); font-size:0.78rem; }
+.sem-item:last-child { border-bottom:none; }
+.sem-item-pac { font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sem-item-hosp { font-family:var(--mono); font-size:0.68rem; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sem-pill { display:inline-block; padding:2px 7px; border-radius:99px; font-family:var(--mono); font-size:0.62rem; font-weight:700; margin-top:3px; }
+.sem-empty { padding:16px 10px; text-align:center; font-family:var(--mono); font-size:0.68rem; color:var(--text-dim); opacity:0.5; }
+.sem-nav { display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+.sem-nav button { padding:6px 14px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text-dim); font-family:var(--mono); font-size:0.75rem; font-weight:700; cursor:pointer; }
+.sem-nav button:hover { background:rgba(0,0,0,0.05); }
+.sem-nav .sem-label { font-family:var(--mono); font-size:0.78rem; font-weight:700; color:var(--text); }
+</style>
+
+<script>
+(function(){
+const statusColors = { a_agendar:'#06b6d4', agendado:'#4db87a', preparacao:'#d4920a', em_transito:'#6366f1', andamento:'#d94f4f', a_retirar:'#f97316', concluido:'#64748b', cancelado:'#f87171', reagendado:'#a78bfa', urgencia:'#ef4444' };
+const statusLabels = { a_agendar:'Autorizado', agendado:'Agendado', preparacao:'Em Separação', em_transito:'Em Trânsito', andamento:'Em Procedimento', a_retirar:'Aguard. Retirada', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', urgencia:'Urgência' };
+let _semOffset = 0;
+
+function getSegunda(offset) {
+    const d = new Date(); d.setHours(0,0,0,0);
+    const day = d.getDay(); const diff = (day === 0 ? -6 : 1 - day);
+    d.setDate(d.getDate() + diff + offset * 7);
+    return d;
+}
+function fmtDate(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtLabel(d) { return d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'}); }
+
+window.renderCalendarioSemanal = function() {
+    const el = document.getElementById('semana-view');
+    if (!el) return;
+    const hoje = fmtDate(new Date());
+    const seg = getSegunda(_semOffset);
+    const dias = Array.from({length:7}, (_,i) => { const d = new Date(seg); d.setDate(d.getDate()+i); return d; });
+    const procs = (window.procedimentos||[]).filter(p => p.status !== 'concluido' && p.status !== 'cancelado' || dias.some(d => fmtDate(d) === p.data));
+    const diasLabel = dias.map(d => { const s = fmtDate(d); const isHoje = s===hoje; const isPast = s<hoje; return `<div class="sem-col">
+        <div class="sem-col-head ${isHoje?'hoje':isPast?'passado':''}">${fmtLabel(d)}${isHoje?' · HOJE':''}</div>
+        ${procs.filter(p=>p.data===s).length === 0
+            ? '<div class="sem-empty">—</div>'
+            : procs.filter(p=>p.data===s).map(p=>`<div class="sem-item" title="${p.paciente||''} · ${p.hospital||''}">
+                <div class="sem-item-pac">${p.paciente||'-'}</div>
+                <div class="sem-item-hosp">${p.hospital||'-'}</div>
+                <span class="sem-pill" style="background:${statusColors[p.status]||'#888'}22;color:${statusColors[p.status]||'#888'};border:1px solid ${statusColors[p.status]||'#888'}44;">${statusLabels[p.status]||p.status}</span>
+              </div>`).join('')}
+    </div>`; }).join('');
+    const semInicio = dias[0].toLocaleDateString('pt-BR',{day:'2-digit',month:'short'});
+    const semFim    = dias[6].toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
+    el.innerHTML = `<div class="sem-nav">
+        <button onclick="window._semNavegar(-1)">← Anterior</button>
+        <span class="sem-label">${semInicio} — ${semFim}</span>
+        <button onclick="window._semNavegar(1)">Próxima →</button>
+        ${_semOffset!==0?`<button onclick="window._semNavegar(0,true)" style="color:#059669;border-color:rgba(5,150,105,0.4);">Hoje</button>`:''}
+    </div>
+    <div class="sem-grid">${diasLabel}</div>`;
+};
+window._semNavegar = function(dir, reset) { _semOffset = reset ? 0 : _semOffset + dir; window.renderCalendarioSemanal(); };
+
+// Hook no switchView para suportar aba semana
+const _origSwitch = window.switchView;
+window.switchView = function(v) {
+    const isSemana = v === 'semana';
+    const semEl = document.getElementById('semana-view');
+    const tabSemana = document.getElementById('tab-semana');
+    if (semEl) semEl.style.display = isSemana ? '' : 'none';
+    if (tabSemana) tabSemana.classList.toggle('active', isSemana);
+    if (isSemana) { window.renderCalendarioSemanal(); return; }
+    _origSwitch && _origSwitch(v);
+};
+
+// Atualiza quando onSnapshot traz novos dados
+const _origRenderCards = window.renderCards;
+window.renderCards = function() {
+    if (typeof _origRenderCards === 'function') _origRenderCards.apply(this, arguments);
+    if (document.getElementById('semana-view') && document.getElementById('semana-view').style.display !== 'none')
+        window.renderCalendarioSemanal();
+};
+})();
+</script>
 </body>
 </html>
