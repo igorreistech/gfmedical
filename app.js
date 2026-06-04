@@ -2886,15 +2886,12 @@ const TABLE_COLS = [
     { key: 'inicio',        label: '🕐 Horário' },
     { key: 'status',        label: 'Status' },
     { key: 'paciente',      label: 'Paciente' },
-    { key: 'pacienteIdade', label: 'Idade',     nosort: true },
     { key: 'convenio',      label: 'Convênio' },
     { key: 'procedimento',  label: 'Procedimento' },
     { key: 'medico',        label: 'Cirurgião' },
     { key: 'hospital',      label: 'Hospital' },
     { key: 'vendedor',      label: 'Vendedor' },
     { key: 'linha',         label: 'Linha' },
-    { key: 'nf',            label: 'Nº NF',      minWidth: '80px' },
-    { key: 'nfData',        label: 'Emissão NF', minWidth: '90px' },
     { key: 'obs',           label: 'Obs', nosort: true },
     { key: '_acoes',        label: 'Ações', nosort: true }
 ];
@@ -2989,16 +2986,12 @@ function renderTable() {
             +'</td>';
         row += '<td style="padding:9px 12px;">'+statusPill+'</td>';
         row += '<td style="font-family:\'Space Grotesk\',sans-serif;font-weight:600;font-size:0.83rem;padding:9px 12px;max-width:240px;overflow:hidden;white-space:nowrap;" title="'+(proc.paciente||'')+(proc.nf?' · NF '+proc.nf:'')+'">'+(proc.paciente||'\u2014')+(proc.nf ? ' <span style="background:rgba(42,159,191,0.12);border:1px solid rgba(42,159,191,0.4);color:#2a9fbf;border-radius:4px;padding:1px 6px;font-family:var(--mono);font-size:0.72rem;font-weight:700;margin-left:5px;">NF\u00a0'+proc.nf+'</span>' : '')+'</td>';
-        row += '<td style="font-family:var(--mono);font-weight:700;font-size:0.82rem;text-align:center;padding:9px 8px;color:#2a4a55;">'+(proc.pacienteIdade||'\u2014')+'</td>';
         row += tdCell(proc.convenio);
         row += '<td style="font-family:var(--mono);font-size:0.77rem;font-weight:600;padding:9px 12px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+(proc.procedimento||'')+'">'+(proc.procedimento||'\u2014')+'</td>';
         row += '<td style="font-family:var(--mono);font-size:0.77rem;color:#2a5a6a;padding:9px 12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+(proc.medico||'')+'">'+(proc.medico||'\u2014')+'</td>';
         row += '<td style="font-family:var(--mono);font-size:0.75rem;color:#2a5a6a;padding:9px 12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+(proc.hospital||'')+'">'+(proc.hospital||'\u2014').replace(/^Hospital /i,'')+'</td>';
         row += '<td style="font-family:var(--mono);font-size:0.75rem;color:#2a5a6a;padding:9px 12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+(proc.vendedor||'')+'">'+(proc.vendedor||'\u2014')+'</td>';
         row += tdCell(proc.linha, 'color:#2a7a6a;');
-        row += '<td style="font-family:var(--mono);font-size:0.78rem;font-weight:600;color:#2a5a6a;padding:9px 12px;white-space:nowrap;min-width:80px;">'+(proc.nf||'\u2014')+'</td>';
-        var nfDataFmt = proc.nfData ? new Date(proc.nfData+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '\u2014';
-        row += '<td style="font-family:var(--mono);font-size:0.78rem;padding:9px 12px;white-space:nowrap;min-width:90px;'+(proc.nfData?'color:#2a7a6a;font-weight:600;':'color:var(--text-dim);')+'">'+ nfDataFmt +'</td>';
         row += '<td style="font-family:var(--mono);font-size:0.72rem;color:#4a6a75;padding:9px 12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+(proc.obs||'')+'">'+(proc.obs||'\u2014')+'</td>';
         // Botões de módulo embutidos diretamente no HTML da tabela
         const _ckBtn = ['preparacao','agendado','reagendado','andamento'].includes(proc.status)
