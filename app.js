@@ -2886,6 +2886,8 @@ const TABLE_COLS = [
     { key: 'inicio',        label: '🕐 Horário' },
     { key: 'status',        label: 'Status' },
     { key: 'paciente',      label: 'Paciente' },
+    { key: 'nf',            label: 'Nº NF',      minWidth: '80px' },
+    { key: 'nfData',        label: 'Emissão NF', minWidth: '90px' },
     { key: 'convenio',      label: 'Convênio' },
     { key: 'procedimento',  label: 'Procedimento' },
     { key: 'medico',        label: 'Cirurgião' },
@@ -2985,7 +2987,10 @@ function renderTable() {
             +(proc.retirada ? '<div style="font-size:0.65rem;font-weight:700;color:#f97316;margin-top:1px;">📦 '+new Date(proc.retirada+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+'</div>' : '')
             +'</td>';
         row += '<td style="padding:9px 12px;">'+statusPill+'</td>';
-        row += '<td style="font-family:\'Space Grotesk\',sans-serif;font-weight:600;font-size:0.83rem;padding:9px 12px;max-width:240px;overflow:hidden;white-space:nowrap;" title="'+(proc.paciente||'')+(proc.nf?' · NF '+proc.nf:'')+'">'+(proc.paciente||'\u2014')+(proc.nf ? ' <span style="background:rgba(42,159,191,0.12);border:1px solid rgba(42,159,191,0.4);color:#2a9fbf;border-radius:4px;padding:1px 6px;font-family:var(--mono);font-size:0.72rem;font-weight:700;margin-left:5px;">NF\u00a0'+proc.nf+'</span>' : '')+'</td>';
+        row += '<td style="font-family:\'Space Grotesk\',sans-serif;font-weight:600;font-size:0.83rem;padding:9px 12px;max-width:210px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="'+(proc.paciente||'')+'">'+(proc.paciente||'—')+'</td>';
+        var nfDataFmt = proc.nfData ? new Date(proc.nfData+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—';
+        row += '<td style="font-family:var(--mono);font-size:0.77rem;font-weight:600;padding:9px 12px;min-width:80px;text-align:center;">'+(proc.nf||'—')+'</td>';
+        row += '<td style="font-family:var(--mono);font-size:0.77rem;font-weight:600;padding:9px 12px;min-width:90px;text-align:center;'+(proc.nfData?'color:#2a7a6a;':'color:var(--text-dim);')+'">'+ nfDataFmt +'</td>';
         row += tdCell(proc.convenio);
         row += '<td style="font-family:var(--mono);font-size:0.77rem;font-weight:600;padding:9px 12px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+(proc.procedimento||'')+'">'+(proc.procedimento||'\u2014')+'</td>';
         row += '<td style="font-family:var(--mono);font-size:0.77rem;color:#2a5a6a;padding:9px 12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+(proc.medico||'')+'">'+(proc.medico||'\u2014')+'</td>';
