@@ -1,16 +1,28 @@
 {
   "id": "/gfcampogrande/",
+  "lang": "pt-BR",
   "name": "Monitor Cirúrgico · Campo Grande",
   "short_name": "Monitor CGR",
   "description": "Acompanhamento cirúrgico em tempo real · Campo Grande, MS",
   "start_url": "/gfcampogrande/",
   "scope": "/gfcampogrande/",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "theme_color": "#2a9fbf",
-  "background_color": "#e8f5ee",
+  "orientation": "any",
+  "theme_color": "#0d1f0e",
+  "background_color": "#0d1f0e",
+  "prefer_related_applications": false,
   "icons": [
     { "src": "logo.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any" },
-    { "src": "icon.svg", "sizes": "any",     "type": "image/svg+xml", "purpose": "any" }
+    { "src": "logo.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nova Cirurgia",
+      "short_name": "Nova",
+      "description": "Cadastrar novo procedimento cirúrgico",
+      "url": "/gfcampogrande/",
+      "icons": [{ "src": "icon.svg", "sizes": "any" }]
+    }
   ]
 }
