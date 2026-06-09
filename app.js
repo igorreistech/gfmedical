@@ -664,8 +664,9 @@ function updateStats() {
                 <button class="autor-alert-btn" onclick="document.querySelector('[data-filter=a_agendar]').click()">Ver autorizados →</button>`;
             autorBar.style.display = 'flex';
         } else {
-            autorBar.style.display = 'none';
+            autorBar.innerHTML = `<div><div class="autor-alert-text">📅 Autorizados — nenhuma cirurgia aguardando agendamento</div></div>`;
         }
+        autorBar.style.display = 'flex';
     }
 
     // Em Preparação — qualquer registro
