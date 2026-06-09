@@ -971,7 +971,8 @@ function getFiltered() {
     const statusOrder = { a_agendar: 0, urgencia: 1, coleta_urgente: 2, agendado: 3, preparacao: 4, andamento: 5, cancelado: 6, reagendado: 7, a_retirar: 8, concluido: 9 };
     return procedimentos.filter(p => {
         if (_ehColeta(p) && currentFilter !== 'coleta_urgente') return false; // Volumes Urgentes só aparecem na aba própria
-        const matchFilter = currentFilter === 'all'
+        const matchFilter = !!searchTerm.trim()
+            || currentFilter === 'all'
             || (currentFilter === 'reagendado_vencido' ? (p.status === 'reagendado' && p.data && p.data < todayStr()) : p.status === currentFilter);
         const matchCity = true; // arquivo CG — mostra todos
         const matchVendedor = currentVendedorFilter === 'all' || (p.vendedor || '') === currentVendedorFilter;
@@ -1033,9 +1034,11 @@ function renderCards() {
     try { list = getFiltered(); } catch(e) {
         grid.innerHTML = `<div style="grid-column:1/-1;padding:20px;color:red;">Erro: ${e.message}</div>`; return;
     }
-    // Ocultar concluído e cancelado dos cards (exceto se mostrarOcultos ativo — mostra SÓ eles)
-    if (!mostrarOcultos) list = list.filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
-    else list = list.filter(p => p.status === 'concluido' || p.status === 'cancelado');
+    // Ocultar concluído e cancelado dos cards (exceto se mostrarOcultos ativo, ou busca ativa)
+    if (!searchTerm.trim()) {
+        if (!mostrarOcultos) list = list.filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
+        else list = list.filter(p => p.status === 'concluido' || p.status === 'cancelado');
+    }
     if (list.length === 0) {
         grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim);">Nenhum procedimento encontrado</div>'; return;
     }
@@ -2912,9 +2915,11 @@ function renderTable() {
     const table = document.getElementById('procTable');
     if (!table) return; // guard: DOM ainda não pronto
 
-    const list = mostrarOcultos
-        ? getFiltered().filter(p => p.status === 'concluido' || p.status === 'cancelado')
-        : getFiltered().filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
+    const list = searchTerm.trim()
+        ? getFiltered()
+        : (mostrarOcultos
+            ? getFiltered().filter(p => p.status === 'concluido' || p.status === 'cancelado')
+            : getFiltered().filter(p => p.status !== 'concluido' && p.status !== 'cancelado'));
     const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
 
     // Ordenar por horário (padrão) ou coluna selecionada
