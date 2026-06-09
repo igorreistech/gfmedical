@@ -972,6 +972,7 @@ function getFiltered() {
     return procedimentos.filter(p => {
         if (_ehColeta(p) && currentFilter !== 'coleta_urgente') return false; // Volumes Urgentes só aparecem na aba própria
         const matchFilter = !!searchTerm.trim()
+            || mostrarOcultos
             || currentFilter === 'all'
             || (currentFilter === 'reagendado_vencido' ? (p.status === 'reagendado' && p.data && p.data < todayStr()) : p.status === currentFilter);
         const matchCity = true; // arquivo CG — mostra todos
