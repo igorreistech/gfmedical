@@ -11592,21 +11592,43 @@ function atualizarBarraCirurgiaProxima() {
     const hoje = typeof todayStr === 'function' ? todayStr() : new Date().toISOString().split('T')[0];
     const aD = new Date(); aD.setDate(aD.getDate() + 1);
     const amanha = `${aD.getFullYear()}-${String(aD.getMonth()+1).padStart(2,'0')}-${String(aD.getDate()).padStart(2,'0')}`;
+
+    // Cirurgias hoje ou amanhã (prioridade)
     const prox = (window.procedimentos || []).filter(p =>
         (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanha)
     );
-    if (!prox.length) { bar.style.display = 'none'; return; }
-    const lista = prox.slice(0,4).map(p => {
+
+    // Se não há hoje/amanhã, pega as próximas agendadas (qualquer data futura)
+    const proximas = prox.length ? prox : (window.procedimentos || [])
+        .filter(p => (p.status === 'agendado' || p.status === 'preparacao') && p.data && p.data >= hoje)
+        .sort((a, b) => (a.data || '').localeCompare(b.data || ''))
+        .slice(0, 4);
+
+    if (!proximas.length) {
+        bar.innerHTML = `
+            <div style="font-family:var(--mono);font-size:0.78rem;color:var(--text-dim);letter-spacing:0.04em;">
+                ✅ Nenhuma cirurgia agendada para hoje ou amanhã
+            </div>`;
+        bar.style.cssText += 'animation:none;background:rgba(107,114,128,0.07);border-color:rgba(107,114,128,0.25);';
+        bar.style.display = 'flex';
+        return;
+    }
+
+    const lista = proximas.slice(0,4).map(p => {
         const nome = p.paciente || p.hospital || 'Procedimento';
-        const quando = p.data === hoje ? '🔴 HOJE' : '🟡 AMANHÃ';
+        const quando = p.data === hoje ? '🔴 HOJE' : p.data === amanha ? '🟡 AMANHÃ' : `📅 ${new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR')}`;
         const hora = p.inicio ? ` às ${p.inicio}` : '';
         return `• ${quando} — ${nome}${hora}`;
     }).join('<br>');
-    const extra = prox.length > 4 ? `<br><span style="opacity:0.6;">+${prox.length-4} outros</span>` : '';
+    const extra = proximas.length > 4 ? `<br><span style="opacity:0.6;">+${proximas.length-4} outros</span>` : '';
+    const titulo = prox.length
+        ? `🏥 ${prox.length} cirurgia${prox.length>1?'s':''} hoje/amanhã — preparar equipe`
+        : `🏥 Próximas ${proximas.length} cirurgia${proximas.length>1?'s':''} agendada${proximas.length>1?'s':''}`;
+    bar.style.cssText = bar.style.cssText.replace('animation:none;', '');
     bar.innerHTML = `
         <div>
             <div style="font-family:var(--mono);font-size:0.8rem;font-weight:700;color:#4db87a;letter-spacing:0.05em;margin-bottom:5px;">
-                🏥 ${prox.length} cirurgia${prox.length>1?'s':''} hoje/amanhã — preparar equipe
+                ${titulo}
             </div>
             <div style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);line-height:1.7;">${lista}${extra}</div>
         </div>
