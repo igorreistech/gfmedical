@@ -1034,10 +1034,11 @@ function renderCards() {
     try { list = getFiltered(); } catch(e) {
         grid.innerHTML = `<div style="grid-column:1/-1;padding:20px;color:red;">Erro: ${e.message}</div>`; return;
     }
-    // Ocultar concluído e cancelado dos cards (exceto se mostrarOcultos ativo, ou busca ativa)
-    if (!searchTerm.trim()) {
-        if (!mostrarOcultos) list = list.filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
-        else list = list.filter(p => p.status === 'concluido' || p.status === 'cancelado');
+    // Filtro de visibilidade: ocultos tem prioridade; busca ativa mostra todos os status
+    if (mostrarOcultos) {
+        list = list.filter(p => p.status === 'concluido' || p.status === 'cancelado');
+    } else if (!searchTerm.trim()) {
+        list = list.filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
     }
     if (list.length === 0) {
         grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim);">Nenhum procedimento encontrado</div>'; return;
@@ -2915,11 +2916,12 @@ function renderTable() {
     const table = document.getElementById('procTable');
     if (!table) return; // guard: DOM ainda não pronto
 
-    const list = searchTerm.trim()
-        ? getFiltered()
-        : (mostrarOcultos
-            ? getFiltered().filter(p => p.status === 'concluido' || p.status === 'cancelado')
-            : getFiltered().filter(p => p.status !== 'concluido' && p.status !== 'cancelado'));
+    const filtered = getFiltered();
+    const list = mostrarOcultos
+        ? filtered.filter(p => p.status === 'concluido' || p.status === 'cancelado')
+        : searchTerm.trim()
+            ? filtered
+            : filtered.filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
     const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
 
     // Ordenar por horário (padrão) ou coluna selecionada
