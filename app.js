@@ -372,7 +372,7 @@ function playDataRetiradaBeep() {
 function startDataRetiradaSound() { if (dataRetiradaSoundInterval) return; playDataRetiradaBeep(); dataRetiradaSoundInterval = setInterval(playDataRetiradaBeep, 600000); }
 function stopDataRetiradaSound() { if (dataRetiradaSoundInterval) { clearInterval(dataRetiradaSoundInterval); dataRetiradaSoundInterval = null; } }
 let currentFilter = 'all';
-let mostrarOcultos = false;
+var mostrarOcultos = false;
 let currentVendedorFilter = 'all';
 let currentGroup = 'none';
 let currentCityFilter = 'all';

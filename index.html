@@ -5939,7 +5939,7 @@
   function getFilteredV2(){
     return procedimentos.filter(p => {
       const matchFilter = !!searchTerm.trim()
-        || mostrarOcultos
+        || window.mostrarOcultos
         || currentFilter === 'all'
         || (currentFilter === 'reagendado_vencido' ? (p.status === 'reagendado' && p.data && p.data < todayStr()) : p.status === currentFilter);
       const matchVendedor = currentVendedorFilter === 'all' || (p.vendedor || '') === currentVendedorFilter;
@@ -6052,7 +6052,7 @@
     const table = document.getElementById('procTable');
     if(!table) return;
     let list = getFilteredV2();
-    if (mostrarOcultos) {
+    if (window.mostrarOcultos) {
       list = list.filter(p => p.status === 'concluido' || p.status === 'cancelado');
     } else if (!searchTerm.trim()) {
       list = list.filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
