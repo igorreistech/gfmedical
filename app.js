@@ -726,10 +726,10 @@ function updateStats() {
         }
     }
 
-    // Agendado — somente hoje ou amanhã
-    const temAgendado = procedimentos.some(p => (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanhaStr));
-    temAgendado ? startAgendadoSound() : stopAgendadoSound();
-    setPisca('stat-card-agendado', 'statPiscarAgendado 0.8s ease-in-out infinite', temAgendado);
+    // Agendado — pisca para qualquer agendado; som só hoje/amanhã
+    const temAgendadoHojeAmanha = procedimentos.some(p => (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanhaStr));
+    temAgendadoHojeAmanha ? startAgendadoSound() : stopAgendadoSound();
+    setPisca('stat-card-agendado', 'statPiscarAgendado 0.8s ease-in-out infinite', agendados.length > 0);
 
     // Cirurgia hoje ou amanhã — alerta separado
     const temCirurgiaAmanha = procedimentos.some(p => (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanhaStr));
