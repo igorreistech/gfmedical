@@ -698,11 +698,12 @@ function updateStats() {
                 <button class="reag-alert-btn" onclick="document.querySelector('[data-filter=reagendado]').click()">Ver reagendados →</button>`;
             reagBar.style.display = 'flex';
         } else {
-            reagBar.style.display = 'none';
+            reagBar.innerHTML = `<div><div class="reag-alert-text">↺ Reagendados — nenhuma cirurgia reagendada no momento</div></div>`;
         }
+        reagBar.style.display = 'flex';
     }
 
-    // Faixa de alerta ativo agendado
+    // Faixa de alerta ativo agendado (sempre visível)
     const agendados = procedimentos.filter(p => p.status === 'agendado');
     const agendBar = document.getElementById('agendado-alert-bar');
     if (agendBar) {
@@ -720,10 +721,10 @@ function updateStats() {
                     <div class="agend-alert-list">${lista}${extra}</div>
                 </div>
                 <button class="agend-alert-btn" onclick="document.querySelector('[data-filter=agendado]').click()">Ver agendados →</button>`;
-            agendBar.style.display = 'flex';
         } else {
-            agendBar.style.display = 'none';
+            agendBar.innerHTML = `<div><div class="agend-alert-text">📋 Agendados — nenhuma cirurgia agendada no momento</div></div>`;
         }
+        agendBar.style.display = 'flex';
     }
 
     // Agendado — pisca para qualquer agendado; som só hoje/amanhã
