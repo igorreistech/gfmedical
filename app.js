@@ -992,7 +992,7 @@ function updateAlerts() {
 }
 
 function getFiltered() {
-    const statusOrder = { a_agendar: 0, urgencia: 1, coleta_urgente: 2, agendado: 3, preparacao: 4, andamento: 5, cancelado: 6, reagendado: 7, a_retirar: 8, concluido: 9 };
+    const statusOrder = { urgencia: 0, coleta_urgente: 1, andamento: 2, preparacao: 3, em_transito: 4, a_retirar: 5, agendado: 6, reagendado: 7, a_agendar: 8, concluido: 9, cancelado: 10 };
     return procedimentos.filter(p => {
         if (_ehColeta(p) && currentFilter !== 'coleta_urgente') return false; // Volumes Urgentes só aparecem na aba própria
         const matchFilter = !!searchTerm.trim()

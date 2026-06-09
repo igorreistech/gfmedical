@@ -901,49 +901,49 @@
             <div class="stat-label">Total geral</div>
             <div class="stat-value" id="stat-total">0</div>
         </div>
-        <div class="stat-card a_agendar" id="stat-card-a_agendar">
-            <div class="stat-label">Autorizados</div>
-            <div class="stat-value" id="stat-a_agendar">0</div>
-        </div>
         <div class="stat-card urgencia" id="stat-card-urgencia">
             <div class="stat-label">🚨 Urgência</div>
             <div class="stat-value" id="stat-urgencia">0</div>
-        </div>
-        <div class="stat-card agendado" id="stat-card-agendado">
-            <div class="stat-label">Agendados</div>
-            <div class="stat-value" id="stat-agendado">0</div>
-        </div>
-        <div class="stat-card em_transito" id="stat-card-em_transito">
-            <div class="stat-label">Em Trânsito</div>
-            <div class="stat-value" id="stat-em_transito">0</div>
-        </div>
-        <div class="stat-card preparacao" id="stat-card-preparacao">
-            <div class="stat-label">Em Separação</div>
-            <div class="stat-value" id="stat-preparacao">0</div>
-        </div>
-        <div class="stat-card andamento" id="stat-card-andamento">
-            <div class="stat-label">Em Procedimento</div>
-            <div class="stat-value" id="stat-andamento">0</div>
-        </div>
-        <div class="stat-card cancelado">
-            <div class="stat-label">Cancelados</div>
-            <div class="stat-value" id="stat-cancelado">0</div>
-        </div>
-        <div class="stat-card reagendado" id="stat-card-reagendado">
-            <div class="stat-label">Reagendados</div>
-            <div class="stat-value" id="stat-reagendado">0</div>
-        </div>
-        <div class="stat-card a_retirar" id="stat-card-a_retirar">
-            <div class="stat-label">📦 A Retirar</div>
-            <div class="stat-value" id="stat-a_retirar">0</div>
         </div>
         <div class="stat-card" id="stat-card-coleta_urgente" style="border-top:3px solid #6366f1;">
             <div class="stat-label">✈️ Coleta Prioritária</div>
             <div class="stat-value" id="stat-coleta_urgente">0</div>
         </div>
+        <div class="stat-card andamento" id="stat-card-andamento">
+            <div class="stat-label">Em Procedimento</div>
+            <div class="stat-value" id="stat-andamento">0</div>
+        </div>
+        <div class="stat-card preparacao" id="stat-card-preparacao">
+            <div class="stat-label">Em Separação</div>
+            <div class="stat-value" id="stat-preparacao">0</div>
+        </div>
+        <div class="stat-card em_transito" id="stat-card-em_transito">
+            <div class="stat-label">Em Trânsito</div>
+            <div class="stat-value" id="stat-em_transito">0</div>
+        </div>
+        <div class="stat-card a_retirar" id="stat-card-a_retirar">
+            <div class="stat-label">📦 A Retirar</div>
+            <div class="stat-value" id="stat-a_retirar">0</div>
+        </div>
+        <div class="stat-card agendado" id="stat-card-agendado">
+            <div class="stat-label">Agendados</div>
+            <div class="stat-value" id="stat-agendado">0</div>
+        </div>
+        <div class="stat-card reagendado" id="stat-card-reagendado">
+            <div class="stat-label">Reagendados</div>
+            <div class="stat-value" id="stat-reagendado">0</div>
+        </div>
+        <div class="stat-card a_agendar" id="stat-card-a_agendar">
+            <div class="stat-label">Autorizados</div>
+            <div class="stat-value" id="stat-a_agendar">0</div>
+        </div>
         <div class="stat-card concluido">
             <div class="stat-label">Concluídos</div>
             <div class="stat-value" id="stat-concluido">0</div>
+        </div>
+        <div class="stat-card cancelado">
+            <div class="stat-label">Cancelados</div>
+            <div class="stat-value" id="stat-cancelado">0</div>
         </div>
     </div>
 
@@ -987,17 +987,18 @@
     <!-- CONTROLS -->
     <div class="controls" id="main-controls">
         <button class="filter-btn active" data-filter="all">Todos</button>
-        <button class="filter-btn" data-filter="a_agendar">Autorizados</button>
+        <button class="filter-btn" data-filter="urgencia" style="color:#ff3333;border-color:rgba(255,0,0,0.5);">🚨 Urgência</button>
+        <button class="filter-btn" data-filter="coleta_urgente" style="color:#6366f1;border-color:rgba(99,102,241,0.5);">✈️ Coleta Prioritária</button>
         <button class="filter-btn" data-filter="andamento">Em Procedimento</button>
         <button class="filter-btn" data-filter="preparacao">Em Separação</button>
-        <button class="filter-btn" data-filter="agendado">Agendados</button>
         <button class="filter-btn" data-filter="em_transito">Em Trânsito</button>
+        <button class="filter-btn" data-filter="a_retirar">📦 Aguardando Retirada</button>
+        <button class="filter-btn" data-filter="agendado">Agendados</button>
+        <button class="filter-btn" data-filter="reagendado_vencido" style="color:#ef4444;border-color:rgba(239,68,68,0.5);">↺ Atrasados</button>
+        <button class="filter-btn" data-filter="reagendado">Reagendados</button>
+        <button class="filter-btn" data-filter="a_agendar">Autorizados</button>
         <button class="filter-btn" data-filter="concluido">Concluídos</button>
         <button class="filter-btn" data-filter="cancelado">Cancelados</button>
-        <button class="filter-btn" data-filter="reagendado">Reagendados</button>
-        <button class="filter-btn" data-filter="reagendado_vencido" style="color:#ef4444;border-color:rgba(239,68,68,0.5);">↺ Atrasados</button>
-        <button class="filter-btn" data-filter="a_retirar">📦 Aguardando Retirada</button>
-        <button class="filter-btn" data-filter="urgencia" style="color:#ff3333;border-color:rgba(255,0,0,0.5);">🚨 Urgência</button>
         <input class="search-box" type="text" id="searchBox" placeholder="Buscar hospital, médico, paciente, NF...">
         <div id="vendedor-filter-wrap">
             <label class="filter-section-label">👤 Vendedor:</label>
