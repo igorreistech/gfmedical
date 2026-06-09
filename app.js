@@ -1325,6 +1325,7 @@ function perguntarColetaRealizada(docId, tipo) {
 // ─── TOGGLE OCULTOS (concluído/cancelado) ───
 function toggleOcultos() {
     mostrarOcultos = !mostrarOcultos;
+    document.body.classList.toggle('mostrar-ocultos', mostrarOcultos);
     const btn = document.getElementById('btn-toggle-ocultos');
     if (btn) {
         btn.style.background = mostrarOcultos ? 'rgba(99,102,241,0.18)' : 'rgba(107,114,128,0.12)';

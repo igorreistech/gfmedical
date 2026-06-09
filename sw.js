@@ -1,4 +1,4 @@
-const CACHE = 'monitor-cgr-v7';
+const CACHE = 'monitor-cgr-v8';
 const LOCAL_ASSETS = [
   '/gfcampogrande/',
   '/gfcampogrande/index.html',
