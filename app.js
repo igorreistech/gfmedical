@@ -702,6 +702,30 @@ function updateStats() {
         }
     }
 
+    // Faixa de alerta ativo agendado
+    const agendados = procedimentos.filter(p => p.status === 'agendado');
+    const agendBar = document.getElementById('agendado-alert-bar');
+    if (agendBar) {
+        if (agendados.length > 0) {
+            const lista = agendados.slice(0, 4).map(p => {
+                const nome = p.paciente || p.hospital || 'Procedimento';
+                const data = p.data ? new Date(p.data + 'T00:00:00').toLocaleDateString('pt-BR') : '⚠ SEM DATA';
+                const hora = p.inicio ? ` às ${p.inicio}` : '';
+                return `• ${nome} — ${data}${hora}`;
+            }).join('<br>');
+            const extra = agendados.length > 4 ? `<br><span style="opacity:0.6;">+${agendados.length - 4} outros</span>` : '';
+            agendBar.innerHTML = `
+                <div>
+                    <div class="agend-alert-text">📋 ${agendados.length} cirurgia${agendados.length > 1 ? 's' : ''} agendada${agendados.length > 1 ? 's' : ''} — acompanhar preparação</div>
+                    <div class="agend-alert-list">${lista}${extra}</div>
+                </div>
+                <button class="agend-alert-btn" onclick="document.querySelector('[data-filter=agendado]').click()">Ver agendados →</button>`;
+            agendBar.style.display = 'flex';
+        } else {
+            agendBar.style.display = 'none';
+        }
+    }
+
     // Agendado — somente hoje ou amanhã
     const temAgendado = procedimentos.some(p => (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanhaStr));
     temAgendado ? startAgendadoSound() : stopAgendadoSound();
