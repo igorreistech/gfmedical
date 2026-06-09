@@ -466,6 +466,12 @@
 
               const paraPromover = [];
               dados.forEach(p => {
+                // Em Trânsito sem NF → Em Separação (NF obrigatória para manter em trânsito)
+                if (p.status === 'em_transito' && (!p.nf || !p.nf.trim())) {
+                  p.status = 'preparacao';
+                  autoTransitar(p, 'em_transito');
+                }
+
                 // Agendado + véspera (D-1) → Em Separação (silencioso)
                 if (p.status === 'agendado' && p.data && p.data === amanha) {
                   p.status = 'preparacao';
@@ -475,6 +481,14 @@
                 else if ((p.status === 'preparacao' || p.status === 'em_transito') && p.data && p.data === hoje
                          && !window._confirmacaoInicioFeita.has(p._docId)) {
                   paraPromover.push(p);
+                }
+
+                // Data de retirada = hoje → Aguardando Retirada (automático)
+                if (!['a_retirar','concluido','cancelado','andamento','urgencia','coleta_urgente'].includes(p.status)
+                    && (p.retirada || p.dataRetirar) === hoje) {
+                  const prev = p.status;
+                  p.status = 'a_retirar';
+                  autoTransitar(p, prev);
                 }
               });
 
