@@ -418,6 +418,24 @@ tbody tr:hover .row-acts { opacity:1; }
   thead th { background:#eee !important; font-weight:700; }
 }
 </style>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyCKQ0IFOO-8bQDqBN7oV1GTFbATmXI8MTI",
+    authDomain: "gfcampogrande-3d886.firebaseapp.com",
+    projectId: "gfcampogrande-3d886",
+    storageBucket: "gfcampogrande-3d886.firebasestorage.app",
+    messagingSenderId: "1089347107124",
+    appId: "1:1089347107124:web:2cf047dff32b642c1ecd61"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  window._fbDb = db;
+  window._fbColl = 'opme_fichas';
+  window._fbModules = { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc };
+  window._fbReady = true;
+</script>
 </head>
 <body>
 <!-- ── TELA DE LOGIN ── -->
@@ -606,120 +624,7 @@ tbody tr:hover .row-acts { opacity:1; }
 
   <!-- ══════════ KANBAN ══════════ -->
   <div id="view-kanban" style="display:none">
-    <div class="kanban-board">
-
-      <!-- PENDENTE -->
-      <div class="kcol">
-        <div class="kcol-head kh0">⬜ Pendente<span class="kcnt cnt0">4</span></div>
-        <div class="kcol-body kb0" id="col-0">
-          <div class="kcard" data-pac="João Silva Santos" data-status="0">
-            <div class="kcard-pac">João Silva Santos</div>
-            <div class="kcard-proc">Stent Coronário · Dr. Carlos Mendes</div>
-            <div class="kcard-bot"><span class="kcard-filial fc-cg">CG</span><span class="kcard-data">12/06</span></div>
-            <div class="kcard-actions">
-              <button class="kbtn kb-next" style="border-color:var(--s1-bd);color:var(--s1-c)" onclick="advance(this,1)">→ Criar Pedido</button>
-              <button class="kbtn kb-view">👁️</button>
-            </div>
-          </div>
-          <div class="kcard" data-pac="Pedro Albuquerque" data-status="0">
-            <div class="kcard-pac">Pedro Albuquerque</div>
-            <div class="kcard-proc">Valvuloplastia · Dr. Marcos Vieira</div>
-            <div class="kcard-bot"><span class="kcard-filial fc-cba">CBA</span><span class="kcard-data">11/06</span></div>
-            <div class="kcard-actions">
-              <button class="kbtn kb-next" style="border-color:var(--s1-bd);color:var(--s1-c)" onclick="advance(this,1)">→ Criar Pedido</button>
-              <button class="kbtn kb-view">👁️</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- PEDIDO CRIADO -->
-      <div class="kcol">
-        <div class="kcol-head kh1">🔵 Pedido Criado<span class="kcnt cnt1">6</span></div>
-        <div class="kcol-body kb1" id="col-1">
-          <div class="kcard" data-pac="Maria Fernanda Costa" data-status="1">
-            <div class="kcard-pac">Maria Fernanda Costa</div>
-            <div class="kcard-proc">Endoprótese Aórtica · Dra. Ana Paula Lima</div>
-            <div class="kcard-bot"><span class="kcard-filial fc-cba">CBA</span><span class="kcard-data">11/06</span></div>
-            <div class="kcard-actions">
-              <button class="kbtn kb-next" style="border-color:var(--s2-bd);color:var(--s2-c)" onclick="advance(this,2)">→ Laudação</button>
-              <button class="kbtn kb-back" onclick="advance(this,0)">↩</button>
-              <button class="kbtn kb-view">👁️</button>
-            </div>
-          </div>
-          <div class="kcard" data-pac="Luciana Borges" data-status="1">
-            <div class="kcard-pac">Luciana Borges</div>
-            <div class="kcard-proc">Cateter Balão · Dr. Marcos Vieira</div>
-            <div class="kcard-bot"><span class="kcard-filial fc-cg">CG</span><span class="kcard-data">10/06</span></div>
-            <div class="kcard-actions">
-              <button class="kbtn kb-next" style="border-color:var(--s2-bd);color:var(--s2-c)" onclick="advance(this,2)">→ Laudação</button>
-              <button class="kbtn kb-back" onclick="advance(this,0)">↩</button>
-              <button class="kbtn kb-view">👁️</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- EM LAUDAÇÃO -->
-      <div class="kcol">
-        <div class="kcol-head kh2">🟣 Em Laudação<span class="kcnt cnt2">5</span></div>
-        <div class="kcol-body kb2" id="col-2">
-          <div class="kcard" data-pac="Carlos Eduardo Melo" data-status="2">
-            <div class="kcard-pac">Carlos Eduardo Melo</div>
-            <div class="kcard-proc">Stent Periférico · Dra. Fernanda Souza</div>
-            <div class="kcard-bot"><span class="kcard-filial fc-cg">CG</span><span class="kcard-data">09/06</span></div>
-            <div class="kcard-actions">
-              <button class="kbtn kb-next" style="border-color:var(--s3-bd);color:var(--s3-c)" onclick="advance(this,3)">→ Autorizado</button>
-              <button class="kbtn kb-back" onclick="advance(this,1)">↩</button>
-              <button class="kbtn kb-view">👁️</button>
-            </div>
-          </div>
-          <div class="kcard" data-pac="Ana Clara Ramos" data-status="2">
-            <div class="kcard-pac">Ana Clara Ramos</div>
-            <div class="kcard-proc">Marca-passo · Dr. Paulo Rezende</div>
-            <div class="kcard-bot"><span class="kcard-filial fc-cba">CBA</span><span class="kcard-data">08/06</span></div>
-            <div class="kcard-actions">
-              <button class="kbtn kb-next" style="border-color:var(--s3-bd);color:var(--s3-c)" onclick="advance(this,3)">→ Autorizado</button>
-              <button class="kbtn kb-back" onclick="advance(this,1)">↩</button>
-              <button class="kbtn kb-view">👁️</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- AUTORIZADO -->
-      <div class="kcol">
-        <div class="kcol-head kh3">🟡 Autorizado<span class="kcnt cnt3">5</span></div>
-        <div class="kcol-body kb3" id="col-3">
-          <div class="kcard" data-pac="Roberto Alves Neto" data-status="3">
-            <div class="kcard-pac">Roberto Alves Neto</div>
-            <div class="kcard-proc">Marca-passo Dupla Câmara · Dr. Paulo Rezende</div>
-            <div class="kcard-bot"><span class="kcard-filial fc-cg">CG</span><span class="kcard-data">10/06</span></div>
-            <div class="kcard-actions">
-              <button class="kbtn kb-next" style="border-color:var(--s4-bd);color:var(--s4-c)" onclick="advance(this,4)">→ Faturar</button>
-              <button class="kbtn kb-back" onclick="advance(this,2)">↩</button>
-              <button class="kbtn kb-view">👁️</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- FATURADO -->
-      <div class="kcol">
-        <div class="kcol-head kh4">🟢 Faturado<span class="kcnt cnt4">4</span></div>
-        <div class="kcol-body kb4" id="col-4">
-          <div class="kcard" data-pac="Fernanda Moraes" data-status="4">
-            <div class="kcard-pac">Fernanda Moraes</div>
-            <div class="kcard-proc">Endoprótese Torácica · Dr. Carlos Mendes</div>
-            <div class="kcard-bot"><span class="kcard-filial fc-cg">CG</span><span class="kcard-data">07/06</span></div>
-            <div class="kcard-actions">
-              <button class="kbtn kb-view">👁️</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
+    <div class="kanban-board" id="kanban-board"></div>
   </div><!-- /kanban -->
 
   <!-- ══════════ LISTA ══════════ -->
@@ -773,22 +678,22 @@ tbody tr:hover .row-acts { opacity:1; }
     </div>
     <div class="mbody">
       <div class="frow">
-        <div class="fg"><label class="flbl">Paciente *</label><input class="finput" type="text" placeholder="Nome completo"></div>
-        <div class="fg"><label class="flbl">Médico *</label><input class="finput" type="text" placeholder="Dr./Dra."></div>
+        <div class="fg"><label class="flbl">Paciente *</label><input class="finput" id="f-pac" type="text" placeholder="Nome completo"></div>
+        <div class="fg"><label class="flbl">Médico *</label><input class="finput" id="f-med" type="text" placeholder="Dr./Dra."></div>
       </div>
       <div class="frow">
-        <div class="fg"><label class="flbl">Procedimento *</label><input class="finput" type="text" placeholder="Ex: Stent Coronário"></div>
-        <div class="fg"><label class="flbl">Hospital</label><input class="finput" type="text" placeholder="Nome do hospital"></div>
+        <div class="fg"><label class="flbl">Procedimento *</label><input class="finput" id="f-proc" type="text" placeholder="Ex: Stent Coronário"></div>
+        <div class="fg"><label class="flbl">Hospital</label><input class="finput" id="f-hosp" type="text" placeholder="Nome do hospital"></div>
       </div>
       <div class="frow">
-        <div class="fg"><label class="flbl">Convênio</label><input class="finput" type="text" placeholder="Ex: Unimed, SUS, Bradesco"></div>
-        <div class="fg"><label class="flbl">Nº Pedido de Venda</label><input class="finput" type="text" placeholder="Ex: PV-2026-0412"></div>
+        <div class="fg"><label class="flbl">Convênio</label><input class="finput" id="f-conv" type="text" placeholder="Ex: Unimed, SUS, Bradesco"></div>
+        <div class="fg"><label class="flbl">Nº Pedido de Venda</label><input class="finput" id="f-pedido" type="text" placeholder="Ex: PV-2026-0412"></div>
       </div>
       <div class="frow">
-        <div class="fg"><label class="flbl">Filial *</label>
-          <select class="finput"><option value="">Selecione…</option><option>Campo Grande (CG)</option><option>Cuiabá (CBA)</option></select>
+        <div class="fg"><label class="flbl">Filial</label>
+          <select class="finput" id="f-filial" disabled><option value="CG">Campo Grande (CG)</option></select>
         </div>
-        <div class="fg"><label class="flbl">Data da Cirurgia</label><input class="finput" type="date"></div>
+        <div class="fg"><label class="flbl">Data da Cirurgia</label><input class="finput" id="f-data" type="date"></div>
       </div>
       <div class="uploads-grid">
         <div class="uzone uzone-opme" id="zone-opme">
@@ -827,176 +732,178 @@ tbody tr:hover .row-acts { opacity:1; }
 <div class="toasts" id="toasts"></div>
 
 <script>
-// ── DADOS ──
+// ── STATUS ──
 const STATUS = [
-  { label:'Pendente',     icon:'⬜', cls:'b0' },
-  { label:'Pedido Criado',icon:'🔵', cls:'b1' },
-  { label:'Em Laudação',  icon:'🟣', cls:'b2' },
-  { label:'Autorizado',   icon:'🟡', cls:'b3' },
-  { label:'Faturado',     icon:'🟢', cls:'b4' },
+  { label:'Pendente',      icon:'⬜', cls:'b0' },
+  { label:'Pedido Criado', icon:'🔵', cls:'b1' },
+  { label:'Em Laudação',   icon:'🟣', cls:'b2' },
+  { label:'Autorizado',    icon:'🟡', cls:'b3' },
+  { label:'Faturado',      icon:'🟢', cls:'b4' },
 ];
 
-const FICHAS = [];
-
+let FICHAS = [];
 let curFilter = -1;
+
+const FILIAL_CONFIG = 'CG';
+const FILIAL = {
+  CG:  { nome: 'Campo Grande', sigla: 'CG',  emoji: '🟢', color: 'var(--accent)',  bg: 'rgba(26,122,74,0.10)',  bd: 'rgba(26,122,74,0.20)' },
+  CBA: { nome: 'Cuiabá',       sigla: 'CBA', emoji: '🔵', color: 'var(--accent2)', bg: 'rgba(42,159,191,0.10)', bd: 'rgba(42,159,191,0.20)' },
+};
+let currentUser = { nome: 'GF Medical', email: 'admin@gfmedical.com.br', filial: FILIAL_CONFIG };
+
+function waitFirebase(cb) { if (window._fbReady) { cb(); return; } setTimeout(() => waitFirebase(cb), 50); }
 
 // ── RENDER LISTA ──
 function renderLista(filter) {
-  const tbody = document.getElementById('tbody');
   const lista = filter === -1 ? FICHAS : FICHAS.filter(f => f.status === filter);
   document.getElementById('tcount').textContent = lista.length + ' registros';
-
-  tbody.innerHTML = lista.map((f,i) => {
+  document.getElementById('tbody').innerHTML = lista.map(f => {
     const s = f.status;
-    const filialBadge = f.filial === 'CG'
-      ? '<span class="kcard-filial fc-cg">CG</span>'
-      : '<span class="kcard-filial fc-cba">CBA</span>';
-    const pedidoSpan = f.pedido === '—'
-      ? '<span style="color:var(--text3);font-size:0.7rem;">— sem pedido</span>'
-      : `<span style="font-family:var(--mono);font-size:0.68rem;color:var(--text2);">${f.pedido}</span>`;
-
-    // Botões de fluxo inline
-    const btns = STATUS.map((st,si) => {
-      const cur = si === s;
-      return `<button class="iflow-btn${cur?' cur cur'+si:''}" onclick="changeStatus(${FICHAS.indexOf(f)},${si})">${si===s?'●':si+1}</button>${si<4?'<span class="iflow-arr">›</span>':''}`;
-    }).join('');
-
+    const fb = f.filial === 'CG' ? '<span class="kcard-filial fc-cg">CG</span>' : '<span class="kcard-filial fc-cba">CBA</span>';
+    const ped = (!f.pedido || f.pedido === '—') ? '<span style="color:var(--text3);font-size:0.7rem;">— sem pedido</span>' : `<span style="font-family:var(--mono);font-size:0.68rem;color:var(--text2);">${f.pedido}</span>`;
+    const btns = STATUS.map((st,si) => `<button class="iflow-btn${si===s?' cur cur'+si:''}" onclick="changeStatus('${f._docId}',${si})">${si===s?'●':si+1}</button>${si<4?'<span class="iflow-arr">›</span>':''}`).join('');
     return `<tr data-status="${s}">
-      <td class="td-pac">${f.pac}</td>
-      <td class="td-trunc">${f.med}</td>
-      <td class="td-trunc">${f.proc}</td>
-      <td>${filialBadge}</td>
-      <td>${pedidoSpan}</td>
+      <td class="td-pac">${f.pac||''}</td>
+      <td class="td-trunc">${f.med||''}</td>
+      <td class="td-trunc">${f.proc||''}</td>
+      <td>${fb}</td><td>${ped}</td>
       <td><div class="iflow">${btns}</div></td>
-      <td class="td-mono">${f.data}</td>
-      <td><div class="row-acts"><button class="abtn">👁️</button><button class="abtn">✏️</button><button class="abtn">🗑️</button></div></td>
+      <td class="td-mono">${f.data||''}</td>
+      <td><div class="row-acts"><button class="abtn" onclick="excluirFicha('${f._docId}')">🗑️</button></div></td>
     </tr>`;
   }).join('');
 }
 
-function changeStatus(idx, newStatus) {
-  const old = STATUS[FICHAS[idx].status].label;
-  FICHAS[idx].status = newStatus;
-  renderLista(curFilter);
-  toast(`${FICHAS[idx].pac} → ${STATUS[newStatus].label}`, 'ok');
+// ── RENDER KANBAN ──
+function renderKanban() {
+  const board = document.getElementById('kanban-board');
+  if (!board) return;
+  const advLabels = [null,'→ Criar Pedido','→ Laudação','→ Autorizado','→ Faturar'];
+  const bds = ['','var(--s1-bd)','var(--s2-bd)','var(--s3-bd)','var(--s4-bd)'];
+  const cls2 = ['','var(--s1-c)','var(--s2-c)','var(--s3-c)','var(--s4-c)'];
+  board.innerHTML = STATUS.map((st, si) => {
+    const fichas = FICHAS.filter(f => f.status === si);
+    const cards = fichas.map(f => {
+      const fb = f.filial === 'CG' ? '<span class="kcard-filial fc-cg">CG</span>' : '<span class="kcard-filial fc-cba">CBA</span>';
+      let acts = '';
+      if (si < 4) acts += `<button class="kbtn kb-next" style="border-color:${bds[si+1]};color:${cls2[si+1]}" onclick="changeStatus('${f._docId}',${si+1})">${advLabels[si+1]}</button>`;
+      if (si > 0) acts += `<button class="kbtn kb-back" onclick="changeStatus('${f._docId}',${si-1})">↩</button>`;
+      acts += `<button class="kbtn kb-view">👁️</button>`;
+      return `<div class="kcard"><div class="kcard-pac">${f.pac||''}</div><div class="kcard-proc">${f.proc||''} · ${f.med||''}</div><div class="kcard-bot">${fb}<span class="kcard-data">${f.data||''}</span></div><div class="kcard-actions">${acts}</div></div>`;
+    }).join('');
+    return `<div class="kcol"><div class="kcol-head kh${si}">${st.icon} ${st.label}<span class="kcnt cnt${si}">${fichas.length}</span></div><div class="kcol-body kb${si}" id="col-${si}">${cards}</div></div>`;
+  }).join('');
 }
 
-// ── KANBAN ADVANCE ──
-function advance(btn, toStatus) {
-  const card = btn.closest('.kcard');
-  const pac = card.dataset.pac;
-  card.style.opacity = '0'; card.style.transform = 'scale(0.95)'; card.style.transition = 'all 0.15s';
-  setTimeout(() => {
-    card.style.transition = '';
-    card.style.opacity = ''; card.style.transform = '';
-
-    // Rebuild actions
-    const acts = card.querySelector('.kcard-actions');
-    acts.innerHTML = '';
-    if (toStatus < 4) {
-      const labels = [null,'→ Criar Pedido','→ Laudação','→ Autorizado','→ Faturar'];
-      const bds = ['','var(--s1-bd)','var(--s2-bd)','var(--s3-bd)','var(--s4-bd)'];
-      const cls = ['','var(--s1-c)','var(--s2-c)','var(--s3-c)','var(--s4-c)'];
-      const nb = toStatus+1;
-      acts.innerHTML = `<button class="kbtn kb-next" style="border-color:${bds[nb]};color:${cls[nb]}" onclick="advance(this,${nb})">${labels[nb]}</button>`;
-      if (toStatus > 0) acts.innerHTML += `<button class="kbtn kb-back" onclick="advance(this,${toStatus-1})">↩</button>`;
-    }
-    acts.innerHTML += `<button class="kbtn kb-view">👁️</button>`;
-
-    document.getElementById('col-'+toStatus).appendChild(card);
-    toast(`${pac} → ${STATUS[toStatus].label}`, 'ok');
-  }, 150);
-}
-
-// ── FILTROS LISTA ──
-function filterChip(chip, s) {
-  document.querySelectorAll('.fchip').forEach(c => c.classList.remove('on'));
-  chip.classList.add('on');
-  curFilter = s;
-  renderLista(s);
-}
-
-function filterS(s) {
-  curFilter = s;
-  renderLista(s);
-  document.querySelectorAll('.fchip').forEach((c,i) => c.classList.toggle('on', i === s+1));
-}
-
-document.querySelectorAll('.fbtn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on'));
-    btn.classList.add('on');
+// ── RENDER DASHBOARD ──
+function renderDashboard() {
+  const max = Math.max(...STATUS.map((_,si) => FICHAS.filter(f => f.status === si).length), 1);
+  STATUS.forEach((_,si) => {
+    const cnt = FICHAS.filter(f => f.status === si).length;
+    const el = document.querySelector(`.stat-card.sc${si} .stat-val`); if (el) el.textContent = cnt;
+    const fill = document.querySelector(`.funnel-fill.ff${si}`); if (fill) { fill.style.width=(cnt/max*100)+'%'; const sp=fill.querySelector('span'); if(sp) sp.textContent=cnt; }
+    const fc = document.querySelector(`.funnel-row:nth-child(${si+1}) .funnel-count`); if (fc) fc.textContent = cnt;
   });
-});
+}
+
+// ── FIREBASE ACTIONS ──
+async function changeStatus(docId, newStatus) {
+  try {
+    const { updateDoc, doc } = window._fbModules;
+    await updateDoc(doc(window._fbDb, window._fbColl, docId), { status: newStatus, atualizadoEm: new Date().toISOString() });
+    const f = FICHAS.find(x => x._docId === docId);
+    if (f) toast(`${f.pac} → ${STATUS[newStatus].label}`, 'ok');
+  } catch(e) { toast('Erro ao atualizar','err'); console.error(e); }
+}
+
+async function excluirFicha(docId) {
+  const f = FICHAS.find(x => x._docId === docId);
+  if (!confirm(`Excluir ficha de ${f ? f.pac : ''}?`)) return;
+  try {
+    const { deleteDoc, doc } = window._fbModules;
+    await deleteDoc(doc(window._fbDb, window._fbColl, docId));
+    toast('Ficha excluída','ok');
+  } catch(e) { toast('Erro ao excluir','err'); }
+}
+
+// ── MODAL SAVE ──
+async function saveModal() {
+  const pac = document.getElementById('f-pac').value.trim();
+  const med = document.getElementById('f-med').value.trim();
+  const proc = document.getElementById('f-proc').value.trim();
+  if (!pac || !med || !proc) { toast('Preencha Paciente, Médico e Procedimento (*)','err'); return; }
+  try {
+    const data = {
+      pac, med, proc,
+      hosp:   document.getElementById('f-hosp').value.trim(),
+      conv:   document.getElementById('f-conv').value.trim(),
+      pedido: document.getElementById('f-pedido').value.trim() || '—',
+      filial: FILIAL_CONFIG,
+      data:   document.getElementById('f-data').value,
+      status: 0,
+      criadoEm: new Date().toISOString(),
+      atualizadoEm: new Date().toISOString(),
+    };
+    const { addDoc, collection } = window._fbModules;
+    await addDoc(collection(window._fbDb, window._fbColl), data);
+    ['f-pac','f-med','f-proc','f-hosp','f-conv','f-pedido','f-data'].forEach(id => { document.getElementById(id).value = ''; });
+    closeModal();
+    toast('Ficha salva com sucesso!','ok');
+  } catch(e) { toast('Erro ao salvar','err'); console.error(e); }
+}
+
+// ── FIREBASE LISTENER ──
+function iniciarFirebase() {
+  const { collection, onSnapshot } = window._fbModules;
+  onSnapshot(collection(window._fbDb, window._fbColl), snap => {
+    FICHAS.splice(0, FICHAS.length, ...snap.docs.map(d => ({ _docId: d.id, ...d.data() })));
+    renderLista(curFilter);
+    renderKanban();
+    renderDashboard();
+  });
+}
+
+// ── FILTROS ──
+function filterChip(chip, s) { document.querySelectorAll('.fchip').forEach(c => c.classList.remove('on')); chip.classList.add('on'); curFilter = s; renderLista(s); }
+function filterS(s) { curFilter = s; renderLista(s); document.querySelectorAll('.fchip').forEach((c,i) => c.classList.toggle('on', i === s+1)); }
+document.querySelectorAll('.fbtn').forEach(btn => btn.addEventListener('click', () => { document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on')); btn.classList.add('on'); }));
 
 // ── VIEWS ──
 function go(v) {
-  ['dashboard','kanban','lista'].forEach(id => {
-    document.getElementById('view-'+id).style.display = id===v ? 'block' : 'none';
-    document.getElementById('tab-'+id).classList.toggle('active', id===v);
-  });
-  const titles = {dashboard:'Dashboard', kanban:'Kanban · Fluxo OPME', lista:'Lista de Fichas'};
-  document.getElementById('page-title').textContent = titles[v];
+  ['dashboard','kanban','lista'].forEach(id => { document.getElementById('view-'+id).style.display = id===v?'block':'none'; document.getElementById('tab-'+id).classList.toggle('active',id===v); });
+  document.getElementById('page-title').textContent = {dashboard:'Dashboard',kanban:'Kanban · Fluxo OPME',lista:'Lista de Fichas'}[v];
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 }
 
 // ── MODAL ──
 function openModal() { document.getElementById('modal').classList.add('open'); }
-
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
 function selectFile(input, tipo) {
-  const file = input.files[0];
-  if (!file) return;
-  const fmt = (b) => b < 1024*1024 ? (b/1024).toFixed(0)+' KB' : (b/1024/1024).toFixed(1)+' MB';
+  const file = input.files[0]; if (!file) return;
+  const fmt = b => b < 1024*1024 ? (b/1024).toFixed(0)+' KB' : (b/1024/1024).toFixed(1)+' MB';
   document.getElementById('prev-'+tipo+'-name').textContent = file.name;
   document.getElementById('prev-'+tipo+'-size').textContent = fmt(file.size);
   document.getElementById('prev-'+tipo).classList.add('show');
   document.getElementById('zone-'+tipo).classList.add('has-file');
 }
-
 function removeFile(e, tipo) {
   e.preventDefault(); e.stopPropagation();
   document.getElementById('prev-'+tipo).classList.remove('show');
   document.getElementById('zone-'+tipo).classList.remove('has-file');
   document.getElementById('zone-'+tipo).querySelector('input[type=file]').value = '';
 }
-function closeModal() { document.getElementById('modal').classList.remove('open'); }
-function saveModal() { closeModal(); toast('Ficha salva com sucesso!','ok'); renderLista(curFilter); }
 document.getElementById('modal').addEventListener('click', e => { if(e.target===document.getElementById('modal')) closeModal(); });
 
 // ── TOAST ──
 function toast(msg, type='ok') {
-  const t = document.createElement('div');
-  t.className = 'toast t-'+type;
-  t.textContent = msg;
+  const t = document.createElement('div'); t.className = 'toast t-'+type; t.textContent = msg;
   document.getElementById('toasts').appendChild(t);
   setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.2s'; setTimeout(()=>t.remove(),200); }, 2800);
 }
 
-// ── CONFIGURAÇÃO DE FILIAL ──
-// Para deploy CG: mudar FILIAL_CONFIG para 'CG'
-// Para deploy CBA: mudar FILIAL_CONFIG para 'CBA'
-const FILIAL_CONFIG = 'CG'; // ← ALTERAR POR DEPLOY
-
-const FILIAL = {
-  CG:  { nome: 'Campo Grande', sigla: 'CG',  emoji: '🟢', color: 'var(--accent)',  bg: 'rgba(26,122,74,0.10)',  bd: 'rgba(26,122,74,0.20)',  cls: 'fc-cg'  },
-  CBA: { nome: 'Cuiabá',       sigla: 'CBA', emoji: '🔵', color: 'var(--accent2)', bg: 'rgba(42,159,191,0.10)', bd: 'rgba(42,159,191,0.20)', cls: 'fc-cba' },
-};
-
-// Usuários mock — substituir por Firebase Auth
-const USUARIOS = {
-  'cg@gfmedical.com.br':  { senha: 'gf2026', filial: 'CG',  nome: 'Igor Reis' },
-  'cba@gfmedical.com.br': { senha: 'gf2026', filial: 'CBA', nome: 'Ana Silva' },
-  'admin@gfmedical.com.br':{ senha: 'gf2026', filial: FILIAL_CONFIG, nome: 'Admin' },
-};
-
-// Usuário automático — autenticação já realizada no monitor principal
-let currentUser = { nome: 'GF Medical', email: 'admin@gfmedical.com.br', filial: FILIAL_CONFIG };
-
-// ── INIT APP (pós-login) ──
+// ── INIT ──
 function initApp() {
   const f = FILIAL[FILIAL_CONFIG];
-
-  // Atualiza nome/filial no sidebar
   document.getElementById('user-name').textContent = currentUser.nome;
   document.getElementById('user-avatar').textContent = currentUser.nome.split(' ').map(p=>p[0]).slice(0,2).join('');
   document.getElementById('sidebar-filial-tag').textContent = f.sigla;
@@ -1004,53 +911,13 @@ function initApp() {
   document.getElementById('sidebar-filial-tag').style.color = f.color;
   document.getElementById('sidebar-filial-tag').style.borderColor = f.bd;
   document.getElementById('sidebar-filial-label').textContent = '🏥 ' + f.nome;
-
-  // Filtra fichas da filial
-  const fichasFilial = FICHAS.filter(fi => fi.filial === FILIAL_CONFIG);
-  // Substitui array global temporariamente para renderLista
-  window.FICHAS_FILIAL = fichasFilial;
-
   go('lista');
   document.getElementById('tab-lista').classList.add('active');
-  renderLista(-1);
+  renderLista(-1); renderKanban(); renderDashboard();
 }
 
-// Sobrescreve renderLista para usar fichas da filial
-const _renderLista = renderLista;
-renderLista = function(filter) {
-  const fonte = window.FICHAS_FILIAL || FICHAS;
-  const tbody = document.getElementById('tbody');
-  const lista = filter === -1 ? fonte : fonte.filter(f => f.status === filter);
-  document.getElementById('tcount').textContent = lista.length + ' registros';
-
-  tbody.innerHTML = lista.map((f) => {
-    const s = f.status;
-    const filialBadge = f.filial === 'CG'
-      ? '<span class="kcard-filial fc-cg">CG</span>'
-      : '<span class="kcard-filial fc-cba">CBA</span>';
-    const pedidoSpan = f.pedido === '—'
-      ? '<span style="color:var(--text3);font-size:0.7rem;">— sem pedido</span>'
-      : `<span style="font-family:var(--mono);font-size:0.68rem;color:var(--text2);">${f.pedido}</span>`;
-    const btns = STATUS.map((st,si) => {
-      const cur = si === s;
-      return `<button class="iflow-btn${cur?' cur cur'+si:''}" onclick="changeStatus(${FICHAS.indexOf(f)},${si})">${si===s?'●':si+1}</button>${si<4?'<span class="iflow-arr">›</span>':''}`;
-    }).join('');
-
-    return `<tr data-status="${s}">
-      <td class="td-pac">${f.pac}</td>
-      <td class="td-trunc">${f.med}</td>
-      <td class="td-trunc">${f.proc}</td>
-      <td>${filialBadge}</td>
-      <td>${pedidoSpan}</td>
-      <td><div class="iflow">${btns}</div></td>
-      <td class="td-mono">${f.data}</td>
-      <td><div class="row-acts"><button class="abtn">👁️</button><button class="abtn">✏️</button><button class="abtn">🗑️</button></div></td>
-    </tr>`;
-  }).join('');
-};
-
-// Init automático — sem tela de login
 initApp();
+waitFirebase(iniciarFirebase);
 </script>
 </body>
 </html>
