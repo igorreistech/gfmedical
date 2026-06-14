@@ -679,7 +679,25 @@ tbody tr:hover .row-acts { opacity:1; }
         <div class="fg"><label class="flbl">Hospital</label><input class="finput" id="f-hosp" type="text" list="dl-hosp" placeholder="Digite o nome do hospital" autocomplete="off"><datalist id="dl-hosp"></datalist></div>
       </div>
       <div class="frow">
-        <div class="fg"><label class="flbl">Convênio</label><input class="finput" id="f-conv" type="text" placeholder="Ex: Unimed, SUS, Bradesco"></div>
+        <div class="fg"><label class="flbl">Convênio</label>
+          <select class="finput" id="f-conv">
+            <option value="">Selecione</option>
+            <option>SUS</option>
+            <option>Unimed</option>
+            <option>Bradesco Saúde</option>
+            <option>Amil</option>
+            <option>SulAmérica</option>
+            <option>Cassems</option>
+            <option>Hapvida</option>
+            <option>Impcg</option>
+            <option>MT Saúde</option>
+            <option>Geap</option>
+            <option>SES</option>
+            <option>UFMS</option>
+            <option>Particular</option>
+            <option>Não informado</option>
+          </select>
+        </div>
         <div class="fg"><label class="flbl">Nº Pedido de Venda</label><input class="finput" id="f-pedido" type="text" placeholder="Ex: PV-2026-0412"></div>
       </div>
       <div class="frow">
@@ -762,7 +780,7 @@ function renderLista(filter) {
       <td>${fb}</td><td>${ped}</td>
       <td><div class="iflow">${btns}</div></td>
       <td class="td-mono">${f.data||''}</td>
-      <td><div class="row-acts"><button class="abtn" onclick="imprimirFicha('${f._docId}')" title="Imprimir ficha">🖨️</button><button class="abtn" onclick="excluirFicha('${f._docId}')">🗑️</button></div></td>
+      <td><div style="display:flex;gap:3px;align-items:center;"><button class="abtn" style="opacity:1!important" onclick="imprimirFicha('${f._docId}')" title="Imprimir ficha">🖨️</button><div class="row-acts"><button class="abtn" onclick="excluirFicha('${f._docId}')">🗑️</button></div></div></td>
     </tr>`;
   }).join('');
 }
@@ -781,7 +799,7 @@ function renderKanban() {
       let acts = '';
       if (si < 4) acts += `<button class="kbtn kb-next" style="border-color:${bds[si+1]};color:${cls2[si+1]}" onclick="changeStatus('${f._docId}',${si+1})">${advLabels[si+1]}</button>`;
       if (si > 0) acts += `<button class="kbtn kb-back" onclick="changeStatus('${f._docId}',${si-1})">↩</button>`;
-      acts += `<button class="kbtn kb-view">👁️</button>`;
+      acts += `<button class="kbtn kb-view" onclick="imprimirFicha('${f._docId}')">🖨️ Imprimir</button>`;
       return `<div class="kcard"><div class="kcard-pac">${f.pac||''}</div><div class="kcard-proc">${f.proc||''} · ${f.med||''}</div><div class="kcard-bot">${fb}<span class="kcard-data">${f.data||''}</span></div><div class="kcard-actions">${acts}</div></div>`;
     }).join('');
     return `<div class="kcol"><div class="kcol-head kh${si}">${st.icon} ${st.label}<span class="kcnt cnt${si}">${fichas.length}</span></div><div class="kcol-body kb${si}" id="col-${si}">${cards}</div></div>`;
