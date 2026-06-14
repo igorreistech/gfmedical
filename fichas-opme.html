@@ -456,15 +456,14 @@ tbody tr:hover .row-acts { opacity:1; }
     <a class="nav-item active" onclick="go('lista')" href="#"><span class="nav-icon">📋</span> Lista</a>
     <div class="sdiv"></div>
     <div class="slabel">Por status</div>
-    <a class="nav-item" href="#"><span class="nav-icon">⬜</span> Pendente<span class="nbadge nb0">4</span></a>
-    <a class="nav-item" href="#"><span class="nav-icon">🔵</span> Pedido Criado<span class="nbadge nb1">6</span></a>
-    <a class="nav-item" href="#"><span class="nav-icon">🟣</span> Em Laudação<span class="nbadge nb2">5</span></a>
-    <a class="nav-item" href="#"><span class="nav-icon">🟡</span> Autorizado<span class="nbadge nb3">5</span></a>
-    <a class="nav-item" href="#"><span class="nav-icon">🟢</span> Faturado<span class="nbadge nb4">4</span></a>
+    <a class="nav-item" onclick="go('lista');filterS(0)" href="#"><span class="nav-icon">⬜</span> Pendente<span class="nbadge nb0" id="snb0">0</span></a>
+    <a class="nav-item" onclick="go('lista');filterS(1)" href="#"><span class="nav-icon">🔵</span> Pedido Criado<span class="nbadge nb1" id="snb1">0</span></a>
+    <a class="nav-item" onclick="go('lista');filterS(2)" href="#"><span class="nav-icon">🟣</span> Em Laudação<span class="nbadge nb2" id="snb2">0</span></a>
+    <a class="nav-item" onclick="go('lista');filterS(3)" href="#"><span class="nav-icon">🟡</span> Autorizado<span class="nbadge nb3" id="snb3">0</span></a>
+    <a class="nav-item" onclick="go('lista');filterS(4)" href="#"><span class="nav-icon">🟢</span> Faturado<span class="nbadge nb4" id="snb4">0</span></a>
     <div class="sdiv"></div>
     <div class="slabel">Filial</div>
-    <a class="nav-item" href="#"><span class="nav-icon">🏥</span> Campo Grande</a>
-    <a class="nav-item" href="#"><span class="nav-icon">🏥</span> Cuiabá</a>
+    <a class="nav-item active" href="#"><span class="nav-icon">🏥</span> Campo Grande</a>
   </div>
   <div class="sidebar-footer">
     <div class="user-chip">
@@ -496,19 +495,19 @@ tbody tr:hover .row-acts { opacity:1; }
   <div id="view-dashboard" style="display:none">
     <div class="stats-bar">
       <div class="stat-card sc0" onclick="go('lista');filterS(0)">
-        <div class="stat-lbl">Pendente</div><div class="stat-val">4</div><div class="stat-sub">Aguardando pedido</div>
+        <div class="stat-lbl">Pendente</div><div class="stat-val">0</div><div class="stat-sub">Aguardando pedido</div>
       </div>
       <div class="stat-card sc1" onclick="go('lista');filterS(1)">
-        <div class="stat-lbl">Pedido Criado</div><div class="stat-val">6</div><div class="stat-sub">Enviado ao comercial</div>
+        <div class="stat-lbl">Pedido Criado</div><div class="stat-val">0</div><div class="stat-sub">Enviado ao comercial</div>
       </div>
       <div class="stat-card sc2" onclick="go('lista');filterS(2)">
-        <div class="stat-lbl">Em Laudação</div><div class="stat-val">5</div><div class="stat-sub">No convênio</div>
+        <div class="stat-lbl">Em Laudação</div><div class="stat-val">0</div><div class="stat-sub">No convênio</div>
       </div>
       <div class="stat-card sc3" onclick="go('lista');filterS(3)">
-        <div class="stat-lbl">Autorizado</div><div class="stat-val">5</div><div class="stat-sub">Pronto p/ faturar</div>
+        <div class="stat-lbl">Autorizado</div><div class="stat-val">0</div><div class="stat-sub">Pronto p/ faturar</div>
       </div>
       <div class="stat-card sc4" onclick="go('lista');filterS(4)">
-        <div class="stat-lbl">Faturado</div><div class="stat-val">4</div><div class="stat-sub">Concluído</div>
+        <div class="stat-lbl">Faturado</div><div class="stat-val">0</div><div class="stat-sub">Concluído</div>
       </div>
     </div>
 
@@ -818,6 +817,7 @@ function renderDashboard() {
     const el = document.querySelector(`.stat-card.sc${si} .stat-val`); if (el) el.textContent = cnt;
     const fill = document.querySelector(`.funnel-fill.ff${si}`); if (fill) { fill.style.width=(cnt/max*100)+'%'; const sp=fill.querySelector('span'); if(sp) sp.textContent=cnt; }
     const fc = document.querySelector(`.funnel-row:nth-child(${si+1}) .funnel-count`); if (fc) fc.textContent = cnt;
+    const snb = document.getElementById('snb'+si); if (snb) snb.textContent = cnt;
   });
   // Total e taxa
   const total = FICHAS.length;
@@ -1032,5 +1032,6 @@ function initApp() {
 initApp();
 waitFirebase(iniciarFirebase);
 </script>
+<div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,18,10,0.93);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.07);padding:7px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.7rem;color:#8a9e97;z-index:9999;letter-spacing:0.05em;"><span style="color:#f5a623;">⚙ Projeto em andamento</span><span>·</span><span>Desenvolvido por <a href="https://devigorreis.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a></span></div>
 </body>
 </html>
