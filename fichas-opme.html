@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fichas OPME · GF Medical</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #e8f5ee;
+  --surface:  #f0faf3;
+  --surface2: #d8f0e0;
+  --surface3: #c2e6ce;
+  --border:   #b8dfc4;
+  --border2:  #8abfa0;
+  --accent:   #1a7a4a;
+  --accent2:  #2a9fbf;
+  --accent3:  #4db87a;
+  --text:     #0a2a18;
+  --text2:    #2a5a3a;
+  --text3:    #5a8a6a;
+  --mono:     'JetBrains Mono', monospace;
+  --sans:     'Inter', sans-serif;
+  --display:  'Space Grotesk', sans-serif;
+  --radius:   10px;
+  --shadow:   0 2px 12px rgba(10,42,24,0.08);
+  --shadow-md:0 4px 24px rgba(10,42,24,0.12);
+
+  /* ── 5 STATUS ── */
+  --s0-c: #6b7280; --s0-bg: rgba(107,114,128,0.10); --s0-bd: rgba(107,114,128,0.25);
+  --s1-c: #2a9fbf; --s1-bg: rgba(42,159,191,0.10);  --s1-bd: rgba(42,159,191,0.25);
+  --s2-c: #9333ea; --s2-bg: rgba(147,51,234,0.10);  --s2-bd: rgba(147,51,234,0.25);
+  --s3-c: #d4920a; --s3-bg: rgba(212,146,10,0.10);  --s3-bd: rgba(212,146,10,0.25);
+  --s4-c: #1a7a4a; --s4-bg: rgba(26,122,74,0.10);   --s4-bd: rgba(26,122,74,0.25);
+}
+
+html { font-size: 15px; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+body::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image: linear-gradient(rgba(26,122,74,0.055) 1px,transparent 1px), linear-gradient(90deg,rgba(26,122,74,0.055) 1px,transparent 1px);
+  background-size: 48px 48px;
+}
+
+.app { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 224px; min-height: 100vh; background: var(--surface);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  position: fixed; top:0; left:0; z-index:100; box-shadow: var(--shadow);
+}
+.sidebar-logo { padding: 15px 16px; border-bottom: 1px solid var(--border); }
+.logo-mark { display:flex; align-items:center; gap:10px; }
+.logo-icon {
+  width:34px; height:34px; border-radius:8px; flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--accent3));
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--display); font-weight:700; font-size:0.65rem; color:white; line-height:1.2; text-align:center;
+}
+.logo-text strong { display:block; font-family:var(--display); font-size:0.84rem; font-weight:700; color:var(--text); }
+.logo-text span { font-family:var(--mono); font-size:0.57rem; color:var(--text3); letter-spacing:0.08em; text-transform:uppercase; }
+.sidebar-inner { padding:10px 8px; flex:1; display:flex; flex-direction:column; overflow-y:auto; }
+.slabel { font-family:var(--mono); font-size:0.57rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text3); padding:6px 8px 4px; }
+.nav-item {
+  display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px;
+  cursor:pointer; font-size:0.78rem; font-weight:500; color:var(--text2);
+  text-decoration:none; transition:all 0.13s; margin-bottom:1px; border:1px solid transparent;
+}
+.nav-item:hover { background:var(--surface2); color:var(--text); }
+.nav-item.active { background:rgba(26,122,74,0.09); color:var(--accent); border-color:rgba(26,122,74,0.15); }
+.nav-icon { font-size:0.9rem; width:18px; text-align:center; flex-shrink:0; }
+.nbadge { margin-left:auto; color:white; font-family:var(--mono); font-size:0.57rem; padding:1px 6px; border-radius:20px; min-width:18px; text-align:center; }
+.sdiv { height:1px; background:var(--border); margin:7px 0; }
+
+/* status nav badges */
+.nb0 { background:var(--s0-c); } .nb1 { background:var(--s1-c); } .nb2 { background:var(--s2-c); }
+.nb3 { background:var(--s3-c); } .nb4 { background:var(--s4-c); }
+
+.sidebar-footer { padding:10px; border-top:1px solid var(--border); }
+.user-chip { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); }
+.user-avatar { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,var(--accent2),var(--accent)); display:flex; align-items:center; justify-content:center; font-family:var(--display); font-size:0.62rem; font-weight:700; color:white; flex-shrink:0; }
+.user-info strong { display:block; font-size:0.72rem; font-weight:600; color:var(--text); }
+.user-info span { font-family:var(--mono); font-size:0.57rem; color:var(--text3); text-transform:uppercase; letter-spacing:0.06em; }
+.ftag { font-family:var(--mono); font-size:0.57rem; padding:2px 6px; border-radius:4px; background:rgba(26,122,74,0.10); color:var(--accent); border:1px solid rgba(26,122,74,0.18); flex-shrink:0; }
+
+/* ── MAIN ── */
+.main { margin-left:224px; flex:1; display:flex; flex-direction:column; min-height:100vh; }
+
+/* ── TOPBAR ── */
+.topbar {
+  height:52px; background:var(--surface); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; padding:0 18px; gap:10px;
+  position:sticky; top:0; z-index:50; box-shadow:var(--shadow);
+}
+.page-title { font-family:var(--display); font-size:0.92rem; font-weight:700; color:var(--text); margin-right:auto; }
+.sbox { display:flex; align-items:center; gap:7px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:6px 11px; width:230px; transition:border-color 0.14s; }
+.sbox:focus-within { border-color:var(--accent); }
+.sbox input { border:none; outline:none; background:transparent; font-family:var(--sans); font-size:0.78rem; color:var(--text); flex:1; }
+.sbox input::placeholder { color:var(--text3); }
+.tbtn { display:flex; align-items:center; gap:5px; padding:6px 12px; border-radius:var(--radius); font-family:var(--sans); font-size:0.75rem; font-weight:600; cursor:pointer; border:none; transition:all 0.13s; }
+.tbtn-p { background:var(--accent); color:white; }
+.tbtn-p:hover { background:#155e3a; }
+.tbtn-g { background:transparent; color:var(--text2); border:1px solid var(--border); }
+.tbtn-g:hover { background:var(--surface2); }
+
+/* ── TABS ── */
+.vtabs { display:flex; background:var(--surface); border-bottom:1px solid var(--border); padding:0 18px; }
+.vtab { display:flex; align-items:center; gap:5px; padding:9px 14px; font-size:0.76rem; font-weight:500; color:var(--text3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:all 0.13s; }
+.vtab:hover { color:var(--text); }
+.vtab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+
+.page-content { padding:18px; flex:1; }
+
+/* ══ STATUS BADGE ══ */
+.badge {
+  display:inline-flex; align-items:center; gap:4px; padding:3px 9px;
+  border-radius:20px; font-family:var(--mono); font-size:0.6rem;
+  font-weight:500; letter-spacing:0.05em; text-transform:uppercase; white-space:nowrap; border:1px solid;
+}
+.b0 { color:var(--s0-c); background:var(--s0-bg); border-color:var(--s0-bd); }
+.b1 { color:var(--s1-c); background:var(--s1-bg); border-color:var(--s1-bd); }
+.b2 { color:var(--s2-c); background:var(--s2-bg); border-color:var(--s2-bd); }
+.b3 { color:var(--s3-c); background:var(--s3-bg); border-color:var(--s3-bd); }
+.b4 { color:var(--s4-c); background:var(--s4-bg); border-color:var(--s4-bd); }
+
+/* ══ PIPELINE PROGRESS BAR ══ */
+.flow-bar {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:14px 18px; margin-bottom:18px; box-shadow:var(--shadow);
+}
+.flow-bar-label { font-family:var(--mono); font-size:0.57rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--text3); margin-bottom:10px; }
+.flow-steps { display:flex; align-items:center; }
+.flow-step { display:flex; flex-direction:column; align-items:center; flex:1; position:relative; }
+.flow-step-circle {
+  width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:0.8rem; border:2px solid; transition:all 0.2s; cursor:pointer; background:white; z-index:2;
+}
+.flow-step-circle.s0 { border-color:var(--s0-c); color:var(--s0-c); }
+.flow-step-circle.s1 { border-color:var(--s1-c); color:var(--s1-c); }
+.flow-step-circle.s2 { border-color:var(--s2-c); color:var(--s2-c); }
+.flow-step-circle.s3 { border-color:var(--s3-c); color:var(--s3-c); }
+.flow-step-circle.s4 { border-color:var(--s4-c); color:var(--s4-c); }
+.flow-step-circle.done { color:white; }
+.flow-step-circle.done.s0 { background:var(--s0-c); }
+.flow-step-circle.done.s1 { background:var(--s1-c); }
+.flow-step-circle.done.s2 { background:var(--s2-c); }
+.flow-step-circle.done.s3 { background:var(--s3-c); }
+.flow-step-circle.done.s4 { background:var(--s4-c); }
+.flow-step-circle.current { transform:scale(1.15); box-shadow:0 0 0 4px rgba(0,0,0,0.08); }
+.flow-step-name { font-family:var(--mono); font-size:0.58rem; letter-spacing:0.05em; text-transform:uppercase; margin-top:5px; text-align:center; color:var(--text3); }
+.flow-step-name.active-name { font-weight:600; }
+.flow-step-name.n0 { color:var(--s0-c); } .flow-step-name.n1 { color:var(--s1-c); }
+.flow-step-name.n2 { color:var(--s2-c); } .flow-step-name.n3 { color:var(--s3-c); }
+.flow-step-name.n4 { color:var(--s4-c); }
+.flow-connector {
+  flex:1; height:2px; margin-top:-16px; position:relative; z-index:1;
+  background:var(--border); border-radius:2px; overflow:hidden;
+}
+.flow-connector-fill { height:100%; border-radius:2px; transition:width 0.4s; }
+
+/* ══ STATS BAR ══ */
+.stats-bar { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:18px; }
+.stat-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 14px; box-shadow:var(--shadow); position:relative; overflow:hidden; cursor:pointer; transition:transform 0.13s;
+}
+.stat-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); }
+.stat-card::before { content:''; position:absolute; top:0;left:0;right:0; height:3px; }
+.sc0::before { background:var(--s0-c); } .sc1::before { background:var(--s1-c); }
+.sc2::before { background:var(--s2-c); } .sc3::before { background:var(--s3-c); }
+.sc4::before { background:var(--s4-c); }
+.stat-lbl { font-family:var(--mono); font-size:0.57rem; letter-spacing:0.09em; text-transform:uppercase; color:var(--text3); margin-bottom:4px; }
+.stat-val { font-family:var(--display); font-size:1.7rem; font-weight:700; color:var(--text); line-height:1; }
+.stat-sub { font-size:0.65rem; color:var(--text3); margin-top:2px; }
+
+/* ══ DASHBOARD GRID ══ */
+.dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.dcard { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+.dcard-head { padding:11px 15px; border-bottom:1px solid var(--border); background:var(--surface2); font-family:var(--display); font-size:0.8rem; font-weight:700; color:var(--text); display:flex; align-items:center; gap:7px; }
+.dcard-body { padding:14px; }
+
+/* Funil */
+.funnel { display:flex; flex-direction:column; gap:6px; }
+.funnel-row { display:flex; align-items:center; gap:10px; }
+.funnel-name { font-size:0.72rem; color:var(--text2); width:100px; flex-shrink:0; }
+.funnel-track { flex:1; height:20px; background:var(--surface2); border-radius:4px; overflow:hidden; position:relative; }
+.funnel-fill { height:100%; border-radius:4px; display:flex; align-items:center; padding-left:8px; transition:width 0.5s; }
+.funnel-fill span { font-family:var(--mono); font-size:0.6rem; font-weight:600; color:white; text-shadow:0 1px 2px rgba(0,0,0,0.2); }
+.funnel-count { font-family:var(--mono); font-size:0.65rem; color:var(--text3); width:18px; text-align:right; flex-shrink:0; }
+.ff0 { background:var(--s0-c); } .ff1 { background:var(--s1-c); }
+.ff2 { background:var(--s2-c); } .ff3 { background:var(--s3-c); }
+.ff4 { background:var(--s4-c); }
+
+/* Atividade */
+.act-list { display:flex; flex-direction:column; }
+.act-item { display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px solid var(--border); }
+.act-item:last-child { border-bottom:none; }
+.act-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.act-info { flex:1; min-width:0; }
+.act-name { font-size:0.76rem; font-weight:500; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.act-desc { font-size:0.68rem; color:var(--text3); }
+.act-time { font-family:var(--mono); font-size:0.6rem; color:var(--text3); flex-shrink:0; }
+
+/* ══ KANBAN ══ */
+.kanban-board { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; align-items:start; }
+.kcol { border-radius:var(--radius); overflow:hidden; }
+.kcol-head {
+  padding:9px 11px; display:flex; align-items:center; gap:6px;
+  font-family:var(--display); font-size:0.75rem; font-weight:700;
+  border-radius:var(--radius) var(--radius) 0 0; border:1px solid; border-bottom:none;
+}
+.kh0 { background:var(--s0-bg); border-color:var(--s0-bd); color:var(--s0-c); }
+.kh1 { background:var(--s1-bg); border-color:var(--s1-bd); color:var(--s1-c); }
+.kh2 { background:var(--s2-bg); border-color:var(--s2-bd); color:var(--s2-c); }
+.kh3 { background:var(--s3-bg); border-color:var(--s3-bd); color:var(--s3-c); }
+.kh4 { background:var(--s4-bg); border-color:var(--s4-bd); color:var(--s4-c); }
+.kcnt { font-family:var(--mono); font-size:0.6rem; font-weight:600; padding:2px 6px; border-radius:20px; margin-left:auto; color:white; }
+.cnt0{background:var(--s0-c);} .cnt1{background:var(--s1-c);} .cnt2{background:var(--s2-c);} .cnt3{background:var(--s3-c);} .cnt4{background:var(--s4-c);}
+.kcol-body {
+  min-height:160px; padding:7px; display:flex; flex-direction:column; gap:7px;
+  border:1px solid; border-top:none; border-radius:0 0 var(--radius) var(--radius);
+}
+.kb0{background:rgba(107,114,128,0.03);border-color:var(--s0-bd);}
+.kb1{background:rgba(42,159,191,0.03);border-color:var(--s1-bd);}
+.kb2{background:rgba(147,51,234,0.03);border-color:var(--s2-bd);}
+.kb3{background:rgba(212,146,10,0.03);border-color:var(--s3-bd);}
+.kb4{background:rgba(26,122,74,0.03);border-color:var(--s4-bd);}
+
+.kcard {
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:10px 11px; box-shadow:var(--shadow); cursor:grab; transition:all 0.14s;
+}
+.kcard:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
+.kcard-pac { font-family:var(--display); font-size:0.76rem; font-weight:700; color:var(--text); margin-bottom:3px; }
+.kcard-proc { font-size:0.68rem; color:var(--text3); margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kcard-bot { display:flex; align-items:center; justify-content:space-between; }
+.kcard-filial { font-family:var(--mono); font-size:0.57rem; font-weight:600; padding:2px 6px; border-radius:4px; }
+.fc-cg { background:rgba(26,122,74,0.10); color:var(--accent); border:1px solid rgba(26,122,74,0.2); }
+.fc-cba { background:rgba(42,159,191,0.10); color:#1a7a9a; border:1px solid rgba(42,159,191,0.2); }
+.kcard-data { font-family:var(--mono); font-size:0.6rem; color:var(--text3); }
+.kcard-actions { display:flex; gap:3px; margin-top:7px; padding-top:7px; border-top:1px solid var(--border); }
+.kbtn {
+  flex:1; padding:4px; border-radius:5px; border:1px solid; cursor:pointer;
+  font-family:var(--mono); font-size:0.56rem; font-weight:600; letter-spacing:0.04em;
+  text-transform:uppercase; text-align:center; transition:all 0.13s; background:transparent;
+}
+.kb-next { border-color:var(--s1-bd); color:var(--s1-c); }
+.kb-next:hover { background:var(--s1-bg); }
+.kb-view { border-color:var(--border); color:var(--text3); }
+.kb-view:hover { background:var(--surface2); }
+.kb-back { border-color:var(--border); color:var(--text3); font-size:0.7rem; flex:0; padding:4px 7px; }
+.kb-back:hover { background:var(--surface2); }
+
+/* ══ LISTA ══ */
+.fbar { display:flex; align-items:center; gap:7px; margin-bottom:13px; flex-wrap:wrap; }
+.flabel { font-family:var(--mono); font-size:0.58rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--text3); }
+.fchip {
+  display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px;
+  font-size:0.72rem; font-weight:500; cursor:pointer; border:1px solid var(--border);
+  background:var(--surface); color:var(--text2); transition:all 0.13s;
+}
+.fchip:hover { border-color:var(--accent); color:var(--accent); }
+.fchip.on { background:rgba(26,122,74,0.08); border-color:var(--accent); color:var(--accent); }
+.fdot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.fdiv { width:1px; height:18px; background:var(--border); }
+.filsel { display:flex; gap:3px; margin-left:auto; }
+.fbtn { padding:4px 10px; border-radius:20px; font-family:var(--mono); font-size:0.6rem; font-weight:500; cursor:pointer; border:1px solid var(--border); background:var(--surface); color:var(--text2); transition:all 0.13s; }
+.fbtn.on { background:var(--accent); border-color:var(--accent); color:white; }
+.fbtn:hover:not(.on) { border-color:var(--accent); color:var(--accent); }
+
+.twrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+.thead-bar { display:flex; align-items:center; padding:11px 15px; border-bottom:1px solid var(--border); background:var(--surface2); gap:8px; }
+.thead-title { font-family:var(--display); font-size:0.8rem; font-weight:700; color:var(--text); }
+.tcount { font-family:var(--mono); font-size:0.6rem; color:var(--text3); background:var(--bg); border:1px solid var(--border); padding:2px 7px; border-radius:10px; }
+table { width:100%; border-collapse:collapse; }
+thead tr { background:rgba(26,122,74,0.025); }
+th { font-family:var(--mono); font-size:0.57rem; letter-spacing:0.09em; text-transform:uppercase; color:var(--text3); padding:8px 13px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+tbody tr { border-bottom:1px solid var(--border); transition:background 0.12s; cursor:pointer; }
+tbody tr:last-child { border-bottom:none; }
+tbody tr:hover { background:rgba(26,122,74,0.03); }
+td { padding:10px 13px; font-size:0.77rem; color:var(--text2); vertical-align:middle; }
+.td-pac { font-family:var(--display); font-size:0.78rem; font-weight:600; color:var(--text); }
+.td-trunc { max-width:130px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.td-mono { font-family:var(--mono); font-size:0.67rem; color:var(--text3); white-space:nowrap; }
+
+/* Inline status flow */
+.iflow { display:flex; align-items:center; gap:2px; }
+.iflow-btn {
+  padding:3px 7px; border-radius:5px; border:1px solid var(--border);
+  background:var(--bg); font-family:var(--mono); font-size:0.55rem; font-weight:600;
+  letter-spacing:0.04em; text-transform:uppercase; cursor:pointer; color:var(--text3);
+  transition:all 0.13s; white-space:nowrap;
+}
+.iflow-btn:hover { border-color:var(--accent); color:var(--accent); }
+.iflow-btn.cur { color:white; border-color:transparent; }
+.cur0{background:var(--s0-c);} .cur1{background:var(--s1-c);} .cur2{background:var(--s2-c);}
+.cur3{background:var(--s3-c);} .cur4{background:var(--s4-c);}
+.iflow-arr { color:var(--border2); font-size:0.6rem; padding:0 1px; }
+
+.row-acts { display:flex; gap:3px; opacity:0; transition:opacity 0.12s; }
+tbody tr:hover .row-acts { opacity:1; }
+.abtn { width:25px; height:25px; border-radius:5px; border:1px solid var(--border); background:var(--surface); color:var(--text3); font-size:0.72rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.12s; }
+.abtn:hover { border-color:var(--accent); color:var(--accent); background:rgba(26,122,74,0.05); }
+
+/* ── MODAL ── */
+.modal-ov { position:fixed; inset:0; background:rgba(10,42,24,0.42); backdrop-filter:blur(4px); z-index:200; display:none; align-items:center; justify-content:center; padding:20px; }
+.modal-ov.open { display:flex; }
+.modal { background:var(--surface); border:1px solid var(--border); border-radius:14px; width:100%; max-width:540px; box-shadow:var(--shadow-md); overflow:hidden; }
+.mhead { padding:15px 19px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--surface2); }
+.mtitle { font-family:var(--display); font-size:0.9rem; font-weight:700; color:var(--text); }
+.mclose { width:25px; height:25px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--text3); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:0.85rem; transition:all 0.12s; }
+.mclose:hover { background:var(--surface3); }
+.mbody { padding:18px; }
+.mfoot { padding:13px 18px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:flex-end; gap:8px; background:var(--surface2); }
+.frow { display:grid; grid-template-columns:1fr 1fr; gap:11px; margin-bottom:11px; }
+.frow.full { grid-template-columns:1fr; }
+.fg { display:flex; flex-direction:column; gap:4px; }
+.flbl { font-family:var(--mono); font-size:0.57rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--text3); }
+.finput { padding:8px 11px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg); font-family:var(--sans); font-size:0.78rem; color:var(--text); outline:none; transition:border-color 0.13s; }
+.finput:focus { border-color:var(--accent); background:var(--surface); }
+.finput::placeholder { color:var(--text3); }
+.uploads-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:11px; }
+.uzone { border:2px dashed var(--border2); border-radius:var(--radius); padding:16px 12px; text-align:center; cursor:pointer; transition:all 0.13s; background:rgba(26,122,74,0.02); position:relative; }
+.uzone:hover { border-color:var(--accent); background:rgba(26,122,74,0.04); }
+.uzone.has-file { border-style:solid; border-color:var(--accent); background:rgba(26,122,74,0.06); }
+.uzone.pv { border-color:var(--s1-bd); background:rgba(42,159,191,0.03); }
+.uzone.pv:hover { border-color:var(--s1-c); background:rgba(42,159,191,0.07); }
+.uzone.pv.has-file { border-style:solid; border-color:var(--s1-c); background:rgba(42,159,191,0.08); }
+.uzone-icon { font-size:1.5rem; margin-bottom:4px; }
+.uzone-type { font-family:var(--mono); font-size:0.57rem; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:5px; font-weight:600; }
+.uzone-opme .uzone-type { color:var(--accent); }
+.uzone-pv .uzone-type { color:var(--s1-c); }
+.uzone-title { font-family:var(--display); font-size:0.78rem; font-weight:600; color:var(--text2); margin-bottom:2px; }
+.uzone-sub { font-size:0.64rem; color:var(--text3); }
+.uzone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+.file-preview { display:none; margin-top:6px; padding:6px 8px; border-radius:6px; background:rgba(255,255,255,0.7); border:1px solid var(--border); }
+.file-preview.show { display:flex; align-items:center; gap:6px; }
+.fp-name { font-size:0.68rem; font-weight:500; color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fp-size { font-family:var(--mono); font-size:0.6rem; color:var(--text3); flex-shrink:0; }
+.fp-remove { background:none; border:none; cursor:pointer; color:var(--text3); font-size:0.8rem; padding:0 2px; transition:color 0.12s; flex-shrink:0; }
+.fp-remove:hover { color:var(--red,#d94f4f); }
+
+/* ── TOAST ── */
+.toasts { position:fixed; bottom:18px; right:18px; z-index:400; display:flex; flex-direction:column; gap:6px; }
+.toast { display:flex; align-items:center; gap:8px; padding:9px 14px; color:white; border-radius:var(--radius); font-size:0.75rem; font-weight:500; box-shadow:var(--shadow-md); animation:tIn 0.2s ease; min-width:210px; }
+.t-ok { background:var(--accent); }
+.t-info { background:var(--accent2); }
+@keyframes tIn { from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:translateY(0)} }
+
+
+/* ── LOGIN SCREEN ── */
+.login-screen {
+  position: fixed; inset: 0; z-index: 500;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+}
+.login-screen::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image: linear-gradient(rgba(26,122,74,0.055) 1px,transparent 1px), linear-gradient(90deg,rgba(26,122,74,0.055) 1px,transparent 1px);
+  background-size: 48px 48px;
+}
+.login-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 36px 32px; width: 100%; max-width: 360px;
+  box-shadow: var(--shadow-md); position: relative; z-index: 1;
+}
+.login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+.login-logo-icon {
+  width: 42px; height: 42px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent3));
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--display); font-weight: 700; font-size: 0.7rem;
+  color: white; line-height: 1.2; text-align: center;
+}
+.login-logo-text strong { display: block; font-family: var(--display); font-size: 1rem; font-weight: 700; color: var(--text); }
+.login-logo-text span { font-family: var(--mono); font-size: 0.6rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+.login-filial-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 0.65rem; font-weight: 600;
+  padding: 4px 10px; border-radius: 20px; margin-bottom: 20px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.login-title { font-family: var(--display); font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.login-sub { font-size: 0.78rem; color: var(--text3); margin-bottom: 24px; }
+.login-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.login-label { font-family: var(--mono); font-size: 0.58rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); }
+.login-input {
+  padding: 10px 13px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg); font-family: var(--sans); font-size: 0.85rem; color: var(--text);
+  outline: none; transition: border-color 0.14s;
+}
+.login-input:focus { border-color: var(--accent); background: var(--surface); }
+.login-btn {
+  width: 100%; padding: 11px; border-radius: var(--radius); border: none;
+  background: var(--accent); color: white; font-family: var(--display);
+  font-size: 0.88rem; font-weight: 700; cursor: pointer; transition: all 0.14s; margin-top: 6px;
+}
+.login-btn:hover { background: #155e3a; transform: translateY(-1px); box-shadow: var(--shadow); }
+.login-error { font-size: 0.74rem; color: #d94f4f; margin-top: 10px; text-align: center; display: none; }
+.login-error.show { display: block; }
+
+/* Filial accent no topbar/sidebar */
+.filial-accent-cg { --filial-color: var(--accent); --filial-bg: rgba(26,122,74,0.10); --filial-bd: rgba(26,122,74,0.20); }
+.filial-accent-cba { --filial-color: var(--accent2); --filial-bg: rgba(42,159,191,0.10); --filial-bd: rgba(42,159,191,0.20); }
+
+@media(max-width:1100px){ .kanban-board{grid-template-columns:repeat(3,1fr)} }
+@media(max-width:860px){ .stats-bar{grid-template-columns:repeat(3,1fr)} .dash-grid{grid-template-columns:1fr} }
+@media(max-width:680px){ .sidebar{transform:translateX(-100%)} .main{margin-left:0} .stats-bar{grid-template-columns:repeat(2,1fr)} }
+</style>
+</head>
+<body>
+<!-- ── TELA DE LOGIN ── -->
+<div id="login-screen" class="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon">GF<br>MED</div>
+      <div class="login-logo-text">
+        <strong>GF Medical</strong>
+        <span>Fichas OPME</span>
+      </div>
+    </div>
+    <div id="login-filial-badge" class="login-filial-badge"></div>
+    <div class="login-title">Entrar no sistema</div>
+    <div class="login-sub" id="login-sub">Acesso restrito à filial autorizada</div>
+    <div class="login-field">
+      <label class="login-label">E-mail</label>
+      <input class="login-input" type="email" id="login-email" placeholder="seu@email.com">
+    </div>
+    <div class="login-field">
+      <label class="login-label">Senha</label>
+      <input class="login-input" type="password" id="login-senha" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error">E-mail ou senha incorretos.</div>
+  </div>
+</div>
+
+<div class="app" id="app-root" style="display:none">
+
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">
+      <div class="logo-icon">GF<br>MED</div>
+      <div class="logo-text"><strong>GF Medical</strong><span>Fichas OPME</span></div>
+    </div>
+  </div>
+  <div class="sidebar-inner">
+    <div class="slabel">Visualizações</div>
+    <a class="nav-item" onclick="go('dashboard')" href="#"><span class="nav-icon">📊</span> Dashboard</a>
+    <a class="nav-item" onclick="go('kanban')" href="#"><span class="nav-icon">🗂️</span> Kanban</a>
+    <a class="nav-item active" onclick="go('lista')" href="#"><span class="nav-icon">📋</span> Lista</a>
+    <div class="sdiv"></div>
+    <div class="slabel">Por status</div>
+    <a class="nav-item" href="#"><span class="nav-icon">⬜</span> Pendente<span class="nbadge nb0">4</span></a>
+    <a class="nav-item" href="#"><span class="nav-icon">🔵</span> Pedido Criado<span class="nbadge nb1">6</span></a>
+    <a class="nav-item" href="#"><span class="nav-icon">🟣</span> Em Laudação<span class="nbadge nb2">5</span></a>
+    <a class="nav-item" href="#"><span class="nav-icon">🟡</span> Autorizado<span class="nbadge nb3">5</span></a>
+    <a class="nav-item" href="#"><span class="nav-icon">🟢</span> Faturado<span class="nbadge nb4">4</span></a>
+    <div class="sdiv"></div>
+    <div class="slabel">Filial</div>
+    <a class="nav-item" href="#"><span class="nav-icon">🏥</span> Campo Grande</a>
+    <a class="nav-item" href="#"><span class="nav-icon">🏥</span> Cuiabá</a>
+  </div>
+  <div class="sidebar-footer">
+    <div class="user-chip">
+      <div class="user-avatar" id="user-avatar">?</div>
+      <div class="user-info"><strong id="user-name">—</strong><span id="sidebar-filial-label">Filial</span></div>
+      <span class="ftag" id="sidebar-filial-tag">—</span>
+    </div>
+    <button onclick="doLogout()" style="width:100%;margin-top:6px;padding:6px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:0.72rem;cursor:pointer;transition:all 0.13s;font-family:var(--sans);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">Sair da conta</button>
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<main class="main">
+  <div class="topbar">
+    <span class="page-title" id="page-title">Lista de Fichas</span>
+    <div class="sbox"><span style="color:var(--text3)">🔍</span><input type="text" placeholder="Paciente, médico, procedimento…"></div>
+    <button class="tbtn tbtn-g">⬆️ Exportar</button>
+    <button class="tbtn tbtn-p" onclick="openModal()">＋ Nova Ficha</button>
+  </div>
+
+  <div class="vtabs">
+    <div class="vtab" id="tab-dashboard" onclick="go('dashboard')">📊 Dashboard</div>
+    <div class="vtab" id="tab-kanban" onclick="go('kanban')">🗂️ Kanban</div>
+    <div class="vtab active" id="tab-lista" onclick="go('lista')">📋 Lista</div>
+  </div>
+
+  <div class="page-content">
+
+  <!-- ══════════ DASHBOARD ══════════ -->
+  <div id="view-dashboard" style="display:none">
+    <div class="stats-bar">
+      <div class="stat-card sc0" onclick="go('lista');filterS(0)">
+        <div class="stat-lbl">Pendente</div><div class="stat-val">4</div><div class="stat-sub">Aguardando pedido</div>
+      </div>
+      <div class="stat-card sc1" onclick="go('lista');filterS(1)">
+        <div class="stat-lbl">Pedido Criado</div><div class="stat-val">6</div><div class="stat-sub">Enviado ao comercial</div>
+      </div>
+      <div class="stat-card sc2" onclick="go('lista');filterS(2)">
+        <div class="stat-lbl">Em Laudação</div><div class="stat-val">5</div><div class="stat-sub">No convênio</div>
+      </div>
+      <div class="stat-card sc3" onclick="go('lista');filterS(3)">
+        <div class="stat-lbl">Autorizado</div><div class="stat-val">5</div><div class="stat-sub">Pronto p/ faturar</div>
+      </div>
+      <div class="stat-card sc4" onclick="go('lista');filterS(4)">
+        <div class="stat-lbl">Faturado</div><div class="stat-val">4</div><div class="stat-sub">Concluído</div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <!-- Funil -->
+      <div class="dcard">
+        <div class="dcard-head">🔄 Funil do Fluxo</div>
+        <div class="dcard-body">
+          <div class="funnel">
+            <div class="funnel-row">
+              <span class="funnel-name" style="color:var(--s0-c)">Pendente</span>
+              <div class="funnel-track"><div class="funnel-fill ff0" style="width:100%"><span>4</span></div></div>
+              <span class="funnel-count">4</span>
+            </div>
+            <div class="funnel-row">
+              <span class="funnel-name" style="color:var(--s1-c)">Pedido Criado</span>
+              <div class="funnel-track"><div class="funnel-fill ff1" style="width:83%"><span>6</span></div></div>
+              <span class="funnel-count">6</span>
+            </div>
+            <div class="funnel-row">
+              <span class="funnel-name" style="color:var(--s2-c)">Em Laudação</span>
+              <div class="funnel-track"><div class="funnel-fill ff2" style="width:67%"><span>5</span></div></div>
+              <span class="funnel-count">5</span>
+            </div>
+            <div class="funnel-row">
+              <span class="funnel-name" style="color:var(--s3-c)">Autorizado</span>
+              <div class="funnel-track"><div class="funnel-fill ff3" style="width:50%"><span>5</span></div></div>
+              <span class="funnel-count">5</span>
+            </div>
+            <div class="funnel-row">
+              <span class="funnel-name" style="color:var(--s4-c)">Faturado</span>
+              <div class="funnel-track"><div class="funnel-fill ff4" style="width:33%"><span>4</span></div></div>
+              <span class="funnel-count">4</span>
+            </div>
+          </div>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.6rem;color:var(--text3);">
+            Total no fluxo: <strong style="color:var(--text)">24 fichas</strong> · Taxa de faturamento: <strong style="color:var(--s4-c)">67%</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Atividade recente -->
+      <div class="dcard">
+        <div class="dcard-head">🕐 Atividade Recente</div>
+        <div class="dcard-body" style="padding:0 14px;">
+          <div class="act-list">
+            <div class="act-item"><div class="act-dot" style="background:var(--s3-c)"></div><div class="act-info"><div class="act-name">Maria Fernanda Costa</div><div class="act-desc">Pedido Criado → Autorizado</div></div><span class="act-time">há 8min</span></div>
+            <div class="act-item"><div class="act-dot" style="background:var(--s2-c)"></div><div class="act-info"><div class="act-name">João Silva Santos</div><div class="act-desc">Pedido Criado → Em Laudação</div></div><span class="act-time">há 23min</span></div>
+            <div class="act-item"><div class="act-dot" style="background:var(--s4-c)"></div><div class="act-info"><div class="act-name">Roberto Alves Neto</div><div class="act-desc">Autorizado → Faturado</div></div><span class="act-time">há 1h</span></div>
+            <div class="act-item"><div class="act-dot" style="background:var(--s1-c)"></div><div class="act-info"><div class="act-name">Ana Clara Ramos</div><div class="act-desc">Ficha criada · Pedido Criado</div></div><span class="act-time">há 2h</span></div>
+            <div class="act-item"><div class="act-dot" style="background:var(--s0-c)"></div><div class="act-info"><div class="act-name">Pedro Albuquerque</div><div class="act-desc">Ficha recebida · Pendente</div></div><span class="act-time">há 3h</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Por filial -->
+      <div class="dcard">
+        <div class="dcard-head">🏥 Por Filial</div>
+        <div class="dcard-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+            <div style="text-align:center;padding:12px;background:rgba(26,122,74,0.06);border:1px solid rgba(26,122,74,0.15);border-radius:8px;">
+              <div style="font-family:var(--mono);font-size:0.57rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin-bottom:3px;">Campo Grande</div>
+              <div style="font-family:var(--display);font-size:1.7rem;font-weight:700;color:var(--text);">14</div>
+              <div style="font-size:0.65rem;color:var(--text3);">58% do total</div>
+            </div>
+            <div style="text-align:center;padding:12px;background:rgba(42,159,191,0.06);border:1px solid rgba(42,159,191,0.15);border-radius:8px;">
+              <div style="font-family:var(--mono);font-size:0.57rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent2);margin-bottom:3px;">Cuiabá</div>
+              <div style="font-family:var(--display);font-size:1.7rem;font-weight:700;color:var(--text);">10</div>
+              <div style="font-size:0.65rem;color:var(--text3);">42% do total</div>
+            </div>
+          </div>
+          <div style="font-family:var(--mono);font-size:0.57rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:8px;">Em laudação por filial</div>
+          <div class="funnel">
+            <div class="funnel-row"><span class="funnel-name" style="color:var(--accent)">CG</span><div class="funnel-track"><div class="funnel-fill" style="width:60%;background:var(--accent)"></div></div><span class="funnel-count">3</span></div>
+            <div class="funnel-row"><span class="funnel-name" style="color:var(--accent2)">CBA</span><div class="funnel-track"><div class="funnel-fill" style="width:40%;background:var(--accent2)"></div></div><span class="funnel-count">2</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tempo médio -->
+      <div class="dcard">
+        <div class="dcard-head">⏱️ Tempo Médio por Etapa</div>
+        <div class="dcard-body">
+          <div class="funnel" style="gap:8px;">
+            <div class="funnel-row">
+              <span class="funnel-name" style="color:var(--s0-c);font-size:0.7rem;">Receber → Pedido</span>
+              <div class="funnel-track" style="height:14px;"><div class="funnel-fill ff0" style="width:30%;height:100%"></div></div>
+              <span class="funnel-count" style="font-family:var(--mono);font-size:0.62rem;width:36px;">1 dia</span>
+            </div>
+            <div class="funnel-row">
+              <span class="funnel-name" style="color:var(--s1-c);font-size:0.7rem;">Pedido → Laudação</span>
+              <div class="funnel-track" style="height:14px;"><div class="funnel-fill ff1" style="width:20%;height:100%"></div></div>
+              <span class="funnel-count" style="font-family:var(--mono);font-size:0.62rem;width:36px;">12h</span>
+            </div>
+            <div class="funnel-row">
+              <span class="funnel-name" style="color:var(--s2-c);font-size:0.7rem;">Laudação → Autor.</span>
+              <div class="funnel-track" style="height:14px;"><div class="funnel-fill ff2" style="width:100%;height:100%"></div></div>
+              <span class="funnel-count" style="font-family:var(--mono);font-size:0.62rem;width:36px;">5 dias</span>
+            </div>
+            <div class="funnel-row">
+              <span class="funnel-name" style="color:var(--s3-c);font-size:0.7rem;">Autor. → Faturado</span>
+              <div class="funnel-track" style="height:14px;"><div class="funnel-fill ff3" style="width:40%;height:100%"></div></div>
+              <span class="funnel-count" style="font-family:var(--mono);font-size:0.62rem;width:36px;">2 dias</span>
+            </div>
+          </div>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.6rem;color:var(--text3);">
+            Ciclo total médio: <strong style="color:var(--text)">~8 dias</strong> · Gargalo: <strong style="color:var(--s2-c)">Laudação</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /dashboard -->
+
+  <!-- ══════════ KANBAN ══════════ -->
+  <div id="view-kanban" style="display:none">
+    <div class="kanban-board">
+
+      <!-- PENDENTE -->
+      <div class="kcol">
+        <div class="kcol-head kh0">⬜ Pendente<span class="kcnt cnt0">4</span></div>
+        <div class="kcol-body kb0" id="col-0">
+          <div class="kcard" data-pac="João Silva Santos" data-status="0">
+            <div class="kcard-pac">João Silva Santos</div>
+            <div class="kcard-proc">Stent Coronário · Dr. Carlos Mendes</div>
+            <div class="kcard-bot"><span class="kcard-filial fc-cg">CG</span><span class="kcard-data">12/06</span></div>
+            <div class="kcard-actions">
+              <button class="kbtn kb-next" style="border-color:var(--s1-bd);color:var(--s1-c)" onclick="advance(this,1)">→ Criar Pedido</button>
+              <button class="kbtn kb-view">👁️</button>
+            </div>
+          </div>
+          <div class="kcard" data-pac="Pedro Albuquerque" data-status="0">
+            <div class="kcard-pac">Pedro Albuquerque</div>
+            <div class="kcard-proc">Valvuloplastia · Dr. Marcos Vieira</div>
+            <div class="kcard-bot"><span class="kcard-filial fc-cba">CBA</span><span class="kcard-data">11/06</span></div>
+            <div class="kcard-actions">
+              <button class="kbtn kb-next" style="border-color:var(--s1-bd);color:var(--s1-c)" onclick="advance(this,1)">→ Criar Pedido</button>
+              <button class="kbtn kb-view">👁️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PEDIDO CRIADO -->
+      <div class="kcol">
+        <div class="kcol-head kh1">🔵 Pedido Criado<span class="kcnt cnt1">6</span></div>
+        <div class="kcol-body kb1" id="col-1">
+          <div class="kcard" data-pac="Maria Fernanda Costa" data-status="1">
+            <div class="kcard-pac">Maria Fernanda Costa</div>
+            <div class="kcard-proc">Endoprótese Aórtica · Dra. Ana Paula Lima</div>
+            <div class="kcard-bot"><span class="kcard-filial fc-cba">CBA</span><span class="kcard-data">11/06</span></div>
+            <div class="kcard-actions">
+              <button class="kbtn kb-next" style="border-color:var(--s2-bd);color:var(--s2-c)" onclick="advance(this,2)">→ Laudação</button>
+              <button class="kbtn kb-back" onclick="advance(this,0)">↩</button>
+              <button class="kbtn kb-view">👁️</button>
+            </div>
+          </div>
+          <div class="kcard" data-pac="Luciana Borges" data-status="1">
+            <div class="kcard-pac">Luciana Borges</div>
+            <div class="kcard-proc">Cateter Balão · Dr. Marcos Vieira</div>
+            <div class="kcard-bot"><span class="kcard-filial fc-cg">CG</span><span class="kcard-data">10/06</span></div>
+            <div class="kcard-actions">
+              <button class="kbtn kb-next" style="border-color:var(--s2-bd);color:var(--s2-c)" onclick="advance(this,2)">→ Laudação</button>
+              <button class="kbtn kb-back" onclick="advance(this,0)">↩</button>
+              <button class="kbtn kb-view">👁️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EM LAUDAÇÃO -->
+      <div class="kcol">
+        <div class="kcol-head kh2">🟣 Em Laudação<span class="kcnt cnt2">5</span></div>
+        <div class="kcol-body kb2" id="col-2">
+          <div class="kcard" data-pac="Carlos Eduardo Melo" data-status="2">
+            <div class="kcard-pac">Carlos Eduardo Melo</div>
+            <div class="kcard-proc">Stent Periférico · Dra. Fernanda Souza</div>
+            <div class="kcard-bot"><span class="kcard-filial fc-cg">CG</span><span class="kcard-data">09/06</span></div>
+            <div class="kcard-actions">
+              <button class="kbtn kb-next" style="border-color:var(--s3-bd);color:var(--s3-c)" onclick="advance(this,3)">→ Autorizado</button>
+              <button class="kbtn kb-back" onclick="advance(this,1)">↩</button>
+              <button class="kbtn kb-view">👁️</button>
+            </div>
+          </div>
+          <div class="kcard" data-pac="Ana Clara Ramos" data-status="2">
+            <div class="kcard-pac">Ana Clara Ramos</div>
+            <div class="kcard-proc">Marca-passo · Dr. Paulo Rezende</div>
+            <div class="kcard-bot"><span class="kcard-filial fc-cba">CBA</span><span class="kcard-data">08/06</span></div>
+            <div class="kcard-actions">
+              <button class="kbtn kb-next" style="border-color:var(--s3-bd);color:var(--s3-c)" onclick="advance(this,3)">→ Autorizado</button>
+              <button class="kbtn kb-back" onclick="advance(this,1)">↩</button>
+              <button class="kbtn kb-view">👁️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AUTORIZADO -->
+      <div class="kcol">
+        <div class="kcol-head kh3">🟡 Autorizado<span class="kcnt cnt3">5</span></div>
+        <div class="kcol-body kb3" id="col-3">
+          <div class="kcard" data-pac="Roberto Alves Neto" data-status="3">
+            <div class="kcard-pac">Roberto Alves Neto</div>
+            <div class="kcard-proc">Marca-passo Dupla Câmara · Dr. Paulo Rezende</div>
+            <div class="kcard-bot"><span class="kcard-filial fc-cg">CG</span><span class="kcard-data">10/06</span></div>
+            <div class="kcard-actions">
+              <button class="kbtn kb-next" style="border-color:var(--s4-bd);color:var(--s4-c)" onclick="advance(this,4)">→ Faturar</button>
+              <button class="kbtn kb-back" onclick="advance(this,2)">↩</button>
+              <button class="kbtn kb-view">👁️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FATURADO -->
+      <div class="kcol">
+        <div class="kcol-head kh4">🟢 Faturado<span class="kcnt cnt4">4</span></div>
+        <div class="kcol-body kb4" id="col-4">
+          <div class="kcard" data-pac="Fernanda Moraes" data-status="4">
+            <div class="kcard-pac">Fernanda Moraes</div>
+            <div class="kcard-proc">Endoprótese Torácica · Dr. Carlos Mendes</div>
+            <div class="kcard-bot"><span class="kcard-filial fc-cg">CG</span><span class="kcard-data">07/06</span></div>
+            <div class="kcard-actions">
+              <button class="kbtn kb-view">👁️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /kanban -->
+
+  <!-- ══════════ LISTA ══════════ -->
+  <div id="view-lista" style="display:block">
+    <div class="fbar">
+      <span class="flabel">Status</span>
+      <div class="fchip on" onclick="filterChip(this,-1)"><span class="fdot" style="background:var(--accent)"></span> Todos</div>
+      <div class="fchip" onclick="filterChip(this,0)"><span class="fdot" style="background:var(--s0-c)"></span> Pendente</div>
+      <div class="fchip" onclick="filterChip(this,1)"><span class="fdot" style="background:var(--s1-c)"></span> Pedido Criado</div>
+      <div class="fchip" onclick="filterChip(this,2)"><span class="fdot" style="background:var(--s2-c)"></span> Em Laudação</div>
+      <div class="fchip" onclick="filterChip(this,3)"><span class="fdot" style="background:var(--s3-c)"></span> Autorizado</div>
+      <div class="fchip" onclick="filterChip(this,4)"><span class="fdot" style="background:var(--s4-c)"></span> Faturado</div>
+
+    </div>
+
+    <div class="twrap">
+      <div class="thead-bar">
+        <span class="thead-title">📋 Fichas</span>
+        <span class="tcount" id="tcount">24 registros</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Paciente</th>
+            <th>Médico</th>
+            <th>Procedimento</th>
+            <th>Filial</th>
+            <th>Pedido</th>
+            <th>Fluxo</th>
+            <th>Data</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <!-- linhas geradas por JS -->
+        </tbody>
+      </table>
+    </div>
+  </div><!-- /lista -->
+
+  </div><!-- /page-content -->
+</main>
+</div>
+
+<!-- ── MODAL ── -->
+<div id="modal" class="modal-ov">
+  <div class="modal">
+    <div class="mhead">
+      <span class="mtitle">📋 Nova Ficha OPME</span>
+      <button class="mclose" onclick="closeModal()">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="frow">
+        <div class="fg"><label class="flbl">Paciente *</label><input class="finput" type="text" placeholder="Nome completo"></div>
+        <div class="fg"><label class="flbl">Médico *</label><input class="finput" type="text" placeholder="Dr./Dra."></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="flbl">Procedimento *</label><input class="finput" type="text" placeholder="Ex: Stent Coronário"></div>
+        <div class="fg"><label class="flbl">Hospital</label><input class="finput" type="text" placeholder="Nome do hospital"></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="flbl">Convênio</label><input class="finput" type="text" placeholder="Ex: Unimed, SUS, Bradesco"></div>
+        <div class="fg"><label class="flbl">Nº Pedido de Venda</label><input class="finput" type="text" placeholder="Ex: PV-2026-0412"></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="flbl">Filial *</label>
+          <select class="finput"><option value="">Selecione…</option><option>Campo Grande (CG)</option><option>Cuiabá (CBA)</option></select>
+        </div>
+        <div class="fg"><label class="flbl">Data da Cirurgia</label><input class="finput" type="date"></div>
+      </div>
+      <div class="uploads-grid">
+        <div class="uzone uzone-opme" id="zone-opme">
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="selectFile(this,'opme')">
+          <div class="uzone-icon">📋</div>
+          <div class="uzone-type">Ficha OPME</div>
+          <div class="uzone-title">Anexar ficha</div>
+          <div class="uzone-sub">PDF, JPG, PNG · 20MB</div>
+          <div class="file-preview" id="prev-opme">
+            <span class="fp-name" id="prev-opme-name"></span>
+            <span class="fp-size" id="prev-opme-size"></span>
+            <button class="fp-remove" onclick="removeFile(event,'opme')">✕</button>
+          </div>
+        </div>
+        <div class="uzone uzone-pv pv" id="zone-pv">
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="selectFile(this,'pv')">
+          <div class="uzone-icon">🧾</div>
+          <div class="uzone-type">Pedido de Venda</div>
+          <div class="uzone-title">Anexar pedido</div>
+          <div class="uzone-sub">PDF, JPG, PNG · 20MB</div>
+          <div class="file-preview" id="prev-pv">
+            <span class="fp-name" id="prev-pv-name"></span>
+            <span class="fp-size" id="prev-pv-size"></span>
+            <button class="fp-remove" onclick="removeFile(event,'pv')">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="tbtn tbtn-g" onclick="closeModal()">Cancelar</button>
+      <button class="tbtn tbtn-p" onclick="saveModal()">💾 Salvar Ficha</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+// ── DADOS ──
+const STATUS = [
+  { label:'Pendente',     icon:'⬜', cls:'b0' },
+  { label:'Pedido Criado',icon:'🔵', cls:'b1' },
+  { label:'Em Laudação',  icon:'🟣', cls:'b2' },
+  { label:'Autorizado',   icon:'🟡', cls:'b3' },
+  { label:'Faturado',     icon:'🟢', cls:'b4' },
+];
+
+const FICHAS = [
+  { pac:'João Silva Santos',    med:'Dr. Carlos Mendes',    proc:'Stent Coronário',           filial:'CG',  pedido:'PV-2026-0401', conv:'Unimed',  status:0, data:'12/06/26' },
+  { pac:'Maria Fernanda Costa', med:'Dra. Ana Paula Lima',  proc:'Endoprótese Aórtica',       filial:'CBA', pedido:'PV-2026-0395', conv:'Bradesco', status:1, data:'11/06/26' },
+  { pac:'Roberto Alves Neto',   med:'Dr. Paulo Rezende',    proc:'Marca-passo Dupla Câmara',  filial:'CG',  pedido:'PV-2026-0388', conv:'SUS',      status:3, data:'10/06/26' },
+  { pac:'Luciana Borges',       med:'Dr. Marcos Vieira',    proc:'Cateter Balão',             filial:'CBA', pedido:'PV-2026-0402', conv:'Amil',     status:1, data:'10/06/26' },
+  { pac:'Carlos Eduardo Melo',  med:'Dra. Fernanda Souza',  proc:'Stent Periférico',          filial:'CG',  pedido:'PV-2026-0390', conv:'Unimed',   status:2, data:'09/06/26' },
+  { pac:'Ana Clara Ramos',      med:'Dr. Paulo Rezende',    proc:'Valvuloplastia',            filial:'CBA', pedido:'PV-2026-0380', conv:'Bradesco', status:2, data:'08/06/26' },
+  { pac:'Pedro Albuquerque',    med:'Dr. Marcos Vieira',    proc:'Marca-passo Unicameral',    filial:'CG',  pedido:'—',            conv:'SUS',      status:0, data:'11/06/26' },
+  { pac:'Fernanda Moraes',      med:'Dr. Carlos Mendes',    proc:'Endoprótese Torácica',      filial:'CG',  pedido:'PV-2026-0370', conv:'Amil',     status:4, data:'07/06/26' },
+  { pac:'Ricardo Oliveira',     med:'Dra. Ana Paula Lima',  proc:'Stent Coronário DES',       filial:'CBA', pedido:'PV-2026-0392', conv:'Unimed',   status:3, data:'09/06/26' },
+  { pac:'Camila Duarte',        med:'Dr. Carlos Mendes',    proc:'Filtro de Veia Cava',       filial:'CG',  pedido:'PV-2026-0405', conv:'Bradesco', status:1, data:'12/06/26' },
+];
+
+let curFilter = -1;
+
+// ── RENDER LISTA ──
+function renderLista(filter) {
+  const tbody = document.getElementById('tbody');
+  const lista = filter === -1 ? FICHAS : FICHAS.filter(f => f.status === filter);
+  document.getElementById('tcount').textContent = lista.length + ' registros';
+
+  tbody.innerHTML = lista.map((f,i) => {
+    const s = f.status;
+    const filialBadge = f.filial === 'CG'
+      ? '<span class="kcard-filial fc-cg">CG</span>'
+      : '<span class="kcard-filial fc-cba">CBA</span>';
+    const pedidoSpan = f.pedido === '—'
+      ? '<span style="color:var(--text3);font-size:0.7rem;">— sem pedido</span>'
+      : `<span style="font-family:var(--mono);font-size:0.68rem;color:var(--text2);">${f.pedido}</span>`;
+
+    // Botões de fluxo inline
+    const btns = STATUS.map((st,si) => {
+      const cur = si === s;
+      return `<button class="iflow-btn${cur?' cur cur'+si:''}" onclick="changeStatus(${FICHAS.indexOf(f)},${si})">${si===s?'●':si+1}</button>${si<4?'<span class="iflow-arr">›</span>':''}`;
+    }).join('');
+
+    return `<tr data-status="${s}">
+      <td class="td-pac">${f.pac}</td>
+      <td class="td-trunc">${f.med}</td>
+      <td class="td-trunc">${f.proc}</td>
+      <td>${filialBadge}</td>
+      <td>${pedidoSpan}</td>
+      <td><div class="iflow">${btns}</div></td>
+      <td class="td-mono">${f.data}</td>
+      <td><div class="row-acts"><button class="abtn">👁️</button><button class="abtn">✏️</button><button class="abtn">🗑️</button></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function changeStatus(idx, newStatus) {
+  const old = STATUS[FICHAS[idx].status].label;
+  FICHAS[idx].status = newStatus;
+  renderLista(curFilter);
+  toast(`${FICHAS[idx].pac} → ${STATUS[newStatus].label}`, 'ok');
+}
+
+// ── KANBAN ADVANCE ──
+function advance(btn, toStatus) {
+  const card = btn.closest('.kcard');
+  const pac = card.dataset.pac;
+  card.style.opacity = '0'; card.style.transform = 'scale(0.95)'; card.style.transition = 'all 0.15s';
+  setTimeout(() => {
+    card.style.transition = '';
+    card.style.opacity = ''; card.style.transform = '';
+
+    // Rebuild actions
+    const acts = card.querySelector('.kcard-actions');
+    acts.innerHTML = '';
+    if (toStatus < 4) {
+      const labels = [null,'→ Criar Pedido','→ Laudação','→ Autorizado','→ Faturar'];
+      const bds = ['','var(--s1-bd)','var(--s2-bd)','var(--s3-bd)','var(--s4-bd)'];
+      const cls = ['','var(--s1-c)','var(--s2-c)','var(--s3-c)','var(--s4-c)'];
+      const nb = toStatus+1;
+      acts.innerHTML = `<button class="kbtn kb-next" style="border-color:${bds[nb]};color:${cls[nb]}" onclick="advance(this,${nb})">${labels[nb]}</button>`;
+      if (toStatus > 0) acts.innerHTML += `<button class="kbtn kb-back" onclick="advance(this,${toStatus-1})">↩</button>`;
+    }
+    acts.innerHTML += `<button class="kbtn kb-view">👁️</button>`;
+
+    document.getElementById('col-'+toStatus).appendChild(card);
+    toast(`${pac} → ${STATUS[toStatus].label}`, 'ok');
+  }, 150);
+}
+
+// ── FILTROS LISTA ──
+function filterChip(chip, s) {
+  document.querySelectorAll('.fchip').forEach(c => c.classList.remove('on'));
+  chip.classList.add('on');
+  curFilter = s;
+  renderLista(s);
+}
+
+function filterS(s) {
+  curFilter = s;
+  renderLista(s);
+  document.querySelectorAll('.fchip').forEach((c,i) => c.classList.toggle('on', i === s+1));
+}
+
+document.querySelectorAll('.fbtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+  });
+});
+
+// ── VIEWS ──
+function go(v) {
+  ['dashboard','kanban','lista'].forEach(id => {
+    document.getElementById('view-'+id).style.display = id===v ? 'block' : 'none';
+    document.getElementById('tab-'+id).classList.toggle('active', id===v);
+  });
+  const titles = {dashboard:'Dashboard', kanban:'Kanban · Fluxo OPME', lista:'Lista de Fichas'};
+  document.getElementById('page-title').textContent = titles[v];
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+}
+
+// ── MODAL ──
+function openModal() { document.getElementById('modal').classList.add('open'); }
+
+function selectFile(input, tipo) {
+  const file = input.files[0];
+  if (!file) return;
+  const fmt = (b) => b < 1024*1024 ? (b/1024).toFixed(0)+' KB' : (b/1024/1024).toFixed(1)+' MB';
+  document.getElementById('prev-'+tipo+'-name').textContent = file.name;
+  document.getElementById('prev-'+tipo+'-size').textContent = fmt(file.size);
+  document.getElementById('prev-'+tipo).classList.add('show');
+  document.getElementById('zone-'+tipo).classList.add('has-file');
+}
+
+function removeFile(e, tipo) {
+  e.preventDefault(); e.stopPropagation();
+  document.getElementById('prev-'+tipo).classList.remove('show');
+  document.getElementById('zone-'+tipo).classList.remove('has-file');
+  document.getElementById('zone-'+tipo).querySelector('input[type=file]').value = '';
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function saveModal() { closeModal(); toast('Ficha salva com sucesso!','ok'); renderLista(curFilter); }
+document.getElementById('modal').addEventListener('click', e => { if(e.target===document.getElementById('modal')) closeModal(); });
+
+// ── TOAST ──
+function toast(msg, type='ok') {
+  const t = document.createElement('div');
+  t.className = 'toast t-'+type;
+  t.textContent = msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.2s'; setTimeout(()=>t.remove(),200); }, 2800);
+}
+
+// ── CONFIGURAÇÃO DE FILIAL ──
+// Para deploy CG: mudar FILIAL_CONFIG para 'CG'
+// Para deploy CBA: mudar FILIAL_CONFIG para 'CBA'
+const FILIAL_CONFIG = 'CG'; // ← ALTERAR POR DEPLOY
+
+const FILIAL = {
+  CG:  { nome: 'Campo Grande', sigla: 'CG',  emoji: '🟢', color: 'var(--accent)',  bg: 'rgba(26,122,74,0.10)',  bd: 'rgba(26,122,74,0.20)',  cls: 'fc-cg'  },
+  CBA: { nome: 'Cuiabá',       sigla: 'CBA', emoji: '🔵', color: 'var(--accent2)', bg: 'rgba(42,159,191,0.10)', bd: 'rgba(42,159,191,0.20)', cls: 'fc-cba' },
+};
+
+// Usuários mock — substituir por Firebase Auth
+const USUARIOS = {
+  'cg@gfmedical.com.br':  { senha: 'gf2026', filial: 'CG',  nome: 'Igor Reis' },
+  'cba@gfmedical.com.br': { senha: 'gf2026', filial: 'CBA', nome: 'Ana Silva' },
+  'admin@gfmedical.com.br':{ senha: 'gf2026', filial: FILIAL_CONFIG, nome: 'Admin' },
+};
+
+let currentUser = null;
+
+// ── SETUP FILIAL NA TELA DE LOGIN ──
+(function setupLoginFilial() {
+  const f = FILIAL[FILIAL_CONFIG];
+  const badge = document.getElementById('login-filial-badge');
+  badge.textContent = f.emoji + ' Filial ' + f.nome;
+  badge.style.background = f.bg;
+  badge.style.border = '1px solid ' + f.bd;
+  badge.style.color = f.color;
+  document.getElementById('login-sub').textContent = 'Acesso restrito · Filial ' + f.nome;
+})();
+
+// ── LOGIN ──
+function doLogin() {
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const senha = document.getElementById('login-senha').value;
+  const err   = document.getElementById('login-error');
+  err.classList.remove('show');
+
+  const user = USUARIOS[email];
+  if (!user || user.senha !== senha) {
+    err.classList.add('show');
+    document.getElementById('login-senha').value = '';
+    return;
+  }
+  if (user.filial !== FILIAL_CONFIG) {
+    err.textContent = 'Seu acesso é para a filial ' + FILIAL[user.filial].nome + '.';
+    err.classList.add('show');
+    return;
+  }
+
+  currentUser = { ...user, email };
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-root').style.display = 'flex';
+  initApp();
+}
+
+// ── LOGOUT ──
+function doLogout() {
+  currentUser = null;
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app-root').style.display = 'none';
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-senha').value = '';
+}
+
+// ── INIT APP (pós-login) ──
+function initApp() {
+  const f = FILIAL[FILIAL_CONFIG];
+
+  // Atualiza nome/filial no sidebar
+  document.getElementById('user-name').textContent = currentUser.nome;
+  document.getElementById('user-avatar').textContent = currentUser.nome.split(' ').map(p=>p[0]).slice(0,2).join('');
+  document.getElementById('sidebar-filial-tag').textContent = f.sigla;
+  document.getElementById('sidebar-filial-tag').style.background = f.bg;
+  document.getElementById('sidebar-filial-tag').style.color = f.color;
+  document.getElementById('sidebar-filial-tag').style.borderColor = f.bd;
+  document.getElementById('sidebar-filial-label').textContent = '🏥 ' + f.nome;
+
+  // Filtra fichas da filial
+  const fichasFilial = FICHAS.filter(fi => fi.filial === FILIAL_CONFIG);
+  // Substitui array global temporariamente para renderLista
+  window.FICHAS_FILIAL = fichasFilial;
+
+  go('lista');
+  document.getElementById('tab-lista').classList.add('active');
+  renderLista(-1);
+}
+
+// Sobrescreve renderLista para usar fichas da filial
+const _renderLista = renderLista;
+renderLista = function(filter) {
+  const fonte = window.FICHAS_FILIAL || FICHAS;
+  const tbody = document.getElementById('tbody');
+  const lista = filter === -1 ? fonte : fonte.filter(f => f.status === filter);
+  document.getElementById('tcount').textContent = lista.length + ' registros';
+
+  tbody.innerHTML = lista.map((f) => {
+    const s = f.status;
+    const filialBadge = f.filial === 'CG'
+      ? '<span class="kcard-filial fc-cg">CG</span>'
+      : '<span class="kcard-filial fc-cba">CBA</span>';
+    const pedidoSpan = f.pedido === '—'
+      ? '<span style="color:var(--text3);font-size:0.7rem;">— sem pedido</span>'
+      : `<span style="font-family:var(--mono);font-size:0.68rem;color:var(--text2);">${f.pedido}</span>`;
+    const btns = STATUS.map((st,si) => {
+      const cur = si === s;
+      return `<button class="iflow-btn${cur?' cur cur'+si:''}" onclick="changeStatus(${FICHAS.indexOf(f)},${si})">${si===s?'●':si+1}</button>${si<4?'<span class="iflow-arr">›</span>':''}`;
+    }).join('');
+
+    return `<tr data-status="${s}">
+      <td class="td-pac">${f.pac}</td>
+      <td class="td-trunc">${f.med}</td>
+      <td class="td-trunc">${f.proc}</td>
+      <td>${filialBadge}</td>
+      <td>${pedidoSpan}</td>
+      <td><div class="iflow">${btns}</div></td>
+      <td class="td-mono">${f.data}</td>
+      <td><div class="row-acts"><button class="abtn">👁️</button><button class="abtn">✏️</button><button class="abtn">🗑️</button></div></td>
+    </tr>`;
+  }).join('');
+};
+
+// Init — mostra só login
+go('lista');
+document.getElementById('tab-lista').classList.add('active');
+</script>
+</body>
+</html>
