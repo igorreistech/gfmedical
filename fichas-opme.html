@@ -28,14 +28,13 @@
   --shadow:   0 2px 12px rgba(10,42,24,0.08);
   --shadow-md:0 4px 24px rgba(10,42,24,0.12);
 
-  /* ── 7 STATUS ── */
+  /* ── 6 STATUS ── */
   --s0-c: #6b7280; --s0-bg: rgba(107,114,128,0.10); --s0-bd: rgba(107,114,128,0.25);
   --s1-c: #2a9fbf; --s1-bg: rgba(42,159,191,0.10);  --s1-bd: rgba(42,159,191,0.25);
   --s2-c: #9333ea; --s2-bg: rgba(147,51,234,0.10);  --s2-bd: rgba(147,51,234,0.25);
   --s3-c: #ec4899; --s3-bg: rgba(236,72,153,0.10);  --s3-bd: rgba(236,72,153,0.25);
-  --s4-c: #d4920a; --s4-bg: rgba(212,146,10,0.10);  --s4-bd: rgba(212,146,10,0.25);
-  --s5-c: #ea580c; --s5-bg: rgba(234,88,12,0.10);   --s5-bd: rgba(234,88,12,0.25);
-  --s6-c: #1a7a4a; --s6-bg: rgba(26,122,74,0.10);   --s6-bd: rgba(26,122,74,0.25);
+  --s4-c: #ea580c; --s4-bg: rgba(234,88,12,0.10);   --s4-bd: rgba(234,88,12,0.25);
+  --s5-c: #1a7a4a; --s5-bg: rgba(26,122,74,0.10);   --s5-bd: rgba(26,122,74,0.25);
 }
 
 html { font-size: 15px; }
@@ -77,7 +76,7 @@ body::before {
 
 /* status nav badges */
 .nb0 { background:var(--s0-c); } .nb1 { background:var(--s1-c); } .nb2 { background:var(--s2-c); }
-.nb3 { background:var(--s3-c); } .nb4 { background:var(--s4-c); } .nb5 { background:var(--s5-c); } .nb6 { background:var(--s6-c); }
+.nb3 { background:var(--s3-c); } .nb4 { background:var(--s4-c); } .nb5 { background:var(--s5-c); }
 
 .sidebar-footer { padding:10px; border-top:1px solid var(--border); }
 .user-chip { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); }
@@ -126,7 +125,6 @@ body::before {
 .b3 { color:var(--s3-c); background:var(--s3-bg); border-color:var(--s3-bd); }
 .b4 { color:var(--s4-c); background:var(--s4-bg); border-color:var(--s4-bd); }
 .b5 { color:var(--s5-c); background:var(--s5-bg); border-color:var(--s5-bd); }
-.b6 { color:var(--s6-c); background:var(--s6-bg); border-color:var(--s6-bd); }
 
 /* ══ PIPELINE PROGRESS BAR ══ */
 .flow-bar {
@@ -146,7 +144,6 @@ body::before {
 .flow-step-circle.s3 { border-color:var(--s3-c); color:var(--s3-c); }
 .flow-step-circle.s4 { border-color:var(--s4-c); color:var(--s4-c); }
 .flow-step-circle.s5 { border-color:var(--s5-c); color:var(--s5-c); }
-.flow-step-circle.s6 { border-color:var(--s6-c); color:var(--s6-c); }
 .flow-step-circle.done { color:white; }
 .flow-step-circle.done.s0 { background:var(--s0-c); }
 .flow-step-circle.done.s1 { background:var(--s1-c); }
@@ -154,14 +151,12 @@ body::before {
 .flow-step-circle.done.s3 { background:var(--s3-c); }
 .flow-step-circle.done.s4 { background:var(--s4-c); }
 .flow-step-circle.done.s5 { background:var(--s5-c); }
-.flow-step-circle.done.s6 { background:var(--s6-c); }
 .flow-step-circle.current { transform:scale(1.15); box-shadow:0 0 0 4px rgba(0,0,0,0.08); }
 .flow-step-name { font-family:var(--mono); font-size:0.58rem; letter-spacing:0.05em; text-transform:uppercase; margin-top:5px; text-align:center; color:var(--text3); }
 .flow-step-name.active-name { font-weight:600; }
 .flow-step-name.n0 { color:var(--s0-c); } .flow-step-name.n1 { color:var(--s1-c); }
 .flow-step-name.n2 { color:var(--s2-c); } .flow-step-name.n3 { color:var(--s3-c); }
 .flow-step-name.n4 { color:var(--s4-c); } .flow-step-name.n5 { color:var(--s5-c); }
-.flow-step-name.n6 { color:var(--s6-c); }
 .flow-connector {
   flex:1; height:2px; margin-top:-16px; position:relative; z-index:1;
   background:var(--border); border-radius:2px; overflow:hidden;
@@ -169,7 +164,7 @@ body::before {
 .flow-connector-fill { height:100%; border-radius:2px; transition:width 0.4s; }
 
 /* ══ STATS BAR ══ */
-.stats-bar { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-bottom:18px; }
+.stats-bar { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:18px; }
 .stat-card {
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
   padding:12px 14px; box-shadow:var(--shadow); position:relative; overflow:hidden; cursor:pointer; transition:transform 0.13s;
@@ -179,7 +174,6 @@ body::before {
 .sc0::before { background:var(--s0-c); } .sc1::before { background:var(--s1-c); }
 .sc2::before { background:var(--s2-c); } .sc3::before { background:var(--s3-c); }
 .sc4::before { background:var(--s4-c); } .sc5::before { background:var(--s5-c); }
-.sc6::before { background:var(--s6-c); }
 .stat-lbl { font-family:var(--mono); font-size:0.57rem; letter-spacing:0.09em; text-transform:uppercase; color:var(--text3); margin-bottom:4px; }
 .stat-val { font-family:var(--display); font-size:1.7rem; font-weight:700; color:var(--text); line-height:1; }
 .stat-sub { font-size:0.65rem; color:var(--text3); margin-top:2px; }
@@ -201,7 +195,6 @@ body::before {
 .ff0 { background:var(--s0-c); } .ff1 { background:var(--s1-c); }
 .ff2 { background:var(--s2-c); } .ff3 { background:var(--s3-c); }
 .ff4 { background:var(--s4-c); } .ff5 { background:var(--s5-c); }
-.ff6 { background:var(--s6-c); }
 
 /* Atividade */
 .act-list { display:flex; flex-direction:column; }
@@ -214,7 +207,7 @@ body::before {
 .act-time { font-family:var(--mono); font-size:0.6rem; color:var(--text3); flex-shrink:0; }
 
 /* ══ KANBAN ══ */
-.kanban-board { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; align-items:start; }
+.kanban-board { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; align-items:start; }
 .kcol { border-radius:var(--radius); overflow:hidden; }
 .kcol-head {
   padding:9px 11px; display:flex; align-items:center; gap:6px;
@@ -227,9 +220,8 @@ body::before {
 .kh3 { background:var(--s3-bg); border-color:var(--s3-bd); color:var(--s3-c); }
 .kh4 { background:var(--s4-bg); border-color:var(--s4-bd); color:var(--s4-c); }
 .kh5 { background:var(--s5-bg); border-color:var(--s5-bd); color:var(--s5-c); }
-.kh6 { background:var(--s6-bg); border-color:var(--s6-bd); color:var(--s6-c); }
 .kcnt { font-family:var(--mono); font-size:0.6rem; font-weight:600; padding:2px 6px; border-radius:20px; margin-left:auto; color:white; }
-.cnt0{background:var(--s0-c);} .cnt1{background:var(--s1-c);} .cnt2{background:var(--s2-c);} .cnt3{background:var(--s3-c);} .cnt4{background:var(--s4-c);} .cnt5{background:var(--s5-c);} .cnt6{background:var(--s6-c);}
+.cnt0{background:var(--s0-c);} .cnt1{background:var(--s1-c);} .cnt2{background:var(--s2-c);} .cnt3{background:var(--s3-c);} .cnt4{background:var(--s4-c);} .cnt5{background:var(--s5-c);}
 .kcol-body {
   min-height:160px; padding:7px; display:flex; flex-direction:column; gap:7px;
   border:1px solid; border-top:none; border-radius:0 0 var(--radius) var(--radius);
@@ -238,9 +230,8 @@ body::before {
 .kb1{background:rgba(42,159,191,0.03);border-color:var(--s1-bd);}
 .kb2{background:rgba(147,51,234,0.03);border-color:var(--s2-bd);}
 .kb3{background:rgba(236,72,153,0.03);border-color:var(--s3-bd);}
-.kb4{background:rgba(212,146,10,0.03);border-color:var(--s4-bd);}
-.kb5{background:rgba(234,88,12,0.03);border-color:var(--s5-bd);}
-.kb6{background:rgba(26,122,74,0.03);border-color:var(--s6-bd);}
+.kb4{background:rgba(234,88,12,0.03);border-color:var(--s4-bd);}
+.kb5{background:rgba(26,122,74,0.03);border-color:var(--s5-bd);}
 
 .kcard {
   background:var(--surface); border:1px solid var(--border); border-radius:8px;
@@ -311,7 +302,6 @@ td { padding:10px 13px; font-size:0.77rem; color:var(--text2); vertical-align:mi
 .iflow-btn.cur { color:white; border-color:transparent; }
 .cur0{background:var(--s0-c);} .cur1{background:var(--s1-c);} .cur2{background:var(--s2-c);}
 .cur3{background:var(--s3-c);} .cur4{background:var(--s4-c);} .cur5{background:var(--s5-c);}
-.cur6{background:var(--s6-c);}
 .iflow-arr { color:var(--border2); font-size:0.6rem; padding:0 1px; }
 
 .row-acts { display:flex; gap:3px; opacity:0; transition:opacity 0.12s; }
@@ -482,9 +472,8 @@ if (typeof pdfjsLib !== 'undefined') {
     <a class="nav-item" onclick="go('lista');filterS(1)" href="#"><span class="nav-icon">🔵</span> Pedido Criado<span class="nbadge nb1" id="snb1">0</span></a>
     <a class="nav-item" onclick="go('lista');filterS(2)" href="#"><span class="nav-icon">🟣</span> Em Laudação<span class="nbadge nb2" id="snb2">0</span></a>
     <a class="nav-item" onclick="go('lista');filterS(3)" href="#"><span class="nav-icon">🩷</span> Laud. Aprovada<span class="nbadge nb3" id="snb3">0</span></a>
-    <a class="nav-item" onclick="go('lista');filterS(4)" href="#"><span class="nav-icon">🟡</span> Autorizado<span class="nbadge nb4" id="snb4">0</span></a>
-    <a class="nav-item" onclick="go('lista');filterS(5)" href="#"><span class="nav-icon">🟠</span> Ag. Faturamento<span class="nbadge nb5" id="snb5">0</span></a>
-    <a class="nav-item" onclick="go('lista');filterS(6)" href="#"><span class="nav-icon">🟢</span> Faturado<span class="nbadge nb6" id="snb6">0</span></a>
+    <a class="nav-item" onclick="go('lista');filterS(4)" href="#"><span class="nav-icon">🟠</span> Ag. Faturamento<span class="nbadge nb4" id="snb4">0</span></a>
+    <a class="nav-item" onclick="go('lista');filterS(5)" href="#"><span class="nav-icon">🟢</span> Faturado<span class="nbadge nb5" id="snb5">0</span></a>
     <div class="sdiv"></div>
     <div class="slabel">Filial</div>
     <a class="nav-item active" href="#"><span class="nav-icon">🏥</span> Campo Grande</a>
@@ -531,12 +520,9 @@ if (typeof pdfjsLib !== 'undefined') {
         <div class="stat-lbl">Laud. Aprovada</div><div class="stat-val">0</div><div class="stat-sub">Convênio aprovou</div>
       </div>
       <div class="stat-card sc4" onclick="go('lista');filterS(4)">
-        <div class="stat-lbl">Autorizado</div><div class="stat-val">0</div><div class="stat-sub">Laudação aprovada</div>
-      </div>
-      <div class="stat-card sc5" onclick="go('lista');filterS(5)">
         <div class="stat-lbl">Ag. Faturamento</div><div class="stat-val">0</div><div class="stat-sub">Aguardando faturar</div>
       </div>
-      <div class="stat-card sc6" onclick="go('lista');filterS(6)">
+      <div class="stat-card sc5" onclick="go('lista');filterS(5)">
         <div class="stat-lbl">Faturado</div><div class="stat-val">0</div><div class="stat-sub">Concluído</div>
       </div>
     </div>
@@ -568,23 +554,18 @@ if (typeof pdfjsLib !== 'undefined') {
               <span class="funnel-count">0</span>
             </div>
             <div class="funnel-row">
-              <span class="funnel-name" style="color:var(--s4-c)">Autorizado</span>
+              <span class="funnel-name" style="color:var(--s4-c)">Ag. Faturamento</span>
               <div class="funnel-track"><div class="funnel-fill ff4" style="width:0%"><span>0</span></div></div>
               <span class="funnel-count">0</span>
             </div>
             <div class="funnel-row">
-              <span class="funnel-name" style="color:var(--s5-c)">Ag. Faturamento</span>
+              <span class="funnel-name" style="color:var(--s5-c)">Faturado</span>
               <div class="funnel-track"><div class="funnel-fill ff5" style="width:0%"><span>0</span></div></div>
-              <span class="funnel-count">0</span>
-            </div>
-            <div class="funnel-row">
-              <span class="funnel-name" style="color:var(--s6-c)">Faturado</span>
-              <div class="funnel-track"><div class="funnel-fill ff6" style="width:0%"><span>0</span></div></div>
               <span class="funnel-count">0</span>
             </div>
           </div>
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.6rem;color:var(--text3);">
-            Total no fluxo: <strong id="dash-total" style="color:var(--text)">—</strong> · Taxa de faturamento: <strong id="dash-fatur" style="color:var(--s6-c)">—</strong>
+            Total no fluxo: <strong id="dash-total" style="color:var(--text)">—</strong> · Taxa de faturamento: <strong id="dash-fatur" style="color:var(--s5-c)">—</strong>
           </div>
         </div>
       </div>
@@ -618,19 +599,14 @@ if (typeof pdfjsLib !== 'undefined') {
               <span class="funnel-count tm-val tm2-v" style="font-family:var(--mono);font-size:0.62rem;width:36px;">—</span>
             </div>
             <div class="funnel-row">
-              <span class="funnel-name" style="color:var(--s3-c);font-size:0.7rem;">Aprov. → Autor.</span>
+              <span class="funnel-name" style="color:var(--s4-c);font-size:0.7rem;">Aprov. → Ag.Fat.</span>
               <div class="funnel-track" style="height:14px;"><div class="funnel-fill tm3" style="width:0%;height:100%"></div></div>
               <span class="funnel-count tm-val tm3-v" style="font-family:var(--mono);font-size:0.62rem;width:36px;">—</span>
             </div>
             <div class="funnel-row">
-              <span class="funnel-name" style="color:var(--s4-c);font-size:0.7rem;">Autor. → Ag.Fat.</span>
+              <span class="funnel-name" style="color:var(--s5-c);font-size:0.7rem;">Ag.Fat. → Faturado</span>
               <div class="funnel-track" style="height:14px;"><div class="funnel-fill tm4" style="width:0%;height:100%"></div></div>
               <span class="funnel-count tm-val tm4-v" style="font-family:var(--mono);font-size:0.62rem;width:36px;">—</span>
-            </div>
-            <div class="funnel-row">
-              <span class="funnel-name" style="color:var(--s5-c);font-size:0.7rem;">Ag.Fat. → Faturado</span>
-              <div class="funnel-track" style="height:14px;"><div class="funnel-fill tm5" style="width:0%;height:100%"></div></div>
-              <span class="funnel-count tm-val tm5-v" style="font-family:var(--mono);font-size:0.62rem;width:36px;">—</span>
             </div>
           </div>
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.6rem;color:var(--text3);" id="tm-ciclo">
@@ -655,9 +631,8 @@ if (typeof pdfjsLib !== 'undefined') {
       <div class="fchip" onclick="filterChip(this,1)"><span class="fdot" style="background:var(--s1-c)"></span> Pedido Criado</div>
       <div class="fchip" onclick="filterChip(this,2)"><span class="fdot" style="background:var(--s2-c)"></span> Em Laudação</div>
       <div class="fchip" onclick="filterChip(this,3)"><span class="fdot" style="background:var(--s3-c)"></span> Laud. Aprovada</div>
-      <div class="fchip" onclick="filterChip(this,4)"><span class="fdot" style="background:var(--s4-c)"></span> Autorizado</div>
-      <div class="fchip" onclick="filterChip(this,5)"><span class="fdot" style="background:var(--s5-c)"></span> Ag. Faturamento</div>
-      <div class="fchip" onclick="filterChip(this,6)"><span class="fdot" style="background:var(--s6-c)"></span> Faturado</div>
+      <div class="fchip" onclick="filterChip(this,4)"><span class="fdot" style="background:var(--s4-c)"></span> Ag. Faturamento</div>
+      <div class="fchip" onclick="filterChip(this,5)"><span class="fdot" style="background:var(--s5-c)"></span> Faturado</div>
 
     </div>
 
@@ -802,9 +777,8 @@ const STATUS = [
   { label:'Pedido Criado',     icon:'🔵', cls:'b1' },
   { label:'Em Laudação',       icon:'🟣', cls:'b2' },
   { label:'Laud. Aprovada',    icon:'🩷', cls:'b3' },
-  { label:'Autorizado',        icon:'🟡', cls:'b4' },
-  { label:'Ag. Faturamento',   icon:'🟠', cls:'b5' },
-  { label:'Faturado',          icon:'🟢', cls:'b6' },
+  { label:'Ag. Faturamento',   icon:'🟠', cls:'b4' },
+  { label:'Faturado',          icon:'🟢', cls:'b5' },
 ];
 
 let FICHAS = [];
@@ -827,7 +801,7 @@ function renderLista(filter) {
     const s = f.status;
     const fb = f.filial === 'CG' ? '<span class="kcard-filial fc-cg">CG</span>' : '<span class="kcard-filial fc-cba">CBA</span>';
     const ped = (!f.pedido || f.pedido === '—') ? '<span style="color:var(--text3);font-size:0.7rem;">— sem pedido</span>' : `<span style="font-family:var(--mono);font-size:0.68rem;color:var(--text2);">${f.pedido}</span>`;
-    const btns = STATUS.map((st,si) => `<button class="iflow-btn${si===s?' cur cur'+si:''}" onclick="changeStatus('${f._docId}',${si})">${si===s?'●':si+1}</button>${si<6?'<span class="iflow-arr">›</span>':''}`).join('');
+    const btns = STATUS.map((st,si) => `<button class="iflow-btn${si===s?' cur cur'+si:''}" onclick="changeStatus('${f._docId}',${si})">${si===s?'●':si+1}</button>${si<5?'<span class="iflow-arr">›</span>':''}`).join('');
     return `<tr data-status="${s}">
       <td class="td-pac">${f.pac||''}</td>
       <td class="td-trunc">${f.med||''}</td>
@@ -844,15 +818,15 @@ function renderLista(filter) {
 function renderKanban() {
   const board = document.getElementById('kanban-board');
   if (!board) return;
-  const advLabels = [null,'→ Criar Pedido','→ Laudação','→ Laud. Aprovada','→ Autorizado','→ Ag. Faturamento','→ Faturar'];
-  const bds = ['','var(--s1-bd)','var(--s2-bd)','var(--s3-bd)','var(--s4-bd)','var(--s5-bd)','var(--s6-bd)'];
-  const cls2 = ['','var(--s1-c)','var(--s2-c)','var(--s3-c)','var(--s4-c)','var(--s5-c)','var(--s6-c)'];
+  const advLabels = [null,'→ Criar Pedido','→ Laudação','→ Laud. Aprovada','→ Ag. Faturamento','→ Faturar'];
+  const bds = ['','var(--s1-bd)','var(--s2-bd)','var(--s3-bd)','var(--s4-bd)','var(--s5-bd)'];
+  const cls2 = ['','var(--s1-c)','var(--s2-c)','var(--s3-c)','var(--s4-c)','var(--s5-c)'];
   board.innerHTML = STATUS.map((st, si) => {
     const fichas = FICHAS.filter(f => f.status === si);
     const cards = fichas.map(f => {
       const fb = f.filial === 'CG' ? '<span class="kcard-filial fc-cg">CG</span>' : '<span class="kcard-filial fc-cba">CBA</span>';
       let acts = '';
-      if (si < 6) acts += `<button class="kbtn kb-next" style="border-color:${bds[si+1]};color:${cls2[si+1]}" onclick="changeStatus('${f._docId}',${si+1})">${advLabels[si+1]}</button>`;
+      if (si < 5) acts += `<button class="kbtn kb-next" style="border-color:${bds[si+1]};color:${cls2[si+1]}" onclick="changeStatus('${f._docId}',${si+1})">${advLabels[si+1]}</button>`;
       if (si > 0) acts += `<button class="kbtn kb-back" onclick="changeStatus('${f._docId}',${si-1})">↩</button>`;
       acts += `<button class="kbtn kb-view" onclick="imprimirFicha('${f._docId}')">🖨️ Imprimir</button>`;
       return `<div class="kcard"><div class="kcard-pac">${f.pac||''}</div><div class="kcard-proc">${f.proc||''} · ${f.med||''}</div><div class="kcard-bot">${fb}<span class="kcard-data">${f.data||''}</span></div><div class="kcard-actions">${acts}</div></div>`;
@@ -882,7 +856,7 @@ function _fmtTempo(ms) {
 
 // ── RENDER DASHBOARD ──
 function renderDashboard() {
-  const sColors = ['var(--s0-c)','var(--s1-c)','var(--s2-c)','var(--s3-c)','var(--s4-c)','var(--s5-c)','var(--s6-c)'];
+  const sColors = ['var(--s0-c)','var(--s1-c)','var(--s2-c)','var(--s3-c)','var(--s4-c)','var(--s5-c)'];
   // Contadores por status
   const max = Math.max(...STATUS.map((_,si) => FICHAS.filter(f => f.status === si).length), 1);
   STATUS.forEach((_,si) => {
@@ -894,7 +868,7 @@ function renderDashboard() {
   });
   // Total e taxa
   const total = FICHAS.length;
-  const fat = FICHAS.filter(f => f.status === 6).length;
+  const fat = FICHAS.filter(f => f.status === 5).length;
   const dtEl = document.getElementById('dash-total'); if (dtEl) dtEl.textContent = total + ' fichas';
   const dfEl = document.getElementById('dash-fatur'); if (dfEl) dfEl.textContent = total ? Math.round(fat/total*100)+'%' : '—';
 
@@ -917,8 +891,8 @@ function renderDashboard() {
   }
 
   // Tempo Médio por Etapa (usa _stages.s0..s4 salvo a cada mudança de status)
-  const pairs = [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6]];
-  const cls = ['tm0','tm1','tm2','tm3','tm4','tm5'];
+  const pairs = [[0,1],[1,2],[2,3],[3,4],[4,5]];
+  const cls = ['tm0','tm1','tm2','tm3','tm4'];
   const tempos = pairs.map(([de,para]) => {
     const vals = FICHAS.map(f => {
       const s = f._stages || {};
@@ -940,7 +914,7 @@ function renderDashboard() {
   const totalMs = tempos.filter(Boolean).reduce((a,b) => a+b, 0);
   const cicloEl = document.getElementById('tm-ciclo-val'); if (cicloEl) cicloEl.textContent = _fmtTempo(totalMs) || '—';
   const garIdx = tempos.indexOf(Math.max(...tempos.filter(Boolean)));
-  const garLabels = ['Receber→Pedido','Pedido→Laudação','Laudação→Aprov.','Aprov.→Autor.','Autor.→Ag.Fat.','Ag.Fat.→Faturado'];
+  const garLabels = ['Receber→Pedido','Pedido→Laudação','Laudação→Aprov.','Aprov.→Ag.Fat.','Ag.Fat.→Faturado'];
   const garEl = document.getElementById('tm-gargalo');
   if (garEl) { garEl.textContent = garIdx >= 0 && tempos[garIdx] ? garLabels[garIdx] : '—'; garEl.style.color = garIdx >= 0 ? sColors[garIdx+1] : 'var(--text3)'; }
 }
@@ -954,8 +928,8 @@ async function changeStatus(docId, newStatus) {
     await updateDoc(doc(window._fbDb, window._fbColl, docId), patch);
     const f = FICHAS.find(x => x._docId === docId);
     if (f) toast(`${f.pac} → ${STATUS[newStatus].label}`, 'ok');
-    // Auto-criar no monitor quando ficha é Autorizada
-    if (newStatus === 4 && f && !f._criadoNoMonitor) {
+    // Auto-criar no monitor quando ficha é Laud. Aprovada
+    if (newStatus === 3 && f && !f._criadoNoMonitor) {
       await autocriarNoMonitor(f, docId);
     }
   } catch(e) { toast('Erro ao atualizar','err'); console.error(e); }
@@ -1149,7 +1123,7 @@ function imprimirFicha(docId) {
   const f = FICHAS.find(x => x._docId === docId);
   if (!f) return;
   const stLabel = (STATUS[f.status] || STATUS[0]).label;
-  const stColor = ['#6b7280','#2a9fbf','#9333ea','#ec4899','#d4920a','#ea580c','#1a7a4a'][f.status] || '#6b7280';
+  const stColor = ['#6b7280','#2a9fbf','#9333ea','#ec4899','#ea580c','#1a7a4a'][f.status] || '#6b7280';
   const linha = (k, v) => v ? `<tr><td style="font-weight:600;color:#3a6a4a;width:160px;padding:7px 10px;border-bottom:1px solid #d8f0e0;">${k}</td><td style="padding:7px 10px;border-bottom:1px solid #d8f0e0;">${v}</td></tr>` : '';
   const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Ficha OPME — ${f.pac||''}</title>
   <style>body{font-family:'Segoe UI',sans-serif;background:#fff;color:#0a2a18;margin:0;padding:24px;}
@@ -1199,117 +1173,111 @@ function toast(msg, type='ok') {
 
 // ── EXTRAIR DADOS DO PEDIDO DE VENDA ──
 async function extrairDadosPV(file) {
+  if (!window['pdfjs-dist/build/pdf']) { toast('PDF.js não carregado.', 'err'); return; }
+  const pdfLib = window['pdfjs-dist/build/pdf'];
+  pdfLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   try {
-    toast('⏳ Lendo pedido de venda...', 'ok');
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const allLines = [];
+    const buf = await file.arrayBuffer();
+    const doc = await pdfLib.getDocument({ data: buf }).promise;
 
-    for (let pi = 1; pi <= Math.min(pdf.numPages, 3); pi++) {
-      const page = await pdf.getPage(pi);
-      const tc   = await page.getTextContent();
-      // Agrupar itens de texto pela coordenada Y (linhas visuais, tolerância 5px)
-      const rows = {};
+    const raw = [];
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p);
+      const vp = page.getViewport({ scale: 1 });
+      const tc = await page.getTextContent();
       tc.items.forEach(it => {
-        if (!it.str.trim()) return;
-        const y = Math.round(it.transform[5] / 5) * 5;
-        if (!rows[y]) rows[y] = [];
-        rows[y].push({ x: it.transform[4], str: it.str.trim() });
-      });
-      Object.keys(rows).map(Number).sort((a,b) => b-a).forEach(y => {
-        const line = rows[y].sort((a,b) => a.x-b.x).map(i => i.str).join(' ');
-        allLines.push(line);
+        const s = it.str.trim(); if (!s) return;
+        raw.push({ str: s, x: Math.round(it.transform[4]), y: Math.round(vp.height - it.transform[5]), page: p });
       });
     }
-    const text = allLines.join('\n');
-    const get1 = re => { const m = text.match(re); return m ? m[1].trim() : null; };
 
-    // ── CAMPOS PRINCIPAIS ──
-    const pac    = get1(/Paciente:\s*([A-ZÀ-Ú][^\n]{3,60})/i);
-    const dataCir = get1(/Data\s+da\s+Cirurgia:\s*(\d{2}\/\d{2}\/\d{4})/i)
-                 || get1(/Data\s+Cirurgia:\s*(\d{2}\/\d{2}\/\d{4})/i);
-    let med      = get1(/M[eé]dico:\s*([A-ZÀ-Ú][^\n]{3,60})/i);
-    // fallback: nome que aparece logo antes da linha do convênio (ex: "UNIMED...", "COOPERATIVA...")
-    if (!med || med.length < 4) {
-      const fb = text.match(/([A-ZÀ-Ú][A-ZÀ-Ú\s.]{5,60})\n[^\n]*(?:CONVENIO|COOPERATIVA|UNIMED|CASSEMS|BRADESCO|SULAMERICA|HAPVIDA)/i);
-      if (fb) med = fb[1].trim();
-    }
-    // "Matrícula: Hospital: HOSPITAL PENFIGO" → captura depois de "Hospital:"
-    const hospRaw = get1(/Hospital:\s*([A-ZÀ-Ú][^\n]{3,60})/i);
-    const hosp   = hospRaw ? hospRaw.replace(/M[ae]tr[íi]cula[:\s]*/i,'').trim() : null;
-    const convRaw = get1(/Conv[eê]nio:\s*([A-ZÀ-Ú][^\n]{3,60})/i);
+    raw.sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
 
-    // Nº PV: "C160 - Pedido de Venda Nº: 4795" ou "Nº: 4795"
-    const pvNum = get1(/Pedido\s*de\s*Venda\s*N[º°][:\s]*(\d+)/i) || get1(/N[º°][:\s]+(\d{3,6})\b/);
-
-    // Mapear convênio para opção do select
-    const convOpts = ['Unimed','Bradesco Saúde','Amil','SulAmérica','Cassems','Hapvida','Impcg','MT Saúde','Geap','UFMS','SES','SUS','Particular'];
-    const srcConv  = (convRaw || '') + ' ' + text;
-    const conv     = convOpts.find(c => srcConv.toUpperCase().includes(c.toUpperCase()));
-
-    // ── ITENS DO PEDIDO ──
-    // Linha de produto: "2347C CAT DUPLO J 4.7F X 26CM 81655779024 - MEDTEC SUPPLIES ..."
-    // ou com item nº: "1 2347C CAT DUPLO J 4.7F X 26CM ..."
-    const itens = [];
-    const itemRe = /(?:^|\s)(\d{3,5}[A-Z]?)\s+([A-Z][A-Z0-9/.,\- ]{5,60}?)\s+\d{8,14}\s*-\s*\w/gm;
-    let m;
-    while ((m = itemRe.exec(text)) !== null) {
-      itens.push({ cod: m[1], desc: m[2].trim().replace(/\s{2,}/g,' '), qtd:'', lote:'', vunit:'', vtotal:'' });
-    }
-
-    // Lotes (apenas os preenchidos)
-    const loteRe = /N\.\s*Lote:\s*([A-Z0-9]{4,})/g;
-    const lotes  = [];
-    while ((m = loteRe.exec(text)) !== null) lotes.push(m[1]);
-
-    // Preços por nº de item: " 1 170,00 170,00 12/06/2026"
-    const precRe = /^\s*(\d+)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+\d{2}\/\d{2}\/\d{4}/gm;
-    const precos = {};
-    while ((m = precRe.exec(text)) !== null) precos[+m[1]] = { vunit: m[2], vtotal: m[3] };
-
-    // Quantidades — bloco "Unidade: PC\n 1,00\n 2,00\n 1,00"
-    const qtdBlock = text.match(/Unidade[:\s]+(?:PC\s*)?((?:\s*\d+,\d+\s*){1,20})/);
-    const qtds = qtdBlock ? qtdBlock[1].trim().split(/\s+/).filter(q => /^\d+,\d+$/.test(q)) : [];
-
-    // Associar dados aos itens
-    itens.forEach((it, i) => {
-      if (lotes[i])       it.lote   = lotes[i];
-      if (precos[i+1])  { it.vunit  = precos[i+1].vunit; it.vtotal = precos[i+1].vtotal; }
-      if (qtds[i])        it.qtd    = qtds[i];
+    const lineGroups = [];
+    raw.forEach(it => {
+      const last = lineGroups[lineGroups.length - 1];
+      if (last && it.page === last[0].page && Math.abs(it.y - last[0].y) <= 8) last.push(it);
+      else lineGroups.push([it]);
     });
+    lineGroups.forEach(l => l.sort((a, b) => a.x - b.x));
 
-    // ── PREENCHER CAMPOS DO MODAL ──
-    const preenchidos = [];
-    const setF = (id, val) => { const el = document.getElementById(id); if (el && val) { el.value = val; return true; } return false; };
+    const lineTexts = lineGroups.map(l => l.map(it => it.str).join(' '));
+    const full = lineTexts.join('\n');
+    const get1 = rx => { const m = full.match(rx); return m ? m[1].trim() : null; };
 
-    if (setF('f-pac', pac))    preenchidos.push('Paciente');
-    if (med && med.length > 2 && setF('f-med', med)) preenchidos.push('Médico');
-    if (hosp && hosp.length > 2 && setF('f-hosp', hosp)) preenchidos.push('Hospital');
-    if (pvNum && setF('f-pedido', pvNum)) preenchidos.push('Nº PV');
+    const pac = get1(/Paciente[:\s]+([^\n\r]+)/i);
+    const dataCirRaw = get1(/Data\s+(?:da\s+)?Cirurgia[:\s]+(\d{2}\/\d{2}\/\d{4})/i);
+    let hosp = get1(/Hospital[:\s]+([^\n\r]+)/i);
+    if (hosp) hosp = hosp.replace(/\s*Matr[íi]cula.*/i, '').trim();
+    const conv = get1(/Conv[eê]nio[:\s]+([^\n\r]+)/i);
+    const pvNum = get1(/N[°º][:\s]*(\d{3,6})\b/)
+               || get1(/Pedido\s+de\s+Venda\s+N[°º][:\s]*(\d+)/i)
+               || get1(/N[°º]\s*(\d{3,6})/);
 
-    if (dataCir) {
-      const [d,mo,a] = dataCir.split('/');
-      if (setF('f-data', `${a}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`)) preenchidos.push('Data');
-    }
-    if (conv) {
-      const el = document.getElementById('f-conv');
-      if (el) {
-        const opt = Array.from(el.options).find(o => o.value && conv.toUpperCase().includes(o.value.toUpperCase()));
-        if (opt) { el.value = opt.value; preenchidos.push('Convênio'); }
+    let med = get1(/M[eé]dico[:\s]+([^\n\r:]+)/i);
+    if (!med || med.length < 4) {
+      const mIt = raw.find(it => /^M[eé]dico\s*:?\s*$/i.test(it.str) || /M[eé]dico:/i.test(it.str));
+      if (mIt) {
+        const sameY = raw.filter(it => it.page === mIt.page && Math.abs(it.y - mIt.y) <= 8 && it.x > mIt.x).sort((a,b) => a.x - b.x);
+        if (sameY.length) med = sameY.map(it => it.str).join(' ').trim();
       }
     }
-    if (itens.length) {
-      _itensOPME = itens;
-      renderItensOPME();
-      preenchidos.push(`${itens.length} item${itens.length>1?'s':''}`);
+    if (!med || med.length < 4) {
+      const mIdx = lineTexts.findIndex(l => /M[eé]dico\s*:?\s*$/i.test(l.trim()));
+      if (mIdx >= 0 && mIdx + 1 < lineTexts.length) med = lineTexts[mIdx + 1].trim();
+    }
+    if (!med || med.length < 4) {
+      const fb = full.match(/\n([A-ZÀ-Ú][A-ZÀ-Ú\s.]{5,60})\n[^\n]*(?:UNIMED|CASSEMS|BRADESCO|SULAMERICA|HAPVIDA|CONVENIO|COOPERATIVA)/i);
+      if (fb) med = fb[1].trim();
     }
 
-    toast(preenchidos.length
-      ? `✅ Extraído: ${preenchidos.join(', ')}`
-      : '⚠️ Campos não encontrados no PDF', preenchidos.length ? 'ok' : 'err');
+    const headerIdx = lineGroups.findIndex(l => {
+      const t = l.map(i => i.str).join(' ');
+      return /C[oó]d|Alt\.?/i.test(t) && /Qtd|Quant/i.test(t) && /Descri/i.test(t);
+    });
+
+    let itens = [];
+    if (headerIdx >= 0) {
+      const hLine = lineGroups[headerIdx];
+      const getX = rx => { const h = hLine.find(i => rx.test(i.str)); return h ? h.x : null; };
+      const cols = [
+        { name:'cod',    x: getX(/C[oó]d|Alt/i)  ?? 0   },
+        { name:'desc',   x: getX(/Descri/i)       ?? 80  },
+        { name:'qtd',    x: getX(/Qtd|Quant/i)    ?? 280 },
+        { name:'lote',   x: getX(/Lote/i)          ?? 340 },
+        { name:'vunit',  x: getX(/Unit/i)          ?? 410 },
+        { name:'vtotal', x: getX(/Total/i)         ?? 490 },
+      ].sort((a, b) => a.x - b.x);
+      const assignCol = x => { let c = cols[0].name; cols.forEach(col => { if (x >= col.x - 10) c = col.name; }); return c; };
+
+      for (let i = headerIdx + 1; i < lineGroups.length; i++) {
+        const lg = lineGroups[i];
+        const lt = lg.map(it => it.str).join(' ');
+        if (/Total\s+Geral|Observa[çc]|Assinatura|Validade/i.test(lt)) break;
+        if (!lg.some(it => /\d/.test(it.str))) continue;
+        const row = { cod:'', desc:'', qtd:'', lote:'', vunit:'', vtotal:'' };
+        lg.forEach(it => { const c = assignCol(it.x); row[c] = row[c] ? row[c]+' '+it.str : it.str; });
+        if (row.desc || row.cod) itens.push(row);
+      }
+    }
+
+    if (pac)   { const el = document.getElementById('f-pac');    if (el) el.value = pac;   }
+    if (med)   { const el = document.getElementById('f-med');    if (el) el.value = med;   }
+    if (hosp)  { const el = document.getElementById('f-hosp');   if (el) el.value = hosp;  }
+    if (conv)  { const el = document.getElementById('f-conv');   if (el) el.value = conv;  }
+    if (pvNum) { const el = document.getElementById('f-pedido'); if (el) el.value = pvNum; }
+    if (dataCirRaw) {
+      const [d, mo, y] = dataCirRaw.split('/');
+      const el = document.getElementById('f-data');
+      if (el) el.value = `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
+    if (itens.length > 0) { _itensOPME = []; itens.forEach(it => adicionarItemOPME(it)); }
+
+    const campos = [pac?'paciente':'', med?'médico':'', pvNum?'Nº PV':'', dataCirRaw?'data':''].filter(Boolean);
+    toast(`✅ PDF: ${campos.join(', ')}${itens.length?' · '+itens.length+' item(ns)':''}`, 'ok');
   } catch(e) {
-    console.error('Erro ao ler PDF:', e);
-    toast('Erro ao processar o PDF', 'err');
+    console.error('[PV]', e);
+    toast('Erro ao ler PDF: ' + e.message, 'err');
   }
 }
 
@@ -1328,24 +1296,37 @@ function initApp() {
   renderLista(-1); renderKanban(); renderDashboard();
 }
 
-// ── LEMBRETE DIÁRIO LAUDAÇÃO 09h e 15h ──
+// ── LEMBRETE DIÁRIO LAUDAÇÃO e AG. FATURAMENTO 09h e 15h ──
 const _lembLaudKey = new Set();
 setInterval(() => {
   const now = new Date();
   const h = now.getHours(), m = now.getMinutes();
   if ((h === 9 || h === 15) && m === 0) {
-    const key = `${now.toDateString()}-${h}`;
-    if (!_lembLaudKey.has(key)) {
-      _lembLaudKey.add(key);
+    const keyLaud = `laud-${now.toDateString()}-${h}`;
+    if (!_lembLaudKey.has(keyLaud)) {
+      _lembLaudKey.add(keyLaud);
       const emLaud = FICHAS.filter(f => f.status === 2);
       if (emLaud.length) {
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification(`🟣 Lembrete ${h}h — ${emLaud.length} ficha${emLaud.length>1?'s':''} em laudação`, {
-            body: emLaud.map(f => f.pac||'—').join(' · '),
-            tag: 'lembrete-' + key
+            body: emLaud.map(f => f.pac||'—').join(' · '), tag: 'laud-' + keyLaud
           });
         }
         toast(`🟣 ${h}h: ${emLaud.length} ficha${emLaud.length>1?'s':''} em laudação`, 'ok');
+      }
+    }
+    const keyFat = `fat-${now.toDateString()}-${h}`;
+    if (!_lembLaudKey.has(keyFat)) {
+      _lembLaudKey.add(keyFat);
+      const agFat = FICHAS.filter(f => f.status === 4);
+      if (agFat.length) {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(`🟠 Lembrete ${h}h — Verificar email: ${agFat.length} ficha${agFat.length>1?'s':''} Ag. Faturamento`, {
+            body: '📧 Verifique o email — autorização do convênio para faturar · ' + agFat.map(f => f.pac||'—').join(' · '),
+            tag: 'fat-' + keyFat
+          });
+        }
+        toast(`🟠 ${h}h: 📧 Verificar email — ${agFat.length} ficha${agFat.length>1?'s':''} Ag. Faturamento aguardando convênio`, 'ok');
       }
     }
   }
