@@ -545,7 +545,7 @@ tbody tr:hover .row-acts { opacity:1; }
             </div>
           </div>
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.6rem;color:var(--text3);">
-            Total no fluxo: <strong style="color:var(--text)">24 fichas</strong> · Taxa de faturamento: <strong style="color:var(--s4-c)">67%</strong>
+            Total no fluxo: <strong id="dash-total" style="color:var(--text)">—</strong> · Taxa de faturamento: <strong id="dash-fatur" style="color:var(--s4-c)">—</strong>
           </div>
         </div>
       </div>
@@ -554,13 +554,7 @@ tbody tr:hover .row-acts { opacity:1; }
       <div class="dcard">
         <div class="dcard-head">🕐 Atividade Recente</div>
         <div class="dcard-body" style="padding:0 14px;">
-          <div class="act-list">
-            <div class="act-item"><div class="act-dot" style="background:var(--s3-c)"></div><div class="act-info"><div class="act-name">Maria Fernanda Costa</div><div class="act-desc">Pedido Criado → Autorizado</div></div><span class="act-time">há 8min</span></div>
-            <div class="act-item"><div class="act-dot" style="background:var(--s2-c)"></div><div class="act-info"><div class="act-name">João Silva Santos</div><div class="act-desc">Pedido Criado → Em Laudação</div></div><span class="act-time">há 23min</span></div>
-            <div class="act-item"><div class="act-dot" style="background:var(--s4-c)"></div><div class="act-info"><div class="act-name">Roberto Alves Neto</div><div class="act-desc">Autorizado → Faturado</div></div><span class="act-time">há 1h</span></div>
-            <div class="act-item"><div class="act-dot" style="background:var(--s1-c)"></div><div class="act-info"><div class="act-name">Ana Clara Ramos</div><div class="act-desc">Ficha criada · Pedido Criado</div></div><span class="act-time">há 2h</span></div>
-            <div class="act-item"><div class="act-dot" style="background:var(--s0-c)"></div><div class="act-info"><div class="act-name">Pedro Albuquerque</div><div class="act-desc">Ficha recebida · Pendente</div></div><span class="act-time">há 3h</span></div>
-          </div>
+          <div class="act-list" id="act-list"><div style="font-size:0.75rem;color:var(--text3);padding:10px;">Aguardando dados…</div></div>
         </div>
       </div>
 
@@ -571,19 +565,19 @@ tbody tr:hover .row-acts { opacity:1; }
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
             <div style="text-align:center;padding:12px;background:rgba(26,122,74,0.06);border:1px solid rgba(26,122,74,0.15);border-radius:8px;">
               <div style="font-family:var(--mono);font-size:0.57rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin-bottom:3px;">Campo Grande</div>
-              <div style="font-family:var(--display);font-size:1.7rem;font-weight:700;color:var(--text);">14</div>
-              <div style="font-size:0.65rem;color:var(--text3);">58% do total</div>
+              <div id="filial-cg-n" style="font-family:var(--display);font-size:1.7rem;font-weight:700;color:var(--text);">—</div>
+              <div id="filial-cg-pct" style="font-size:0.65rem;color:var(--text3);">—</div>
             </div>
             <div style="text-align:center;padding:12px;background:rgba(42,159,191,0.06);border:1px solid rgba(42,159,191,0.15);border-radius:8px;">
               <div style="font-family:var(--mono);font-size:0.57rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent2);margin-bottom:3px;">Cuiabá</div>
-              <div style="font-family:var(--display);font-size:1.7rem;font-weight:700;color:var(--text);">10</div>
-              <div style="font-size:0.65rem;color:var(--text3);">42% do total</div>
+              <div id="filial-cba-n" style="font-family:var(--display);font-size:1.7rem;font-weight:700;color:var(--text);">—</div>
+              <div id="filial-cba-pct" style="font-size:0.65rem;color:var(--text3);">—</div>
             </div>
           </div>
           <div style="font-family:var(--mono);font-size:0.57rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:8px;">Em laudação por filial</div>
           <div class="funnel">
-            <div class="funnel-row"><span class="funnel-name" style="color:var(--accent)">CG</span><div class="funnel-track"><div class="funnel-fill" style="width:60%;background:var(--accent)"></div></div><span class="funnel-count">3</span></div>
-            <div class="funnel-row"><span class="funnel-name" style="color:var(--accent2)">CBA</span><div class="funnel-track"><div class="funnel-fill" style="width:40%;background:var(--accent2)"></div></div><span class="funnel-count">2</span></div>
+            <div class="funnel-row"><span class="funnel-name" style="color:var(--accent)">CG</span><div class="funnel-track"><div class="funnel-fill" id="laud-cg-bar" style="width:0%;background:var(--accent)"></div></div><span class="funnel-count" id="laud-cg-n">0</span></div>
+            <div class="funnel-row"><span class="funnel-name" style="color:var(--accent2)">CBA</span><div class="funnel-track"><div class="funnel-fill" id="laud-cba-bar" style="width:0%;background:var(--accent2)"></div></div><span class="funnel-count" id="laud-cba-n">0</span></div>
           </div>
         </div>
       </div>
@@ -592,30 +586,30 @@ tbody tr:hover .row-acts { opacity:1; }
       <div class="dcard">
         <div class="dcard-head">⏱️ Tempo Médio por Etapa</div>
         <div class="dcard-body">
-          <div class="funnel" style="gap:8px;">
+          <div class="funnel" style="gap:8px;" id="tm-bars">
             <div class="funnel-row">
               <span class="funnel-name" style="color:var(--s0-c);font-size:0.7rem;">Receber → Pedido</span>
-              <div class="funnel-track" style="height:14px;"><div class="funnel-fill ff0" style="width:30%;height:100%"></div></div>
-              <span class="funnel-count" style="font-family:var(--mono);font-size:0.62rem;width:36px;">1 dia</span>
+              <div class="funnel-track" style="height:14px;"><div class="funnel-fill tm0" style="width:0%;height:100%"></div></div>
+              <span class="funnel-count tm-val tm0-v" style="font-family:var(--mono);font-size:0.62rem;width:36px;">—</span>
             </div>
             <div class="funnel-row">
               <span class="funnel-name" style="color:var(--s1-c);font-size:0.7rem;">Pedido → Laudação</span>
-              <div class="funnel-track" style="height:14px;"><div class="funnel-fill ff1" style="width:20%;height:100%"></div></div>
-              <span class="funnel-count" style="font-family:var(--mono);font-size:0.62rem;width:36px;">12h</span>
+              <div class="funnel-track" style="height:14px;"><div class="funnel-fill tm1" style="width:0%;height:100%"></div></div>
+              <span class="funnel-count tm-val tm1-v" style="font-family:var(--mono);font-size:0.62rem;width:36px;">—</span>
             </div>
             <div class="funnel-row">
               <span class="funnel-name" style="color:var(--s2-c);font-size:0.7rem;">Laudação → Autor.</span>
-              <div class="funnel-track" style="height:14px;"><div class="funnel-fill ff2" style="width:100%;height:100%"></div></div>
-              <span class="funnel-count" style="font-family:var(--mono);font-size:0.62rem;width:36px;">5 dias</span>
+              <div class="funnel-track" style="height:14px;"><div class="funnel-fill tm2" style="width:0%;height:100%"></div></div>
+              <span class="funnel-count tm-val tm2-v" style="font-family:var(--mono);font-size:0.62rem;width:36px;">—</span>
             </div>
             <div class="funnel-row">
               <span class="funnel-name" style="color:var(--s3-c);font-size:0.7rem;">Autor. → Faturado</span>
-              <div class="funnel-track" style="height:14px;"><div class="funnel-fill ff3" style="width:40%;height:100%"></div></div>
-              <span class="funnel-count" style="font-family:var(--mono);font-size:0.62rem;width:36px;">2 dias</span>
+              <div class="funnel-track" style="height:14px;"><div class="funnel-fill tm3" style="width:0%;height:100%"></div></div>
+              <span class="funnel-count tm-val tm3-v" style="font-family:var(--mono);font-size:0.62rem;width:36px;">—</span>
             </div>
           </div>
-          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.6rem;color:var(--text3);">
-            Ciclo total médio: <strong style="color:var(--text)">~8 dias</strong> · Gargalo: <strong style="color:var(--s2-c)">Laudação</strong>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.6rem;color:var(--text3);" id="tm-ciclo">
+            Ciclo total médio: <strong id="tm-ciclo-val" style="color:var(--text)">—</strong> · Gargalo: <strong id="tm-gargalo" style="color:var(--s2-c)">—</strong>
           </div>
         </div>
       </div>
@@ -795,8 +789,29 @@ function renderKanban() {
   }).join('');
 }
 
+// ── HELPERS ──
+function _tempoRel(iso) {
+  if (!iso) return '—';
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'agora';
+  if (m < 60) return `há ${m}min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `há ${h}h`;
+  return `há ${Math.floor(h / 24)}d`;
+}
+function _fmtTempo(ms) {
+  if (!ms || ms <= 0) return null;
+  const h = ms / 3600000;
+  if (h < 1) return Math.round(h * 60) + 'min';
+  if (h < 24) return Math.round(h) + 'h';
+  return Math.round(h / 24) + 'd';
+}
+
 // ── RENDER DASHBOARD ──
 function renderDashboard() {
+  const sColors = ['var(--s0-c)','var(--s1-c)','var(--s2-c)','var(--s3-c)','var(--s4-c)'];
+  // Contadores por status
   const max = Math.max(...STATUS.map((_,si) => FICHAS.filter(f => f.status === si).length), 1);
   STATUS.forEach((_,si) => {
     const cnt = FICHAS.filter(f => f.status === si).length;
@@ -804,16 +819,112 @@ function renderDashboard() {
     const fill = document.querySelector(`.funnel-fill.ff${si}`); if (fill) { fill.style.width=(cnt/max*100)+'%'; const sp=fill.querySelector('span'); if(sp) sp.textContent=cnt; }
     const fc = document.querySelector(`.funnel-row:nth-child(${si+1}) .funnel-count`); if (fc) fc.textContent = cnt;
   });
+  // Total e taxa
+  const total = FICHAS.length;
+  const fat = FICHAS.filter(f => f.status === 4).length;
+  const dtEl = document.getElementById('dash-total'); if (dtEl) dtEl.textContent = total + ' fichas';
+  const dfEl = document.getElementById('dash-fatur'); if (dfEl) dfEl.textContent = total ? Math.round(fat/total*100)+'%' : '—';
+
+  // Atividade Recente
+  const actEl = document.getElementById('act-list');
+  if (actEl) {
+    const recentes = [...FICHAS].sort((a,b) => (b.atualizadoEm||b.criadoEm||'') > (a.atualizadoEm||a.criadoEm||'') ? 1 : -1).slice(0,5);
+    if (!recentes.length) {
+      actEl.innerHTML = '<div style="font-size:0.75rem;color:var(--text3);padding:10px;">Nenhuma ficha ainda.</div>';
+    } else {
+      actEl.innerHTML = recentes.map(f => {
+        const s = f.status ?? 0;
+        const st = STATUS[s] || STATUS[0];
+        const ts = f.atualizadoEm || f.criadoEm || '';
+        const isNova = ts === f.criadoEm && !f.atualizadoEm;
+        const desc = isNova ? `Ficha criada · ${st.label}` : `→ ${st.label}`;
+        return `<div class="act-item"><div class="act-dot" style="background:${sColors[s]}"></div><div class="act-info"><div class="act-name">${f.pac||'—'}</div><div class="act-desc">${desc}</div></div><span class="act-time">${_tempoRel(ts)}</span></div>`;
+      }).join('');
+    }
+  }
+
+  // Por Filial
+  const cgN = FICHAS.filter(f => f.filial === 'CG').length;
+  const cbaN = FICHAS.filter(f => f.filial === 'CBA').length;
+  const tot = cgN + cbaN || 1;
+  const cgEl = document.getElementById('filial-cg-n'); if (cgEl) cgEl.textContent = cgN;
+  const cgPEl = document.getElementById('filial-cg-pct'); if (cgPEl) cgPEl.textContent = Math.round(cgN/tot*100)+'% do total';
+  const cbaEl = document.getElementById('filial-cba-n'); if (cbaEl) cbaEl.textContent = cbaN;
+  const cbaPEl = document.getElementById('filial-cba-pct'); if (cbaPEl) cbaPEl.textContent = Math.round(cbaN/tot*100)+'% do total';
+  const laudCG = FICHAS.filter(f => f.filial==='CG' && f.status===2).length;
+  const laudCBA = FICHAS.filter(f => f.filial==='CBA' && f.status===2).length;
+  const maxL = Math.max(laudCG, laudCBA, 1);
+  const lcgBar = document.getElementById('laud-cg-bar'); if (lcgBar) lcgBar.style.width = (laudCG/maxL*100)+'%';
+  const lcgN = document.getElementById('laud-cg-n'); if (lcgN) lcgN.textContent = laudCG;
+  const lcbaBar = document.getElementById('laud-cba-bar'); if (lcbaBar) lcbaBar.style.width = (laudCBA/maxL*100)+'%';
+  const lcbaN = document.getElementById('laud-cba-n'); if (lcbaN) lcbaN.textContent = laudCBA;
+
+  // Tempo Médio por Etapa (usa _stages.s0..s4 salvo a cada mudança de status)
+  const pairs = [[0,1],[1,2],[2,3],[3,4]];
+  const cls = ['tm0','tm1','tm2','tm3'];
+  const tempos = pairs.map(([de,para]) => {
+    const vals = FICHAS.map(f => {
+      const s = f._stages || {};
+      const tDe = s['s'+de], tPara = s['s'+para];
+      if (!tDe || !tPara) return null;
+      return new Date(tPara) - new Date(tDe);
+    }).filter(v => v !== null && v > 0);
+    if (!vals.length) return null;
+    return vals.reduce((a,b) => a+b, 0) / vals.length;
+  });
+  const maxTm = Math.max(...tempos.filter(Boolean), 1);
+  tempos.forEach((ms, i) => {
+    const bar = document.querySelector(`.funnel-fill.${cls[i]}`);
+    const val = document.querySelector(`.${cls[i]}-v`);
+    const txt = _fmtTempo(ms);
+    if (bar) bar.style.width = ms ? (ms/maxTm*100)+'%' : '0%';
+    if (val) val.textContent = txt || '—';
+  });
+  const totalMs = tempos.filter(Boolean).reduce((a,b) => a+b, 0);
+  const cicloEl = document.getElementById('tm-ciclo-val'); if (cicloEl) cicloEl.textContent = _fmtTempo(totalMs) || '—';
+  const garIdx = tempos.indexOf(Math.max(...tempos.filter(Boolean)));
+  const garLabels = ['Receber→Pedido','Pedido→Laudação','Laudação→Autor.','Autor.→Faturado'];
+  const garEl = document.getElementById('tm-gargalo');
+  if (garEl) { garEl.textContent = garIdx >= 0 && tempos[garIdx] ? garLabels[garIdx] : '—'; garEl.style.color = garIdx >= 0 ? sColors[garIdx+1] : 'var(--text3)'; }
 }
 
 // ── FIREBASE ACTIONS ──
 async function changeStatus(docId, newStatus) {
   try {
     const { updateDoc, doc } = window._fbModules;
-    await updateDoc(doc(window._fbDb, window._fbColl, docId), { status: newStatus, atualizadoEm: new Date().toISOString() });
+    const now = new Date().toISOString();
+    const patch = { status: newStatus, atualizadoEm: now, ['_stages.s' + newStatus]: now };
+    await updateDoc(doc(window._fbDb, window._fbColl, docId), patch);
     const f = FICHAS.find(x => x._docId === docId);
     if (f) toast(`${f.pac} → ${STATUS[newStatus].label}`, 'ok');
+    // Auto-criar no monitor quando ficha é Autorizada
+    if (newStatus === 3 && f && !f._criadoNoMonitor) {
+      await autocriarNoMonitor(f, docId);
+    }
   } catch(e) { toast('Erro ao atualizar','err'); console.error(e); }
+}
+
+// ── AUTO-CRIAR NO MONITOR ──
+async function autocriarNoMonitor(f, opmeDocId) {
+  try {
+    const { addDoc, collection, updateDoc, doc } = window._fbModules;
+    const proc = {
+      paciente:    f.pac || '',
+      medico:      f.med || '',
+      procedimento:f.proc || '',
+      hospital:    f.hosp || '',
+      convenio:    f.conv || '',
+      data:        f.data || '',
+      status:      'a_agendar',
+      _criadoViaOPME: true,
+      _opmeDocId:  opmeDocId,
+      criadoEm:    new Date().toISOString(),
+      _updatedAt:  new Date().toISOString(),
+    };
+    const ref = await addDoc(collection(window._fbDb, 'procedimentos_cg'), proc);
+    await updateDoc(doc(window._fbDb, window._fbColl, opmeDocId), { _criadoNoMonitor: true, _monitorDocId: ref.id });
+    toast(`✅ ${f.pac} criado no Monitor Cirúrgico!`, 'ok');
+  } catch(e) { toast('Erro ao criar no monitor','err'); console.error(e); }
 }
 
 async function excluirFicha(docId) {
@@ -833,6 +944,7 @@ async function saveModal() {
   const proc = document.getElementById('f-proc').value.trim();
   if (!pac || !med || !proc) { toast('Preencha Paciente, Médico e Procedimento (*)','err'); return; }
   try {
+    const now = new Date().toISOString();
     const data = {
       pac, med, proc,
       hosp:   document.getElementById('f-hosp').value.trim(),
@@ -841,8 +953,9 @@ async function saveModal() {
       filial: FILIAL_CONFIG,
       data:   document.getElementById('f-data').value,
       status: 0,
-      criadoEm: new Date().toISOString(),
-      atualizadoEm: new Date().toISOString(),
+      criadoEm: now,
+      atualizadoEm: now,
+      _stages: { s0: now },
     };
     const { addDoc, collection } = window._fbModules;
     await addDoc(collection(window._fbDb, window._fbColl), data);
