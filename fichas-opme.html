@@ -306,7 +306,7 @@ tbody tr:hover .row-acts { opacity:1; }
 /* ── MODAL ── */
 .modal-ov { position:fixed; inset:0; background:rgba(10,42,24,0.42); backdrop-filter:blur(4px); z-index:200; display:none; align-items:center; justify-content:center; padding:20px; }
 .modal-ov.open { display:flex; }
-.modal { background:var(--surface); border:1px solid var(--border); border-radius:14px; width:100%; max-width:540px; box-shadow:var(--shadow-md); overflow:hidden; }
+.modal { background:var(--surface); border:1px solid var(--border); border-radius:14px; width:100%; max-width:760px; box-shadow:var(--shadow-md); overflow:hidden; }
 .mhead { padding:15px 19px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--surface2); }
 .mtitle { font-family:var(--display); font-size:0.9rem; font-weight:700; color:var(--text); }
 .mclose { width:25px; height:25px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--text3); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:0.85rem; transition:all 0.12s; }
@@ -738,6 +738,31 @@ if (typeof pdfjsLib !== 'undefined') {
           </div>
         </div>
       </div>
+      <!-- ITENS DO PEDIDO DE VENDA -->
+      <div style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+          <label class="flbl">Itens do Pedido de Venda</label>
+          <button type="button" onclick="adicionarItemOPME()" style="font-size:0.7rem;padding:3px 11px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text2);cursor:pointer;font-family:var(--mono);">+ Item</button>
+        </div>
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);">
+          <table id="itens-tbl" style="width:100%;border-collapse:collapse;font-size:0.72rem;min-width:540px;">
+            <thead>
+              <tr style="background:var(--surface2);">
+                <th style="padding:5px 7px;text-align:left;font-family:var(--mono);font-size:0.58rem;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);">Cód. Alt.</th>
+                <th style="padding:5px 7px;text-align:left;font-family:var(--mono);font-size:0.58rem;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);">Descrição</th>
+                <th style="padding:5px 7px;text-align:center;font-family:var(--mono);font-size:0.58rem;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);">Qtd.</th>
+                <th style="padding:5px 7px;text-align:left;font-family:var(--mono);font-size:0.58rem;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);">Lote</th>
+                <th style="padding:5px 7px;text-align:right;font-family:var(--mono);font-size:0.58rem;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);">Vl. Unit.</th>
+                <th style="padding:5px 7px;text-align:right;font-family:var(--mono);font-size:0.58rem;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);">Vl. Total</th>
+                <th style="width:24px;border-bottom:1px solid var(--border);"></th>
+              </tr>
+            </thead>
+            <tbody id="itens-body">
+              <tr id="itens-empty-row"><td colspan="7" style="padding:14px;text-align:center;color:var(--text3);font-size:0.72rem;font-style:italic;">Nenhum item. Importe o Pedido de Venda ou clique em + Item.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
     <div class="mfoot">
       <button class="tbtn tbtn-g" onclick="closeModal()">Cancelar</button>
@@ -782,7 +807,7 @@ function renderLista(filter) {
     return `<tr data-status="${s}">
       <td class="td-pac">${f.pac||''}</td>
       <td class="td-trunc">${f.med||''}</td>
-      <td class="td-trunc">${f.proc||''}</td>
+      <td class="td-trunc">${f.proc||(f.itens&&f.itens.length?f.itens[0].desc:'')}</td>
       <td>${fb}</td><td>${ped}</td>
       <td><div class="iflow">${btns}</div></td>
       <td class="td-mono">${f.data||''}</td>
@@ -961,21 +986,51 @@ async function excluirFicha(docId) {
   } catch(e) { toast('Erro ao excluir','err'); }
 }
 
+// ── ITENS DO PEDIDO ──
+let _itensOPME = [];
+
+function adicionarItemOPME(item) {
+  _itensOPME.push({ cod: item?.cod||'', desc: item?.desc||'', qtd: item?.qtd||'', lote: item?.lote||'', vunit: item?.vunit||'', vtotal: item?.vtotal||'' });
+  renderItensOPME();
+}
+function removerItemOPME(i) { _itensOPME.splice(i,1); renderItensOPME(); }
+function atualizarItemOPME(i, campo, val) { if (_itensOPME[i]) _itensOPME[i][campo] = val; }
+function renderItensOPME() {
+  const tbody = document.getElementById('itens-body');
+  if (!tbody) return;
+  if (!_itensOPME.length) {
+    tbody.innerHTML = '<tr id="itens-empty-row"><td colspan="7" style="padding:14px;text-align:center;color:var(--text3);font-size:0.72rem;font-style:italic;">Nenhum item. Importe o Pedido de Venda ou clique em + Item.</td></tr>';
+    return;
+  }
+  const inp = (i,c,v,w,al='left') => `<input value="${v.replace(/"/g,'&quot;')}" onchange="atualizarItemOPME(${i},'${c}',this.value)" style="width:${w};padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:0.71rem;font-family:var(--sans);text-align:${al};">`;
+  tbody.innerHTML = _itensOPME.map((it,i) => `<tr style="border-bottom:1px solid var(--border);">
+    <td style="padding:4px 5px;">${inp(i,'cod',it.cod,'58px')}</td>
+    <td style="padding:4px 5px;">${inp(i,'desc',it.desc,'100%')}</td>
+    <td style="padding:4px 5px;">${inp(i,'qtd',it.qtd,'40px','center')}</td>
+    <td style="padding:4px 5px;">${inp(i,'lote',it.lote,'80px')}</td>
+    <td style="padding:4px 5px;">${inp(i,'vunit',it.vunit,'60px','right')}</td>
+    <td style="padding:4px 5px;">${inp(i,'vtotal',it.vtotal,'60px','right')}</td>
+    <td style="padding:4px 3px;text-align:center;"><button onclick="removerItemOPME(${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:0.8rem;padding:1px 4px;" title="Remover">✕</button></td>
+  </tr>`).join('');
+}
+
 // ── MODAL SAVE ──
 async function saveModal() {
   const pac = document.getElementById('f-pac').value.trim();
   const med = document.getElementById('f-med').value.trim();
   const proc = document.getElementById('f-proc').value.trim();
-  if (!pac || !med || !proc) { toast('Preencha Paciente, Médico e Procedimento (*)','err'); return; }
+  if (!pac || !med) { toast('Preencha pelo menos Paciente e Médico (*)','err'); return; }
   try {
     const now = new Date().toISOString();
     const data = {
-      pac, med, proc,
+      pac, med,
+      proc: proc || (_itensOPME.length ? _itensOPME[0].desc : '—'),
       hosp:   document.getElementById('f-hosp').value.trim(),
       conv:   document.getElementById('f-conv').value.trim(),
       pedido: document.getElementById('f-pedido').value.trim() || '—',
       filial: FILIAL_CONFIG,
       data:   document.getElementById('f-data').value,
+      itens:  _itensOPME.length ? [..._itensOPME] : [],
       status: 0,
       criadoEm: now,
       atualizadoEm: now,
@@ -984,6 +1039,7 @@ async function saveModal() {
     const { addDoc, collection } = window._fbModules;
     await addDoc(collection(window._fbDb, window._fbColl), data);
     ['f-pac','f-med','f-proc','f-hosp','f-conv','f-pedido','f-data'].forEach(id => { document.getElementById(id).value = ''; });
+    _itensOPME = []; renderItensOPME();
     closeModal();
     toast('Ficha salva com sucesso!','ok');
   } catch(e) { toast('Erro ao salvar','err'); console.error(e); }
@@ -1098,6 +1154,7 @@ function imprimirFicha(docId) {
   @media print{body{padding:0;}button{display:none!important;}}</style></head><body>
   <div class="logo"><img class="logo-img" src="logo.jpg"><div><h1>GF Medical — Ficha OPME</h1><div class="sub">Campo Grande · Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div><span class="badge" style="margin-left:auto">${stLabel}</span></div>
   <table>${linha('Paciente',f.pac)}${linha('Médico',f.med)}${linha('Procedimento',f.proc)}${linha('Hospital',f.hosp)}${linha('Convênio',f.conv)}${linha('Nº Pedido',f.pedido!=='—'?f.pedido:'')}${linha('Filial',f.filial==='CG'?'Campo Grande (CG)':'Cuiabá (CBA)')}${linha('Data Cirurgia',f.data?new Date(f.data+'T00:00:00').toLocaleDateString('pt-BR'):'')}${linha('Status',stLabel)}${linha('Criado em',f.criadoEm?new Date(f.criadoEm).toLocaleString('pt-BR'):'')}</table>
+  ${f.itens && f.itens.length ? `<div style="margin-top:22px;"><h3 style="font-size:0.9rem;color:#1a7a4a;margin:0 0 8px;font-family:sans-serif;">Itens do Pedido de Venda</h3><table style="width:100%;border-collapse:collapse;font-size:0.82rem;"><thead><tr style="background:#f0faf3;"><th style="padding:6px 8px;border:1px solid #c2e6ce;text-align:left;">Cód. Alt.</th><th style="padding:6px 8px;border:1px solid #c2e6ce;text-align:left;">Descrição</th><th style="padding:6px 8px;border:1px solid #c2e6ce;text-align:center;">Qtd.</th><th style="padding:6px 8px;border:1px solid #c2e6ce;text-align:left;">Lote</th><th style="padding:6px 8px;border:1px solid #c2e6ce;text-align:right;">Vl. Unit.</th><th style="padding:6px 8px;border:1px solid #c2e6ce;text-align:right;">Vl. Total</th></tr></thead><tbody>${f.itens.map(it=>`<tr><td style="padding:5px 8px;border:1px solid #c2e6ce;">${it.cod||'—'}</td><td style="padding:5px 8px;border:1px solid #c2e6ce;">${it.desc||'—'}</td><td style="padding:5px 8px;border:1px solid #c2e6ce;text-align:center;">${it.qtd||'—'}</td><td style="padding:5px 8px;border:1px solid #c2e6ce;">${it.lote||'—'}</td><td style="padding:5px 8px;border:1px solid #c2e6ce;text-align:right;">R$ ${it.vunit||'—'}</td><td style="padding:5px 8px;border:1px solid #c2e6ce;text-align:right;font-weight:700;">R$ ${it.vtotal||'—'}</td></tr>`).join('')}</tbody></table></div>` : ''}
   <div style="margin-top:28px;font-size:0.72rem;color:#8a9e97;border-top:1px solid #d8f0e0;padding-top:10px;">Desenvolvido por Igor Reis · GF Medical · Monitor Cirúrgico</div>
   <script>window.onload=()=>window.print();<\/script></body></html>`;
   const w = window.open('','_blank');
@@ -1107,7 +1164,7 @@ function imprimirFicha(docId) {
 
 // ── MODAL ──
 function openModal() { document.getElementById('modal').classList.add('open'); preencherAutocomplete(); }
-function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); _itensOPME=[]; renderItensOPME(); }
 function selectFile(input, tipo) {
   const file = input.files[0]; if (!file) return;
   const fmt = b => b < 1024*1024 ? (b/1024).toFixed(0)+' KB' : (b/1024/1024).toFixed(1)+' MB';
@@ -1138,49 +1195,104 @@ async function extrairDadosPV(file) {
     toast('⏳ Lendo pedido de venda...', 'ok');
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let text = '';
-    for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
-      const page = await pdf.getPage(i);
-      const tc = await page.getTextContent();
-      text += tc.items.map(it => it.str).join(' ') + '\n';
+    const allLines = [];
+
+    for (let pi = 1; pi <= Math.min(pdf.numPages, 3); pi++) {
+      const page = await pdf.getPage(pi);
+      const tc   = await page.getTextContent();
+      // Agrupar itens de texto pela coordenada Y (linhas visuais)
+      const rows = {};
+      tc.items.forEach(it => {
+        if (!it.str.trim()) return;
+        const y = Math.round(it.transform[5] / 2) * 2;
+        if (!rows[y]) rows[y] = [];
+        rows[y].push({ x: it.transform[4], str: it.str.trim() });
+      });
+      Object.keys(rows).map(Number).sort((a,b) => b-a).forEach(y => {
+        const line = rows[y].sort((a,b) => a.x-b.x).map(i => i.str).join(' ');
+        allLines.push(line);
+      });
     }
-    const get = (patterns) => {
-      for (const p of patterns) {
-        const m = text.match(p);
-        if (m && m[1] && m[1].trim()) return m[1].trim().replace(/\s+/g,' ');
-      }
-      return null;
-    };
-    const pac = get([
-      /paciente[:\s]+([A-ZÀ-Úa-zà-ú][a-zA-ZÀ-Úà-ú]+(?:\s+[a-zA-ZÀ-Úà-ú]+){1,5})/i,
-      /nome[:\s]+([A-ZÀ-Ú][a-zA-ZÀ-Úà-ú]+(?:\s+[a-zA-ZÀ-Úà-ú]+){1,5})/i,
-    ]);
-    const med = get([
-      /m[eé]dico[:\s]+([A-ZÀ-Úa-zà-ú][a-zA-ZÀ-Úà-ú]+(?:\s+[a-zA-ZÀ-Úà-ú]+){1,5})/i,
-      /dr\.?\s+([A-ZÀ-Ú][a-zA-ZÀ-Úà-ú]+(?:\s+[a-zA-ZÀ-Úà-ú]+){0,4})/i,
-    ]);
-    const hosp = get([
-      /hospital[:\s]+([A-ZÀ-Úa-zà-ú][^,\n]{3,60}?)(?:\s{2,}|\n|$)/i,
-      /cl[ií]nica[:\s]+([A-ZÀ-Úa-zà-ú][^,\n]{3,60}?)(?:\s{2,}|\n|$)/i,
-      /estabelecimento[:\s]+([A-ZÀ-Úa-zà-ú][^,\n]{3,60}?)(?:\s{2,}|\n|$)/i,
-    ]);
+    const text = allLines.join('\n');
+    const get1 = re => { const m = text.match(re); return m ? m[1].trim() : null; };
+
+    // ── CAMPOS PRINCIPAIS ──
+    const pac    = get1(/Paciente:\s*(.+)/i);
+    const dataCir = get1(/Data da Cirurgia:\s*(\d{2}\/\d{2}\/\d{4})/i);
+    const med    = get1(/M[eé]dico:\s*(.+)/i);
+    // "Matrícula: Hospital: HOSPITAL PENFIGO" → captura depois de "Hospital:"
+    const hospRaw = get1(/Hospital:\s*(.{3,60})/i);
+    const hosp   = hospRaw ? hospRaw.replace(/M[ae]tr[íi]cula[:\s]*/i,'').trim() : null;
+    const convRaw = get1(/Conv[eê]nio:\s*(.+)/i);
+
+    // Nº PV: "C160 - Pedido de Venda Nº: 4795" ou "Nº: 4795"
+    const pvNum = get1(/Pedido de Venda\s*N[º°]?:?\s*(\d+)/i) || get1(/N[º°]:\s*(\d+)/);
+
+    // Mapear convênio para opção do select
     const convOpts = ['Unimed','Bradesco Saúde','Amil','SulAmérica','Cassems','Hapvida','Impcg','MT Saúde','Geap','UFMS','SES','SUS','Particular'];
-    let conv = convOpts.find(c => new RegExp(c,'i').test(text)) || get([
-      /conv[eê]nio[:\s]+([A-ZÀ-Úa-zà-ú][^,\n]{2,40}?)(?:\s{2,}|\n|,|$)/i,
-      /plano[:\s]+([A-ZÀ-Úa-zà-ú][^,\n]{2,40}?)(?:\s{2,}|\n|,|$)/i,
-    ]);
-    let preenchidos = [];
-    if (pac) { const el = document.getElementById('f-pac'); if (el) { el.value = pac; preenchidos.push('Paciente'); } }
-    if (med) { const el = document.getElementById('f-med'); if (el) { el.value = med; preenchidos.push('Médico'); } }
-    if (hosp) { const el = document.getElementById('f-hosp'); if (el) { el.value = hosp.trim(); preenchidos.push('Hospital'); } }
+    const srcConv  = (convRaw || '') + ' ' + text;
+    const conv     = convOpts.find(c => srcConv.toUpperCase().includes(c.toUpperCase()));
+
+    // ── ITENS DO PEDIDO ──
+    // Linha de produto: "2347C CAT DUPLO J 4.7F X 26CM 81655779024 - MEDTEC SUPPLIES ..."
+    // ou com item nº: "1 2347C CAT DUPLO J 4.7F X 26CM ..."
+    const itens = [];
+    const itemRe = /(?:^|\s)(\d{3,5}[A-Z]?)\s+([A-Z][A-Z0-9/.,\- ]{5,60}?)\s+\d{8,14}\s*-\s*\w/gm;
+    let m;
+    while ((m = itemRe.exec(text)) !== null) {
+      itens.push({ cod: m[1], desc: m[2].trim().replace(/\s{2,}/g,' '), qtd:'', lote:'', vunit:'', vtotal:'' });
+    }
+
+    // Lotes (apenas os preenchidos)
+    const loteRe = /N\.\s*Lote:\s*([A-Z0-9]{4,})/g;
+    const lotes  = [];
+    while ((m = loteRe.exec(text)) !== null) lotes.push(m[1]);
+
+    // Preços por nº de item: " 1 170,00 170,00 12/06/2026"
+    const precRe = /^\s*(\d+)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+\d{2}\/\d{2}\/\d{4}/gm;
+    const precos = {};
+    while ((m = precRe.exec(text)) !== null) precos[+m[1]] = { vunit: m[2], vtotal: m[3] };
+
+    // Quantidades — bloco "Unidade: PC\n 1,00\n 2,00\n 1,00"
+    const qtdBlock = text.match(/Unidade[:\s]+(?:PC\s*)?((?:\s*\d+,\d+\s*){1,20})/);
+    const qtds = qtdBlock ? qtdBlock[1].trim().split(/\s+/).filter(q => /^\d+,\d+$/.test(q)) : [];
+
+    // Associar dados aos itens
+    itens.forEach((it, i) => {
+      if (lotes[i])       it.lote   = lotes[i];
+      if (precos[i+1])  { it.vunit  = precos[i+1].vunit; it.vtotal = precos[i+1].vtotal; }
+      if (qtds[i])        it.qtd    = qtds[i];
+    });
+
+    // ── PREENCHER CAMPOS DO MODAL ──
+    const preenchidos = [];
+    const setF = (id, val) => { const el = document.getElementById(id); if (el && val) { el.value = val; return true; } return false; };
+
+    if (setF('f-pac', pac))    preenchidos.push('Paciente');
+    if (med && med.length > 2 && setF('f-med', med)) preenchidos.push('Médico');
+    if (hosp && hosp.length > 2 && setF('f-hosp', hosp)) preenchidos.push('Hospital');
+    if (pvNum && setF('f-pedido', pvNum)) preenchidos.push('Nº PV');
+
+    if (dataCir) {
+      const [d,mo,a] = dataCir.split('/');
+      if (setF('f-data', `${a}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`)) preenchidos.push('Data');
+    }
     if (conv) {
       const el = document.getElementById('f-conv');
       if (el) {
-        const opt = Array.from(el.options).find(o => o.value && conv.toLowerCase().includes(o.value.toLowerCase()));
+        const opt = Array.from(el.options).find(o => o.value && conv.toUpperCase().includes(o.value.toUpperCase()));
         if (opt) { el.value = opt.value; preenchidos.push('Convênio'); }
       }
     }
-    toast(preenchidos.length ? `✅ Extraído: ${preenchidos.join(', ')}` : '⚠️ Campos não encontrados no PDF', preenchidos.length ? 'ok' : 'err');
+    if (itens.length) {
+      _itensOPME = itens;
+      renderItensOPME();
+      preenchidos.push(`${itens.length} item${itens.length>1?'s':''}`);
+    }
+
+    toast(preenchidos.length
+      ? `✅ Extraído: ${preenchidos.join(', ')}`
+      : '⚠️ Campos não encontrados no PDF', preenchidos.length ? 'ok' : 'err');
   } catch(e) {
     console.error('Erro ao ler PDF:', e);
     toast('Erro ao processar o PDF', 'err');
