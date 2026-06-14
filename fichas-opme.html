@@ -413,32 +413,7 @@ tbody tr:hover .row-acts { opacity:1; }
 </head>
 <body>
 <!-- ── TELA DE LOGIN ── -->
-<div id="login-screen" class="login-screen">
-  <div class="login-box">
-    <div class="login-logo">
-      <div class="login-logo-icon">GF<br>MED</div>
-      <div class="login-logo-text">
-        <strong>GF Medical</strong>
-        <span>Fichas OPME</span>
-      </div>
-    </div>
-    <div id="login-filial-badge" class="login-filial-badge"></div>
-    <div class="login-title">Entrar no sistema</div>
-    <div class="login-sub" id="login-sub">Acesso restrito à filial autorizada</div>
-    <div class="login-field">
-      <label class="login-label">E-mail</label>
-      <input class="login-input" type="email" id="login-email" placeholder="seu@email.com">
-    </div>
-    <div class="login-field">
-      <label class="login-label">Senha</label>
-      <input class="login-input" type="password" id="login-senha" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
-    <button class="login-btn" onclick="doLogin()">Entrar</button>
-    <div class="login-error" id="login-error">E-mail ou senha incorretos.</div>
-  </div>
-</div>
-
-<div class="app" id="app-root" style="display:none">
+<div class="app" id="app-root" style="display:flex">
 
 <!-- ── SIDEBAR ── -->
 <aside class="sidebar">
@@ -471,7 +446,6 @@ tbody tr:hover .row-acts { opacity:1; }
       <div class="user-info"><strong id="user-name">—</strong><span id="sidebar-filial-label">Filial</span></div>
       <span class="ftag" id="sidebar-filial-tag">—</span>
     </div>
-    <button onclick="doLogout()" style="width:100%;margin-top:6px;padding:6px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:0.72rem;cursor:pointer;transition:all 0.13s;font-family:var(--sans);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">Sair da conta</button>
   </div>
 </aside>
 
@@ -1018,52 +992,8 @@ const USUARIOS = {
   'admin@gfmedical.com.br':{ senha: 'gf2026', filial: FILIAL_CONFIG, nome: 'Admin' },
 };
 
-let currentUser = null;
-
-// ── SETUP FILIAL NA TELA DE LOGIN ──
-(function setupLoginFilial() {
-  const f = FILIAL[FILIAL_CONFIG];
-  const badge = document.getElementById('login-filial-badge');
-  badge.textContent = f.emoji + ' Filial ' + f.nome;
-  badge.style.background = f.bg;
-  badge.style.border = '1px solid ' + f.bd;
-  badge.style.color = f.color;
-  document.getElementById('login-sub').textContent = 'Acesso restrito · Filial ' + f.nome;
-})();
-
-// ── LOGIN ──
-function doLogin() {
-  const email = document.getElementById('login-email').value.trim().toLowerCase();
-  const senha = document.getElementById('login-senha').value;
-  const err   = document.getElementById('login-error');
-  err.classList.remove('show');
-
-  const user = USUARIOS[email];
-  if (!user || user.senha !== senha) {
-    err.classList.add('show');
-    document.getElementById('login-senha').value = '';
-    return;
-  }
-  if (user.filial !== FILIAL_CONFIG) {
-    err.textContent = 'Seu acesso é para a filial ' + FILIAL[user.filial].nome + '.';
-    err.classList.add('show');
-    return;
-  }
-
-  currentUser = { ...user, email };
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-root').style.display = 'flex';
-  initApp();
-}
-
-// ── LOGOUT ──
-function doLogout() {
-  currentUser = null;
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('app-root').style.display = 'none';
-  document.getElementById('login-email').value = '';
-  document.getElementById('login-senha').value = '';
-}
+// Usuário automático — autenticação já realizada no monitor principal
+let currentUser = { nome: 'GF Medical', email: 'admin@gfmedical.com.br', filial: FILIAL_CONFIG };
 
 // ── INIT APP (pós-login) ──
 function initApp() {
@@ -1122,9 +1052,8 @@ renderLista = function(filter) {
   }).join('');
 };
 
-// Init — mostra só login
-go('lista');
-document.getElementById('tab-lista').classList.add('active');
+// Init automático — sem tela de login
+initApp();
 </script>
 </body>
 </html>

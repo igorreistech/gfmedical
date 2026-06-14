@@ -609,6 +609,13 @@
                   p.status = 'a_retirar';
                   autoTransitar(p, prev);
                 }
+
+                // Em Procedimento + data de retirada chegou → Aguardando Retirada (automático)
+                if (p.status === 'andamento' && (p.retirada || p.dataRetirar) && (p.retirada || p.dataRetirar) <= hoje) {
+                  const prev = p.status;
+                  p.status = 'a_retirar';
+                  autoTransitar(p, prev);
+                }
               });
 
               if (paraPromover.length > 0) {
