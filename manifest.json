@@ -1,11 +1,10 @@
 {
-  "id": "/gfcampogrande/",
   "lang": "pt-BR",
   "name": "Monitor Cirúrgico · Campo Grande",
   "short_name": "Monitor CGR",
   "description": "Acompanhamento cirúrgico em tempo real · Campo Grande, MS",
-  "start_url": "/gfcampogrande/",
-  "scope": "/gfcampogrande/",
+  "start_url": ".",
+  "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "theme_color": "#0d1f0e",
@@ -21,7 +20,7 @@
       "name": "Nova Cirurgia",
       "short_name": "Nova",
       "description": "Cadastrar novo procedimento cirúrgico",
-      "url": "/gfcampogrande/",
+      "url": ".",
       "icons": [{ "src": "icon.svg", "sizes": "any" }]
     }
   ]

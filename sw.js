@@ -1,11 +1,12 @@
-const CACHE = 'monitor-cgr-v8';
+const CACHE = 'monitor-cgr-v9';
+const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
-  '/gfcampogrande/',
-  '/gfcampogrande/index.html',
-  '/gfcampogrande/styles.css',
-  '/gfcampogrande/app.js',
-  '/gfcampogrande/manifest.json',
-  '/gfcampogrande/icon.svg',
+  BASE,
+  BASE + 'index.html',
+  BASE + 'styles.css',
+  BASE + 'app.js',
+  BASE + 'manifest.json',
+  BASE + 'icon.svg',
 ];
 
 self.addEventListener('install', e => {
@@ -28,7 +29,7 @@ self.addEventListener('fetch', e => {
 
   if (e.request.mode === 'navigate') {
     e.respondWith(
-      fetch(e.request).catch(() => caches.match('/gfcampogrande/'))
+      fetch(e.request).catch(() => caches.match(BASE))
     );
     return;
   }
@@ -37,7 +38,7 @@ self.addEventListener('fetch', e => {
                   !url.hostname.includes('gstatic') &&
                   !url.hostname.includes('firebaseapp') &&
                   !url.hostname.includes('cdnjs');
-  if (isLocal && url.pathname.startsWith('/gfcampogrande/')) {
+  if (isLocal && url.pathname.startsWith(BASE)) {
     e.respondWith(
       caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
         const clone = res.clone();
