@@ -420,7 +420,7 @@ tbody tr:hover .row-acts { opacity:1; }
 </style>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   const firebaseConfig = {
     apiKey: "AIzaSyCKQ0IFOO-8bQDqBN7oV1GTFbATmXI8MTI",
     authDomain: "gfcampogrande-3d886.firebaseapp.com",
@@ -433,7 +433,7 @@ tbody tr:hover .row-acts { opacity:1; }
   const db = getFirestore(app);
   window._fbDb = db;
   window._fbColl = 'opme_fichas';
-  window._fbModules = { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc };
+  window._fbModules = { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs };
   window._fbReady = true;
 </script>
 </head>
@@ -671,12 +671,12 @@ tbody tr:hover .row-acts { opacity:1; }
     </div>
     <div class="mbody">
       <div class="frow">
-        <div class="fg"><label class="flbl">Paciente *</label><input class="finput" id="f-pac" type="text" placeholder="Nome completo"></div>
-        <div class="fg"><label class="flbl">Médico *</label><input class="finput" id="f-med" type="text" placeholder="Dr./Dra."></div>
+        <div class="fg"><label class="flbl">Paciente *</label><input class="finput" id="f-pac" type="text" placeholder="Nome completo" autocomplete="off"></div>
+        <div class="fg"><label class="flbl">Médico *</label><input class="finput" id="f-med" type="text" list="dl-med" placeholder="Digite o nome do médico" autocomplete="off"><datalist id="dl-med"></datalist></div>
       </div>
       <div class="frow">
-        <div class="fg"><label class="flbl">Procedimento *</label><input class="finput" id="f-proc" type="text" placeholder="Ex: Stent Coronário"></div>
-        <div class="fg"><label class="flbl">Hospital</label><input class="finput" id="f-hosp" type="text" placeholder="Nome do hospital"></div>
+        <div class="fg"><label class="flbl">Procedimento *</label><input class="finput" id="f-proc" type="text" placeholder="Ex: Stent Coronário" autocomplete="off"></div>
+        <div class="fg"><label class="flbl">Hospital</label><input class="finput" id="f-hosp" type="text" list="dl-hosp" placeholder="Digite o nome do hospital" autocomplete="off"><datalist id="dl-hosp"></datalist></div>
       </div>
       <div class="frow">
         <div class="fg"><label class="flbl">Convênio</label><input class="finput" id="f-conv" type="text" placeholder="Ex: Unimed, SUS, Bradesco"></div>
@@ -762,7 +762,7 @@ function renderLista(filter) {
       <td>${fb}</td><td>${ped}</td>
       <td><div class="iflow">${btns}</div></td>
       <td class="td-mono">${f.data||''}</td>
-      <td><div class="row-acts"><button class="abtn" onclick="excluirFicha('${f._docId}')">🗑️</button></div></td>
+      <td><div class="row-acts"><button class="abtn" onclick="imprimirFicha('${f._docId}')" title="Imprimir ficha">🖨️</button><button class="abtn" onclick="excluirFicha('${f._docId}')">🗑️</button></div></td>
     </tr>`;
   }).join('');
 }
@@ -988,8 +988,55 @@ function go(v) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 }
 
+// ── AUTOCOMPLETE MÉDICO / HOSPITAL ──
+let _autocarregado = false;
+async function preencherAutocomplete() {
+  if (_autocarregado) return;
+  try {
+    const { getDocs, collection } = window._fbModules;
+    const snap = await getDocs(collection(window._fbDb, 'procedimentos_cg'));
+    const medicos = new Set();
+    const hospitais = new Set();
+    snap.docs.forEach(d => {
+      const p = d.data();
+      if (p.medico)   medicos.add(p.medico.trim());
+      if (p.hospital) hospitais.add(p.hospital.trim());
+    });
+    const dlMed  = document.getElementById('dl-med');
+    const dlHosp = document.getElementById('dl-hosp');
+    if (dlMed)  dlMed.innerHTML  = [...medicos].sort().map(v => `<option value="${v}">`).join('');
+    if (dlHosp) dlHosp.innerHTML = [...hospitais].sort().map(v => `<option value="${v}">`).join('');
+    _autocarregado = true;
+  } catch(e) { console.warn('Autocomplete:', e); }
+}
+
+// ── IMPRIMIR FICHA ──
+function imprimirFicha(docId) {
+  const f = FICHAS.find(x => x._docId === docId);
+  if (!f) return;
+  const stLabel = (STATUS[f.status] || STATUS[0]).label;
+  const stColor = ['#6b7280','#2a9fbf','#9333ea','#d4920a','#1a7a4a'][f.status] || '#6b7280';
+  const linha = (k, v) => v ? `<tr><td style="font-weight:600;color:#3a6a4a;width:160px;padding:7px 10px;border-bottom:1px solid #d8f0e0;">${k}</td><td style="padding:7px 10px;border-bottom:1px solid #d8f0e0;">${v}</td></tr>` : '';
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Ficha OPME — ${f.pac||''}</title>
+  <style>body{font-family:'Segoe UI',sans-serif;background:#fff;color:#0a2a18;margin:0;padding:24px;}
+  .logo{display:flex;align-items:center;gap:12px;margin-bottom:20px;}
+  .logo-img{width:44px;height:44px;border-radius:8px;object-fit:cover;}
+  h1{font-size:1.1rem;margin:0;color:#1a7a4a;}
+  .sub{font-size:0.75rem;color:#5a8a6a;}
+  .badge{display:inline-block;padding:3px 14px;border-radius:20px;font-size:0.78rem;font-weight:700;color:#fff;background:${stColor};}
+  table{width:100%;border-collapse:collapse;margin-top:16px;font-size:0.88rem;}
+  @media print{body{padding:0;}button{display:none!important;}}</style></head><body>
+  <div class="logo"><img class="logo-img" src="logo.jpg"><div><h1>GF Medical — Ficha OPME</h1><div class="sub">Campo Grande · Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div><span class="badge" style="margin-left:auto">${stLabel}</span></div>
+  <table>${linha('Paciente',f.pac)}${linha('Médico',f.med)}${linha('Procedimento',f.proc)}${linha('Hospital',f.hosp)}${linha('Convênio',f.conv)}${linha('Nº Pedido',f.pedido!=='—'?f.pedido:'')}${linha('Filial',f.filial==='CG'?'Campo Grande (CG)':'Cuiabá (CBA)')}${linha('Data Cirurgia',f.data?new Date(f.data+'T00:00:00').toLocaleDateString('pt-BR'):'')}${linha('Status',stLabel)}${linha('Criado em',f.criadoEm?new Date(f.criadoEm).toLocaleString('pt-BR'):'')}</table>
+  <div style="margin-top:28px;font-size:0.72rem;color:#8a9e97;border-top:1px solid #d8f0e0;padding-top:10px;">Desenvolvido por Igor Reis · GF Medical · Monitor Cirúrgico</div>
+  <script>window.onload=()=>window.print();<\/script></body></html>`;
+  const w = window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
 // ── MODAL ──
-function openModal() { document.getElementById('modal').classList.add('open'); }
+function openModal() { document.getElementById('modal').classList.add('open'); preencherAutocomplete(); }
 function closeModal() { document.getElementById('modal').classList.remove('open'); }
 function selectFile(input, tipo) {
   const file = input.files[0]; if (!file) return;
