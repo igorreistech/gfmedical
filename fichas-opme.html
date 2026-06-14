@@ -436,6 +436,12 @@ tbody tr:hover .row-acts { opacity:1; }
   window._fbModules = { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs };
   window._fbReady = true;
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+</script>
 </head>
 <body>
 <!-- ── TELA DE LOGIN ── -->
@@ -983,6 +989,51 @@ async function saveModal() {
   } catch(e) { toast('Erro ao salvar','err'); console.error(e); }
 }
 
+// ── ALERTA LAUDAÇÃO ──
+let _prevStatusesOPME = null;
+
+function checkLaudacaoAlert(fichas) {
+  if (_prevStatusesOPME === null) {
+    _prevStatusesOPME = {};
+    fichas.forEach(f => { _prevStatusesOPME[f._docId] = f.status; });
+  } else {
+    fichas.forEach(f => {
+      const prev = _prevStatusesOPME[f._docId];
+      if (prev !== undefined && prev !== 2 && f.status === 2) notificarLaudacao(f);
+      _prevStatusesOPME[f._docId] = f.status;
+    });
+    const ids = new Set(fichas.map(f => f._docId));
+    Object.keys(_prevStatusesOPME).forEach(id => { if (!ids.has(id)) delete _prevStatusesOPME[id]; });
+  }
+  renderBannerLaudacao(fichas.filter(f => f.status === 2));
+}
+
+function notificarLaudacao(f) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('🟣 Laudação Pendente — OPME', {
+      body: `${f.pac||'—'} (${f.conv||'—'}) aguarda laudo`,
+      tag: 'laud-' + f._docId
+    });
+  }
+  toast(`🟣 ${f.pac||'Paciente'} entrou em Laudação`, 'ok');
+}
+
+function renderBannerLaudacao(emLaud) {
+  let banner = document.getElementById('banner-laudacao');
+  if (!emLaud.length) {
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'banner-laudacao';
+    document.body.appendChild(banner);
+  }
+  banner.style.cssText = 'position:fixed;top:52px;left:224px;right:0;background:rgba(147,51,234,0.11);border-bottom:2px solid rgba(147,51,234,0.3);padding:7px 16px;display:flex;align-items:center;gap:8px;z-index:400;font-size:0.78rem;flex-wrap:wrap;';
+  banner.innerHTML = `<span style="color:#9333ea;font-weight:700;white-space:nowrap;">🟣 ${emLaud.length} ficha${emLaud.length>1?'s':''} em laudação:</span><div style="display:flex;flex-wrap:wrap;gap:5px;flex:1;">${emLaud.map(f=>`<span style="background:rgba(147,51,234,0.15);padding:2px 10px;border-radius:20px;color:#7e22ce;white-space:nowrap;">${f.pac||'—'}</span>`).join('')}</div><button onclick="this.closest('#banner-laudacao').style.display='none'" style="margin-left:auto;background:none;border:none;cursor:pointer;color:#9333ea;font-size:0.9rem;padding:0 4px;">✕</button>`;
+  banner.style.display = 'flex';
+}
+
 // ── FIREBASE LISTENER ──
 function iniciarFirebase() {
   const { collection, onSnapshot } = window._fbModules;
@@ -991,6 +1042,7 @@ function iniciarFirebase() {
     renderLista(curFilter);
     renderKanban();
     renderDashboard();
+    checkLaudacaoAlert(FICHAS);
   });
 }
 
@@ -1063,6 +1115,7 @@ function selectFile(input, tipo) {
   document.getElementById('prev-'+tipo+'-size').textContent = fmt(file.size);
   document.getElementById('prev-'+tipo).classList.add('show');
   document.getElementById('zone-'+tipo).classList.add('has-file');
+  if (tipo === 'pv' && file.type === 'application/pdf') extrairDadosPV(file);
 }
 function removeFile(e, tipo) {
   e.preventDefault(); e.stopPropagation();
@@ -1079,6 +1132,61 @@ function toast(msg, type='ok') {
   setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.2s'; setTimeout(()=>t.remove(),200); }, 2800);
 }
 
+// ── EXTRAIR DADOS DO PEDIDO DE VENDA ──
+async function extrairDadosPV(file) {
+  try {
+    toast('⏳ Lendo pedido de venda...', 'ok');
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let text = '';
+    for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
+      const page = await pdf.getPage(i);
+      const tc = await page.getTextContent();
+      text += tc.items.map(it => it.str).join(' ') + '\n';
+    }
+    const get = (patterns) => {
+      for (const p of patterns) {
+        const m = text.match(p);
+        if (m && m[1] && m[1].trim()) return m[1].trim().replace(/\s+/g,' ');
+      }
+      return null;
+    };
+    const pac = get([
+      /paciente[:\s]+([A-ZÀ-Úa-zà-ú][a-zA-ZÀ-Úà-ú]+(?:\s+[a-zA-ZÀ-Úà-ú]+){1,5})/i,
+      /nome[:\s]+([A-ZÀ-Ú][a-zA-ZÀ-Úà-ú]+(?:\s+[a-zA-ZÀ-Úà-ú]+){1,5})/i,
+    ]);
+    const med = get([
+      /m[eé]dico[:\s]+([A-ZÀ-Úa-zà-ú][a-zA-ZÀ-Úà-ú]+(?:\s+[a-zA-ZÀ-Úà-ú]+){1,5})/i,
+      /dr\.?\s+([A-ZÀ-Ú][a-zA-ZÀ-Úà-ú]+(?:\s+[a-zA-ZÀ-Úà-ú]+){0,4})/i,
+    ]);
+    const hosp = get([
+      /hospital[:\s]+([A-ZÀ-Úa-zà-ú][^,\n]{3,60}?)(?:\s{2,}|\n|$)/i,
+      /cl[ií]nica[:\s]+([A-ZÀ-Úa-zà-ú][^,\n]{3,60}?)(?:\s{2,}|\n|$)/i,
+      /estabelecimento[:\s]+([A-ZÀ-Úa-zà-ú][^,\n]{3,60}?)(?:\s{2,}|\n|$)/i,
+    ]);
+    const convOpts = ['Unimed','Bradesco Saúde','Amil','SulAmérica','Cassems','Hapvida','Impcg','MT Saúde','Geap','UFMS','SES','SUS','Particular'];
+    let conv = convOpts.find(c => new RegExp(c,'i').test(text)) || get([
+      /conv[eê]nio[:\s]+([A-ZÀ-Úa-zà-ú][^,\n]{2,40}?)(?:\s{2,}|\n|,|$)/i,
+      /plano[:\s]+([A-ZÀ-Úa-zà-ú][^,\n]{2,40}?)(?:\s{2,}|\n|,|$)/i,
+    ]);
+    let preenchidos = [];
+    if (pac) { const el = document.getElementById('f-pac'); if (el) { el.value = pac; preenchidos.push('Paciente'); } }
+    if (med) { const el = document.getElementById('f-med'); if (el) { el.value = med; preenchidos.push('Médico'); } }
+    if (hosp) { const el = document.getElementById('f-hosp'); if (el) { el.value = hosp.trim(); preenchidos.push('Hospital'); } }
+    if (conv) {
+      const el = document.getElementById('f-conv');
+      if (el) {
+        const opt = Array.from(el.options).find(o => o.value && conv.toLowerCase().includes(o.value.toLowerCase()));
+        if (opt) { el.value = opt.value; preenchidos.push('Convênio'); }
+      }
+    }
+    toast(preenchidos.length ? `✅ Extraído: ${preenchidos.join(', ')}` : '⚠️ Campos não encontrados no PDF', preenchidos.length ? 'ok' : 'err');
+  } catch(e) {
+    console.error('Erro ao ler PDF:', e);
+    toast('Erro ao processar o PDF', 'err');
+  }
+}
+
 // ── INIT ──
 function initApp() {
   const f = FILIAL[FILIAL_CONFIG];
@@ -1089,6 +1197,7 @@ function initApp() {
   document.getElementById('sidebar-filial-tag').style.color = f.color;
   document.getElementById('sidebar-filial-tag').style.borderColor = f.bd;
   document.getElementById('sidebar-filial-label').textContent = '🏥 ' + f.nome;
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
   go('lista');
   document.getElementById('tab-lista').classList.add('active');
   renderLista(-1); renderKanban(); renderDashboard();
