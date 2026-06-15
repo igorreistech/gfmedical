@@ -4707,7 +4707,7 @@
         <button class="view-tab active" id="tab-table" onclick="switchView('table')">🏥 Central Cirúrgica</button>
         <button class="view-tab" id="tab-dashboard" onclick="switchView('dashboard')">📊 Dashboard</button>
         <button class="view-tab" id="tab-coleta" onclick="switchView('coleta')" style="color:#818cf8;border-color:rgba(99,102,241,0.5);">✈️ Coleta Prioritária</button>
-        <button class="view-tab" id="tab-opme" onclick="switchView('opme')" style="color:#f59e0b;border-color:rgba(245,158,11,0.5);">📋 Fichas OPME</button>
+        <button class="view-tab" id="tab-opme" onclick="window.open('fichas-opme.html','_blank')" style="color:#f59e0b;border-color:rgba(245,158,11,0.5);">📋 Fichas OPME</button>
         <button id="btn-toggle-ocultos" onclick="toggleOcultos()" style="margin-left:auto;padding:7px 14px;background:rgba(107,114,128,0.12);border:1.5px solid rgba(107,114,128,0.35);color:#6b7280;border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.05em;transition:all 0.2s;" title="Mostrar/ocultar Concluídos e Cancelados">👁 Ocultos</button>
     </div>
 
@@ -17902,9 +17902,9 @@ window.buildCardHTML = function(proc) {
         </div>`;
     }
 
-    // ── Reimprimir ficha existente ou abrir lançamento ──
+    // ── Reimprimir / lançamento → abre fichas-opme.html ──
     window.opmeReimprimirOuLancar = function(docId) {
-        // Procura ficha salva com esse _procDocId
+        window.open('fichas-opme.html', '_blank'); return;
         const fichaExistente = opme_fichas.find(f => f._procDocId === docId);
         if (fichaExistente) {
             // Abre mini-modal com opções
@@ -17942,8 +17942,9 @@ window.buildCardHTML = function(proc) {
         }
     };
 
-    // ── MODAL DE LANÇAMENTO (abre a partir do card) ──
+    // ── MODAL DE LANÇAMENTO → abre fichas-opme.html ──
     window.opmeAbrirLancamento = function(docId) {
+        window.open('fichas-opme.html', '_blank'); return;
         const proc = window._opme_proc_map && window._opme_proc_map[docId];
         if (!proc) { window.showSyncToast && window.showSyncToast('⚠️ Dados do procedimento não encontrados.'); return; }
         const antigo = document.getElementById('modal-opme-lancamento');
