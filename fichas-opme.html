@@ -1173,9 +1173,8 @@ function toast(msg, type='ok') {
 
 // ── EXTRAIR DADOS DO PEDIDO DE VENDA ──
 async function extrairDadosPV(file) {
-  if (!window['pdfjs-dist/build/pdf']) { toast('PDF.js não carregado.', 'err'); return; }
-  const pdfLib = window['pdfjs-dist/build/pdf'];
-  pdfLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdfLib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
+  if (!pdfLib) { toast('PDF.js não carregado.', 'err'); return; }
   try {
     const buf = await file.arrayBuffer();
     const doc = await pdfLib.getDocument({ data: buf }).promise;
@@ -1207,11 +1206,21 @@ async function extrairDadosPV(file) {
 
     const pac = get1(/Paciente[:\s]+([^\n\r]+)/i);
     const dataCirRaw = get1(/Data\s+(?:da\s+)?Cirurgia[:\s]+(\d{2}\/\d{2}\/\d{4})/i);
+
+    // Hospital: remover "Dt. Digitação" e datas que aparecem na mesma linha do cabeçalho C160
     let hosp = get1(/Hospital[:\s]+([^\n\r]+)/i);
-    if (hosp) hosp = hosp.replace(/\s*Matr[íi]cula.*/i, '').trim();
+    if (hosp) {
+      hosp = hosp
+        .replace(/\s*Dt\.?\s*[Dd]igita[çc][aã]o.*/i, '')
+        .replace(/\s*Matr[íi]cula.*/i, '')
+        .replace(/\s+\d{2}\/\d{2}\/\d{2,4}.*/, '')
+        .replace(/\s{2,}.*/, '')
+        .trim();
+    }
+
     const conv = get1(/Conv[eê]nio[:\s]+([^\n\r]+)/i);
-    const pvNum = get1(/N[°º][:\s]*(\d{3,6})\b/)
-               || get1(/Pedido\s+de\s+Venda\s+N[°º][:\s]*(\d+)/i)
+    const pvNum = get1(/Pedido\s+de\s+Venda\s+N[°º]?\s*[:\s]*(\d+)/i)
+               || get1(/N[°º][:\s]*(\d{3,6})\b/)
                || get1(/N[°º]\s*(\d{3,6})/);
 
     let med = get1(/M[eé]dico[:\s]+([^\n\r:]+)/i);
@@ -1231,10 +1240,26 @@ async function extrairDadosPV(file) {
       if (fb) med = fb[1].trim();
     }
 
-    const headerIdx = lineGroups.findIndex(l => {
-      const t = l.map(i => i.str).join(' ');
-      return /C[oó]d|Alt\.?/i.test(t) && /Qtd|Quant/i.test(t) && /Descri/i.test(t);
-    });
+    // Detectar cabeçalho da tabela combinando grupos próximos (tolerância 35px)
+    // para suportar cabeçalhos multi-linha do C160 (ERP GF Medical)
+    const headerIdx = (() => {
+      for (let i = 0; i < lineGroups.length; i++) {
+        let combined = [];
+        for (let j = i; j < Math.min(i + 3, lineGroups.length); j++) {
+          const g = lineGroups[j];
+          if (g[0].page !== lineGroups[i][0].page) break;
+          if (g[0].y - lineGroups[i][0].y > 35) break;
+          combined = combined.concat(g);
+        }
+        const t = combined.map(x => x.str).join(' ');
+        const hasCod  = /C[oó]d|Alt\b/i.test(t);
+        const hasDesc = /Descri/i.test(t);
+        const hasQtd  = /Qtd|Quant/i.test(t);
+        const hasVal  = /Unit|Vl\.?\s*T|Total/i.test(t);
+        if ((hasCod || hasDesc) && hasQtd && hasVal) return i;
+      }
+      return -1;
+    })();
 
     let itens = [];
     if (headerIdx >= 0) {
@@ -1248,17 +1273,42 @@ async function extrairDadosPV(file) {
         { name:'vunit',  x: getX(/Unit/i)          ?? 410 },
         { name:'vtotal', x: getX(/Total/i)         ?? 490 },
       ].sort((a, b) => a.x - b.x);
-      const assignCol = x => { let c = cols[0].name; cols.forEach(col => { if (x >= col.x - 10) c = col.name; }); return c; };
+      const assignCol = x => { let c = cols[0].name; cols.forEach(col => { if (x >= col.x - 12) c = col.name; }); return c; };
+
+      let pendente = null;
+      const pushItem = row => { if (row.desc || row.cod) itens.push(row); };
 
       for (let i = headerIdx + 1; i < lineGroups.length; i++) {
         const lg = lineGroups[i];
         const lt = lg.map(it => it.str).join(' ');
-        if (/Total\s+Geral|Observa[çc]|Assinatura|Validade/i.test(lt)) break;
-        if (!lg.some(it => /\d/.test(it.str))) continue;
+        // Parar nas seções de rodapé do C160
+        if (/Total\s+Geral|Informa[çc][oõ]es\s+Complementares/i.test(lt)) break;
+        if (/M[eé]dico\s*:|Conv[eê]nio\s*:|Paciente\s*:|Hospital\s*:/i.test(lt)) break;
+        if (/Assinatura|Observa[çc][oõ]es\s*:/i.test(lt)) break;
+        if (!/[a-zA-Z0-9]/.test(lt)) continue;
+
         const row = { cod:'', desc:'', qtd:'', lote:'', vunit:'', vtotal:'' };
         lg.forEach(it => { const c = assignCol(it.x); row[c] = row[c] ? row[c]+' '+it.str : it.str; });
-        if (row.desc || row.cod) itens.push(row);
+
+        // Mesclar linha de continuação (sem cod/desc mas com qtd/valores) com item pendente
+        if (pendente && !row.cod && !row.desc && (row.qtd || row.vunit || row.vtotal)) {
+          pendente.qtd    = pendente.qtd    || row.qtd;
+          pendente.lote   = pendente.lote   || row.lote;
+          pendente.vunit  = pendente.vunit  || row.vunit;
+          pendente.vtotal = pendente.vtotal || row.vtotal;
+          pushItem(pendente);
+          pendente = null;
+        } else {
+          if (pendente) pushItem(pendente);
+          if (row.desc || row.cod) {
+            pendente = (!row.qtd && !row.vunit) ? row : null;
+            if (!pendente) pushItem(row);
+          } else {
+            pendente = null;
+          }
+        }
       }
+      if (pendente) pushItem(pendente);
     }
 
     if (pac)   { const el = document.getElementById('f-pac');    if (el) el.value = pac;   }
