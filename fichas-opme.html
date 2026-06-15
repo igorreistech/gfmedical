@@ -26,13 +26,10 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background-image:linear-gradient(rgba(26,122,74,0.055) 1px,transparent 1px),linear-gradient(90deg,rgba(26,122,74,0.055) 1px,transparent 1px);
   background-size:48px 48px}
 .app{display:flex;min-height:100vh;position:relative;z-index:1}
-
-/* SIDEBAR */
-.sidebar{width:224px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;box-shadow:var(--shadow)}
+.sidebar{width:224px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;box-shadow:var(--shadow)}
 .sidebar-logo{padding:15px 16px;border-bottom:1px solid var(--border)}
 .logo-mark{display:flex;align-items:center;gap:10px}
-.logo-icon{width:34px;height:34px;border-radius:8px;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--accent),var(--accent3));font-family:var(--display);font-weight:700;font-size:0.65rem;color:white;line-height:1.2;text-align:center}
+.logo-icon{width:34px;height:34px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--accent3));display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:0.65rem;color:white;line-height:1.2;text-align:center}
 .logo-text strong{display:block;font-family:var(--display);font-size:0.84rem;font-weight:700;color:var(--text)}
 .logo-text span{font-family:var(--mono);font-size:0.57rem;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase}
 .sidebar-inner{padding:10px 8px;flex:1;display:flex;flex-direction:column;overflow-y:auto}
@@ -47,41 +44,28 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .sidebar-footer{padding:10px;border-top:1px solid var(--border)}
 .user-chip{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)}
 .user-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent));display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:0.62rem;font-weight:700;color:white;flex-shrink:0}
-.user-info strong{display:block;font-size:0.72rem;font-weight:600;color:var(--text)}
+.user-info{flex:1;min-width:0}
+.user-info strong{display:block;font-size:0.72rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .user-info span{font-family:var(--mono);font-size:0.57rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em}
-
-/* MAIN */
+.ftag{font-family:var(--mono);font-size:0.57rem;padding:2px 6px;border-radius:4px;background:rgba(26,122,74,0.10);color:var(--accent);border:1px solid rgba(26,122,74,0.18);flex-shrink:0}
 .main{margin-left:224px;flex:1;display:flex;flex-direction:column;min-height:100vh}
 .topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;gap:10px;position:sticky;top:0;z-index:50;box-shadow:var(--shadow)}
 .page-title{font-family:var(--display);font-size:0.92rem;font-weight:700;color:var(--text);margin-right:auto}
-.sbox{display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:6px 11px;width:220px;transition:border-color 0.14s}
+.sbox{display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:6px 11px;width:230px;transition:border-color 0.14s}
 .sbox:focus-within{border-color:var(--accent)}
 .sbox input{border:none;outline:none;background:transparent;font-family:var(--sans);font-size:0.78rem;color:var(--text);flex:1}
 .sbox input::placeholder{color:var(--text3)}
 .tbtn{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--radius);font-family:var(--sans);font-size:0.75rem;font-weight:600;cursor:pointer;border:none;transition:all 0.13s}
-.tbtn-p{background:var(--accent);color:white}
-.tbtn-p:hover{background:#155e3a}
-.tbtn-g{background:transparent;color:var(--text2);border:1px solid var(--border)}
-.tbtn-g:hover{background:var(--surface2)}
-.back-link{font-family:var(--mono);font-size:0.7rem;color:var(--text3);text-decoration:none;display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;border:1px solid var(--border);transition:all 0.13s}
-.back-link:hover{background:var(--surface2);color:var(--text)}
-
-/* TABS */
+.tbtn-p{background:var(--accent);color:white}.tbtn-p:hover{background:#155e3a}
+.tbtn-g{background:transparent;color:var(--text2);border:1px solid var(--border)}.tbtn-g:hover{background:var(--surface2)}
 .vtabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);padding:0 18px}
 .vtab{display:flex;align-items:center;gap:5px;padding:9px 14px;font-size:0.76rem;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.13s}
-.vtab:hover{color:var(--text)}
-.vtab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.vtab:hover{color:var(--text)}.vtab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
 .page-content{padding:18px;flex:1}
-
-/* STATUS BADGE */
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-family:var(--mono);font-size:0.6rem;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;white-space:nowrap;border:1px solid}
-.b0{color:var(--s0-c);background:var(--s0-bg);border-color:var(--s0-bd)}
-.b1{color:var(--s1-c);background:var(--s1-bg);border-color:var(--s1-bd)}
-.b2{color:var(--s2-c);background:var(--s2-bg);border-color:var(--s2-bd)}
-.b3{color:var(--s3-c);background:var(--s3-bg);border-color:var(--s3-bd)}
+.b0{color:var(--s0-c);background:var(--s0-bg);border-color:var(--s0-bd)}.b1{color:var(--s1-c);background:var(--s1-bg);border-color:var(--s1-bd)}
+.b2{color:var(--s2-c);background:var(--s2-bg);border-color:var(--s2-bd)}.b3{color:var(--s3-c);background:var(--s3-bg);border-color:var(--s3-bd)}
 .b4{color:var(--s4-c);background:var(--s4-bg);border-color:var(--s4-bd)}
-
-/* STATS */
 .stats-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow);cursor:pointer;transition:transform 0.13s;position:relative;overflow:hidden}
 .stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
@@ -90,41 +74,58 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .stat-lbl{font-family:var(--mono);font-size:0.57rem;letter-spacing:0.09em;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
 .stat-val{font-family:var(--display);font-size:1.7rem;font-weight:700;color:var(--text);line-height:1}
 .stat-sub{font-size:0.65rem;color:var(--text3);margin-top:2px}
-
-/* KANBAN */
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.dcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.dcard-head{padding:11px 15px;border-bottom:1px solid var(--border);background:var(--surface2);font-family:var(--display);font-size:0.8rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px}
+.dcard-body{padding:14px}
+.funnel{display:flex;flex-direction:column;gap:6px}
+.funnel-row{display:flex;align-items:center;gap:10px}
+.funnel-name{font-size:0.72rem;color:var(--text2);width:100px;flex-shrink:0}
+.funnel-track{flex:1;height:20px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.funnel-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:8px;transition:width 0.5s}
+.funnel-fill span{font-family:var(--mono);font-size:0.6rem;font-weight:600;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.2)}
+.funnel-count{font-family:var(--mono);font-size:0.65rem;color:var(--text3);width:18px;text-align:right;flex-shrink:0}
+.ff0{background:var(--s0-c)}.ff1{background:var(--s1-c)}.ff2{background:var(--s2-c)}.ff3{background:var(--s3-c)}.ff4{background:var(--s4-c)}
+.act-list{display:flex;flex-direction:column}
+.act-item{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--border)}
+.act-item:last-child{border-bottom:none}
+.act-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.act-info{flex:1;min-width:0}
+.act-name{font-size:0.76rem;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.act-desc{font-size:0.68rem;color:var(--text3)}
+.act-time{font-family:var(--mono);font-size:0.6rem;color:var(--text3);flex-shrink:0}
 .kanban-board{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:start}
 .kcol{border-radius:var(--radius);overflow:hidden}
 .kcol-head{padding:9px 11px;display:flex;align-items:center;gap:6px;font-family:var(--display);font-size:0.75rem;font-weight:700;border-radius:var(--radius) var(--radius) 0 0;border:1px solid;border-bottom:none}
-.kh0{background:var(--s0-bg);border-color:var(--s0-bd);color:var(--s0-c)}
-.kh1{background:var(--s1-bg);border-color:var(--s1-bd);color:var(--s1-c)}
-.kh2{background:var(--s2-bg);border-color:var(--s2-bd);color:var(--s2-c)}
-.kh3{background:var(--s3-bg);border-color:var(--s3-bd);color:var(--s3-c)}
+.kh0{background:var(--s0-bg);border-color:var(--s0-bd);color:var(--s0-c)}.kh1{background:var(--s1-bg);border-color:var(--s1-bd);color:var(--s1-c)}
+.kh2{background:var(--s2-bg);border-color:var(--s2-bd);color:var(--s2-c)}.kh3{background:var(--s3-bg);border-color:var(--s3-bd);color:var(--s3-c)}
 .kh4{background:var(--s4-bg);border-color:var(--s4-bd);color:var(--s4-c)}
 .kcnt{font-family:var(--mono);font-size:0.6rem;font-weight:600;padding:2px 6px;border-radius:20px;margin-left:auto;color:white}
 .cnt0{background:var(--s0-c)}.cnt1{background:var(--s1-c)}.cnt2{background:var(--s2-c)}.cnt3{background:var(--s3-c)}.cnt4{background:var(--s4-c)}
-.kcol-body{min-height:100px;padding:7px;display:flex;flex-direction:column;gap:7px;border:1px solid;border-top:none;border-radius:0 0 var(--radius) var(--radius)}
-.kb0{background:rgba(107,114,128,0.03);border-color:var(--s0-bd)}
-.kb1{background:rgba(42,159,191,0.03);border-color:var(--s1-bd)}
-.kb2{background:rgba(147,51,234,0.03);border-color:var(--s2-bd)}
-.kb3{background:rgba(212,146,10,0.03);border-color:var(--s3-bd)}
+.kcol-body{min-height:160px;padding:7px;display:flex;flex-direction:column;gap:7px;border:1px solid;border-top:none;border-radius:0 0 var(--radius) var(--radius)}
+.kb0{background:rgba(107,114,128,0.03);border-color:var(--s0-bd)}.kb1{background:rgba(42,159,191,0.03);border-color:var(--s1-bd)}
+.kb2{background:rgba(147,51,234,0.03);border-color:var(--s2-bd)}.kb3{background:rgba(212,146,10,0.03);border-color:var(--s3-bd)}
 .kb4{background:rgba(26,122,74,0.03);border-color:var(--s4-bd)}
-.kcard{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 11px;box-shadow:var(--shadow);transition:all 0.14s;cursor:pointer}
+.kcard{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 11px;box-shadow:var(--shadow);transition:all 0.14s;cursor:grab}
 .kcard:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
 .kcard-pac{font-family:var(--display);font-size:0.76rem;font-weight:700;color:var(--text);margin-bottom:3px}
-.kcard-proc{font-size:0.68rem;color:var(--text3);margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kcard-proc{font-size:0.68rem;color:var(--text3);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kcard-bot{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .kcard-data{font-family:var(--mono);font-size:0.6rem;color:var(--text3)}
+.kcard-conv{font-family:var(--mono);font-size:0.57rem;font-weight:600;padding:2px 6px;border-radius:4px;background:var(--s1-bg);color:var(--s1-c);border:1px solid var(--s1-bd);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kcard-filial{font-family:var(--mono);font-size:0.55rem;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px}
+.fc-cg{background:rgba(26,122,74,0.12);color:var(--accent);border:1px solid rgba(26,122,74,0.2)}
+.fc-cba{background:rgba(42,159,191,0.12);color:var(--accent2);border:1px solid rgba(42,159,191,0.2)}
 .kcard-actions{display:flex;gap:3px;padding-top:7px;border-top:1px solid var(--border)}
 .kbtn{flex:1;padding:4px;border-radius:5px;border:1px solid;cursor:pointer;font-family:var(--mono);font-size:0.56rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;text-align:center;transition:all 0.13s;background:transparent}
 .kbtn:hover{opacity:0.8}
-
-/* LISTA */
 .fbar{display:flex;align-items:center;gap:7px;margin-bottom:13px;flex-wrap:wrap}
 .flabel{font-family:var(--mono);font-size:0.58rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3)}
 .fchip{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text2);transition:all 0.13s}
-.fchip:hover{border-color:var(--accent);color:var(--accent)}
-.fchip.on{background:rgba(26,122,74,0.08);border-color:var(--accent);color:var(--accent)}
+.fchip:hover{border-color:var(--accent);color:var(--accent)}.fchip.on{background:rgba(26,122,74,0.08);border-color:var(--accent);color:var(--accent)}
 .fdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.fbtn{padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text2);transition:all 0.13s}
+.fbtn:hover{border-color:var(--accent);color:var(--accent)}.fdiv{width:1px;height:16px;background:var(--border)}
 .twrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
 .thead-bar{display:flex;align-items:center;padding:11px 15px;border-bottom:1px solid var(--border);background:var(--surface2);gap:8px}
 .thead-title{font-family:var(--display);font-size:0.8rem;font-weight:700;color:var(--text)}
@@ -139,8 +140,6 @@ td{padding:10px 13px;font-size:0.77rem;color:var(--text2);vertical-align:middle}
 .td-pac{font-family:var(--display);font-size:0.78rem;font-weight:600;color:var(--text)}
 .td-trunc{max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .td-mono{font-family:var(--mono);font-size:0.67rem;color:var(--text3);white-space:nowrap}
-
-/* INLINE STATUS */
 .iflow{display:flex;align-items:center;gap:2px}
 .iflow-btn{padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:var(--bg);font-family:var(--mono);font-size:0.55rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer;color:var(--text3);transition:all 0.13s;white-space:nowrap}
 .iflow-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -152,11 +151,10 @@ tbody tr:hover .row-acts{opacity:1}
 .abtn{width:25px;height:25px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text3);font-size:0.72rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.12s}
 .abtn:hover{border-color:var(--accent);color:var(--accent);background:rgba(26,122,74,0.05)}
 .abtn.del:hover{border-color:#ef4444;color:#ef4444;background:rgba(239,68,68,0.05)}
-
-/* MODAL */
 .modal-ov{position:fixed;inset:0;background:rgba(10,42,24,0.42);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
 .modal-ov.open{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:660px;box-shadow:var(--shadow-md);overflow:hidden;max-height:calc(100vh - 40px);display:flex;flex-direction:column}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:660px;box-shadow:var(--shadow-md);overflow:hidden;max-height:calc(100vh - 40px);display:flex;flex-direction:column;animation:mIn 0.2s ease}
+@keyframes mIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}
 .mhead{padding:15px 19px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);flex-shrink:0}
 .mtitle{font-family:var(--display);font-size:0.9rem;font-weight:700;color:var(--text)}
 .mclose{width:25px;height:25px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.85rem;transition:all 0.12s}
@@ -165,64 +163,56 @@ tbody tr:hover .row-acts{opacity:1}
 .mfoot{padding:13px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:flex-end;gap:8px;background:var(--surface2);flex-shrink:0}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:11px}
 .frow.full{grid-template-columns:1fr}
-.frow.three{grid-template-columns:1fr 1fr 1fr}
 .fg{display:flex;flex-direction:column;gap:4px}
 .flbl{font-family:var(--mono);font-size:0.57rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3)}
 .finput{padding:8px 11px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-family:var(--sans);font-size:0.78rem;color:var(--text);outline:none;transition:border-color 0.13s}
 .finput:focus{border-color:var(--accent);background:var(--surface)}
 .finput::placeholder{color:var(--text3)}
-
-/* UPLOAD ZONES */
 .uploads-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
 .uzone{border:2px dashed var(--border2);border-radius:var(--radius);padding:14px 12px;text-align:center;cursor:pointer;transition:all 0.13s;background:rgba(26,122,74,0.02);position:relative}
 .uzone:hover{border-color:var(--accent);background:rgba(26,122,74,0.04)}
 .uzone.has-file{border-style:solid;border-color:var(--accent);background:rgba(26,122,74,0.06)}
-.uzone.pv-zone{border-color:var(--s1-bd);background:rgba(42,159,191,0.03)}
-.uzone.pv-zone:hover{border-color:var(--s1-c);background:rgba(42,159,191,0.06)}
-.uzone.pv-zone.has-file{border-style:solid;border-color:var(--s1-c);background:rgba(42,159,191,0.08)}
+.uzone-pv{border-color:var(--s1-bd)!important;background:rgba(42,159,191,0.03)!important}
+.uzone-pv:hover{border-color:var(--s1-c)!important;background:rgba(42,159,191,0.06)!important}
+.uzone-pv.has-file{border-style:solid;border-color:var(--s1-c)!important;background:rgba(42,159,191,0.08)!important}
 .uzone-icon{font-size:1.4rem;margin-bottom:4px}
-.uzone-type{font-family:var(--mono);font-size:0.57rem;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;font-weight:600}
-.uzone .uzone-type{color:var(--accent)}
-.uzone.pv-zone .uzone-type{color:var(--s1-c)}
+.uzone-label{font-family:var(--mono);font-size:0.57rem;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;font-weight:600;color:var(--accent)}
+.uzone-pv .uzone-label{color:var(--s1-c)}
 .uzone-title{font-family:var(--display);font-size:0.75rem;font-weight:600;color:var(--text2);margin-bottom:2px}
 .uzone-sub{font-size:0.62rem;color:var(--text3)}
 .uzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-.fp-row{display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.7);border:1px solid var(--border)}
+.file-preview{display:none;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.7);border:1px solid var(--border)}
+.file-preview.show{display:flex}
 .fp-name{font-size:0.65rem;font-weight:500;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fp-rm{background:none;border:none;cursor:pointer;color:var(--text3);font-size:0.78rem;padding:0 2px;transition:color 0.12s;flex-shrink:0}
-.fp-rm:hover{color:#ef4444}
-.import-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(26,122,74,0.1);border:1px solid rgba(26,122,74,0.2);color:var(--accent);font-family:var(--mono);font-size:0.6rem;font-weight:600;margin-top:4px}
-
-/* ITENS TABLE */
+.fp-size{font-family:var(--mono);font-size:0.6rem;color:var(--text3);flex-shrink:0}
+.fp-remove{background:none;border:none;cursor:pointer;color:var(--text3);font-size:0.78rem;padding:0 2px;transition:color 0.12s;flex-shrink:0}
+.fp-remove:hover{color:#ef4444}
+.import-badge{display:none;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(26,122,74,0.1);border:1px solid rgba(26,122,74,0.2);color:var(--accent);font-family:var(--mono);font-size:0.6rem;font-weight:600;margin-top:4px}
+.import-badge.show{display:inline-flex}
 .itens-section{margin-bottom:14px}
-.itens-header{font-family:var(--mono);font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
-.itens-grid{display:grid;gap:6px}
-.item-row{display:grid;grid-template-columns:3fr 1.2fr 1fr 0.8fr 0.9fr 28px;gap:6px;align-items:center}
+.itens-hdr{font-family:var(--mono);font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+.item-row{display:grid;grid-template-columns:3fr 1.2fr 1fr 0.8fr 0.9fr 28px;gap:6px;align-items:center;margin-bottom:5px}
 .item-row .finput{padding:6px 9px;font-size:0.76rem}
-.item-row input[type=number]{padding:6px 6px;font-family:var(--mono);font-size:0.82rem;text-align:center}
+.item-row input[type=number]{font-family:var(--mono);font-size:0.82rem;text-align:center}
 .item-rm{background:none;border:1px solid var(--border);color:var(--text3);border-radius:6px;width:26px;height:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.7rem;transition:all 0.12s}
 .item-rm:hover{border-color:#ef4444;color:#ef4444}
-.add-item-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:8px;border:1.5px dashed var(--border2);background:transparent;color:var(--text3);font-family:var(--mono);font-size:0.68rem;font-weight:600;cursor:pointer;transition:all 0.13s;margin-top:4px}
-.add-item-btn:hover{border-color:var(--accent);color:var(--accent)}
-.total-row{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 0 0;border-top:1px solid var(--border);margin-top:6px}
+.add-item{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:8px;border:1.5px dashed var(--border2);background:transparent;color:var(--text3);font-family:var(--mono);font-size:0.68rem;font-weight:600;cursor:pointer;transition:all 0.13s;margin-top:3px}
+.add-item:hover{border-color:var(--accent);color:var(--accent)}
+.total-row{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 0 0;border-top:1px solid var(--border);margin-top:5px}
 .total-lbl{font-family:var(--mono);font-size:0.65rem;color:var(--text3)}
 .total-val{font-family:var(--display);font-size:1.1rem;font-weight:700;color:var(--accent)}
-
-/* TOAST */
 .toasts{position:fixed;bottom:18px;right:18px;z-index:400;display:flex;flex-direction:column;gap:6px}
 .toast{display:flex;align-items:center;gap:8px;padding:9px 14px;color:white;border-radius:var(--radius);font-size:0.75rem;font-weight:500;box-shadow:var(--shadow-md);animation:tIn 0.2s ease;min-width:210px}
 .t-ok{background:var(--accent)}.t-err{background:#ef4444}.t-info{background:var(--accent2)}
 @keyframes tIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
-@keyframes modalIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}
-
-/* LOGIN */
 .login-screen{position:fixed;inset:0;z-index:500;background:var(--bg);display:flex;align-items:center;justify-content:center}
 .login-screen::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(26,122,74,0.055) 1px,transparent 1px),linear-gradient(90deg,rgba(26,122,74,0.055) 1px,transparent 1px);background-size:48px 48px}
 .login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:360px;box-shadow:var(--shadow-md);position:relative;z-index:1}
-.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:20px}
 .login-logo-icon{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent3));display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:0.7rem;color:white;line-height:1.2;text-align:center}
 .login-logo-text strong{display:block;font-family:var(--display);font-size:1rem;font-weight:700;color:var(--text)}
 .login-logo-text span{font-family:var(--mono);font-size:0.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em}
+.login-filial-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:0.65rem;font-weight:600;padding:4px 10px;border-radius:20px;margin-bottom:20px;text-transform:uppercase;letter-spacing:0.08em;background:rgba(26,122,74,0.10);border:1px solid rgba(26,122,74,0.20);color:var(--accent)}
 .login-title{font-family:var(--display);font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:6px}
 .login-sub{font-size:0.78rem;color:var(--text3);margin-bottom:24px}
 .login-field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
@@ -233,41 +223,31 @@ tbody tr:hover .row-acts{opacity:1}
 .login-btn:hover{background:#155e3a;transform:translateY(-1px)}
 .login-err{font-size:0.74rem;color:#ef4444;margin-top:10px;text-align:center;display:none}
 .login-err.show{display:block}
-
-/* EMPTY STATE */
 .empty-col{text-align:center;padding:30px 10px;font-family:var(--mono);font-size:0.7rem;color:var(--text3)}
 .empty-page{text-align:center;padding:60px 20px;font-family:var(--mono);font-size:0.82rem;color:var(--text3)}
-
 @media(max-width:1100px){.kanban-board{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:860px){.stats-bar{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:680px){.sidebar{transform:translateX(-100%)}.main{margin-left:0}.stats-bar{grid-template-columns:repeat(2,1fr)}.item-row{grid-template-columns:1fr 1fr 28px}}
+@media(max-width:860px){.stats-bar{grid-template-columns:repeat(3,1fr)}.dash-grid{grid-template-columns:1fr}}
+@media(max-width:680px){.sidebar{transform:translateX(-100%)}.main{margin-left:0}}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
 <div id="login-screen" class="login-screen">
   <div class="login-box">
     <div class="login-logo">
       <div class="login-logo-icon">GF<br>MED</div>
-      <div class="login-logo-text"><strong>GF Medical</strong><span>Fichas OPME · Campo Grande</span></div>
+      <div class="login-logo-text"><strong>GF Medical</strong><span>Fichas OPME</span></div>
     </div>
+    <div class="login-filial-badge">🟢 Filial Campo Grande · MS</div>
     <div class="login-title">Entrar no sistema</div>
     <div class="login-sub">Use as mesmas credenciais do Monitor Cirúrgico</div>
-    <div class="login-field">
-      <label class="login-label">E-mail</label>
-      <input class="login-input" type="email" id="l-email" placeholder="seu@email.com" autocomplete="email">
-    </div>
-    <div class="login-field">
-      <label class="login-label">Senha</label>
-      <input class="login-input" type="password" id="l-senha" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
+    <div class="login-field"><label class="login-label">E-mail</label><input class="login-input" type="email" id="l-email" placeholder="seu@email.com" autocomplete="email"></div>
+    <div class="login-field"><label class="login-label">Senha</label><input class="login-input" type="password" id="l-senha" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="login-btn" onclick="doLogin()">Entrar</button>
     <div class="login-err" id="l-err">E-mail ou senha incorretos.</div>
   </div>
 </div>
 
-<!-- APP -->
 <div class="app" id="app-root" style="display:none">
   <aside class="sidebar">
     <div class="sidebar-logo">
@@ -278,9 +258,9 @@ tbody tr:hover .row-acts{opacity:1}
     </div>
     <div class="sidebar-inner">
       <div class="slabel">Visualizações</div>
-      <a class="nav-item active" href="#" onclick="goView('lista');return false"><span class="nav-icon">📄</span> Lista</a>
-      <a class="nav-item" href="#" onclick="goView('kanban');return false"><span class="nav-icon">🗂️</span> Kanban</a>
-      <a class="nav-item" href="#" onclick="goView('dashboard');return false"><span class="nav-icon">📊</span> Dashboard</a>
+      <a class="nav-item" id="nav-dashboard" href="#" onclick="goView('dashboard');return false"><span class="nav-icon">📊</span> Dashboard</a>
+      <a class="nav-item" id="nav-kanban" href="#" onclick="goView('kanban');return false"><span class="nav-icon">🗂️</span> Kanban</a>
+      <a class="nav-item active" id="nav-lista" href="#" onclick="goView('lista');return false"><span class="nav-icon">📄</span> Lista</a>
       <div class="sdiv"></div>
       <div class="slabel">Por status</div>
       <a class="nav-item" href="#" onclick="filtrarStatus(0);return false"><span class="nav-icon">⬜</span> Pendente<span class="nbadge nb0" id="nb0">0</span></a>
@@ -294,29 +274,28 @@ tbody tr:hover .row-acts{opacity:1}
     <div class="sidebar-footer">
       <div class="user-chip">
         <div class="user-avatar" id="user-av">?</div>
-        <div class="user-info"><strong id="user-nm">—</strong><span>Campo Grande · MS</span></div>
+        <div class="user-info"><strong id="user-nm">—</strong><span id="sidebar-filial-label">Campo Grande · MS</span></div>
+        <span class="ftag">CG</span>
       </div>
-      <button onclick="doLogout()" style="width:100%;margin-top:6px;padding:6px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:0.72rem;cursor:pointer;transition:all 0.13s;font-family:var(--sans);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">Sair da conta</button>
+      <button onclick="doLogout()" style="width:100%;margin-top:6px;padding:6px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:0.72rem;cursor:pointer;font-family:var(--sans);transition:all 0.13s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">Sair da conta</button>
     </div>
   </aside>
 
   <main class="main">
     <div class="topbar">
-      <span class="page-title" id="page-title">Lista de Fichas OPME</span>
+      <span class="page-title" id="page-title">Lista de Fichas</span>
       <div class="sbox"><span style="color:var(--text3)">🔍</span><input type="text" id="busca" placeholder="Paciente, médico…" oninput="renderAtivo()"></div>
       <button class="tbtn tbtn-g" onclick="exportarCSV()">⬇️ Exportar</button>
       <button class="tbtn tbtn-p" onclick="abrirModal()">＋ Nova Ficha</button>
     </div>
-
     <div class="vtabs">
-      <div class="vtab active" id="tab-lista" onclick="goView('lista')">📄 Lista</div>
-      <div class="vtab" id="tab-kanban" onclick="goView('kanban')">🗂️ Kanban</div>
       <div class="vtab" id="tab-dashboard" onclick="goView('dashboard')">📊 Dashboard</div>
+      <div class="vtab" id="tab-kanban" onclick="goView('kanban')">🗂️ Kanban</div>
+      <div class="vtab active" id="tab-lista" onclick="goView('lista')">📄 Lista</div>
     </div>
-
     <div class="page-content">
-
-      <!-- LISTA -->
+      <div id="view-dashboard" style="display:none"></div>
+      <div id="view-kanban" style="display:none"></div>
       <div id="view-lista">
         <div class="fbar">
           <span class="flabel">Status</span>
@@ -328,71 +307,40 @@ tbody tr:hover .row-acts{opacity:1}
           <div class="fchip" onclick="setChip(this,4)"><span class="fdot" style="background:var(--s4-c)"></span> Faturado</div>
         </div>
         <div class="twrap">
-          <div class="thead-bar">
-            <span class="thead-title">📋 Fichas</span>
-            <span class="tcount" id="tcount">0 registros</span>
-          </div>
+          <div class="thead-bar"><span class="thead-title">📋 Fichas OPME</span><span class="tcount" id="tcount">0 registros</span></div>
           <table>
-            <thead><tr>
-              <th>Paciente</th><th>Médico</th><th>Procedimento</th><th>Hospital</th>
-              <th>Pedido PV</th><th>Fluxo</th><th>Data Cirurgia</th><th>Total</th><th></th>
-            </tr></thead>
+            <thead><tr><th>Paciente</th><th>Médico</th><th>Procedimento</th><th>Nº PV</th><th>Fluxo</th><th>Data Cirurgia</th><th>Total</th><th></th></tr></thead>
             <tbody id="tbody"></tbody>
           </table>
         </div>
       </div>
-
-      <!-- KANBAN -->
-      <div id="view-kanban" style="display:none">
-        <div class="kanban-board" id="kanban-board"></div>
-      </div>
-
-      <!-- DASHBOARD -->
-      <div id="view-dashboard" style="display:none">
-        <div class="stats-bar" id="dash-stats"></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" id="dash-charts"></div>
-      </div>
-
     </div>
   </main>
 </div>
 
-<!-- MODAL NOVA/EDITAR FICHA -->
 <div id="modal" class="modal-ov">
-  <div class="modal" style="animation:modalIn 0.22s ease">
-    <div class="mhead">
-      <span class="mtitle" id="modal-title">📋 Nova Ficha OPME</span>
-      <button class="mclose" onclick="fecharModal()">✕</button>
-    </div>
+  <div class="modal">
+    <div class="mhead"><span class="mtitle" id="modal-title">📋 Nova Ficha OPME</span><button class="mclose" onclick="fecharModal()">✕</button></div>
     <div class="mbody">
-      <!-- Upload C160 -->
-      <div class="uploads-grid" style="margin-bottom:16px">
-        <div class="uzone" id="zone-opme">
+      <div class="uploads-grid">
+        <div class="uzone uzone-opme" id="zone-opme">
           <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="selecionarArq(this,'opme')">
           <div class="uzone-icon">📄</div>
-          <div class="uzone-type">Ficha OPME</div>
+          <div class="uzone-label">Ficha OPME</div>
           <div class="uzone-title">Anexar ficha</div>
           <div class="uzone-sub">PDF, JPG, PNG · 20MB</div>
-          <div id="fp-opme" style="display:none" class="fp-row">
-            <span class="fp-name" id="fp-opme-nm"></span>
-            <button class="fp-rm" onclick="removerArq(event,'opme')">✕</button>
-          </div>
+          <div class="file-preview" id="fp-opme"><span class="fp-name" id="fp-opme-n"></span><span class="fp-size" id="fp-opme-s"></span><button class="fp-remove" onclick="removerArq(event,'opme')">✕</button></div>
         </div>
-        <div class="uzone pv-zone" id="zone-pv">
+        <div class="uzone uzone-pv" id="zone-pv">
           <input type="file" id="pv-input" accept=".pdf" onchange="selecionarPV(this)">
           <div class="uzone-icon">🧾</div>
-          <div class="uzone-type">Pedido de Venda (C160)</div>
-          <div class="uzone-title">Anexar PV · auto-preenche</div>
-          <div class="uzone-sub">PDF · extrai dados automaticamente</div>
-          <div id="fp-pv" style="display:none" class="fp-row">
-            <span class="fp-name" id="fp-pv-nm"></span>
-            <button class="fp-rm" onclick="removerArq(event,'pv')">✕</button>
-          </div>
-          <div id="import-badge" style="display:none" class="import-badge">✅ Dados importados do C160</div>
+          <div class="uzone-label">Pedido de Venda (C160)</div>
+          <div class="uzone-title">Importar PV · auto-preenche</div>
+          <div class="uzone-sub">PDF · extrai todos os campos</div>
+          <div class="file-preview" id="fp-pv"><span class="fp-name" id="fp-pv-n"></span><span class="fp-size" id="fp-pv-s"></span><button class="fp-remove" onclick="removerArq(event,'pv')">✕</button></div>
+          <div class="import-badge" id="import-badge">✅ Dados importados do C160</div>
         </div>
       </div>
-
-      <!-- Dados -->
       <div class="frow">
         <div class="fg"><label class="flbl">Paciente *</label><input class="finput" id="f-pac" placeholder="Nome completo"></div>
         <div class="fg"><label class="flbl">Médico *</label><input class="finput" id="f-med" placeholder="Dr./Dra."></div>
@@ -403,7 +351,7 @@ tbody tr:hover .row-acts{opacity:1}
       </div>
       <div class="frow">
         <div class="fg"><label class="flbl">Convênio</label><input class="finput" id="f-conv" placeholder="Ex: Unimed, SUS…"></div>
-        <div class="fg"><label class="flbl">Nº Pedido de Venda (C160)</label><input class="finput" id="f-pedido" placeholder="Ex: 4795"></div>
+        <div class="fg"><label class="flbl">Nº Pedido de Venda</label><input class="finput" id="f-pedido" placeholder="Ex: 4795"></div>
       </div>
       <div class="frow">
         <div class="fg"><label class="flbl">Data da Cirurgia</label><input class="finput" type="date" id="f-data"></div>
@@ -417,36 +365,28 @@ tbody tr:hover .row-acts{opacity:1}
           </select>
         </div>
       </div>
-
-      <!-- Itens OPME -->
       <div class="itens-section">
-        <div class="itens-header">
+        <div class="itens-hdr">
           <span>🔩 Itens OPME</span>
-          <span style="font-weight:400;opacity:0.7">Descrição · Referência/Cód · Lote · Qtd · Preço Unit.</span>
+          <span style="font-weight:400;opacity:0.7;font-size:0.58rem">Descrição · Referência · Lote · Qtd · Preço Unit</span>
         </div>
-        <div style="display:grid;grid-template-columns:3fr 1.2fr 1fr 0.8fr 0.9fr 28px;gap:6px;margin-bottom:4px;padding:0 2px">
-          <span style="font-family:var(--mono);font-size:0.55rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3)">Descrição</span>
-          <span style="font-family:var(--mono);font-size:0.55rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3)">Referência</span>
-          <span style="font-family:var(--mono);font-size:0.55rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3)">Lote</span>
-          <span style="font-family:var(--mono);font-size:0.55rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3)">Qtd</span>
-          <span style="font-family:var(--mono);font-size:0.55rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3)">Preço Unit</span>
+        <div style="display:grid;grid-template-columns:3fr 1.2fr 1fr 0.8fr 0.9fr 28px;gap:6px;margin-bottom:3px;padding:0 2px">
+          <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Descrição</span>
+          <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Referência</span>
+          <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Lote</span>
+          <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Qtd</span>
+          <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Preço Unit</span>
           <span></span>
         </div>
         <div id="itens-container"></div>
-        <button class="add-item-btn" onclick="adicionarItem()">＋ Adicionar item</button>
-        <div class="total-row">
-          <span class="total-lbl">Total:</span>
-          <span class="total-val" id="total-val">R$ 0,00</span>
-        </div>
+        <button class="add-item" onclick="adicionarItem()">＋ Adicionar item</button>
+        <div class="total-row"><span class="total-lbl">Total:</span><span class="total-val" id="total-val">R$ 0,00</span></div>
       </div>
-
-      <div class="frow full">
-        <div class="fg"><label class="flbl">Observações</label><textarea class="finput" id="f-obs" rows="2" placeholder="Notas adicionais…" style="resize:vertical"></textarea></div>
-      </div>
+      <div class="frow full"><div class="fg"><label class="flbl">Observações</label><textarea class="finput" id="f-obs" rows="2" placeholder="Notas adicionais…" style="resize:vertical"></textarea></div></div>
     </div>
     <div class="mfoot">
       <button class="tbtn tbtn-g" onclick="fecharModal()">Cancelar</button>
-      <button class="tbtn tbtn-p" onclick="salvarFicha()" id="btn-salvar">💾 Salvar Ficha</button>
+      <button class="tbtn tbtn-p" id="btn-salvar" onclick="salvarFicha()">💾 Salvar Ficha</button>
     </div>
   </div>
 </div>
@@ -458,52 +398,41 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-// ─── CONFIG CGR ───
 const firebaseConfig = {
-  apiKey: "AIzaSyCKQ0IFOO-8bQDqBN7oV1GTFbATmXI8MTI",
-  authDomain: "gfcampogrande-3d886.firebaseapp.com",
-  projectId: "gfcampogrande-3d886",
-  storageBucket: "gfcampogrande-3d886.firebasestorage.app",
-  messagingSenderId: "1089347107124",
-  appId: "1:1089347107124:web:2cf047dff32b642c1ecd61"
+  apiKey:"AIzaSyCKQ0IFOO-8bQDqBN7oV1GTFbATmXI8MTI",
+  authDomain:"gfcampogrande-3d886.firebaseapp.com",
+  projectId:"gfcampogrande-3d886",
+  storageBucket:"gfcampogrande-3d886.firebasestorage.app",
+  messagingSenderId:"1089347107124",
+  appId:"1:1089347107124:web:2cf047dff32b642c1ecd61"
 };
-const COLL = 'fichas_opme';
 
-const app = initializeApp(firebaseConfig);
+const COLL = 'fichas_opme';
+const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
-// ─── PDF.js worker ───
-if (typeof pdfjsLib !== 'undefined') {
+if (typeof pdfjsLib !== 'undefined')
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-}
-
-// ─── STATE ───
-let fichas = [];
-let curView = 'lista';
-let curFilter = -1;
-let editingId = null;
-let itensModal = [];
-let pvFile = null;
-let opmeFile = null;
 
 const STATUS = [
-  { label:'Pendente',      icon:'⬜', cls:'b0', kh:'kh0', kb:'kb0', cnt:'cnt0' },
-  { label:'Pedido Criado', icon:'🔵', cls:'b1', kh:'kh1', kb:'kb1', cnt:'cnt1' },
-  { label:'Em Laudação',   icon:'🟣', cls:'b2', kh:'kh2', kb:'kb2', cnt:'cnt2' },
-  { label:'Autorizado',    icon:'🟡', cls:'b3', kh:'kh3', kb:'kb3', cnt:'cnt3' },
-  { label:'Faturado',      icon:'🟢', cls:'b4', kh:'kh4', kb:'kb4', cnt:'cnt4' },
+  {label:'Pendente',      icon:'⬜', kh:'kh0', kb:'kb0', cnt:'cnt0', ff:'ff0'},
+  {label:'Pedido Criado', icon:'🔵', kh:'kh1', kb:'kb1', cnt:'cnt1', ff:'ff1'},
+  {label:'Em Laudação',   icon:'🟣', kh:'kh2', kb:'kb2', cnt:'cnt2', ff:'ff2'},
+  {label:'Autorizado',    icon:'🟡', kh:'kh3', kb:'kb3', cnt:'cnt3', ff:'ff3'},
+  {label:'Faturado',      icon:'🟢', kh:'kh4', kb:'kb4', cnt:'cnt4', ff:'ff4'},
 ];
 
-// ─── AUTH ───
-onAuthStateChanged(auth, user => {
-  if (user) {
+let fichas=[], curView='lista', curFilter=-1, editingId=null, itens=[];
+
+// AUTH
+onAuthStateChanged(auth, u => {
+  if (u) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-root').style.display = 'flex';
-    const nome = user.displayName || user.email;
-    document.getElementById('user-nm').textContent = nome.split(' ')[0] || user.email;
-    const initials = nome.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase();
-    document.getElementById('user-av').textContent = initials || '?';
+    const nome = u.displayName || u.email || '';
+    document.getElementById('user-nm').textContent = nome.split(' ')[0] || nome;
+    document.getElementById('user-av').textContent = nome.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase() || '?';
     carregarFichas();
   } else {
     document.getElementById('login-screen').style.display = 'flex';
@@ -511,521 +440,487 @@ onAuthStateChanged(auth, user => {
   }
 });
 
-window.doLogin = async function() {
+window.doLogin = async () => {
   const email = document.getElementById('l-email').value.trim();
   const senha = document.getElementById('l-senha').value;
-  const errEl = document.getElementById('l-err');
-  errEl.classList.remove('show');
-  try {
-    await signInWithEmailAndPassword(auth, email, senha);
-  } catch(e) {
-    errEl.textContent = 'E-mail ou senha incorretos.';
-    errEl.classList.add('show');
-  }
+  const er = document.getElementById('l-err');
+  er.classList.remove('show');
+  try { await signInWithEmailAndPassword(auth, email, senha); }
+  catch { er.classList.add('show'); }
 };
 
-window.doLogout = async function() {
-  await signOut(auth);
-};
+window.doLogout = () => signOut(auth);
 
-// ─── FIRESTORE ───
+// FIRESTORE
 function carregarFichas() {
-  const q = query(collection(db, COLL), orderBy('criadoEm', 'desc'));
-  onSnapshot(q, snap => {
-    fichas = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
-    atualizarBadges();
-    renderAtivo();
-  }, () => {
-    // fallback: sem orderBy
-    onSnapshot(collection(db, COLL), snap => {
-      fichas = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
-      atualizarBadges();
-      renderAtivo();
+  try {
+    const q = query(collection(db, COLL), orderBy('criadoEm','desc'));
+    onSnapshot(q, snap => {
+      fichas = snap.docs.map(d => ({_id:d.id, ...d.data()}));
+      atualizarBadges(); renderAtivo();
+    }, err => {
+      onSnapshot(collection(db, COLL), snap => {
+        fichas = snap.docs.map(d => ({_id:d.id, ...d.data()}));
+        atualizarBadges(); renderAtivo();
+      });
     });
-  });
+  } catch(e) { console.error(e); }
 }
 
-async function persistirFicha(dados, id) {
-  const payload = { ...dados, atualizadoEm: serverTimestamp() };
+async function persistir(dados, id) {
+  const p = {...dados, atualizadoEm: serverTimestamp()};
   if (id) {
-    await setDoc(doc(db, COLL, id), payload, { merge: true });
+    await setDoc(doc(db, COLL, id), p, {merge:true});
   } else {
-    payload.criadoEm = serverTimestamp();
-    payload.criadoPor = auth.currentUser?.email || '';
-    await addDoc(collection(db, COLL), payload);
+    p.criadoEm = serverTimestamp();
+    p.criadoPor = auth.currentUser?.email || '';
+    await addDoc(collection(db, COLL), p);
   }
 }
 
-async function excluirFicha(id) {
+window.excluirFicha = async id => {
   if (!confirm('Excluir esta ficha?')) return;
   await deleteDoc(doc(db, COLL, id));
   toast('Ficha excluída', 'info');
-}
+};
 
-async function atualizarStatus(id, novoStatus) {
-  await setDoc(doc(db, COLL, id), { status: novoStatus, atualizadoEm: serverTimestamp() }, { merge: true });
-}
+window.mudStatus = async (id, s) => {
+  await setDoc(doc(db, COLL, id), {status:s, atualizadoEm:serverTimestamp()}, {merge:true});
+};
 
-// ─── VIEWS ───
-window.goView = function(v) {
+// VIEWS
+window.goView = v => {
   curView = v;
-  ['lista','kanban','dashboard'].forEach(id => {
+  ['dashboard','kanban','lista'].forEach(id => {
     document.getElementById('view-'+id).style.display = id===v ? '' : 'none';
     document.getElementById('tab-'+id).classList.toggle('active', id===v);
+    const nav = document.getElementById('nav-'+id);
+    if (nav) nav.classList.toggle('active', id===v);
   });
-  const titles = { lista:'Lista de Fichas OPME', kanban:'Kanban · Fluxo OPME', dashboard:'Dashboard OPME' };
-  document.getElementById('page-title').textContent = titles[v];
+  const T = {dashboard:'Dashboard · OPME', kanban:'Kanban · Fluxo OPME', lista:'Lista de Fichas'};
+  document.getElementById('page-title').textContent = T[v];
   renderAtivo();
 };
 
-window.renderAtivo = function() {
-  if (curView === 'lista') renderLista();
-  else if (curView === 'kanban') renderKanban();
+window.renderAtivo = () => {
+  if (curView==='lista') renderLista();
+  else if (curView==='kanban') renderKanban();
   else renderDashboard();
 };
 
-// ─── FILTROS ───
-window.setChip = function(el, s) {
+window.setChip = (el, s) => {
   document.querySelectorAll('.fchip').forEach(c => c.classList.remove('on'));
   el.classList.add('on');
   curFilter = s;
   renderLista();
 };
 
-window.filtrarStatus = function(s) {
-  curFilter = s;
-  goView('lista');
-  document.querySelectorAll('.fchip').forEach((c,i) => c.classList.toggle('on', i === s+1));
+window.filtrarStatus = s => {
+  curFilter = s; goView('lista');
+  document.querySelectorAll('.fchip').forEach((c,i) => c.classList.toggle('on', i===s+1));
 };
 
-function getFichasFiltradas() {
+function filtradas() {
   const q = (document.getElementById('busca')?.value || '').toLowerCase();
   return fichas.filter(f => {
-    if (curFilter >= 0 && f.status !== curFilter) return false;
+    if (curFilter >= 0 && (f.status??0) !== curFilter) return false;
     if (!q) return true;
-    return (f.paciente||'').toLowerCase().includes(q) ||
-           (f.medico||'').toLowerCase().includes(q) ||
-           (f.procedimento||'').toLowerCase().includes(q) ||
-           (f.hospital||'').toLowerCase().includes(q);
+    return [(f.paciente||''),(f.medico||''),(f.procedimento||''),(f.hospital||''),(f.numeroPedido||'')]
+      .some(s => s.toLowerCase().includes(q));
   });
 }
 
 function atualizarBadges() {
-  STATUS.forEach((s,i) => {
-    const n = fichas.filter(f => f.status === i).length;
+  STATUS.forEach((_,i) => {
     const el = document.getElementById('nb'+i);
-    if (el) el.textContent = n;
+    if (el) el.textContent = fichas.filter(f=>(f.status??0)===i).length;
   });
 }
 
-// ─── LISTA ───
+// LISTA
 function renderLista() {
-  const lista = getFichasFiltradas();
-  document.getElementById('tcount').textContent = lista.length + ' registro' + (lista.length !== 1 ? 's' : '');
-  const fmtData = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—';
-  const fmtVal = v => v ? 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2}) : '—';
-
-  document.getElementById('tbody').innerHTML = lista.length === 0
-    ? `<tr><td colspan="9" class="empty-page">Nenhuma ficha encontrada</td></tr>`
+  const lista = filtradas();
+  document.getElementById('tcount').textContent = lista.length + ' registro' + (lista.length!==1?'s':'');
+  const fD = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—';
+  const fV = v => v ? 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—';
+  document.getElementById('tbody').innerHTML = !lista.length
+    ? `<tr><td colspan="8" class="empty-page">Nenhuma ficha encontrada</td></tr>`
     : lista.map(f => {
-      const s = f.status ?? 0;
-      const btns = STATUS.map((st,si) =>
-        `<button class="iflow-btn${si===s?' cur cur'+si:''}" onclick="mudStatus('${f._id}',${si})">${si===s?'●':si+1}</button>${si<4?'<span class="iflow-arr">›</span>':''}`
-      ).join('');
-      return `<tr onclick="abrirModal('${f._id}')">
-        <td class="td-pac">${esc(f.paciente||'—')}</td>
-        <td class="td-trunc">${esc(f.medico||'—')}</td>
-        <td class="td-trunc">${esc(f.procedimento||'—')}</td>
-        <td class="td-trunc">${esc(f.hospital||'—')}</td>
-        <td class="td-mono">${esc(f.numeroPedido||'—')}</td>
-        <td onclick="event.stopPropagation()"><div class="iflow">${btns}</div></td>
-        <td class="td-mono">${fmtData(f.dataCirurgia)}</td>
-        <td class="td-mono">${fmtVal(f.total)}</td>
-        <td onclick="event.stopPropagation()"><div class="row-acts">
-          <button class="abtn" onclick="abrirModal('${f._id}')" title="Editar">✏️</button>
-          <button class="abtn del" onclick="excluirFicha('${f._id}')" title="Excluir">🗑</button>
-        </div></td>
-      </tr>`;
-    }).join('');
+        const s = f.status ?? 0;
+        const btns = STATUS.map((st,si) =>
+          `<button class="iflow-btn${si===s?' cur cur'+si:''}" onclick="event.stopPropagation();mudStatus('${f._id}',${si})" title="${st.label}">${si===s?'●':(si+1)}</button>${si<4?'<span class="iflow-arr">›</span>':''}`
+        ).join('');
+        return `<tr onclick="abrirModal('${f._id}')">
+          <td class="td-pac">${esc(f.paciente||'—')}</td>
+          <td class="td-trunc">${esc(f.medico||'—')}</td>
+          <td class="td-trunc">${esc(f.procedimento||'—')}</td>
+          <td class="td-mono">${esc(f.numeroPedido||'—')}</td>
+          <td onclick="event.stopPropagation()"><div class="iflow">${btns}</div></td>
+          <td class="td-mono">${fD(f.dataCirurgia)}</td>
+          <td class="td-mono">${fV(f.total)}</td>
+          <td onclick="event.stopPropagation()"><div class="row-acts">
+            <button class="abtn" onclick="abrirModal('${f._id}')" title="Editar">✏️</button>
+            <button class="abtn del" onclick="excluirFicha('${f._id}')" title="Excluir">🗑</button>
+          </div></td>
+        </tr>`;
+      }).join('');
 }
 
-window.mudStatus = async function(id, s) {
-  await atualizarStatus(id, s);
-};
-
-// ─── KANBAN ───
+// KANBAN
 function renderKanban() {
-  const board = document.getElementById('kanban-board');
-  board.innerHTML = STATUS.map((st,si) => {
-    const cards = fichas.filter(f => (f.status ?? 0) === si);
-    const fmtData = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '';
-    return `<div class="kcol">
-      <div class="kcol-head ${st.kh}">${st.icon} ${st.label}<span class="kcnt ${st.cnt}">${cards.length}</span></div>
-      <div class="kcol-body ${st.kb}">
-        ${cards.length === 0 ? '<div class="empty-col">Sem fichas</div>' :
+  const fD = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '';
+  document.getElementById('view-kanban').innerHTML = `<div class="kanban-board">${
+    STATUS.map((st,si) => {
+      const cards = fichas.filter(f => (f.status??0)===si);
+      return `<div class="kcol">
+        <div class="kcol-head ${st.kh}">${st.icon} ${st.label}<span class="kcnt ${st.cnt}">${cards.length}</span></div>
+        <div class="kcol-body ${st.kb}">${!cards.length ? '<div class="empty-col">Sem fichas</div>' :
           cards.map(f => `<div class="kcard" onclick="abrirModal('${f._id}')">
             <div class="kcard-pac">${esc(f.paciente||'—')}</div>
-            <div class="kcard-proc">${esc(f.procedimento||'—')}</div>
+            <div class="kcard-proc">${esc(f.procedimento||'—')}${f.medico?' · '+esc(f.medico):''}</div>
             <div class="kcard-bot">
-              <span class="badge ${st.cls}">${st.label}</span>
-              <span class="kcard-data">${fmtData(f.dataCirurgia)}</span>
+              <span class="kcard-conv">${esc(f.convenio||f.hospital||'—')}</span>
+              <span class="kcard-data">${fD(f.dataCirurgia)}</span>
             </div>
             <div class="kcard-actions" onclick="event.stopPropagation()">
-              ${si < 4 ? `<button class="kbtn" style="border-color:var(--s${si+1}-bd);color:var(--s${si+1}-c)" onclick="atualizarStatus('${f._id}',${si+1})">→ ${STATUS[si+1].label}</button>` : ''}
-              ${si > 0 ? `<button class="kbtn" style="border-color:var(--border);color:var(--text3);flex:0;padding:4px 8px" onclick="atualizarStatus('${f._id}',${si-1})">↩</button>` : ''}
+              ${si<4?`<button class="kbtn" style="border-color:var(--s${si+1}-bd);color:var(--s${si+1}-c)" onclick="mudStatus('${f._id}',${si+1})">→ ${STATUS[si+1].label}</button>`:''}
+              ${si>0?`<button class="kbtn" style="border-color:var(--border);color:var(--text3);flex:0;padding:4px 8px" onclick="mudStatus('${f._id}',${si-1})">↩</button>`:''}
+              <button class="kbtn" style="border-color:var(--border);color:var(--text3);flex:0;padding:4px 8px" onclick="abrirModal('${f._id}')">✏️</button>
             </div>
-          </div>`).join('')
-        }
-      </div>
-    </div>`;
-  }).join('');
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }).join('')
+  }</div>`;
 }
 
-// ─── DASHBOARD ───
+// DASHBOARD
 function renderDashboard() {
   const totais = STATUS.map((_,i) => fichas.filter(f=>(f.status??0)===i).length);
   const total = fichas.length;
-  document.getElementById('dash-stats').innerHTML = STATUS.map((st,i) =>
-    `<div class="stat-card sc${i}" onclick="filtrarStatus(${i})">
-      <div class="stat-lbl">${st.label}</div>
-      <div class="stat-val">${totais[i]}</div>
-      <div class="stat-sub">${total ? Math.round(totais[i]/total*100) : 0}% do total</div>
-    </div>`
-  ).join('');
+  const fV = v => 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  const valorTotal = fichas.reduce((a,f) => a+(Number(f.total)||0), 0);
+  const mx = Math.max(...totais, 1);
+  const agora = Date.now();
 
-  const valorTotal = fichas.reduce((a,f) => a + (Number(f.total)||0), 0);
-  const fmtV = v => 'R$ ' + v.toLocaleString('pt-BR',{minimumFractionDigits:2});
-  document.getElementById('dash-charts').innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden">
-      <div style="padding:11px 15px;border-bottom:1px solid var(--border);background:var(--surface2);font-family:var(--display);font-size:0.8rem;font-weight:700;color:var(--text)">📊 Funil do Fluxo</div>
-      <div style="padding:14px">
-        ${STATUS.map((st,i) => {
-          const n = totais[i]; const pct = total ? Math.round(n/Math.max(...totais)*100) : 0;
-          return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-            <span style="font-size:0.72rem;color:var(--s${i}-c);width:100px;flex-shrink:0">${st.label}</span>
-            <div style="flex:1;height:20px;background:var(--surface2);border-radius:4px;overflow:hidden">
-              <div style="width:${pct}%;height:100%;background:var(--s${i}-c);border-radius:4px;display:flex;align-items:center;padding-left:8px">
-                ${n > 0 ? `<span style="font-family:var(--mono);font-size:0.6rem;font-weight:600;color:white">${n}</span>` : ''}
-              </div>
-            </div>
-            <span style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);width:18px;text-align:right">${n}</span>
-          </div>`;
-        }).join('')}
-        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.6rem;color:var(--text3)">
-          Total: <strong style="color:var(--text)">${total} fichas</strong> · Valor: <strong style="color:var(--accent)">${fmtV(valorTotal)}</strong>
+  function tempoRelativo(seg) {
+    if (!seg) return 'agora';
+    const d = Math.round((agora/1000 - seg)/60);
+    if (d<2) return 'agora';
+    if (d<60) return `há ${d}min`;
+    if (d<1440) return `há ${Math.round(d/60)}h`;
+    return `há ${Math.round(d/1440)}d`;
+  }
+
+  const recentes = [...fichas].filter(f => f.atualizadoEm?.seconds)
+    .sort((a,b) => (b.atualizadoEm?.seconds||0)-(a.atualizadoEm?.seconds||0)).slice(0,5);
+
+  const convMap = {}; fichas.forEach(f => { const c=f.convenio||'—'; convMap[c]=(convMap[c]||0)+1; });
+  const convList = Object.entries(convMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const mxC = convList[0]?.[1] || 1;
+
+  const medMap = {}; fichas.forEach(f => { const m=f.medico||'—'; medMap[m]=(medMap[m]||0)+1; });
+  const medList = Object.entries(medMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const mxM = medList[0]?.[1] || 1;
+
+  document.getElementById('view-dashboard').innerHTML = `
+    <div class="stats-bar">
+      ${STATUS.map((st,i) => `<div class="stat-card sc${i}" onclick="filtrarStatus(${i})">
+        <div class="stat-lbl">${st.label}</div>
+        <div class="stat-val">${totais[i]}</div>
+        <div class="stat-sub">${total?Math.round(totais[i]/total*100):0}% do total</div>
+      </div>`).join('')}
+    </div>
+    <div class="dash-grid">
+      <div class="dcard">
+        <div class="dcard-head">📊 Funil do Fluxo</div>
+        <div class="dcard-body">
+          <div class="funnel">
+            ${STATUS.map((st,i) => `<div class="funnel-row">
+              <span class="funnel-name" style="color:var(--s${i}-c)">${st.label}</span>
+              <div class="funnel-track"><div class="funnel-fill ${st.ff}" style="width:${total?Math.round(totais[i]/mx*100):0}%">${totais[i]>0?`<span>${totais[i]}</span>`:''}</div></div>
+              <span class="funnel-count">${totais[i]}</span>
+            </div>`).join('')}
+          </div>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.6rem;color:var(--text3)">
+            Total: <strong style="color:var(--text)">${total} fichas</strong>&nbsp;·&nbsp;Valor: <strong style="color:var(--accent)">${fV(valorTotal)}</strong>
+          </div>
         </div>
       </div>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden">
-      <div style="padding:11px 15px;border-bottom:1px solid var(--border);background:var(--surface2);font-family:var(--display);font-size:0.8rem;font-weight:700;color:var(--text)">🏥 Por Hospital</div>
-      <div style="padding:14px">
-        ${(() => {
-          const hosp = {}; fichas.forEach(f => { const h = f.hospital||'—'; hosp[h]=(hosp[h]||0)+1; });
-          const sorted = Object.entries(hosp).sort((a,b)=>b[1]-a[1]).slice(0,6);
-          const mx = sorted[0]?.[1] || 1;
-          return sorted.map(([h,n]) => `<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
-            <span style="font-size:0.72rem;color:var(--text2);width:110px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(h)}">${esc(h)}</span>
-            <div style="flex:1;height:16px;background:var(--surface2);border-radius:4px;overflow:hidden">
-              <div style="width:${Math.round(n/mx*100)}%;height:100%;background:var(--accent2);border-radius:4px"></div>
-            </div>
-            <span style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);width:18px;text-align:right">${n}</span>
-          </div>`).join('') || '<div class="empty-col">Sem dados</div>';
-        })()}
+      <div class="dcard">
+        <div class="dcard-head">🕐 Atividade Recente</div>
+        <div class="dcard-body" style="padding:0 14px">
+          <div class="act-list">
+            ${!recentes.length
+              ? '<div class="empty-col" style="padding:20px 0">Nenhuma atividade registrada</div>'
+              : recentes.map(f => {
+                  const s = f.status??0;
+                  return `<div class="act-item">
+                    <div class="act-dot" style="background:var(--s${s}-c)"></div>
+                    <div class="act-info">
+                      <div class="act-name">${esc(f.paciente||'—')}</div>
+                      <div class="act-desc">${STATUS[s].label} · ${esc(f.procedimento||f.convenio||'—')}</div>
+                    </div>
+                    <span class="act-time">${tempoRelativo(f.atualizadoEm?.seconds)}</span>
+                  </div>`;
+                }).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="dcard">
+        <div class="dcard-head">🏥 Por Convênio</div>
+        <div class="dcard-body">
+          ${!convList.length ? '<div class="empty-col">Sem dados</div>' :
+            `<div class="funnel">${convList.map(([c,n]) => `<div class="funnel-row">
+              <span class="funnel-name" style="font-size:0.7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(c)}">${esc(c)}</span>
+              <div class="funnel-track" style="height:16px"><div style="width:${Math.round(n/mxC*100)}%;height:100%;background:var(--accent2);border-radius:4px"></div></div>
+              <span class="funnel-count">${n}</span>
+            </div>`).join('')}</div>`}
+        </div>
+      </div>
+      <div class="dcard">
+        <div class="dcard-head">👨‍⚕️ Por Médico</div>
+        <div class="dcard-body">
+          ${!medList.length ? '<div class="empty-col">Sem dados</div>' :
+            `<div class="funnel">${medList.map(([m,n]) => `<div class="funnel-row">
+              <span class="funnel-name" style="font-size:0.7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(m)}">${esc(m)}</span>
+              <div class="funnel-track" style="height:16px"><div style="width:${Math.round(n/mxM*100)}%;height:100%;background:var(--accent3);border-radius:4px"></div></div>
+              <span class="funnel-count">${n}</span>
+            </div>`).join('')}</div>`}
+        </div>
       </div>
     </div>`;
 }
 
-// ─── MODAL ───
-window.abrirModal = function(id) {
+// MODAL
+window.abrirModal = id => {
   editingId = id || null;
-  pvFile = null; opmeFile = null;
-  itensModal = [];
-
-  document.getElementById('import-badge').style.display = 'none';
-  document.getElementById('fp-opme').style.display = 'none';
-  document.getElementById('fp-pv').style.display = 'none';
-  document.getElementById('zone-opme').classList.remove('has-file');
-  document.getElementById('zone-pv').classList.remove('has-file');
+  itens = [];
+  ['opme','pv'].forEach(t => {
+    document.getElementById('fp-'+t).classList.remove('show');
+    document.getElementById('zone-'+t).classList.remove('has-file');
+  });
+  document.getElementById('import-badge').classList.remove('show');
   document.getElementById('pv-input').value = '';
 
   if (id) {
-    const f = fichas.find(x => x._id === id);
+    const f = fichas.find(x => x._id===id);
     if (!f) return;
     document.getElementById('modal-title').textContent = '✏️ Editar Ficha OPME';
-    document.getElementById('f-pac').value = f.paciente || '';
-    document.getElementById('f-med').value = f.medico || '';
-    document.getElementById('f-proc').value = f.procedimento || '';
-    document.getElementById('f-hosp').value = f.hospital || '';
-    document.getElementById('f-conv').value = f.convenio || '';
-    document.getElementById('f-pedido').value = f.numeroPedido || '';
-    document.getElementById('f-data').value = f.dataCirurgia || '';
-    document.getElementById('f-status').value = f.status ?? 0;
-    document.getElementById('f-obs').value = f.observacoes || '';
-    itensModal = (f.itens || []).map(i => ({...i}));
+    document.getElementById('f-pac').value    = f.paciente||'';
+    document.getElementById('f-med').value    = f.medico||'';
+    document.getElementById('f-proc').value   = f.procedimento||'';
+    document.getElementById('f-hosp').value   = f.hospital||'';
+    document.getElementById('f-conv').value   = f.convenio||'';
+    document.getElementById('f-pedido').value = f.numeroPedido||'';
+    document.getElementById('f-data').value   = f.dataCirurgia||'';
+    document.getElementById('f-status').value = f.status??0;
+    document.getElementById('f-obs').value    = f.observacoes||'';
+    itens = (f.itens||[]).map(i => ({...i}));
   } else {
     document.getElementById('modal-title').textContent = '📋 Nova Ficha OPME';
-    ['f-pac','f-med','f-proc','f-hosp','f-conv','f-pedido','f-data','f-obs'].forEach(id => {
-      document.getElementById(id).value = '';
+    ['f-pac','f-med','f-proc','f-hosp','f-conv','f-pedido','f-data','f-obs'].forEach(x => {
+      document.getElementById(x).value = '';
     });
     document.getElementById('f-status').value = 0;
-    itensModal = [{ descricao:'', referencia:'', lote:'', qtd:1, precoUnit:0 }];
+    itens = [{descricao:'',referencia:'',lote:'',qtd:1,precoUnit:0}];
   }
-
   renderItens();
   document.getElementById('modal').classList.add('open');
 };
 
-window.fecharModal = function() {
+window.fecharModal = () => {
   document.getElementById('modal').classList.remove('open');
   editingId = null;
 };
 
-window.salvarFicha = async function() {
-  const pac = document.getElementById('f-pac').value.trim();
-  const med = document.getElementById('f-med').value.trim();
+window.salvarFicha = async () => {
+  const pac  = document.getElementById('f-pac').value.trim();
+  const med  = document.getElementById('f-med').value.trim();
   const proc = document.getElementById('f-proc').value.trim();
-  if (!pac) { alert('Informe o nome do paciente.'); return; }
-  if (!med) { alert('Informe o médico.'); return; }
+  if (!pac)  { alert('Informe o paciente.'); return; }
+  if (!med)  { alert('Informe o médico.'); return; }
   if (!proc) { alert('Informe o procedimento.'); return; }
-
-  coletarItensModal();
-  const itensValidos = itensModal.filter(i => i.descricao.trim());
-  const total = itensValidos.reduce((s,i) => s + (Number(i.precoUnit)||0) * (Number(i.qtd)||0), 0);
-
+  coletarItens();
+  const iv = itens.filter(i => i.descricao.trim());
+  const total = iv.reduce((s,i) => s + (Number(i.precoUnit)||0)*(Number(i.qtd)||0), 0);
   const dados = {
-    paciente:    pac,
-    medico:      med,
-    procedimento: proc,
-    hospital:    document.getElementById('f-hosp').value.trim(),
-    convenio:    document.getElementById('f-conv').value.trim(),
+    paciente:pac, medico:med, procedimento:proc,
+    hospital:     document.getElementById('f-hosp').value.trim(),
+    convenio:     document.getElementById('f-conv').value.trim(),
     numeroPedido: document.getElementById('f-pedido').value.trim(),
     dataCirurgia: document.getElementById('f-data').value,
-    status:      parseInt(document.getElementById('f-status').value),
-    observacoes: document.getElementById('f-obs').value.trim(),
-    itens:       itensValidos,
-    total,
+    status:       parseInt(document.getElementById('f-status').value),
+    observacoes:  document.getElementById('f-obs').value.trim(),
+    itens:iv, total
   };
-
   const btn = document.getElementById('btn-salvar');
   btn.disabled = true; btn.textContent = 'Salvando…';
   try {
-    await persistirFicha(dados, editingId);
+    await persistir(dados, editingId);
     fecharModal();
     toast(editingId ? 'Ficha atualizada!' : 'Ficha salva!', 'ok');
-  } catch(e) {
-    alert('Erro ao salvar: ' + e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = '💾 Salvar Ficha';
-  }
+  } catch(e) { alert('Erro ao salvar: '+e.message); }
+  finally { btn.disabled=false; btn.textContent='💾 Salvar Ficha'; }
 };
 
-// ─── ITENS ───
+// ITENS
 function renderItens() {
-  const cont = document.getElementById('itens-container');
-  cont.innerHTML = itensModal.map((it, i) => `
-    <div class="item-row" id="item-row-${i}">
-      <input class="finput" placeholder="Ex: Stent Coronário…" value="${esc(it.descricao||'')}" oninput="itensModal[${i}].descricao=this.value;calcTotal()">
-      <input class="finput" placeholder="Ref/Cód" value="${esc(it.referencia||'')}" oninput="itensModal[${i}].referencia=this.value">
-      <input class="finput" placeholder="Lote" value="${esc(it.lote||'')}" oninput="itensModal[${i}].lote=this.value">
-      <input class="finput" type="number" min="0" step="1" value="${it.qtd||1}" oninput="itensModal[${i}].qtd=+this.value;calcTotal()">
-      <input class="finput" type="number" min="0" step="0.01" value="${it.precoUnit||0}" oninput="itensModal[${i}].precoUnit=+this.value;calcTotal()">
+  document.getElementById('itens-container').innerHTML = itens.map((it,i) => `
+    <div class="item-row">
+      <input class="finput" placeholder="Descrição…" value="${esc(it.descricao||'')}" oninput="itens[${i}].descricao=this.value;calcTotal()">
+      <input class="finput" placeholder="Ref/Cód" value="${esc(it.referencia||'')}" oninput="itens[${i}].referencia=this.value">
+      <input class="finput" placeholder="Lote" value="${esc(it.lote||'')}" oninput="itens[${i}].lote=this.value">
+      <input class="finput" type="number" min="0" step="1" value="${it.qtd||1}" oninput="itens[${i}].qtd=+this.value;calcTotal()">
+      <input class="finput" type="number" min="0" step="0.01" value="${it.precoUnit||0}" oninput="itens[${i}].precoUnit=+this.value;calcTotal()">
       <button class="item-rm" onclick="removerItem(${i})">✕</button>
     </div>`).join('');
   calcTotal();
 }
 
-window.adicionarItem = function() {
-  coletarItensModal();
-  itensModal.push({ descricao:'', referencia:'', lote:'', qtd:1, precoUnit:0 });
-  renderItens();
-};
+window.adicionarItem = () => { coletarItens(); itens.push({descricao:'',referencia:'',lote:'',qtd:1,precoUnit:0}); renderItens(); };
+window.removerItem   = i  => { coletarItens(); itens.splice(i,1); renderItens(); };
 
-window.removerItem = function(i) {
-  coletarItensModal();
-  itensModal.splice(i, 1);
-  renderItens();
-};
-
-function coletarItensModal() {
-  document.querySelectorAll('#itens-container .item-row').forEach((row, i) => {
-    if (!itensModal[i]) return;
-    const inps = row.querySelectorAll('input');
-    itensModal[i].descricao = inps[0].value;
-    itensModal[i].referencia = inps[1].value;
-    itensModal[i].lote = inps[2].value;
-    itensModal[i].qtd = Number(inps[3].value) || 1;
-    itensModal[i].precoUnit = Number(inps[4].value) || 0;
+function coletarItens() {
+  document.querySelectorAll('#itens-container .item-row').forEach((row,i) => {
+    if (!itens[i]) return;
+    const inp = row.querySelectorAll('input');
+    itens[i].descricao  = inp[0].value;
+    itens[i].referencia = inp[1].value;
+    itens[i].lote       = inp[2].value;
+    itens[i].qtd        = Number(inp[3].value)||1;
+    itens[i].precoUnit  = Number(inp[4].value)||0;
   });
 }
 
 function calcTotal() {
-  const t = itensModal.reduce((s,i) => s + (Number(i.precoUnit)||0)*(Number(i.qtd)||1), 0);
-  document.getElementById('total-val').textContent = 'R$ ' + t.toLocaleString('pt-BR', {minimumFractionDigits:2});
+  const t = itens.reduce((s,i) => s+(Number(i.precoUnit)||0)*(Number(i.qtd)||1), 0);
+  document.getElementById('total-val').textContent = 'R$ '+t.toLocaleString('pt-BR',{minimumFractionDigits:2});
 }
 
-// ─── ARQUIVOS ───
-window.selecionarArq = function(input, tipo) {
-  const file = input.files[0]; if (!file) return;
-  const fmt = b => b < 1024*1024 ? (b/1024).toFixed(0)+' KB' : (b/1024/1024).toFixed(1)+' MB';
-  const fpEl = document.getElementById('fp-'+tipo);
-  document.getElementById('fp-'+tipo+'-nm').textContent = file.name + ' · ' + fmt(file.size);
-  fpEl.style.display = 'flex';
+// ARQUIVOS
+const fmt = b => b<1024*1024 ? (b/1024).toFixed(0)+' KB' : (b/1024/1024).toFixed(1)+' MB';
+
+window.selecionarArq = (input, tipo) => {
+  const f = input.files[0]; if (!f) return;
+  document.getElementById('fp-'+tipo+'-n').textContent = f.name;
+  document.getElementById('fp-'+tipo+'-s').textContent = fmt(f.size);
+  document.getElementById('fp-'+tipo).classList.add('show');
   document.getElementById('zone-'+tipo).classList.add('has-file');
-  if (tipo === 'opme') opmeFile = file;
 };
 
-window.removerArq = function(e, tipo) {
+window.removerArq = (e, tipo) => {
   e.preventDefault(); e.stopPropagation();
-  document.getElementById('fp-'+tipo).style.display = 'none';
+  document.getElementById('fp-'+tipo).classList.remove('show');
   document.getElementById('zone-'+tipo).classList.remove('has-file');
-  if (tipo === 'pv') { pvFile = null; document.getElementById('pv-input').value = ''; document.getElementById('import-badge').style.display = 'none'; }
-  else opmeFile = null;
+  if (tipo==='pv') {
+    document.getElementById('pv-input').value = '';
+    document.getElementById('import-badge').classList.remove('show');
+  }
 };
 
-// ─── C160 PDF PARSER ───
-window.selecionarPV = async function(input) {
+// C160 PDF
+window.selecionarPV = async input => {
   const file = input.files[0]; if (!file) return;
-  pvFile = file;
-  const fmt = b => b < 1024*1024 ? (b/1024).toFixed(0)+' KB' : (b/1024/1024).toFixed(1)+' MB';
-  document.getElementById('fp-pv-nm').textContent = file.name + ' · ' + fmt(file.size);
-  document.getElementById('fp-pv').style.display = 'flex';
+  document.getElementById('fp-pv-n').textContent = file.name;
+  document.getElementById('fp-pv-s').textContent = fmt(file.size);
+  document.getElementById('fp-pv').classList.add('show');
   document.getElementById('zone-pv').classList.add('has-file');
-
-  if (typeof pdfjsLib === 'undefined') {
-    toast('PDF.js não carregado. Verifique a conexão.', 'err'); return;
-  }
-
-  toast('Lendo PDF…', 'info');
+  if (typeof pdfjsLib === 'undefined') { toast('PDF.js não disponível.','err'); return; }
+  toast('Lendo PDF…','info');
   try {
     const dados = await extrairC160(file);
     preencherDeC160(dados);
-    document.getElementById('import-badge').style.display = 'flex';
-    toast('✅ Dados importados do C160!', 'ok');
-  } catch(e) {
-    console.error(e);
-    toast('Não foi possível extrair dados do PDF.', 'err');
-  }
+    document.getElementById('import-badge').classList.add('show');
+    toast('✅ Dados importados do C160!','ok');
+  } catch(e) { console.error(e); toast('Não foi possível extrair os dados.','err'); }
 };
 
 async function extrairC160(file) {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let textoCompleto = '';
-
-  for (let p = 1; p <= pdf.numPages; p++) {
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:ab}).promise;
+  let texto = '';
+  for (let p=1; p<=pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
-    // Agrupa itens em linhas usando Y position
-    const porLinha = {};
+    const linhas = {};
     content.items.forEach(it => {
       const y = Math.round(it.transform[5]);
-      if (!porLinha[y]) porLinha[y] = [];
-      porLinha[y].push(it.str);
+      if (!linhas[y]) linhas[y] = [];
+      linhas[y].push(it.str);
     });
-    const linhas = Object.keys(porLinha).sort((a,b) => b-a).map(y => porLinha[y].join(' '));
-    textoCompleto += linhas.join('\n') + '\n';
+    texto += Object.keys(linhas).sort((a,b)=>b-a).map(y=>linhas[y].join(' ')).join('\n')+'\n';
   }
-
-  return parsearC160(textoCompleto);
+  return parsearC160(texto);
 }
 
 function parsearC160(texto) {
-  const r = { itens: [] };
-  const t = texto.replace(/\s+/g, ' ');
-
-  // Campos simples
+  const r = {itens:[]};
   const campos = [
-    [/Paciente:\s*([^\n]+)/i, 'paciente'],
-    [/M[eé]dico:\s*([^\n]+)/i, 'medico'],
-    [/Hospital:\s*([^\n]+)/i, 'hospital'],
-    [/Conv[eê]nio:\s*([^\n]+)/i, 'convenio'],
+    [/Paciente:\s*([^\n]+)/i,       'paciente'],
+    [/M[eé]dico:\s*([^\n]+)/i,      'medico'],
+    [/Hospital:\s*([^\n]+)/i,        'hospital'],
+    [/Conv[eê]nio:\s*([^\n]+)/i,     'convenio'],
   ];
-  for (const [re, campo] of campos) {
+  for (const [re,campo] of campos) {
     const m = texto.match(re);
     if (m) r[campo] = m[1].replace(/\s+/g,' ').trim();
   }
-
-  // Nº Pedido — do título C160
-  const mPed = texto.match(/Pedido de Venda N[ºo°]?\.?\s*:?\s*(\d+)/i) || t.match(/Venda N[ºo°]?\.?\s*:?\s*(\d+)/i);
+  const mPed = texto.match(/Pedido de Venda N[ºo°]?\.?\s*:?\s*(\d+)/i);
   if (mPed) r.numeroPedido = mPed[1].trim();
-
-  // Data cirurgia
   const mData = texto.match(/Data da Cirurgia:\s*(\d{2}\/\d{2}\/\d{4})/i);
-  if (mData) { const [d,m,y] = mData[1].split('/'); r.dataCirurgia = `${y}-${m}-${d}`; }
-
-  // Extrai itens do C160
-  // Cada produto aparece como linha com: item# código NOME-EM-CAPS registro-ANVISA
-  // Seguido de linha com qtd, preço unit, total
-  const linhas = texto.split('\n');
-  const itemRe = /^\s*(\d+)\s+(\w+)\s+([A-Z][A-Z0-9\s\.\,\/×xX\-]+?)(?=\s+\d{8,}\s*-|\s*$)/;
-  const loteRe = /N\.\s*Lote:\s*(\w+)/i;
-  const precoRe = /(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/;
-
-  for (let i = 0; i < linhas.length; i++) {
-    const l = linhas[i];
-    const mItem = l.match(itemRe);
-    if (!mItem) continue;
-
-    const item = { descricao: mItem[3].trim(), referencia: mItem[2], lote: '', qtd: 1, precoUnit: 0 };
-
-    // Procura lote e preços nas próximas linhas
-    for (let j = i+1; j < Math.min(i+8, linhas.length); j++) {
-      const nl = linhas[j];
-      const mLote = nl.match(loteRe);
-      if (mLote && !item.lote) item.lote = mLote[1];
-
-      const mPreco = nl.match(precoRe);
-      if (mPreco) {
-        const parseVal = v => parseFloat(v.replace(/\./g,'').replace(',','.'));
-        const qtd = parseVal(mPreco[1]);
-        const preco = parseVal(mPreco[2]);
-        if (qtd > 0 && preco > 0) { item.qtd = qtd; item.precoUnit = preco; break; }
-      }
-    }
-
-    if (item.descricao.length > 3) r.itens.push(item);
+  if (mData) {
+    const [,d,m,y] = mData[1].match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    r.dataCirurgia = `${y}-${m}-${d}`;
   }
-
-  // Total
-  const mTotal = texto.match(/Totais do Pedido[:\s]+(\d{1,3}(?:\.\d{3})*,\d{2})/i);
-  if (mTotal) r.total = parseFloat(mTotal[1].replace(/\./g,'').replace(',','.'));
-
+  const linhas = texto.split('\n');
+  const pv = v => parseFloat(v.replace(/\./g,'').replace(',','.'));
+  for (let i=0; i<linhas.length; i++) {
+    const mItem = linhas[i].match(/^\s*(\d+)\s+(\w+)\s+([A-Z][A-Z0-9\s\.\,\/×xX\-]{3,}?)(?=\s*$)/);
+    if (!mItem) continue;
+    const item = {descricao:mItem[3].trim(),referencia:mItem[2],lote:'',qtd:1,precoUnit:0};
+    for (let j=i+1; j<Math.min(i+8,linhas.length); j++) {
+      const mLote = linhas[j].match(/N\.\s*Lote:\s*(\w+)/i);
+      if (mLote && !item.lote) item.lote = mLote[1];
+      const mP = linhas[j].match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/);
+      if (mP) { const q=pv(mP[1]),p=pv(mP[2]); if(q>0&&p>0){item.qtd=q;item.precoUnit=p;break;} }
+    }
+    if (item.descricao.length>3) r.itens.push(item);
+  }
   return r;
 }
 
-function preencherDeC160(dados) {
-  if (dados.paciente)    document.getElementById('f-pac').value = dados.paciente;
-  if (dados.medico)      document.getElementById('f-med').value = dados.medico;
-  if (dados.hospital)    document.getElementById('f-hosp').value = dados.hospital;
-  if (dados.convenio)    document.getElementById('f-conv').value = dados.convenio;
-  if (dados.numeroPedido) document.getElementById('f-pedido').value = dados.numeroPedido;
-  if (dados.dataCirurgia) document.getElementById('f-data').value = dados.dataCirurgia;
-  if (dados.itens && dados.itens.length > 0) {
-    itensModal = dados.itens.map(i => ({ ...i }));
-    renderItens();
-  }
+function preencherDeC160(d) {
+  if (d.paciente)     document.getElementById('f-pac').value    = d.paciente;
+  if (d.medico)       document.getElementById('f-med').value    = d.medico;
+  if (d.hospital)     document.getElementById('f-hosp').value   = d.hospital;
+  if (d.convenio)     document.getElementById('f-conv').value   = d.convenio;
+  if (d.numeroPedido) document.getElementById('f-pedido').value = d.numeroPedido;
+  if (d.dataCirurgia) document.getElementById('f-data').value   = d.dataCirurgia;
+  if (d.itens?.length) { itens = d.itens.map(i=>({...i})); renderItens(); }
 }
 
-// ─── EXPORTAR ───
-window.exportarCSV = function() {
-  const lista = getFichasFiltradas();
-  if (!lista.length) { toast('Nenhuma ficha para exportar.', 'info'); return; }
-  const fmtData = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '';
-  const fmtVal = v => v ? Number(v).toFixed(2).replace('.',',') : '';
+// CSV
+window.exportarCSV = () => {
+  const lista = filtradas();
+  if (!lista.length) { toast('Nenhuma ficha para exportar.','info'); return; }
+  const fD = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '';
+  const fV = v => v ? Number(v).toFixed(2).replace('.',',') : '';
   const cab = ['Paciente','Médico','Procedimento','Hospital','Convênio','Nº PV','Data Cirurgia','Status','Total'];
   const rows = lista.map(f => [
-    f.paciente, f.medico, f.procedimento, f.hospital, f.convenio, f.numeroPedido,
-    fmtData(f.dataCirurgia), STATUS[f.status??0].label, fmtVal(f.total)
+    f.paciente,f.medico,f.procedimento,f.hospital,f.convenio,
+    f.numeroPedido,fD(f.dataCirurgia),STATUS[f.status??0].label,fV(f.total)
   ].map(v => '"'+(v||'').replace(/"/g,'""')+'"').join(';'));
-  const csv = [cab.join(';'), ...rows].join('\n');
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'}));
-  a.download = 'fichas-opme-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.href = URL.createObjectURL(new Blob(['﻿'+[cab.join(';'),...rows].join('\n'),{type:'text/csv;charset=utf-8'}]));
+  a.download = 'fichas-opme-cgr-'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
 };
 
-// ─── UTILS ───
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// UTILS
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 function toast(msg, tipo='ok') {
   const t = document.createElement('div');
@@ -1035,14 +930,9 @@ function toast(msg, tipo='ok') {
   setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.2s'; setTimeout(()=>t.remove(),200); }, 3000);
 }
 
-// Fechar modal clicando fora
 document.getElementById('modal').addEventListener('click', e => {
   if (e.target === document.getElementById('modal')) fecharModal();
 });
-
-// Expor para HTML onclick
-window.excluirFicha = excluirFicha;
-window.atualizarStatus = atualizarStatus;
 </script>
 </body>
 </html>
