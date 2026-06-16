@@ -905,30 +905,40 @@ function parsearC160(texto, filename) {
   const r = {itens:[]};
   const limpar = s => s.replace(/\s+/g,' ').trim();
 
-  // Extrai do nome do arquivo (muito confiável): "Nº4052 - NOME DO PACIENTE.pdf"
+  // 1. Nome do arquivo — sempre disponível, extrai paciente e nº pedido
   if (filename) {
     const mFN = filename.match(/N[ºo°]\s*(\d+)\s*[-–—]\s*(.+?)(?:\.\w{2,4})?$/i);
-    if (mFN) {
-      r.numeroPedido = mFN[1].trim();
-      r.paciente = limpar(mFN[2]);
-    }
+    if (mFN) { r.numeroPedido = mFN[1].trim(); r.paciente = limpar(mFN[2]); }
   }
 
-  const LABELS = 'Paciente|Benefici[aá]rio|M[eé]dico|Cirurgi[aã]o|Hospital|Cl[ií]nica|Conv[eê]nio|Plano|Operadora|CRM|CPF|Data|Pedido|N[ºo°]|Tel';
-  const stop = `(?=\\s*(?:${LABELS})[\\s:·–—]|$)`;
+  if (!texto) return r;
 
-  const campos = [
-    [new RegExp(`(?:Paciente|Benefici[aá]rio)\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'paciente'],
-    [new RegExp(`(?:M[eé]dico|Cirurgi[aã]o)\\s*(?:Respons[aá]vel)?\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'medico'],
-    [new RegExp(`(?:Hospital|Cl[ií]nica)\\s*(?:\\/[^:]*)?\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'hospital'],
-    [new RegExp(`(?:Conv[eê]nio|Plano(?:\\s+de\\s+Sa[uú]de)?|Operadora)\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'convenio'],
+  const linhas = texto.split(/\r?\n/).map(l => l.trim());
+
+  // 2. Inline: "Label: Valor" — captura até fim da linha ([^\n\r]+)
+  const reInline = [
+    [/(?:Paciente|Benefici[aá]rio)\s*[:\-·]\s*([^\n\r]+)/i,                                        'paciente'],
+    [/(?:M[eé]dico|Cirurgi[aã]o)(?:\s+(?:Solicitante|Respons[aá]vel|Cirurgi[aã]o))?\s*[:\-·]\s*([^\n\r]+)/i, 'medico'],
+    [/(?:Hospital|Cl[ií]nica|Cliente(?:\/Hospital)?)\s*(?:\/[^:\n]*)?\s*[:\-·]\s*([^\n\r]+)/i,    'hospital'],
+    [/(?:Conv[eê]nio|Plano(?:\s+de\s+Sa[uú]de)?|Operadora|Conv\.?)\s*[:\-·]\s*([^\n\r]+)/i,      'convenio'],
   ];
-  for (const [re, campo] of campos) {
+  for (const [re, campo] of reInline) {
+    if (r[campo]) continue;
     const m = texto.match(re);
-    if (m && m[1] && !r[campo]) r[campo] = limpar(m[1]);
+    if (m && m[1]) { const v = limpar(m[1]); if (v && v.length > 1) r[campo] = v; }
   }
 
-  // Número do pedido — só sobrescreve se ainda não veio do filename
+  // 3. Duas-linhas: label sozinho na linha → valor na próxima linha
+  for (let i = 0; i < linhas.length - 1; i++) {
+    const l = linhas[i], next = limpar(linhas[i+1]);
+    if (!next || next.length < 2) continue;
+    if (!r.paciente && /^(?:Paciente|Benefici[aá]rio)\s*:?$/i.test(l))                       r.paciente = next;
+    if (!r.medico   && /^(?:M[eé]dico|Cirurgi[aã]o)(?:\s+\w+)?\s*:?$/i.test(l))             r.medico   = next;
+    if (!r.hospital && /^(?:Hospital|Cl[ií]nica|Cliente(?:\/Hospital)?)\s*:?$/i.test(l))     r.hospital = next;
+    if (!r.convenio && /^(?:Conv[eê]nio|Plano(?:\s+de\s+Sa[uú]de)?|Operadora)\s*:?$/i.test(l)) r.convenio = next;
+  }
+
+  // 4. Nº pedido (fallback se não veio do filename)
   if (!r.numeroPedido) {
     const mPed = texto.match(/Pedido\s*(?:de\s*Venda)?\s*N[ºo°]?\.?\s*[:\-]?\s*(\d+)/i)
                || texto.match(/N[ºo°]\s*(?:do\s*)?Pedido\s*[:\-]?\s*(\d+)/i)
@@ -937,7 +947,7 @@ function parsearC160(texto, filename) {
     if (mPed) r.numeroPedido = mPed[1].trim();
   }
 
-  // Data — vários formatos
+  // 5. Data
   const mData = texto.match(/(?:Data\s*(?:da\s*Cirurgia|Cir\.?|Procedimento|do\s*Ato)?\s*[:\-]?\s*)(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2,4})/i)
               || texto.match(/(\d{2}\/\d{2}\/\d{4})/);
   if (mData) {
@@ -949,8 +959,12 @@ function parsearC160(texto, filename) {
     }
   }
 
+  // 6. Limpar espaços extras em todos os campos de texto
+  for (const k of ['paciente','medico','hospital','convenio']) {
+    if (r[k]) r[k] = limpar(r[k]);
+  }
+
   // Itens — busca por padrões de número de sequência + descrição + lote/qtd
-  const linhas = texto.split('\n');
   const pv = v => parseFloat(v.replace(/\./g,'').replace(',','.'));
 
   for (let i=0; i<linhas.length; i++) {
