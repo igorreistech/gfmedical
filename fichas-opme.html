@@ -345,11 +345,11 @@ tbody tr:hover .row-acts{opacity:1}
       </div>
       <div class="frow">
         <div class="fg"><label class="flbl">Paciente *</label><input class="finput" id="f-pac" placeholder="Nome completo"></div>
-        <div class="fg"><label class="flbl">Médico *</label><input class="finput" id="f-med" placeholder="Dr./Dra."></div>
+        <div class="fg"><label class="flbl">Médico *</label><input class="finput" id="f-med" placeholder="Dr./Dra." list="dl-medico"><datalist id="dl-medico"></datalist></div>
       </div>
       <div class="frow">
         <div class="fg"><label class="flbl">Procedimento *</label><input class="finput" id="f-proc" placeholder="Ex: Stent Coronário"></div>
-        <div class="fg"><label class="flbl">Hospital</label><input class="finput" id="f-hosp" placeholder="Nome do hospital"></div>
+        <div class="fg"><label class="flbl">Hospital</label><input class="finput" id="f-hosp" placeholder="Nome do hospital" list="dl-hospital"><datalist id="dl-hospital"></datalist></div>
       </div>
       <div class="frow">
         <div class="fg"><label class="flbl">Convênio</label><input class="finput" id="f-conv" placeholder="Ex: Unimed, SUS…"></div>
@@ -401,7 +401,7 @@ tbody tr:hover .row-acts{opacity:1}
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey:"AIzaSyCKQ0IFOO-8bQDqBN7oV1GTFbATmXI8MTI",
@@ -429,6 +429,7 @@ const STATUS = [
 ];
 
 let fichas=[], curView='lista', curFilter=-1, editingId=null, itens=[];
+let _medicos=[], _hospitais=[];
 
 // AUTH
 onAuthStateChanged(auth, u => {
@@ -439,6 +440,7 @@ onAuthStateChanged(auth, u => {
     document.getElementById('user-nm').textContent = nome.split(' ')[0] || nome;
     document.getElementById('user-av').textContent = nome.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase() || '?';
     carregarFichas();
+    carregarRegistros();
   } else {
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('app-root').style.display = 'none';
@@ -851,18 +853,41 @@ window.selecionarPV = async input => {
 async function extrairC160(file) {
   const ab = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({data:ab}).promise;
-  let texto = '';
+  const allItems = [];
   for (let p=1; p<=pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
-    const linhas = {};
     content.items.forEach(it => {
-      const y = Math.round(it.transform[5]);
-      if (!linhas[y]) linhas[y] = [];
-      linhas[y].push(it.str);
+      if (!it.str) return;
+      allItems.push({
+        str: it.str,
+        x: it.transform[4],
+        y: it.transform[5],
+        w: it.width || (it.str.length * Math.abs(it.transform[0]) * 0.5),
+        pg: p
+      });
     });
-    texto += Object.keys(linhas).sort((a,b)=>b-a).map(y=>linhas[y].join(' ')).join('\n')+'\n';
   }
+  allItems.sort((a,b) => a.pg-b.pg || b.y-a.y || a.x-b.x);
+  const lines = [];
+  for (const item of allItems) {
+    const last = lines[lines.length-1];
+    if (last && last[0].pg===item.pg && Math.abs(item.y - last[0].y) <= 4) {
+      last.push(item);
+    } else {
+      lines.push([item]);
+    }
+  }
+  const texto = lines.map(grp => {
+    let r = '';
+    for (let i=0; i<grp.length; i++) {
+      if (i===0) { r = grp[i].str; continue; }
+      const prev = grp[i-1];
+      const gap = grp[i].x - (prev.x + prev.w);
+      r += (gap > 2 ? ' ' : '') + grp[i].str;
+    }
+    return r;
+  }).join('\n');
   return parsearC160(texto);
 }
 
@@ -934,6 +959,28 @@ function parsearC160(texto) {
     if (item.descricao.length>3) r.itens.push(item);
   }
   return r;
+}
+
+async function carregarRegistros() {
+  try {
+    const snap = await getDocs(collection(db, 'procedimentos_cg'));
+    const meds = new Set(), hosps = new Set();
+    snap.forEach(d => {
+      const data = d.data();
+      if (data.medico?.trim()) meds.add(data.medico.trim());
+      if (data.hospital?.trim()) hosps.add(data.hospital.trim());
+    });
+    fichas.forEach(f => {
+      if (f.medico?.trim()) meds.add(f.medico.trim());
+      if (f.hospital?.trim()) hosps.add(f.hospital.trim());
+    });
+    _medicos = [...meds].sort();
+    _hospitais = [...hosps].sort();
+    const dlM = document.getElementById('dl-medico');
+    const dlH = document.getElementById('dl-hospital');
+    if (dlM) dlM.innerHTML = _medicos.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">`).join('');
+    if (dlH) dlH.innerHTML = _hospitais.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">`).join('');
+  } catch(e) { console.error('Erro ao carregar registros:', e); }
 }
 
 function preencherDeC160(d) {
