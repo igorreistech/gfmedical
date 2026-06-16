@@ -352,7 +352,7 @@ tbody tr:hover .row-acts{opacity:1}
         <div class="fg"><label class="flbl">Hospital</label><input class="finput" id="f-hosp" placeholder="Nome do hospital" list="dl-hospital"><datalist id="dl-hospital"></datalist></div>
       </div>
       <div class="frow">
-        <div class="fg"><label class="flbl">Convênio</label><input class="finput" id="f-conv" placeholder="Ex: Unimed, SUS…"></div>
+        <div class="fg"><label class="flbl">Convênio</label><input class="finput" id="f-conv" placeholder="Ex: Unimed, SUS…" list="dl-convenio"><datalist id="dl-convenio"></datalist></div>
         <div class="fg"><label class="flbl">Nº Pedido de Venda</label><input class="finput" id="f-pedido" placeholder="Ex: 4795"></div>
       </div>
       <div class="frow">
@@ -843,7 +843,7 @@ window.selecionarPV = async input => {
   if (typeof pdfjsLib === 'undefined') { toast('PDF.js não disponível.','err'); return; }
   toast('Lendo PDF…','info');
   try {
-    const dados = await extrairC160(file);
+    const dados = await extrairC160(file, file.name);
     preencherDeC160(dados);
     document.getElementById('import-badge').classList.add('show');
     toast('✅ Dados importados do C160!','ok');
@@ -888,34 +888,44 @@ async function extrairC160(file) {
     }
     return r;
   }).join('\n');
-  return parsearC160(texto);
+  return parsearC160(texto, filename);
 }
 
-function parsearC160(texto) {
+function parsearC160(texto, filename) {
   const r = {itens:[]};
   const limpar = s => s.replace(/\s+/g,' ').trim();
 
-  // Extração com lookahead para evitar capturar o label do próximo campo
-  const LABELS = 'Paciente|Médico|Medico|Cirurgi[aã]o|Hospital|Clínica|Clinica|Conv[eê]nio|Plano|CRM|CPF|Data|Pedido|N[ºo°]|Tel';
+  // Extrai do nome do arquivo (muito confiável): "Nº4052 - NOME DO PACIENTE.pdf"
+  if (filename) {
+    const mFN = filename.match(/N[ºo°]\s*(\d+)\s*[-–—]\s*(.+?)(?:\.\w{2,4})?$/i);
+    if (mFN) {
+      r.numeroPedido = mFN[1].trim();
+      r.paciente = limpar(mFN[2]);
+    }
+  }
+
+  const LABELS = 'Paciente|Benefici[aá]rio|M[eé]dico|Cirurgi[aã]o|Hospital|Cl[ií]nica|Conv[eê]nio|Plano|Operadora|CRM|CPF|Data|Pedido|N[ºo°]|Tel';
   const stop = `(?=\\s*(?:${LABELS})[\\s:·–—]|$)`;
 
   const campos = [
-    [new RegExp(`Paciente\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'),   'paciente'],
-    [new RegExp(`(?:Médico|Medico|Cirurgi[aã]o)\\s*(?:Responsável|Responsavel)?\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'medico'],
-    [new RegExp(`(?:Hospital|Clínica|Clinica)\\s*(?:\\/[^:]*)?\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'hospital'],
-    [new RegExp(`(?:Conv[eê]nio|Plano)\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'convenio'],
+    [new RegExp(`(?:Paciente|Benefici[aá]rio)\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'paciente'],
+    [new RegExp(`(?:M[eé]dico|Cirurgi[aã]o)\\s*(?:Respons[aá]vel)?\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'medico'],
+    [new RegExp(`(?:Hospital|Cl[ií]nica)\\s*(?:\\/[^:]*)?\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'hospital'],
+    [new RegExp(`(?:Conv[eê]nio|Plano(?:\\s+de\\s+Sa[uú]de)?|Operadora)\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'convenio'],
   ];
   for (const [re, campo] of campos) {
     const m = texto.match(re);
-    if (m && m[1]) r[campo] = limpar(m[1]);
+    if (m && m[1] && !r[campo]) r[campo] = limpar(m[1]);
   }
 
-  // Número do pedido — múltiplos formatos
-  const mPed = texto.match(/Pedido\s*(?:de\s*Venda)?\s*N[ºo°]?\.?\s*[:\-]?\s*(\d+)/i)
-             || texto.match(/N[ºo°]\s*(?:do\s*)?Pedido\s*[:\-]?\s*(\d+)/i)
-             || texto.match(/\bPV\s*N[ºo°]?\s*[:\-]?\s*(\d+)/i)
-             || texto.match(/Nº?\s*(\d{4,6})\b/);
-  if (mPed) r.numeroPedido = mPed[1].trim();
+  // Número do pedido — só sobrescreve se ainda não veio do filename
+  if (!r.numeroPedido) {
+    const mPed = texto.match(/Pedido\s*(?:de\s*Venda)?\s*N[ºo°]?\.?\s*[:\-]?\s*(\d+)/i)
+               || texto.match(/N[ºo°]\s*(?:do\s*)?Pedido\s*[:\-]?\s*(\d+)/i)
+               || texto.match(/\bPV\s*N[ºo°]?\s*[:\-]?\s*(\d+)/i)
+               || texto.match(/N[ºo°]\s*(\d{4,6})\b/);
+    if (mPed) r.numeroPedido = mPed[1].trim();
+  }
 
   // Data — vários formatos
   const mData = texto.match(/(?:Data\s*(?:da\s*Cirurgia|Cir\.?|Procedimento|do\s*Ato)?\s*[:\-]?\s*)(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2,4})/i)
@@ -964,22 +974,29 @@ function parsearC160(texto) {
 async function carregarRegistros() {
   try {
     const snap = await getDocs(collection(db, 'procedimentos_cg'));
-    const meds = new Set(), hosps = new Set();
+    const meds = new Set(), hosps = new Set(), convs = new Set();
     snap.forEach(d => {
       const data = d.data();
       if (data.medico?.trim()) meds.add(data.medico.trim());
       if (data.hospital?.trim()) hosps.add(data.hospital.trim());
+      const conv = (data.convenio || data.plano || '').trim();
+      if (conv) convs.add(conv);
     });
     fichas.forEach(f => {
       if (f.medico?.trim()) meds.add(f.medico.trim());
       if (f.hospital?.trim()) hosps.add(f.hospital.trim());
+      const conv = (f.convenio || '').trim();
+      if (conv) convs.add(conv);
     });
     _medicos = [...meds].sort();
     _hospitais = [...hosps].sort();
+    const opt = arr => arr.sort().map(v=>`<option value="${v.replace(/"/g,'&quot;')}">`).join('');
     const dlM = document.getElementById('dl-medico');
     const dlH = document.getElementById('dl-hospital');
-    if (dlM) dlM.innerHTML = _medicos.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">`).join('');
-    if (dlH) dlH.innerHTML = _hospitais.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">`).join('');
+    const dlC = document.getElementById('dl-convenio');
+    if (dlM) dlM.innerHTML = opt(_medicos);
+    if (dlH) dlH.innerHTML = opt(_hospitais);
+    if (dlC) dlC.innerHTML = opt([...convs]);
   } catch(e) { console.error('Erro ao carregar registros:', e); }
 }
 
