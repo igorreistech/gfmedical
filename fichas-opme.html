@@ -846,49 +846,59 @@ window.selecionarPV = async input => {
     const dados = await extrairC160(file, file.name);
     preencherDeC160(dados);
     document.getElementById('import-badge').classList.add('show');
-    toast('✅ Dados importados do C160!','ok');
+    const temPdf = !!(dados.medico || dados.hospital || dados.convenio);
+    toast(temPdf ? '✅ Dados importados do C160!' : '⚠️ Dados básicos extraídos do nome do arquivo.', temPdf ? 'ok' : 'info');
   } catch(e) { console.error(e); toast('Não foi possível extrair os dados.','err'); }
 };
 
-async function extrairC160(file) {
-  const ab = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({data:ab}).promise;
-  const allItems = [];
-  for (let p=1; p<=pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const content = await page.getTextContent();
-    content.items.forEach(it => {
-      if (!it.str) return;
-      allItems.push({
-        str: it.str,
-        x: it.transform[4],
-        y: it.transform[5],
-        w: it.width || (it.str.length * Math.abs(it.transform[0]) * 0.5),
-        pg: p
+async function extrairC160(file, filename) {
+  // Extrai do filename primeiro — sempre disponível mesmo se PDF falhar
+  const base = parsearC160('', filename);
+  try {
+    const ab = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:ab}).promise;
+    const allItems = [];
+    for (let p=1; p<=pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      content.items.forEach(it => {
+        if (!it.str) return;
+        allItems.push({
+          str: it.str,
+          x: it.transform[4],
+          y: it.transform[5],
+          w: it.width || (it.str.length * Math.abs(it.transform[0]) * 0.5),
+          pg: p
+        });
       });
-    });
-  }
-  allItems.sort((a,b) => a.pg-b.pg || b.y-a.y || a.x-b.x);
-  const lines = [];
-  for (const item of allItems) {
-    const last = lines[lines.length-1];
-    if (last && last[0].pg===item.pg && Math.abs(item.y - last[0].y) <= 4) {
-      last.push(item);
-    } else {
-      lines.push([item]);
     }
-  }
-  const texto = lines.map(grp => {
-    let r = '';
-    for (let i=0; i<grp.length; i++) {
-      if (i===0) { r = grp[i].str; continue; }
-      const prev = grp[i-1];
-      const gap = grp[i].x - (prev.x + prev.w);
-      r += (gap > 2 ? ' ' : '') + grp[i].str;
+    allItems.sort((a,b) => a.pg-b.pg || b.y-a.y || a.x-b.x);
+    const lines = [];
+    for (const item of allItems) {
+      const last = lines[lines.length-1];
+      if (last && last[0].pg===item.pg && Math.abs(item.y - last[0].y) <= 4) {
+        last.push(item);
+      } else {
+        lines.push([item]);
+      }
     }
-    return r;
-  }).join('\n');
-  return parsearC160(texto, filename);
+    const texto = lines.map(grp => {
+      let r = '';
+      for (let i=0; i<grp.length; i++) {
+        if (i===0) { r = grp[i].str; continue; }
+        const prev = grp[i-1];
+        const gap = grp[i].x - (prev.x + prev.w);
+        r += (gap > 2 ? ' ' : '') + grp[i].str;
+      }
+      return r;
+    }).join('\n');
+    const fromPdf = parsearC160(texto, filename);
+    // Merge: PDF tem prioridade, filename preenche o que faltar
+    return Object.assign(base, fromPdf);
+  } catch(e) {
+    console.warn('PDF.js falhou, usando dados do filename:', e);
+    return base;
+  }
 }
 
 function parsearC160(texto, filename) {
