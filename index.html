@@ -16453,6 +16453,7 @@ function criarIndicadorSync() {
         backdrop-filter:blur(6px);
     `;
     el.innerHTML = '<span id="sync-dot" style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span><span id="sync-text">Sincronizado</span>';
+    el.style.display = 'none';
     document.body.appendChild(el);
 }
 
@@ -17944,8 +17945,17 @@ window.buildCardHTML = function(proc) {
 
     // ── MODAL DE LANÇAMENTO → abre fichas-opme.html ──
     window.opmeAbrirLancamento = function(docId) {
-        window.open('fichas-opme.html', '_blank'); return;
         const proc = window._opme_proc_map && window._opme_proc_map[docId];
+        const p = new URLSearchParams();
+        if (proc) {
+            if (proc.paciente)   p.set('paciente', proc.paciente);
+            if (proc.medico)     p.set('medico', proc.medico);
+            if (proc.hospital)   p.set('hospital', proc.hospital);
+            if (proc.convenio || proc.plano) p.set('convenio', proc.convenio || proc.plano || '');
+            if (proc.procedimento) p.set('procedimento', proc.procedimento);
+            if (proc.data)       p.set('data', proc.data);
+        }
+        window.open('fichas-opme.html?' + p.toString(), '_blank'); return;
         if (!proc) { window.showSyncToast && window.showSyncToast('⚠️ Dados do procedimento não encontrados.'); return; }
         const antigo = document.getElementById('modal-opme-lancamento');
         if (antigo) antigo.remove();

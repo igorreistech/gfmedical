@@ -1638,7 +1638,16 @@ async function conclude(docId) {
 }
 
 window.abrirOpmePosConclusao = function(proc) {
-    window.open('fichas-opme.html', '_blank');
+    const p = new URLSearchParams();
+    if (proc) {
+        if (proc.paciente)     p.set('paciente', proc.paciente);
+        if (proc.medico)       p.set('medico', proc.medico);
+        if (proc.hospital)     p.set('hospital', proc.hospital);
+        if (proc.convenio || proc.plano) p.set('convenio', proc.convenio || proc.plano || '');
+        if (proc.procedimento) p.set('procedimento', proc.procedimento);
+        if (proc.data)         p.set('data', proc.data);
+    }
+    window.open('fichas-opme.html?' + p.toString(), '_blank');
 };
 
 function promptConcluir(proc) {

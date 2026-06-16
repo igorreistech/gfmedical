@@ -29,7 +29,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .sidebar{width:224px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;box-shadow:var(--shadow)}
 .sidebar-logo{padding:15px 16px;border-bottom:1px solid var(--border)}
 .logo-mark{display:flex;align-items:center;gap:10px}
-.logo-icon{width:34px;height:34px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--accent3));display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:0.65rem;color:white;line-height:1.2;text-align:center}
+.logo-icon{width:34px;height:34px;border-radius:8px;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.logo-icon img{width:100%;height:100%;object-fit:cover;border-radius:8px}
 .logo-text strong{display:block;font-family:var(--display);font-size:0.84rem;font-weight:700;color:var(--text)}
 .logo-text span{font-family:var(--mono);font-size:0.57rem;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase}
 .sidebar-inner{padding:10px 8px;flex:1;display:flex;flex-direction:column;overflow-y:auto}
@@ -209,7 +210,8 @@ tbody tr:hover .row-acts{opacity:1}
 .login-screen::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(26,122,74,0.055) 1px,transparent 1px),linear-gradient(90deg,rgba(26,122,74,0.055) 1px,transparent 1px);background-size:48px 48px}
 .login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:360px;box-shadow:var(--shadow-md);position:relative;z-index:1}
 .login-logo{display:flex;align-items:center;gap:12px;margin-bottom:20px}
-.login-logo-icon{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent3));display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:0.7rem;color:white;line-height:1.2;text-align:center}
+.login-logo-icon{width:54px;height:54px;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.login-logo-icon img{width:100%;height:100%;object-fit:cover;border-radius:10px}
 .login-logo-text strong{display:block;font-family:var(--display);font-size:1rem;font-weight:700;color:var(--text)}
 .login-logo-text span{font-family:var(--mono);font-size:0.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em}
 .login-filial-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:0.65rem;font-weight:600;padding:4px 10px;border-radius:20px;margin-bottom:20px;text-transform:uppercase;letter-spacing:0.08em;background:rgba(26,122,74,0.10);border:1px solid rgba(26,122,74,0.20);color:var(--accent)}
@@ -235,7 +237,7 @@ tbody tr:hover .row-acts{opacity:1}
 <div id="login-screen" class="login-screen">
   <div class="login-box">
     <div class="login-logo">
-      <div class="login-logo-icon">GF<br>MED</div>
+      <div class="login-logo-icon"><img src="logo.jpg" alt="GF Medical"></div>
       <div class="login-logo-text"><strong>GF Medical</strong><span>Fichas OPME</span></div>
     </div>
     <div class="login-filial-badge">🟢 Filial Campo Grande · MS</div>
@@ -252,7 +254,7 @@ tbody tr:hover .row-acts{opacity:1}
   <aside class="sidebar">
     <div class="sidebar-logo">
       <div class="logo-mark">
-        <div class="logo-icon">GF<br>MED</div>
+        <div class="logo-icon"><img src="logo.jpg" alt="GF Medical"></div>
         <div class="logo-text"><strong>GF Medical</strong><span>Fichas OPME</span></div>
       </div>
     </div>
@@ -392,6 +394,9 @@ tbody tr:hover .row-acts{opacity:1}
 </div>
 
 <div class="toasts" id="toasts"></div>
+<div style="position:fixed;bottom:8px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:0.58rem;color:var(--text3);opacity:0.6;z-index:50;white-space:nowrap;pointer-events:none">
+  Desenvolvido por <a href="https://devigorreis.github.io/portfolio" target="_blank" rel="noopener" style="color:var(--accent);opacity:1;text-decoration:none;pointer-events:all">Igor Reis</a>
+</div>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -719,9 +724,16 @@ window.abrirModal = id => {
     itens = (f.itens||[]).map(i => ({...i}));
   } else {
     document.getElementById('modal-title').textContent = '📋 Nova Ficha OPME';
-    ['f-pac','f-med','f-proc','f-hosp','f-conv','f-pedido','f-data','f-obs'].forEach(x => {
-      document.getElementById(x).value = '';
-    });
+    // Pré-preenche com dados da cirurgia via URL params (quando aberto do monitor)
+    const up = new URLSearchParams(window.location.search);
+    document.getElementById('f-pac').value    = up.get('paciente')    || '';
+    document.getElementById('f-med').value    = up.get('medico')      || '';
+    document.getElementById('f-proc').value   = up.get('procedimento')|| '';
+    document.getElementById('f-hosp').value   = up.get('hospital')    || '';
+    document.getElementById('f-conv').value   = up.get('convenio')    || '';
+    document.getElementById('f-pedido').value = '';
+    document.getElementById('f-data').value   = up.get('data')        || '';
+    document.getElementById('f-obs').value    = '';
     document.getElementById('f-status').value = 0;
     itens = [{descricao:'',referencia:'',lote:'',qtd:1,precoUnit:0}];
   }
@@ -856,34 +868,68 @@ async function extrairC160(file) {
 
 function parsearC160(texto) {
   const r = {itens:[]};
+  const limpar = s => s.replace(/\s+/g,' ').trim();
+
+  // Extração com lookahead para evitar capturar o label do próximo campo
+  const LABELS = 'Paciente|Médico|Medico|Cirurgi[aã]o|Hospital|Clínica|Clinica|Conv[eê]nio|Plano|CRM|CPF|Data|Pedido|N[ºo°]|Tel';
+  const stop = `(?=\\s*(?:${LABELS})[\\s:·–—]|$)`;
+
   const campos = [
-    [/Paciente:\s*([^\n]+)/i,       'paciente'],
-    [/M[eé]dico:\s*([^\n]+)/i,      'medico'],
-    [/Hospital:\s*([^\n]+)/i,        'hospital'],
-    [/Conv[eê]nio:\s*([^\n]+)/i,     'convenio'],
+    [new RegExp(`Paciente\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'),   'paciente'],
+    [new RegExp(`(?:Médico|Medico|Cirurgi[aã]o)\\s*(?:Responsável|Responsavel)?\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'medico'],
+    [new RegExp(`(?:Hospital|Clínica|Clinica)\\s*(?:\\/[^:]*)?\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'hospital'],
+    [new RegExp(`(?:Conv[eê]nio|Plano)\\s*[:\\-·]?\\s*(.+?)${stop}`, 'i'), 'convenio'],
   ];
-  for (const [re,campo] of campos) {
+  for (const [re, campo] of campos) {
     const m = texto.match(re);
-    if (m) r[campo] = m[1].replace(/\s+/g,' ').trim();
+    if (m && m[1]) r[campo] = limpar(m[1]);
   }
-  const mPed = texto.match(/Pedido de Venda N[ºo°]?\.?\s*:?\s*(\d+)/i);
+
+  // Número do pedido — múltiplos formatos
+  const mPed = texto.match(/Pedido\s*(?:de\s*Venda)?\s*N[ºo°]?\.?\s*[:\-]?\s*(\d+)/i)
+             || texto.match(/N[ºo°]\s*(?:do\s*)?Pedido\s*[:\-]?\s*(\d+)/i)
+             || texto.match(/\bPV\s*N[ºo°]?\s*[:\-]?\s*(\d+)/i)
+             || texto.match(/Nº?\s*(\d{4,6})\b/);
   if (mPed) r.numeroPedido = mPed[1].trim();
-  const mData = texto.match(/Data da Cirurgia:\s*(\d{2}\/\d{2}\/\d{4})/i);
+
+  // Data — vários formatos
+  const mData = texto.match(/(?:Data\s*(?:da\s*Cirurgia|Cir\.?|Procedimento|do\s*Ato)?\s*[:\-]?\s*)(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2,4})/i)
+              || texto.match(/(\d{2}\/\d{2}\/\d{4})/);
   if (mData) {
-    const [,d,m,y] = mData[1].match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    r.dataCirurgia = `${y}-${m}-${d}`;
+    const raw = mData[1].replace(/[-\.]/g,'/');
+    const parts = raw.split('/');
+    if (parts.length===3) {
+      const [d,m,y] = parts;
+      r.dataCirurgia = `${y.length===2?'20'+y:y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
   }
+
+  // Itens — busca por padrões de número de sequência + descrição + lote/qtd
   const linhas = texto.split('\n');
   const pv = v => parseFloat(v.replace(/\./g,'').replace(',','.'));
+
   for (let i=0; i<linhas.length; i++) {
-    const mItem = linhas[i].match(/^\s*(\d+)\s+(\w+)\s+([A-Z][A-Z0-9\s\.\,\/×xX\-]{3,}?)(?=\s*$)/);
+    const linha = linhas[i];
+    // Padrão: (seq) REFERENCIA DESCRICAO
+    const mItem = linha.match(/^\s*(\d{1,3})\s{1,6}(\w[\w\-\.]+)\s{2,}(.{4,}?)\s*$/)
+                || linha.match(/^\s*(\d{1,3})\s+([A-Z0-9][\w\-\.]+)\s+([A-ZÁÉÍÓÚ][^\n]{3,})/);
     if (!mItem) continue;
-    const item = {descricao:mItem[3].trim(),referencia:mItem[2],lote:'',qtd:1,precoUnit:0};
-    for (let j=i+1; j<Math.min(i+8,linhas.length); j++) {
-      const mLote = linhas[j].match(/N\.\s*Lote:\s*(\w+)/i);
+    const descRaw = mItem[3].trim();
+    // Ignora linhas que são headers
+    if (/Descrição|Referência|Quantidade|Unitário|Total|Valor/i.test(descRaw)) continue;
+    const item = {descricao:descRaw, referencia:mItem[2], lote:'', qtd:1, precoUnit:0};
+    for (let j=i+1; j<Math.min(i+10,linhas.length); j++) {
+      const lj = linhas[j];
+      const mLote = lj.match(/(?:N[°º]?\s*Lote|Lote)[:\s]*([A-Z0-9\-]+)/i);
       if (mLote && !item.lote) item.lote = mLote[1];
-      const mP = linhas[j].match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/);
-      if (mP) { const q=pv(mP[1]),p=pv(mP[2]); if(q>0&&p>0){item.qtd=q;item.precoUnit=p;break;} }
+      // qtd / preço unit / total na mesma linha
+      const mP = lj.match(/(\d{1,6}(?:[.,]\d{1,3})?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})/);
+      if (mP) {
+        const qtd = pv(mP[1]), pu = pv(mP[2]);
+        if (qtd>0 && pu>0) { item.qtd=qtd; item.precoUnit=pu; break; }
+      }
+      // Linha que claramente inicia outro item — para de procurar
+      if (/^\s*\d{1,3}\s+\w/.test(lj) && j>i+1) break;
     }
     if (item.descricao.length>3) r.itens.push(item);
   }
