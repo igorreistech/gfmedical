@@ -974,7 +974,9 @@ async function extrairC160(file, filename) {
       }
       return r;
     }).join('\n');
+    console.log('[C160] texto bruto extraído pelo PDF.js:\n' + texto);
     const fromPdf = parsearC160(texto, filename);
+    console.log('[C160] dados extraídos:', fromPdf);
     // Merge: PDF tem prioridade, filename preenche o que faltar
     return Object.assign(base, fromPdf);
   } catch(e) {
@@ -1081,9 +1083,13 @@ function parsearC160(texto, filename) {
   //    D) lotes — "N. Lote: XXX" ou linha solta "XXX QTD DD/MM/AAAA"
   const bases = [];
   {
-    const re = /^(\S+)\s+(.+?)\s+(\d{6,})\s*-\s*(.+)$/gm;
+    // Código de produto começa com dígitos (ex.: 2347C, 2235) — evita casar
+    // linhas de endereço/telefone que também têm um número de 6+ dígitos
+    // seguido de hífen (CEP, CNPJ).
+    const re = /^(\d{2,8}[A-Z0-9]{0,4})\s+(.+?)\s+(\d{6,})\s*-\s*(.+)$/gm;
     let m;
     while ((m = re.exec(txt))) {
+      if (/CEP|CNPJ|Fax\b|Tel\.|Insc\.|Bairro|Endere[çc]|Brasil|LOJA\b/i.test(m[0])) continue;
       const desc = lmp(m[2]);
       if (desc.length >= 3) bases.push({ referencia: m[1], descricao: desc });
     }
