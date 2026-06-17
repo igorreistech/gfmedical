@@ -996,43 +996,71 @@ function parsearC160(texto, filename) {
 
   if (!texto) return r;
 
+  // PDF.js às vezes extrai o texto fora da ordem visual (colunas separadas em
+  // blocos verticais distintos). Reconstrói o texto a partir de linhas já
+  // aparadas para que os regex com "^"/"$" funcionem de forma previsível.
   const ls = texto.split(/\r?\n/).map(l => l.trim());
+  const txt = ls.join('\n');
 
-  // 2. Cabeçalho inline — Label: Valor na mesma linha
+  // 2. Cliente do pedido → vira o campo Hospital da ficha (conforme solicitado)
+  //    Ex.: "284 UNIMED CAMPO GRANDE MS - CONVENIO Dt. Digitação: 12/06/2026"
+  const mCliente = txt.match(/\d{1,6}\s+(.+?)\s+Dt\.\s*Digita[çc][aã]o\s*:/i);
+  if (mCliente) r.hospital = lmp(mCliente[1]);
+
+  // 3. Paciente inline (form: "Paciente: NOME")
+  const mPac = txt.match(/Paciente\s*[:\-·]\s*([^\n\r]+)/i);
+  if (mPac) r.paciente = lmp(mPac[1]);
+
+  // 4. Em alguns C160 (ex.: Callisto/Sankhya) os VALORES de Médico/Convênio/
+  //    Hospital aparecem em até 3 linhas soltas logo ANTES da linha
+  //    "Paciente:", e os rótulos só aparecem depois, vazios. Usa essa posição
+  //    fixa como heurística quando os métodos acima não encontrarem nada.
+  const idxPac = ls.findIndex(l => /^Paciente\s*:/i.test(l));
+  if (idxPac > 0) {
+    const vals = [];
+    for (let k = idxPac-1; k >= 0 && vals.length < 3; k--) {
+      const lk = ls[k];
+      if (!lk) continue;
+      if (/:\s*$/.test(lk)) break;
+      if (/^(?:Locais de Estoque|Item\b|Registro ANVISA|PC)$/i.test(lk)) break;
+      vals.unshift(lk);
+    }
+    if (vals.length >= 1 && !r.hospital) r.hospital = vals[vals.length-1];
+    if (vals.length >= 2 && !r.convenio) r.convenio = vals[vals.length-2];
+    if (vals.length >= 3 && !r.medico)   r.medico   = vals[vals.length-3];
+  }
+
+  // 5. Fallbacks genéricos (outros formatos de C160) — inline e duas-linhas
   const HOSP_LABELS = /(?:Hospital|Cl[ií]nica|Cliente(?:\s*[\/]\s*Hospital)?|Nome\s+do\s+Cliente|Raz[aã]o\s+Social|Empresa|Estabelecimento)/i;
   const hdInline = [
-    [/(?:Paciente|Benefici[aá]rio)\s*[:\-·]\s*([^\n\r]+)/i, 'paciente'],
     [/(?:M[eé]dico|Cirurgi[aã]o)(?:\s+(?:Solicitante|Respons[aá]vel))?\s*[:\-·]\s*([^\n\r]+)/i, 'medico'],
     [new RegExp(HOSP_LABELS.source + String.raw`\s*(?:\/[^:\n]*)?\s*[:\-·]\s*([^\n\r]+)`, 'i'), 'hospital'],
     [/(?:Conv[eê]nio|Plano(?:\s+de\s+Sa[uú]de)?|Operadora|Conv\.?)\s*[:\-·]\s*([^\n\r]+)/i, 'convenio'],
   ];
   for (const [re, k] of hdInline) {
     if (r[k]) continue;
-    const m = texto.match(re);
+    const m = txt.match(re);
     if (m?.[1]) { const v = lmp(m[1]); if (v.length > 1) r[k] = v; }
   }
-
-  // 3. Cabeçalho duas-linhas — label sozinho → valor na próxima linha
   const HOSP_LBL_RE = new RegExp('^' + HOSP_LABELS.source + String.raw`\s*:?$`, 'i');
   for (let i = 0; i < ls.length - 1; i++) {
     const l = ls[i], nx = lmp(ls[i+1]);
     if (!nx || nx.length < 2) continue;
-    if (!r.paciente && /^(?:Paciente|Benefici[aá]rio)\s*:?$/i.test(l)) r.paciente = nx;
     if (!r.medico   && /^(?:M[eé]dico|Cirurgi[aã]o)(?:\s+\w+)?\s*:?$/i.test(l)) r.medico   = nx;
     if (!r.hospital && HOSP_LBL_RE.test(l)) r.hospital = nx;
     if (!r.convenio && /^(?:Conv[eê]nio|Plano(?:\s+de\s+Sa[uú]de)?|Operadora)\s*:?$/i.test(l)) r.convenio = nx;
   }
 
-  // 4. Nº pedido fallback
+  // 6. Nº pedido fallback
   if (!r.numeroPedido) {
-    const m = texto.match(/Pedido\s*(?:de\s*Venda)?\s*N[ºo°]?\.?\s*[:\-]?\s*(\d+)/i)
-            || texto.match(/N[ºo°]\s*(\d{4,6})\b/);
+    const m = txt.match(/Pedido\s*(?:de\s*Venda)?\s*N[ºo°]?\.?\s*[:\-]?\s*(\d+)/i)
+            || txt.match(/N[ºo°]\s*(\d{4,6})\b/);
     if (m) r.numeroPedido = m[1].trim();
   }
 
-  // 5. Data
-  const mDt = texto.match(/(?:Data\s*(?:(?:da\s+)?Cirurgia|Cir\.?|Procedimento|do\s+Ato)?\s*[:\-]?\s*)(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2,4})/i)
-            || texto.match(/(\d{2}\/\d{2}\/\d{4})/);
+  // 7. Data da cirurgia
+  const mDt = txt.match(/(?:Data\s*(?:(?:da\s+)?Cirurgia|Cir\.?|Procedimento|do\s+Ato)?\s*[:\-]?\s*)(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2,4})/i)
+            || txt.match(/(\d{2}\/\d{2}\/\d{4})/);
   if (mDt) {
     const pts = mDt[1].replace(/[-\.]/g,'/').split('/');
     if (pts.length === 3) {
@@ -1041,79 +1069,101 @@ function parsearC160(texto, filename) {
     }
   }
 
-  // 6. Limpar cabeçalho
+  // 8. Limpar cabeçalho
   ['paciente','medico','hospital','convenio'].forEach(k => { if (r[k]) r[k] = lmp(r[k]); });
 
-  // 7. ITENS — localiza início da tabela pelo cabeçalho de colunas
-  let iStart = 0;
-  for (let i = 0; i < ls.length; i++) {
-    const l = ls[i].toLowerCase();
-    if (['descri','qtd','pre'].filter(k => l.includes(k)).length >= 2 && l.includes('descri')) {
-      iStart = i + 1; break;
+  // 9. ITENS — em PDFs onde a tabela sai embaralhada, recombina 4 blocos
+  //    paralelos que o PDF.js extrai fora de ordem, mas cada um mantém a
+  //    ordem relativa dos itens (1º, 2º, 3º…):
+  //    A) "CÓDIGO DESCRIÇÃO REGISTROANVISA - FABRICANTE"
+  //    B) quantidades, logo após o rótulo solto "Unidade:"
+  //    C) "SEQ PREÇOUNIT VALORTOTAL DD/MM/AAAA"
+  //    D) lotes — "N. Lote: XXX" ou linha solta "XXX QTD DD/MM/AAAA"
+  const bases = [];
+  {
+    const re = /^(\S+)\s+(.+?)\s+(\d{6,})\s*-\s*(.+)$/gm;
+    let m;
+    while ((m = re.exec(txt))) {
+      const desc = lmp(m[2]);
+      if (desc.length >= 3) bases.push({ referencia: m[1], descricao: desc });
     }
   }
-
-  for (let i = iStart; i < ls.length; i++) {
-    const l = ls[i];
-    if (!l) continue;
-    if (/^(?:total\s+geral|total\s+do\s+pedido|sub\s*total|observa[çc]|assina[çc]|declaro)/i.test(l)) break;
-
-    // Linha deve começar com número de sequência
-    const mSeq = l.match(/^(\d{1,3})\s+(.*)/);
-    if (!mSeq) continue;
-    const resto = mSeq[2].trim();
-    if (/^(?:c[oó]d|descri|item\b|lote\b|qtd|pre[çc]|valor|ref)/i.test(resto)) continue;
-
-    const it = { descricao:'', referencia:'', lote:'', qtd:1, precoUnit:0 };
-
-    // Padrão A — tudo na linha: cod desc qty preçoUnit total
-    const mA = resto.match(/^(\S+)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s*$/);
-    if (mA) {
-      it.referencia = mA[1];
-      it.descricao  = lmp(mA[2]);
-      it.qtd        = pv(mA[3]);
-      it.precoUnit  = pv(mA[4]);
-    } else {
-      // Padrão B — seq + cod + desc (preço em outra linha)
-      const mB = resto.match(/^(\S+)\s+(.+)/);
-      if (mB) { it.referencia = mB[1]; it.descricao = lmp(mB[2]); }
-      else { it.descricao = lmp(resto); }
-    }
-
-    // Busca lote / qty / preço nas próximas linhas
-    for (let j = i+1; j < Math.min(i+9, ls.length); j++) {
-      const lj = ls[j];
-      if (!lj) continue;
-      if (/^\d{1,3}\s+\S/.test(lj) && j > i+1) break;
-      if (/^(?:total|subtotal|observa|assina)/i.test(lj)) break;
-
-      if (!it.lote) {
-        const mL = lj.match(/(?:N[°º]?\s*)?Lote\s*[:\s]+([A-Z0-9][\w\-]{0,20})/i);
-        if (mL) it.lote = mL[1];
-      }
-      if (!it.precoUnit) {
-        const mPU = lj.match(/Pre[çc]o\s*(?:Unit[^\d]*)?([\d.]+,\d{2})/i);
-        if (mPU) it.precoUnit = pv(mPU[1]);
-      }
-      if (it.qtd === 1) {
-        const mQ = lj.match(/Qtd?(?:ade)?\s*[:\s]*([\d.,]+)/i);
-        if (mQ) it.qtd = pv(mQ[1]);
-      }
-      // "lote qty preçoUnit total" sem labels
-      if (!it.precoUnit) {
-        const mPx = lj.match(/^([A-Z0-9][\w\-]*)\s+(\d+(?:[.,]\d+)?)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s*$/);
-        if (mPx) { it.lote = it.lote||mPx[1]; it.qtd = pv(mPx[2]); it.precoUnit = pv(mPx[3]); }
-        const mPy = lj.match(/^(\d+(?:[.,]\d+)?)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s*$/);
-        if (mPy) { it.qtd = pv(mPy[1]); it.precoUnit = pv(mPy[2]); }
+  const qtys = [];
+  {
+    const idxUn = ls.findIndex(l => /^Unidade\s*:?\s*(?:PC)?\s*$/i.test(l));
+    if (idxUn >= 0) {
+      for (let k = idxUn+1; k < ls.length; k++) {
+        if (/^[\d.,]+$/.test(ls[k])) qtys.push(pv(ls[k])); else break;
       }
     }
+  }
+  const prices = [];
+  {
+    const re = /^(\d{1,3})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+\d{2}\/\d{2}\/\d{4}\s*$/gm;
+    let m;
+    while ((m = re.exec(txt))) prices.push({ precoUnit: pv(m[2]) });
+  }
+  const lotes = [];
+  {
+    const re = /N\.\s*Lote\s*:\s*([A-Z0-9]{4,})|^([A-Z0-9]{5,})\s+[\d.,]+\s+\d{2}\/\d{2}\/\d{4}/gim;
+    let m; const raw = [];
+    while ((m = re.exec(txt))) raw.push(m[1] || m[2]);
+    for (const lv of raw) if (lotes[lotes.length-1] !== lv) lotes.push(lv);
+  }
+  bases.forEach((b, i) => {
+    r.itens.push({
+      descricao: b.descricao,
+      referencia: b.referencia,
+      lote: lotes[i] || '',
+      qtd: qtys[i] != null ? qtys[i] : 1,
+      precoUnit: prices[i]?.precoUnit || 0,
+    });
+  });
 
-    if (it.descricao.length > 1 || it.referencia.length > 1) {
-      if (!/^(?:descri[çc][aã]o|c[oó]digo|lote\b|qtd\b|pre[çc]o|valor\b)/i.test(it.descricao)) {
+  // 10. Fallback — formato antigo "SEQ COD DESC QTY PREÇO TOTAL" em linha única
+  if (!r.itens.length) {
+    let iStart = 0;
+    for (let i = 0; i < ls.length; i++) {
+      const l = ls[i].toLowerCase();
+      if (['descri','qtd','pre'].filter(k => l.includes(k)).length >= 2 && l.includes('descri')) { iStart = i + 1; break; }
+    }
+    for (let i = iStart; i < ls.length; i++) {
+      const l = ls[i];
+      if (!l) continue;
+      if (/^(?:total\s+geral|total\s+do\s+pedido|sub\s*total|observa[çc]|assina[çc]|declaro)/i.test(l)) break;
+      const mSeq = l.match(/^(\d{1,3})\s+(.*)/);
+      if (!mSeq) continue;
+      const resto = mSeq[2].trim();
+      if (/^(?:c[oó]d|descri|item\b|lote\b|qtd|pre[çc]|valor|ref)/i.test(resto)) continue;
+      const it = { descricao:'', referencia:'', lote:'', qtd:1, precoUnit:0 };
+      const mA = resto.match(/^(\S+)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s*$/);
+      if (mA) { it.referencia=mA[1]; it.descricao=lmp(mA[2]); it.qtd=pv(mA[3]); it.precoUnit=pv(mA[4]); }
+      else {
+        const mB = resto.match(/^(\S+)\s+(.+)/);
+        if (mB) { it.referencia = mB[1]; it.descricao = lmp(mB[2]); }
+        else { it.descricao = lmp(resto); }
+      }
+      for (let j = i+1; j < Math.min(i+9, ls.length); j++) {
+        const lj = ls[j];
+        if (!lj) continue;
+        if (/^\d{1,3}\s+\S/.test(lj) && j > i+1) break;
+        if (/^(?:total|subtotal|observa|assina)/i.test(lj)) break;
+        if (!it.lote) { const mL = lj.match(/(?:N[°º]?\s*)?Lote\s*[:\s]+([A-Z0-9][\w\-]{0,20})/i); if (mL) it.lote = mL[1]; }
+        if (!it.precoUnit) { const mPU = lj.match(/Pre[çc]o\s*(?:Unit[^\d]*)?([\d.]+,\d{2})/i); if (mPU) it.precoUnit = pv(mPU[1]); }
+        if (it.qtd === 1) { const mQ = lj.match(/Qtd?(?:ade)?\s*[:\s]*([\d.,]+)/i); if (mQ) it.qtd = pv(mQ[1]); }
+        if (!it.precoUnit) {
+          const mPx = lj.match(/^([A-Z0-9][\w\-]*)\s+(\d+(?:[.,]\d+)?)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s*$/);
+          if (mPx) { it.lote = it.lote||mPx[1]; it.qtd = pv(mPx[2]); it.precoUnit = pv(mPx[3]); }
+          const mPy = lj.match(/^(\d+(?:[.,]\d+)?)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s*$/);
+          if (mPy) { it.qtd = pv(mPy[1]); it.precoUnit = pv(mPy[2]); }
+        }
+      }
+      if ((it.descricao.length > 1 || it.referencia.length > 1) && !/^(?:descri[çc][aã]o|c[oó]digo|lote\b|qtd\b|pre[çc]o|valor\b)/i.test(it.descricao)) {
         r.itens.push(it);
       }
     }
   }
+
   return r;
 }
 
