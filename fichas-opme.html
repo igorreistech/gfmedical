@@ -1238,8 +1238,8 @@ function preencherDeC160(d) {
   if (d.paciente)     document.getElementById('f-pac').value    = d.paciente;
   if (d.medico)       document.getElementById('f-med').value    = d.medico;
   if (d.hospital)     document.getElementById('f-hosp').value   = d.hospital;
-  if (d.hospital)     document.getElementById('f-cliente').value = d.hospital;
   if (d.convenio)     document.getElementById('f-conv').value   = d.convenio;
+  if (d.convenio)     document.getElementById('f-cliente').value = d.convenio;
   if (d.numeroPedido) document.getElementById('f-pedido').value = d.numeroPedido;
   if (d.dataCirurgia) document.getElementById('f-data').value   = d.dataCirurgia;
   if (d.itens?.length) { itens = d.itens.map(i=>({...i})); renderItens(); }
@@ -1279,11 +1279,11 @@ document.getElementById('modal').addEventListener('click', e => {
   if (e.target === document.getElementById('modal')) fecharModal();
 });
 
-// Sincronização: Hospital → Cliente (auto-preencher cliente com hospital se vazio)
-document.getElementById('f-hosp').addEventListener('change', () => {
+// Sincronização: Convênio → Cliente (auto-preencher cliente com convênio se vazio)
+document.getElementById('f-conv').addEventListener('change', () => {
   const clienteInput = document.getElementById('f-cliente');
   if (!clienteInput.value.trim()) {
-    clienteInput.value = document.getElementById('f-hosp').value;
+    clienteInput.value = document.getElementById('f-conv').value;
   }
 });
 </script>
