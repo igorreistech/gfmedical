@@ -27,6 +27,10 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
+  // Ignora esquemas que o Cache API não suporta (ex.: extensões do Chrome
+  // injetando requisições chrome-extension://) — deixa o navegador tratar.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
   if (e.request.mode === 'navigate') {
     e.respondWith(
       fetch(e.request, {cache:'reload'}).catch(() => caches.match(BASE))

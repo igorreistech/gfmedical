@@ -1013,26 +1013,10 @@ function parsearC160(texto, filename) {
   const mPac = txt.match(/Paciente\s*[:\-·]\s*([^\n\r]+)/i);
   if (mPac) r.paciente = lmp(mPac[1]);
 
-  // 4. Em alguns C160 (ex.: Callisto/Sankhya) os VALORES de Médico/Convênio/
-  //    Hospital aparecem em até 3 linhas soltas logo ANTES da linha
-  //    "Paciente:", e os rótulos só aparecem depois, vazios. Usa essa posição
-  //    fixa como heurística quando os métodos acima não encontrarem nada.
-  const idxPac = ls.findIndex(l => /^Paciente\s*:/i.test(l));
-  if (idxPac > 0) {
-    const vals = [];
-    for (let k = idxPac-1; k >= 0 && vals.length < 3; k--) {
-      const lk = ls[k];
-      if (!lk) continue;
-      if (/:\s*$/.test(lk)) break;
-      if (/^(?:Locais de Estoque|Item\b|Registro ANVISA|PC)$/i.test(lk)) break;
-      vals.unshift(lk);
-    }
-    if (vals.length >= 1 && !r.hospital) r.hospital = vals[vals.length-1];
-    if (vals.length >= 2 && !r.convenio) r.convenio = vals[vals.length-2];
-    if (vals.length >= 3 && !r.medico)   r.medico   = vals[vals.length-3];
-  }
-
-  // 5. Fallbacks genéricos (outros formatos de C160) — inline e duas-linhas
+  // 4. Fallbacks genéricos — inline ("Label: Valor" na mesma linha) e
+  //    duas-linhas (label sozinho → valor na linha seguinte). Roda ANTES da
+  //    heurística abaixo porque é mais confiável quando o C160 tem os
+  //    campos limpos (ex.: "Médico: NOME" na própria linha).
   const HOSP_LABELS = /(?:Hospital|Cl[ií]nica|Cliente(?:\s*[\/]\s*Hospital)?|Nome\s+do\s+Cliente|Raz[aã]o\s+Social|Empresa|Estabelecimento)/i;
   const hdInline = [
     [/(?:M[eé]dico|Cirurgi[aã]o)(?:\s+(?:Solicitante|Respons[aá]vel))?\s*[:\-·]\s*([^\n\r]+)/i, 'medico'],
@@ -1051,6 +1035,28 @@ function parsearC160(texto, filename) {
     if (!r.medico   && /^(?:M[eé]dico|Cirurgi[aã]o)(?:\s+\w+)?\s*:?$/i.test(l)) r.medico   = nx;
     if (!r.hospital && HOSP_LBL_RE.test(l)) r.hospital = nx;
     if (!r.convenio && /^(?:Conv[eê]nio|Plano(?:\s+de\s+Sa[uú]de)?|Operadora)\s*:?$/i.test(l)) r.convenio = nx;
+  }
+
+  // 5. Último recurso: em alguns C160 os VALORES de Médico/Convênio/Hospital
+  //    aparecem em até 3 linhas soltas logo ANTES de "Paciente:", com os
+  //    rótulos vazios só depois. Só usa se os métodos acima não acharam
+  //    nada, e ignora qualquer linha que contenha ":" em qualquer posição
+  //    (sinal forte de ser uma linha de rótulos embaralhados, não um valor).
+  if (!r.medico || !r.convenio || !r.hospital) {
+    const idxPac = ls.findIndex(l => /^Paciente\s*:/i.test(l));
+    if (idxPac > 0) {
+      const vals = [];
+      for (let k = idxPac-1; k >= 0 && vals.length < 3; k--) {
+        const lk = ls[k];
+        if (!lk) continue;
+        if (/:/.test(lk)) break;
+        if (/^(?:Locais de Estoque|Item\b|Registro ANVISA|PC)$/i.test(lk)) break;
+        vals.unshift(lk);
+      }
+      if (vals.length >= 1 && !r.hospital) r.hospital = vals[vals.length-1];
+      if (vals.length >= 2 && !r.convenio) r.convenio = vals[vals.length-2];
+      if (vals.length >= 3 && !r.medico)   r.medico   = vals[vals.length-3];
+    }
   }
 
   // 6. Nº pedido fallback
@@ -1094,8 +1100,19 @@ function parsearC160(texto, filename) {
       if (desc.length >= 3) bases.push({ referencia: m[1], descricao: desc });
     }
   }
-  const qtys = [];
+  // C) Preço unitário + quantidade — em muitos C160 reais essas colunas vêm
+  //    coladas dentro da MESMA linha do item, sem espaço entre a data e a
+  //    quantidade (ex.: "...170,00 170,00 12/06/20261,00 0,00..."). Captura
+  //    os dois valores decimais logo antes da data + o valor colado depois.
+  const lineVals = [];
   {
+    const re = /([\d.]+,\d{2})\s+[\d.]+,\d{2}\s+\d{2}\/\d{2}\/\d{4}(\d+,\d{2})/g;
+    let m;
+    while ((m = re.exec(txt))) lineVals.push({ precoUnit: pv(m[1]), qtd: pv(m[2]) });
+  }
+  // Fallback antigo: quantidades soltas após o rótulo "Unidade:"
+  const qtys = [];
+  if (lineVals.length < bases.length) {
     const idxUn = ls.findIndex(l => /^Unidade\s*:?\s*(?:PC)?\s*$/i.test(l));
     if (idxUn >= 0) {
       for (let k = idxUn+1; k < ls.length; k++) {
@@ -1103,26 +1120,30 @@ function parsearC160(texto, filename) {
       }
     }
   }
+  // Fallback antigo: "SEQ PREÇOUNIT VALORTOTAL DATA" em linha própria
   const prices = [];
-  {
+  if (lineVals.length < bases.length) {
     const re = /^(\d{1,3})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+\d{2}\/\d{2}\/\d{4}\s*$/gm;
     let m;
     while ((m = re.exec(txt))) prices.push({ precoUnit: pv(m[2]) });
   }
+  // D) Lotes — "Dt. Validade:" (rótulos embaralhados, valor logo após),
+  //    "N. Lote: XXX" (formato limpo) ou linha solta "XXX QTD DD/MM/AAAA"
   const lotes = [];
   {
-    const re = /N\.\s*Lote\s*:\s*([A-Z0-9]{4,})|^([A-Z0-9]{5,})\s+[\d.,]+\s+\d{2}\/\d{2}\/\d{4}/gim;
+    const re = /Dt\.\s*Validade\s*:\s*([A-Z0-9]{4,})\s+[\d.,]+\s+\d{2}\/\d{2}\/\d{4}|N\.\s*Lote\s*:\s*([A-Z0-9]{4,})|^([A-Z0-9]{5,})\s+[\d.,]+\s+\d{2}\/\d{2}\/\d{4}/gim;
     let m; const raw = [];
-    while ((m = re.exec(txt))) raw.push(m[1] || m[2]);
+    while ((m = re.exec(txt))) raw.push(m[1] || m[2] || m[3]);
     for (const lv of raw) if (lotes[lotes.length-1] !== lv) lotes.push(lv);
   }
   bases.forEach((b, i) => {
+    const lv = lineVals[i];
     r.itens.push({
       descricao: b.descricao,
       referencia: b.referencia,
       lote: lotes[i] || '',
-      qtd: qtys[i] != null ? qtys[i] : 1,
-      precoUnit: prices[i]?.precoUnit || 0,
+      qtd: lv ? lv.qtd : (qtys[i] != null ? qtys[i] : 1),
+      precoUnit: lv ? lv.precoUnit : (prices[i]?.precoUnit || 0),
     });
   });
 
