@@ -417,6 +417,7 @@ tbody tr:hover .row-acts{opacity:1}
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 const firebaseConfig = {
   apiKey:"AIzaSyCKQ0IFOO-8bQDqBN7oV1GTFbATmXI8MTI",
@@ -428,9 +429,11 @@ const firebaseConfig = {
 };
 
 const COLL = 'fichas_opme';
+const FILIAL = 'CGR';
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
+const storage = getStorage(app);
 
 if (typeof pdfjsLib !== 'undefined')
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -446,6 +449,7 @@ const STATUS = [
 
 let fichas=[], curView='lista', curFilter=-1, editingId=null, itens=[];
 let _medicos=[], _hospitais=[];
+let _arquivoOpme=null, _arquivoPv=null;
 
 // AUTH
 onAuthStateChanged(auth, u => {
@@ -492,15 +496,41 @@ function carregarFichas() {
   } catch(e) { console.error(e); }
 }
 
+async function uploadAnexo(file, tipo, fichaId) {
+  const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+  const path = `opme/${fichaId}/${tipo}_${Date.now()}.${ext}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return await getDownloadURL(storageRef);
+}
+
 async function persistir(dados, id) {
-  const p = {...dados, atualizadoEm: serverTimestamp()};
-  if (id) {
-    await setDoc(doc(db, COLL, id), p, {merge:true});
-  } else {
+  if (!auth.currentUser) throw new Error('Faça login para salvar.');
+  const p = {...dados, filial: FILIAL, atualizadoEm: serverTimestamp()};
+  let docId = id;
+  if (!docId) {
     p.criadoEm = serverTimestamp();
-    p.criadoPor = auth.currentUser?.email || '';
-    await addDoc(collection(db, COLL), p);
+    p.criadoPor = auth.currentUser.email || '';
+    const docRef = await addDoc(collection(db, COLL), p);
+    docId = docRef.id;
+  } else {
+    await setDoc(doc(db, COLL, docId), p, {merge: true});
   }
+  const anexos = {};
+  if (_arquivoOpme) {
+    anexos.opmeAnexoUrl = await uploadAnexo(_arquivoOpme, 'ficha-opme', docId);
+    anexos.opmeAnexoNome = _arquivoOpme.name;
+  }
+  if (_arquivoPv) {
+    anexos.pvAnexoUrl = await uploadAnexo(_arquivoPv, 'pedido-venda', docId);
+    anexos.pvAnexoNome = _arquivoPv.name;
+  }
+  if (Object.keys(anexos).length) {
+    await setDoc(doc(db, COLL, docId), {...anexos, atualizadoEm: serverTimestamp()}, {merge: true});
+  }
+  _arquivoOpme = null;
+  _arquivoPv = null;
+  return docId;
 }
 
 window.excluirFicha = async id => {
@@ -799,6 +829,7 @@ function renderDashboard() {
 window.abrirModal = id => {
   editingId = id || null;
   itens = [];
+  _arquivoOpme = null; _arquivoPv = null;
   ['opme','pv'].forEach(t => {
     document.getElementById('fp-'+t).classList.remove('show');
     document.getElementById('zone-'+t).classList.remove('has-file');
@@ -821,6 +852,18 @@ window.abrirModal = id => {
     document.getElementById('f-status').value = f.status??0;
     document.getElementById('f-obs').value    = f.observacoes||'';
     itens = (f.itens||[]).map(i => ({...i}));
+    if (f.opmeAnexoUrl || f.opmeAnexoNome) {
+      document.getElementById('fp-opme-n').textContent = f.opmeAnexoNome || 'Ficha OPME';
+      document.getElementById('fp-opme-s').textContent = f.opmeAnexoUrl ? 'Salvo no banco' : '';
+      document.getElementById('fp-opme').classList.add('show');
+      document.getElementById('zone-opme').classList.add('has-file');
+    }
+    if (f.pvAnexoUrl || f.pvAnexoNome) {
+      document.getElementById('fp-pv-n').textContent = f.pvAnexoNome || 'Pedido de Venda';
+      document.getElementById('fp-pv-s').textContent = f.pvAnexoUrl ? 'Salvo no banco' : '';
+      document.getElementById('fp-pv').classList.add('show');
+      document.getElementById('zone-pv').classList.add('has-file');
+    }
   } else {
     document.getElementById('modal-title').textContent = '📋 Nova Ficha OPME';
     // Pré-preenche com dados da cirurgia via URL params (quando aberto do monitor)
@@ -868,10 +911,16 @@ window.salvarFicha = async () => {
   const btn = document.getElementById('btn-salvar');
   btn.disabled = true; btn.textContent = 'Salvando…';
   try {
+    if (_arquivoOpme || _arquivoPv) btn.textContent = 'Enviando anexos…';
     await persistir(dados, editingId);
     fecharModal();
-    toast(editingId ? 'Ficha atualizada!' : 'Ficha salva!', 'ok');
-  } catch(e) { alert('Erro ao salvar: '+e.message); }
+    toast(editingId ? 'Ficha atualizada no banco!' : 'Ficha salva no banco!', 'ok');
+  } catch(e) {
+    const msg = e.code === 'permission-denied'
+      ? 'Sem permissão no Firebase. Verifique se está logado e se as regras do Firestore permitem a coleção fichas_opme.'
+      : e.message;
+    alert('Erro ao salvar: '+msg);
+  }
   finally { btn.disabled=false; btn.textContent='💾 Salvar Ficha'; }
 };
 
@@ -914,6 +963,8 @@ const fmt = b => b<1024*1024 ? (b/1024).toFixed(0)+' KB' : (b/1024/1024).toFixed
 
 window.selecionarArq = (input, tipo) => {
   const f = input.files[0]; if (!f) return;
+  if (tipo === 'opme') _arquivoOpme = f;
+  if (tipo === 'pv') _arquivoPv = f;
   document.getElementById('fp-'+tipo+'-n').textContent = f.name;
   document.getElementById('fp-'+tipo+'-s').textContent = fmt(f.size);
   document.getElementById('fp-'+tipo).classList.add('show');
@@ -922,6 +973,8 @@ window.selecionarArq = (input, tipo) => {
 
 window.removerArq = (e, tipo) => {
   e.preventDefault(); e.stopPropagation();
+  if (tipo === 'opme') _arquivoOpme = null;
+  if (tipo === 'pv') _arquivoPv = null;
   document.getElementById('fp-'+tipo).classList.remove('show');
   document.getElementById('zone-'+tipo).classList.remove('has-file');
   if (tipo==='pv') {
@@ -933,6 +986,7 @@ window.removerArq = (e, tipo) => {
 // C160 PDF
 window.selecionarPV = async input => {
   const file = input.files[0]; if (!file) return;
+  _arquivoPv = file;
   document.getElementById('fp-pv-n').textContent = file.name;
   document.getElementById('fp-pv-s').textContent = fmt(file.size);
   document.getElementById('fp-pv').classList.add('show');
