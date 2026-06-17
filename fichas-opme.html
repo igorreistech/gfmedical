@@ -321,7 +321,7 @@ tbody tr:hover .row-acts{opacity:1}
         <div class="twrap">
           <div class="thead-bar"><span class="thead-title">📋 Fichas OPME</span><span class="tcount" id="tcount">0 registros</span></div>
           <table>
-            <thead><tr><th>Paciente</th><th>Médico</th><th>Procedimento</th><th>Nº PV</th><th>Fluxo</th><th>Data Cirurgia</th><th>Total</th><th></th></tr></thead>
+            <thead><tr><th>Paciente</th><th>Médico</th><th>Procedimento</th><th>Cliente Fat.</th><th>Nº PV</th><th>Fluxo</th><th>Data Cirurgia</th><th>Total</th><th></th></tr></thead>
             <tbody id="tbody"></tbody>
           </table>
         </div>
@@ -570,7 +570,7 @@ function renderLista() {
   const fD = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—';
   const fV = v => v ? 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—';
   document.getElementById('tbody').innerHTML = !lista.length
-    ? `<tr><td colspan="8" class="empty-page">Nenhuma ficha encontrada</td></tr>`
+    ? `<tr><td colspan="9" class="empty-page">Nenhuma ficha encontrada</td></tr>`
     : lista.map(f => {
         const s = f.status ?? 0;
         const btns = STATUS.map((st,si) =>
@@ -580,6 +580,7 @@ function renderLista() {
           <td class="td-pac">${esc(f.paciente||'—')}</td>
           <td class="td-trunc">${esc(f.medico||'—')}</td>
           <td class="td-trunc">${esc(f.procedimento||'—')}</td>
+          <td class="td-trunc">${esc(f.cliente||'—')}</td>
           <td class="td-mono">${esc(f.numeroPedido||'—')}</td>
           <td onclick="event.stopPropagation()"><div class="iflow">${btns}</div></td>
           <td class="td-mono">${fD(f.dataCirurgia)}</td>
@@ -670,7 +671,7 @@ function renderPorConvenio() {
           <span class="tcount">${g.length} ficha${g.length!==1?'s':''} · ${fV(sub)}</span>
         </div>
         <table>
-          <thead><tr><th>Paciente</th><th>Médico</th><th>Procedimento</th><th>Hospital</th><th>Nº PV</th><th>Status</th><th>Data Cirurgia</th><th>Valor</th></tr></thead>
+          <thead><tr><th>Paciente</th><th>Médico</th><th>Procedimento</th><th>Hospital</th><th>Cliente Fat.</th><th>Nº PV</th><th>Status</th><th>Data Cirurgia</th><th>Valor</th></tr></thead>
           <tbody>
             ${g.map(f => {
               const s = f.status ?? 0;
@@ -679,6 +680,7 @@ function renderPorConvenio() {
                 <td class="td-trunc">${esc(f.medico||'—')}</td>
                 <td class="td-trunc">${esc(f.procedimento||'—')}</td>
                 <td class="td-trunc">${esc(f.hospital||'—')}</td>
+                <td class="td-trunc">${esc(f.cliente||'—')}</td>
                 <td class="td-mono">${esc(f.numeroPedido||'—')}</td>
                 <td><span class="badge" style="color:var(--s${s}-c);background:var(--s${s}-bg);border-color:var(--s${s}-bd)">${STATUS[s].icon} ${STATUS[s].label}</span></td>
                 <td class="td-mono">${fD(f.dataCirurgia)}</td>
@@ -849,7 +851,6 @@ window.salvarFicha = async () => {
   const proc = document.getElementById('f-proc').value.trim();
   if (!pac)  { alert('Informe o paciente.'); return; }
   if (!med)  { alert('Informe o médico.'); return; }
-  if (!proc) { alert('Informe o procedimento.'); return; }
   coletarItens();
   const iv = itens.filter(i => i.descricao.trim());
   const total = iv.reduce((s,i) => s + (Number(i.precoUnit)||0)*(Number(i.qtd)||0), 0);
