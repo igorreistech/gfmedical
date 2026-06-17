@@ -137,6 +137,7 @@ th{font-family:var(--mono);font-size:0.57rem;letter-spacing:0.09em;text-transfor
 tbody tr{border-bottom:1px solid var(--border);transition:background 0.12s;cursor:pointer}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:rgba(26,122,74,0.03)}
+tfoot tr td{border-top:2px solid var(--border2)}
 td{padding:10px 13px;font-size:0.77rem;color:var(--text2);vertical-align:middle}
 .td-pac{font-family:var(--display);font-size:0.78rem;font-weight:600;color:var(--text)}
 .td-trunc{max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -263,6 +264,7 @@ tbody tr:hover .row-acts{opacity:1}
       <a class="nav-item" id="nav-dashboard" href="#" onclick="goView('dashboard');return false"><span class="nav-icon">📊</span> Dashboard</a>
       <a class="nav-item" id="nav-kanban" href="#" onclick="goView('kanban');return false"><span class="nav-icon">🗂️</span> Kanban</a>
       <a class="nav-item active" id="nav-lista" href="#" onclick="goView('lista');return false"><span class="nav-icon">📄</span> Lista</a>
+      <a class="nav-item" id="nav-convenio" href="#" onclick="goView('convenio');return false"><span class="nav-icon">📑</span> Por Convênio</a>
       <div class="sdiv"></div>
       <div class="slabel">Por status</div>
       <a class="nav-item" href="#" onclick="filtrarStatus(0);return false"><span class="nav-icon">⬜</span> Pendente<span class="nbadge nb0" id="nb0">0</span></a>
@@ -294,10 +296,12 @@ tbody tr:hover .row-acts{opacity:1}
       <div class="vtab" id="tab-dashboard" onclick="goView('dashboard')">📊 Dashboard</div>
       <div class="vtab" id="tab-kanban" onclick="goView('kanban')">🗂️ Kanban</div>
       <div class="vtab active" id="tab-lista" onclick="goView('lista')">📄 Lista</div>
+      <div class="vtab" id="tab-convenio" onclick="goView('convenio')">📑 Por Convênio</div>
     </div>
     <div class="page-content">
       <div id="view-dashboard" style="display:none"></div>
       <div id="view-kanban" style="display:none"></div>
+      <div id="view-convenio" style="display:none"></div>
       <div id="view-lista">
         <div class="fbar">
           <span class="flabel">Status</span>
@@ -459,14 +463,16 @@ window.doLogin = async () => {
 window.doLogout = () => signOut(auth);
 
 // FIRESTORE
+let _unsubFichas = null;
 function carregarFichas() {
+  if (_unsubFichas) { _unsubFichas(); _unsubFichas = null; }
   try {
     const q = query(collection(db, COLL), orderBy('criadoEm','desc'));
-    onSnapshot(q, snap => {
+    _unsubFichas = onSnapshot(q, snap => {
       fichas = snap.docs.map(d => ({_id:d.id, ...d.data()}));
       atualizarBadges(); renderAtivo();
     }, err => {
-      onSnapshot(collection(db, COLL), snap => {
+      _unsubFichas = onSnapshot(collection(db, COLL), snap => {
         fichas = snap.docs.map(d => ({_id:d.id, ...d.data()}));
         atualizarBadges(); renderAtivo();
       });
@@ -498,13 +504,13 @@ window.mudStatus = async (id, s) => {
 // VIEWS
 window.goView = v => {
   curView = v;
-  ['dashboard','kanban','lista'].forEach(id => {
+  ['dashboard','kanban','lista','convenio'].forEach(id => {
     document.getElementById('view-'+id).style.display = id===v ? '' : 'none';
     document.getElementById('tab-'+id).classList.toggle('active', id===v);
     const nav = document.getElementById('nav-'+id);
     if (nav) nav.classList.toggle('active', id===v);
   });
-  const T = {dashboard:'Dashboard · OPME', kanban:'Kanban · Fluxo OPME', lista:'Lista de Fichas'};
+  const T = {dashboard:'Dashboard · OPME', kanban:'Kanban · Fluxo OPME', lista:'Lista de Fichas', convenio:'Por Convênio'};
   document.getElementById('page-title').textContent = T[v];
   renderAtivo();
 };
@@ -512,6 +518,7 @@ window.goView = v => {
 window.renderAtivo = () => {
   if (curView==='lista') renderLista();
   else if (curView==='kanban') renderKanban();
+  else if (curView==='convenio') renderPorConvenio();
   else renderDashboard();
 };
 
@@ -532,7 +539,7 @@ function filtradas() {
   return fichas.filter(f => {
     if (curFilter >= 0 && (f.status??0) !== curFilter) return false;
     if (!q) return true;
-    return [(f.paciente||''),(f.medico||''),(f.procedimento||''),(f.hospital||''),(f.numeroPedido||'')]
+    return [(f.paciente||''),(f.medico||''),(f.procedimento||''),(f.hospital||''),(f.numeroPedido||''),(f.convenio||'')]
       .some(s => s.toLowerCase().includes(q));
   });
 }
@@ -599,6 +606,81 @@ function renderKanban() {
       </div>`;
     }).join('')
   }</div>`;
+}
+
+// POR CONVÊNIO — visão tipo planilha, agrupada por convênio com subtotais
+function renderPorConvenio() {
+  const lista = filtradas();
+  const fD = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—';
+  const fV = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+
+  if (!lista.length) {
+    document.getElementById('view-convenio').innerHTML = `<div class="twrap"><div class="empty-page">Nenhuma ficha encontrada</div></div>`;
+    return;
+  }
+
+  const grupos = {};
+  lista.forEach(f => { const c = f.convenio?.trim() || 'Sem convênio'; (grupos[c] = grupos[c]||[]).push(f); });
+  const nomes = Object.keys(grupos).sort((a,b) => a==='Sem convênio'?1 : b==='Sem convênio'?-1 : a.localeCompare(b,'pt-BR'));
+
+  const grandTotal = lista.reduce((s,f) => s+(Number(f.total)||0), 0);
+
+  document.getElementById('view-convenio').innerHTML = `
+    <div class="twrap" style="margin-bottom:14px">
+      <div class="thead-bar">
+        <span class="thead-title">📑 Resumo por Convênio</span>
+        <span class="tcount">${nomes.length} convênio${nomes.length!==1?'s':''} · ${lista.length} ficha${lista.length!==1?'s':''}</span>
+      </div>
+      <table>
+        <thead><tr><th>Convênio</th><th>Fichas</th><th>Valor Total</th><th>% do Total</th></tr></thead>
+        <tbody>
+          ${nomes.map(c => {
+            const g = grupos[c], sub = g.reduce((s,f)=>s+(Number(f.total)||0),0);
+            return `<tr style="cursor:pointer" onclick="document.getElementById('cg-${esc(c).replace(/[^a-zA-Z0-9]/g,'_')}').scrollIntoView({behavior:'smooth',block:'start'})">
+              <td class="td-pac">${esc(c)}</td>
+              <td class="td-mono">${g.length}</td>
+              <td class="td-mono">${fV(sub)}</td>
+              <td class="td-mono">${grandTotal?Math.round(sub/grandTotal*100):0}%</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot><tr style="background:var(--surface2);font-weight:700">
+          <td class="td-pac">TOTAL GERAL</td><td class="td-mono">${lista.length}</td><td class="td-mono">${fV(grandTotal)}</td><td class="td-mono">100%</td>
+        </tr></tfoot>
+      </table>
+    </div>
+    ${nomes.map(c => {
+      const g = grupos[c], sub = g.reduce((s,f)=>s+(Number(f.total)||0),0);
+      const slug = esc(c).replace(/[^a-zA-Z0-9]/g,'_');
+      return `<div class="twrap" id="cg-${slug}" style="margin-bottom:14px">
+        <div class="thead-bar">
+          <span class="thead-title">🏥 ${esc(c)}</span>
+          <span class="tcount">${g.length} ficha${g.length!==1?'s':''} · ${fV(sub)}</span>
+        </div>
+        <table>
+          <thead><tr><th>Paciente</th><th>Médico</th><th>Procedimento</th><th>Hospital</th><th>Nº PV</th><th>Status</th><th>Data Cirurgia</th><th>Valor</th></tr></thead>
+          <tbody>
+            ${g.map(f => {
+              const s = f.status ?? 0;
+              return `<tr onclick="abrirModal('${f._id}')" style="cursor:pointer">
+                <td class="td-pac">${esc(f.paciente||'—')}</td>
+                <td class="td-trunc">${esc(f.medico||'—')}</td>
+                <td class="td-trunc">${esc(f.procedimento||'—')}</td>
+                <td class="td-trunc">${esc(f.hospital||'—')}</td>
+                <td class="td-mono">${esc(f.numeroPedido||'—')}</td>
+                <td><span class="badge" style="color:var(--s${s}-c);background:var(--s${s}-bg);border-color:var(--s${s}-bd)">${STATUS[s].icon} ${STATUS[s].label}</span></td>
+                <td class="td-mono">${fD(f.dataCirurgia)}</td>
+                <td class="td-mono">${fV(f.total)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot><tr style="background:var(--surface2);font-weight:700">
+            <td class="td-pac" colspan="7">Subtotal · ${esc(c)}</td><td class="td-mono">${fV(sub)}</td>
+          </tr></tfoot>
+        </table>
+      </div>`;
+    }).join('')}
+  `;
 }
 
 // DASHBOARD
