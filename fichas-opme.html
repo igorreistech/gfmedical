@@ -187,12 +187,14 @@ tbody tr:hover .row-acts{opacity:1}
 .uzone-title{font-family:var(--display);font-size:0.75rem;font-weight:600;color:var(--text2);margin-bottom:2px}
 .uzone-sub{font-size:0.62rem;color:var(--text3)}
 .uzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-.file-preview{display:none;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.7);border:1px solid var(--border)}
+.file-preview{display:none;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.7);border:1px solid var(--border);position:relative}
 .file-preview.show{display:flex}
 .fp-name{font-size:0.65rem;font-weight:500;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fp-size{font-family:var(--mono);font-size:0.6rem;color:var(--text3);flex-shrink:0}
 .fp-remove{background:none;border:none;cursor:pointer;color:var(--text3);font-size:0.78rem;padding:0 2px;transition:color 0.12s;flex-shrink:0}
 .fp-remove:hover{color:#ef4444}
+.fp-view{background:none;border:none;cursor:pointer;color:var(--text3);font-size:0.78rem;padding:0 2px;transition:color 0.12s;flex-shrink:0}
+.fp-view:hover{color:var(--accent)}
 .import-badge{display:none;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(26,122,74,0.1);border:1px solid rgba(26,122,74,0.2);color:var(--accent);font-family:var(--mono);font-size:0.6rem;font-weight:600;margin-top:4px}
 .import-badge.show{display:inline-flex}
 .itens-section{margin-bottom:14px}
@@ -341,7 +343,7 @@ tbody tr:hover .row-acts{opacity:1}
           <div class="uzone-label">Ficha OPME</div>
           <div class="uzone-title">Anexar ficha</div>
           <div class="uzone-sub">PDF, JPG, PNG · 20MB</div>
-          <div class="file-preview" id="fp-opme"><span class="fp-name" id="fp-opme-n"></span><span class="fp-size" id="fp-opme-s"></span><button class="fp-remove" onclick="removerArq(event,'opme')">✕</button></div>
+          <div class="file-preview" id="fp-opme"><span class="fp-name" id="fp-opme-n"></span><span class="fp-size" id="fp-opme-s"></span><button class="fp-view" title="Visualizar" onclick="visualizarArq(event,'opme')">👁</button><button class="fp-remove" onclick="removerArq(event,'opme')">✕</button></div>
         </div>
         <div class="uzone uzone-pv" id="zone-pv">
           <input type="file" id="pv-input" accept=".pdf" onchange="selecionarPV(this)">
@@ -349,7 +351,7 @@ tbody tr:hover .row-acts{opacity:1}
           <div class="uzone-label">Pedido de Venda (C160)</div>
           <div class="uzone-title">Importar PV · auto-preenche</div>
           <div class="uzone-sub">PDF · extrai todos os campos</div>
-          <div class="file-preview" id="fp-pv"><span class="fp-name" id="fp-pv-n"></span><span class="fp-size" id="fp-pv-s"></span><button class="fp-remove" onclick="removerArq(event,'pv')">✕</button></div>
+          <div class="file-preview" id="fp-pv"><span class="fp-name" id="fp-pv-n"></span><span class="fp-size" id="fp-pv-s"></span><button class="fp-view" title="Visualizar" onclick="visualizarArq(event,'pv')">👁</button><button class="fp-remove" onclick="removerArq(event,'pv')">✕</button></div>
           <div class="import-badge" id="import-badge">✅ Dados importados do C160</div>
         </div>
       </div>
@@ -450,6 +452,7 @@ const STATUS = [
 let fichas=[], curView='lista', curFilter=-1, editingId=null, itens=[];
 let _medicos=[], _hospitais=[];
 let _arquivoOpme=null, _arquivoPv=null;
+let _anexoUrlAtual={opme:null, pv:null};
 
 // AUTH
 onAuthStateChanged(auth, u => {
@@ -830,6 +833,7 @@ window.abrirModal = id => {
   editingId = id || null;
   itens = [];
   _arquivoOpme = null; _arquivoPv = null;
+  _anexoUrlAtual = {opme:null, pv:null};
   ['opme','pv'].forEach(t => {
     document.getElementById('fp-'+t).classList.remove('show');
     document.getElementById('zone-'+t).classList.remove('has-file');
@@ -857,12 +861,14 @@ window.abrirModal = id => {
       document.getElementById('fp-opme-s').textContent = f.opmeAnexoUrl ? 'Salvo no banco' : '';
       document.getElementById('fp-opme').classList.add('show');
       document.getElementById('zone-opme').classList.add('has-file');
+      _anexoUrlAtual.opme = f.opmeAnexoUrl || null;
     }
     if (f.pvAnexoUrl || f.pvAnexoNome) {
       document.getElementById('fp-pv-n').textContent = f.pvAnexoNome || 'Pedido de Venda';
       document.getElementById('fp-pv-s').textContent = f.pvAnexoUrl ? 'Salvo no banco' : '';
       document.getElementById('fp-pv').classList.add('show');
       document.getElementById('zone-pv').classList.add('has-file');
+      _anexoUrlAtual.pv = f.pvAnexoUrl || null;
     }
   } else {
     document.getElementById('modal-title').textContent = '📋 Nova Ficha OPME';
@@ -971,10 +977,19 @@ window.selecionarArq = (input, tipo) => {
   document.getElementById('zone-'+tipo).classList.add('has-file');
 };
 
+window.visualizarArq = (e, tipo) => {
+  e.preventDefault(); e.stopPropagation();
+  const f = tipo === 'opme' ? _arquivoOpme : _arquivoPv;
+  if (f) { window.open(URL.createObjectURL(f), '_blank'); return; }
+  if (_anexoUrlAtual[tipo]) { window.open(_anexoUrlAtual[tipo], '_blank'); return; }
+  toast('Nenhum arquivo anexado.', 'info');
+};
+
 window.removerArq = (e, tipo) => {
   e.preventDefault(); e.stopPropagation();
   if (tipo === 'opme') _arquivoOpme = null;
   if (tipo === 'pv') _arquivoPv = null;
+  _anexoUrlAtual[tipo] = null;
   document.getElementById('fp-'+tipo).classList.remove('show');
   document.getElementById('zone-'+tipo).classList.remove('has-file');
   if (tipo==='pv') {
