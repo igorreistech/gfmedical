@@ -510,8 +510,37 @@ async function uploadAnexo(file, tipo, fichaId) {
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
   const path = `opme/${fichaId}/${tipo}_${Date.now()}.${ext}`;
   const storageRef = ref(storage, path);
-  await comTimeout(uploadBytes(storageRef, file), 25000, 'Tempo esgotado ao enviar anexo (Storage). Verifique sua conexão ou tente novamente.');
-  return await comTimeout(getDownloadURL(storageRef), 15000, 'Tempo esgotado ao obter link do anexo.');
+  await comTimeout(uploadBytes(storageRef, file), 10000, 'Tempo esgotado ao enviar anexo (Storage). Verifique se o Storage está habilitado no Firebase Console.');
+  return await comTimeout(getDownloadURL(storageRef), 8000, 'Tempo esgotado ao obter link do anexo.');
+}
+
+// Sobe os anexos em paralelo; falha de upload não bloqueia o salvamento da ficha (dados já estão no Firestore).
+async function uploadAnexosSeguro(docId) {
+  const tarefas = [];
+  if (_arquivoOpme) {
+    const f = _arquivoOpme;
+    tarefas.push(uploadAnexo(f, 'ficha-opme', docId)
+      .then(url => ({ campo: 'opmeAnexo', url, nome: f.name }))
+      .catch(e => ({ erro: true, tipo: 'Ficha OPME', msg: e.message })));
+  }
+  if (_arquivoPv) {
+    const f = _arquivoPv;
+    tarefas.push(uploadAnexo(f, 'pedido-venda', docId)
+      .then(url => ({ campo: 'pvAnexo', url, nome: f.name }))
+      .catch(e => ({ erro: true, tipo: 'Pedido de Venda', msg: e.message })));
+  }
+  const resultados = await Promise.all(tarefas);
+  const anexos = {};
+  const falhas = [];
+  resultados.forEach(r => {
+    if (r.erro) { falhas.push(r.tipo + ': ' + r.msg); return; }
+    anexos[r.campo + 'Url'] = r.url;
+    anexos[r.campo + 'Nome'] = r.nome;
+  });
+  if (Object.keys(anexos).length) {
+    await setDoc(doc(db, COLL, docId), {...anexos, atualizadoEm: serverTimestamp()}, {merge: true});
+  }
+  return falhas;
 }
 
 async function persistir(dados, id) {
@@ -526,21 +555,10 @@ async function persistir(dados, id) {
   } else {
     await setDoc(doc(db, COLL, docId), p, {merge: true});
   }
-  const anexos = {};
-  if (_arquivoOpme) {
-    anexos.opmeAnexoUrl = await uploadAnexo(_arquivoOpme, 'ficha-opme', docId);
-    anexos.opmeAnexoNome = _arquivoOpme.name;
-  }
-  if (_arquivoPv) {
-    anexos.pvAnexoUrl = await uploadAnexo(_arquivoPv, 'pedido-venda', docId);
-    anexos.pvAnexoNome = _arquivoPv.name;
-  }
-  if (Object.keys(anexos).length) {
-    await setDoc(doc(db, COLL, docId), {...anexos, atualizadoEm: serverTimestamp()}, {merge: true});
-  }
+  const falhasAnexo = (_arquivoOpme || _arquivoPv) ? await uploadAnexosSeguro(docId) : [];
   _arquivoOpme = null;
   _arquivoPv = null;
-  return docId;
+  return { docId, falhasAnexo };
 }
 
 window.excluirFicha = async id => {
@@ -925,13 +943,17 @@ window.salvarFicha = async () => {
   btn.disabled = true; btn.textContent = 'Salvando…';
   try {
     if (_arquivoOpme || _arquivoPv) btn.textContent = 'Enviando anexos…';
-    await persistir(dados, editingId);
+    const { falhasAnexo } = await persistir(dados, editingId);
     fecharModal();
-    toast(editingId ? 'Ficha atualizada no banco!' : 'Ficha salva no banco!', 'ok');
+    if (falhasAnexo.length) {
+      toast((editingId ? 'Ficha atualizada' : 'Ficha salva') + ', mas o anexo falhou', 'err');
+      alert('Ficha salva, porém não foi possível enviar o(s) anexo(s):\n\n' + falhasAnexo.join('\n') + '\n\nVerifique se o Firebase Storage está habilitado no projeto (Console → Build → Storage).');
+    } else {
+      toast(editingId ? 'Ficha atualizada no banco!' : 'Ficha salva no banco!', 'ok');
+    }
   } catch(e) {
     let msg = e.message;
     if (e.code === 'permission-denied') msg = 'Sem permissão no Firebase. Verifique se está logado e se as regras do Firestore permitem a coleção fichas_opme.';
-    else if (e.code && e.code.startsWith('storage/')) msg = 'Falha ao enviar anexo no Storage (' + e.code + '). A ficha pode ter sido salva sem o anexo — verifique se o Firebase Storage está habilitado no projeto.';
     alert('Erro ao salvar: '+msg);
   }
   finally { btn.disabled=false; btn.textContent='💾 Salvar Ficha'; }
