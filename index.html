@@ -11,7 +11,7 @@
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
       import { getFirestore, collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDoc, getDocs, query, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-      import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+      import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
       import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
       const firebaseConfig = {
@@ -92,39 +92,6 @@
         } finally { btn.disabled = false; btn.textContent = 'Entrar'; }
       };
 
-      window.doRegister = async function() {
-        const nome   = document.getElementById('regNome').value.trim();
-        const email  = document.getElementById('regEmail').value.trim();
-        const pass   = document.getElementById('regPass').value;
-        const pass2  = document.getElementById('regPass2').value;
-        const codigo = (document.getElementById('regCodigo')?.value || '').trim();
-        const btn    = document.getElementById('regBtn');
-        const err    = document.getElementById('loginError');
-        err.style.display = 'none';
-        if (!nome)          { err.textContent = 'Informe seu nome.'; err.style.display = 'block'; return; }
-        if (!email)         { err.textContent = 'Informe seu e-mail.'; err.style.display = 'block'; return; }
-        if (pass.length < 6){ err.textContent = 'Senha deve ter ao menos 6 caracteres.'; err.style.display = 'block'; return; }
-        if (pass !== pass2) { err.textContent = 'As senhas não coincidem.'; err.style.display = 'block'; return; }
-        btn.disabled = true; btn.textContent = 'Criando conta...';
-        try {
-          let role = 'agendador';
-          if (codigo) {
-            const acessoSnap = await getDoc(doc(db, 'config', 'acesso'));
-            if (acessoSnap.exists() && acessoSnap.data().codigo && acessoSnap.data().codigo === codigo) {
-              role = 'admin';
-            }
-          }
-          const cred = await createUserWithEmailAndPassword(auth, email, pass);
-          await setDoc(doc(db, 'usuarios', cred.user.uid), { email: email.toLowerCase(), nome, role, uid: cred.user.uid });
-        } catch(e) {
-          let msg = 'Erro ao criar conta.';
-          if (e.code === 'auth/email-already-in-use') msg = 'E-mail já cadastrado. Faça login.';
-          if (e.code === 'auth/invalid-email')        msg = 'E-mail inválido.';
-          if (e.code === 'auth/weak-password')        msg = 'Senha muito fraca (mínimo 6 caracteres).';
-          err.textContent = msg; err.style.display = 'block';
-        } finally { btn.disabled = false; btn.textContent = 'Criar conta'; }
-      };
-
       window.doAdminLoadCodigo = async function() {
         try {
           const snap = await getDoc(doc(db, 'config', 'acesso'));
@@ -141,20 +108,13 @@
         } catch(e) { alert('Erro ao salvar: '+e.message); }
       };
 
-      window.showRegister = function() {
-        document.getElementById('loginPanel').style.display = 'none';
-        document.getElementById('registerPanel').style.display = 'block';
-        document.getElementById('loginError').style.display = 'none';
-      };
       window.showLogin = function() {
         document.getElementById('loginPanel').style.display = 'block';
-        document.getElementById('registerPanel').style.display = 'none';
         document.getElementById('resetPanel').style.display = 'none';
         document.getElementById('loginError').style.display = 'none';
       };
       window.showResetPassword = function() {
         document.getElementById('loginPanel').style.display = 'none';
-        document.getElementById('registerPanel').style.display = 'none';
         document.getElementById('resetPanel').style.display = 'block';
         document.getElementById('loginError').style.display = 'none';
         document.getElementById('resetSuccessMsg').style.display = 'none';
@@ -180,36 +140,6 @@
           btn.disabled = false; btn.textContent = 'Enviar link';
         }
       };
-
-      async function _loginOAuth(provider, btnId) {
-        const btn = document.getElementById(btnId);
-        const err = document.getElementById('loginError');
-        if (btn) btn.disabled = true;
-        if (err) err.style.display = 'none';
-        try {
-          await signInWithPopup(auth, provider);
-        } catch(e) {
-          if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
-            if (btn) btn.disabled = false;
-            return;
-          }
-          if (e.code === 'auth/popup-blocked') {
-            // Fallback: redireciona em vez de popup (útil em mobile)
-            try { await signInWithRedirect(auth, provider); return; } catch(e2) {}
-          }
-          let msg = 'Erro ao entrar. ';
-          if (e.code === 'auth/unauthorized-domain') msg = 'Domínio não autorizado no Firebase. Adicione este domínio nos domínios autorizados do Firebase Console.';
-          else if (e.code === 'auth/network-request-failed') msg = 'Erro de rede. Verifique sua conexão.';
-          else msg = (e.message || e.code || 'Erro desconhecido.');
-          if (err) { err.textContent = msg; err.style.display = 'block'; }
-        } finally {
-          if (btn) btn.disabled = false;
-        }
-      }
-      window.doLoginGoogle = () => _loginOAuth(new GoogleAuthProvider(), 'loginBtnGoogle');
-
-      // Captura resultado de redirect (caso popup tenha falhado e usado redirect)
-      getRedirectResult(auth).catch(() => {});
 
       window.doLogout = async function() {
         if (confirm('Deseja sair do sistema?')) {
@@ -2468,24 +2398,8 @@
         .login-input:focus { border-color: #87c396; box-shadow: 0 0 0 3px rgba(135,195,150,0.15); }
         .login-btn { width: 100%; margin-top: 6px; padding: 14px; background: linear-gradient(135deg, #4bb4d2 0%, #87c396 100%); color: #ffffff; border: none; border-radius: 12px; font-family: 'Space Grotesk', sans-serif; font-size: 1.05rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; cursor: pointer; transition: all 0.25s cubic-bezier(0.4,0,0.2,1); box-shadow: 0 4px 22px rgba(75,180,210,0.4); }
         .login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(75,180,210,0.5); }
-        .login-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0 14px; color: rgba(75,140,150,0.55); font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em; }
-        .login-divider::before, .login-divider::after { content: ''; flex: 1; height: 1px; background: rgba(135,195,150,0.25); }
         .login-toggle { margin-top: 18px; text-align: center; font-family: var(--mono); font-size: 0.80rem; color: var(--text-dim); }
         .login-toggle-link { background: none; border: none; color: var(--accent); font-family: var(--mono); font-size: 0.80rem; cursor: pointer; text-decoration: underline; padding: 0; }
-        .login-oauth-buttons { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
-        .login-oauth-btn {
-            display: flex; align-items: center; justify-content: center; gap: 12px;
-            width: 100%; padding: 14px 20px;
-            border-radius: 12px; border: 1.5px solid rgba(135,195,150,0.35);
-            background: rgba(255,255,255,0.7);
-            font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600;
-            color: #0a2a35; cursor: pointer;
-            transition: all 0.22s cubic-bezier(0.4,0,0.2,1);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-        }
-        .login-oauth-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(75,180,210,0.22); border-color: rgba(75,180,210,0.5); }
-        .login-oauth-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-        .login-oauth-btn svg { flex-shrink: 0; }
         .login-error {
             background: rgba(217,79,79,0.08);
             border: 1px solid rgba(217,79,79,0.3);
@@ -3084,7 +2998,6 @@
             .login-sub { font-size: 0.75rem; }
             .login-input { font-size: 1rem; padding: 10px 12px; }
             .login-btn { font-size: 0.9rem; padding: 12px; }
-            .login-oauth-btn { font-size: 0.88rem; padding: 12px 14px; }
             /* Agendador */
             .agendador-header { padding: 12px 16px; }
             .agendador-body { padding: 20px 16px; }
@@ -4319,42 +4232,6 @@
                 <button type="submit" class="login-btn" id="loginBtn">Entrar</button>
                 <div style="text-align:right;margin-top:6px;"><button type="button" class="login-toggle-link" onclick="showResetPassword()" style="font-size:0.78rem;opacity:0.75;">Esqueci minha senha</button></div>
             </form>
-            <div class="login-divider"><span>ou continue com</span></div>
-            <div class="login-oauth-buttons">
-                <button class="login-oauth-btn" id="loginBtnGoogle" onclick="doLoginGoogle()">
-                    <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-                    Entrar com Google
-                </button>
-            </div>
-            <div class="login-toggle">Não tem conta? <button class="login-toggle-link" onclick="showRegister()">Cadastrar-se</button></div>
-        </div>
-
-        <!-- Painel de cadastro -->
-        <div id="registerPanel" style="display:none;">
-            <form onsubmit="doRegister(); return false;" autocomplete="on">
-                <div class="login-group">
-                    <label class="login-label">Nome</label>
-                    <input class="login-input" type="text" id="regNome" placeholder="Seu nome completo" autocomplete="name">
-                </div>
-                <div class="login-group">
-                    <label class="login-label">E-mail</label>
-                    <input class="login-input" type="email" id="regEmail" placeholder="seu@email.com" autocomplete="email">
-                </div>
-                <div class="login-group">
-                    <label class="login-label">Senha</label>
-                    <input class="login-input" type="password" id="regPass" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
-                </div>
-                <div class="login-group">
-                    <label class="login-label">Confirmar senha</label>
-                    <input class="login-input" type="password" id="regPass2" placeholder="Repita a senha" autocomplete="new-password">
-                </div>
-                <div class="login-group">
-                    <label class="login-label">Código de acesso <span style="font-size:0.75em;opacity:0.65;">(opcional)</span></label>
-                    <input class="login-input" type="text" id="regCodigo" placeholder="Se tiver um código, informe aqui" autocomplete="off">
-                </div>
-                <button type="submit" class="login-btn" id="regBtn">Criar conta</button>
-            </form>
-            <div class="login-toggle">Já tem conta? <button class="login-toggle-link" onclick="showLogin()">Fazer login</button></div>
         </div>
 
         <!-- Painel de recuperação de senha -->
