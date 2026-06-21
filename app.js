@@ -1,5 +1,5 @@
 ﻿// ─── DATA STORE ───
-let procedimentos = []; // preenchido em tempo real pelo Firebase
+let procedimentos = []; // preenchido em tempo real pelo Supabase
 let nextId = 1;
 
 // ─── AUDIO CONTEXT COMPARTILHADO ───
@@ -433,10 +433,10 @@ function autoPreencherRetiradaColeta(dataCirurgia) {
 }
 
 async function save() {
-    // Operações já salvas diretamente no Firebase — onSnapshot atualiza a UI
+    // Operações já salvas diretamente no Supabase — onSnapshot atualiza a UI
 }
 
-// ─── FIREBASE: salvar/atualizar procedimento ───
+// ─── SUPABASE: salvar/atualizar procedimento ───
 async function fbSaveProc(proc) {
     try {
         const { collection: col, addDoc, setDoc, doc } = window._fbModules;
@@ -446,7 +446,7 @@ async function fbSaveProc(proc) {
         const { _docId, _filial, ...data } = proc;
         data._updatedAt = new Date().toISOString();
         // Histórico de status
-        const userEmail = (window._fbAuth && window._fbAuth.currentUser) ? window._fbAuth.currentUser.email : 'sistema';
+        const userEmail = window._currentUser ? window._currentUser.email : 'sistema';
         if (_docId && proc.status !== undefined) {
             const existing = window.procedimentos ? window.procedimentos.find(p => p._docId === _docId) : null;
             if (existing && existing.status !== proc.status) {
@@ -468,7 +468,7 @@ async function fbSaveProc(proc) {
     }
 }
 
-// ─── FIREBASE: deletar procedimento ───
+// ─── SUPABASE: deletar procedimento ───
 async function fbDeleteProc(docId) {
     const { deleteDoc, doc } = window._fbModules;
     await deleteDoc(doc(window._fbDb, window._fbColl, docId));
@@ -2730,7 +2730,7 @@ function renderColetaView() {
                 </div>
                 ${proc.coletaObs ? `<div style="margin-top:8px;padding:7px 10px;background:rgba(99,102,241,0.05);border-radius:8px;border:1px solid rgba(99,102,241,0.15);font-size:0.75rem;color:var(--text-dim);">📝 ${proc.coletaObs}</div>` : ''}
                 ${proc.coletaAnexo ? `<div style="margin-top:8px;">
-                    ${/\.(jpg|jpeg|png|webp|gif)$/i.test(proc.coletaAnexo) || proc.coletaAnexo.startsWith('data:image') || (proc.coletaAnexo.includes('firebasestorage') && !proc.coletaAnexo.includes('.pdf'))
+                    ${/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(proc.coletaAnexo) || proc.coletaAnexo.startsWith('data:image') || ((proc.coletaAnexo.includes('firebasestorage') || proc.coletaAnexo.includes('.supabase.co/storage')) && !proc.coletaAnexo.includes('.pdf'))
                         ? `<img src="${proc.coletaAnexo}" alt="Anexo" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid rgba(99,102,241,0.25);object-fit:cover;cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')"><span>📎</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;">Ver anexo →</span></div>`
                         : `<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')"><span>📄</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;font-weight:700;">Ver anexo →</span></div>`
                     }
@@ -3246,7 +3246,7 @@ async function importBackupJSON(event) {
             const confirmMsg = `📂 Backup de ${exportadoEm}\n📋 ${total} procedimento(s) encontrado(s)\n\nOK = Substituir tudo | Cancelar = Abortar`;
             if (!confirm(confirmMsg)) { event.target.value = ''; return; }
 
-            showSyncToast('⏳ Importando para Firebase...');
+            showSyncToast('⏳ Importando para o Supabase...');
 
             const { collection: col, getDocs, deleteDoc, doc, addDoc } = window._fbModules;
             const db = window._fbDb;
@@ -3260,7 +3260,7 @@ async function importBackupJSON(event) {
                 await addDoc(col(db, COLL), data);
             }
 
-            alert(`✅ Backup restaurado com sucesso no Firebase!\n${total} procedimento(s) importado(s).`);
+            alert(`✅ Backup restaurado com sucesso no Supabase!\n${total} procedimento(s) importado(s).`);
         } catch(err) {
             alert('❌ Erro ao ler o arquivo. Certifique-se de que é um JSON válido.\n' + err.message);
         }
@@ -3394,8 +3394,8 @@ function loadItensBuilder(itensStr) {
 }
 
 // ─── LOGIN ───
-// ─── FIREBASE AUTH ───
-// doLogin, doLogout e onAuthStateChanged estão no módulo ES para acesso direto às funções Firebase
+// ─── SUPABASE AUTH ───
+// doLogin, doLogout e onAuthStateChange estão no módulo ES para acesso direto às funções do Supabase
 
 // ─── ANEXO PREVIEW ───
 document.addEventListener('change', function(e) {
@@ -3781,8 +3781,8 @@ setTimeout(verificarLembreteRetirada, 5000);
 setTimeout(atualizarBannerPendencias, 5500);
 
 // ─── INIT ───
-// Dados carregados pelo onSnapshot do Firebase acima
-// Expõe variáveis e funções ao escopo global (window) para o módulo Firebase acessar
+// Dados carregados pelo onSnapshot do Supabase acima
+// Expõe variáveis e funções ao escopo global (window) para o módulo Supabase acessar
 window.procedimentos = procedimentos;
 window.renderCards = renderCards;
 
@@ -3829,7 +3829,7 @@ async function quickSetStatus(docId, novoStatus, e) {
     if (novoStatus === 'reagendado') {
         const dataAnterior = proc.data || '';
         mostrarAlertaReagendado(proc, async (novaData, motivo) => {
-            const userEmail = (window._fbAuth && window._fbAuth.currentUser) ? window._fbAuth.currentUser.email : 'sistema';
+            const userEmail = window._currentUser ? window._currentUser.email : 'sistema';
             const hist = proc._statusHistory || [];
             hist.push({ de: statusAnterior, para: 'reagendado', em: new Date().toISOString(), por: userEmail, dataAnterior, dataNova: novaData, motivo: motivo || '' });
             proc._statusHistory = hist;
@@ -3843,7 +3843,7 @@ async function quickSetStatus(docId, novoStatus, e) {
     }
     mostrarChecklist(proc, novoStatus, async () => {
         pedirObsStatus(statusAnterior, novoStatus, async (obs) => {
-            const userEmail = (window._fbAuth && window._fbAuth.currentUser) ? window._fbAuth.currentUser.email : 'sistema';
+            const userEmail = window._currentUser ? window._currentUser.email : 'sistema';
             const hist = proc._statusHistory || [];
             hist.push({ de: statusAnterior, para: novoStatus, em: new Date().toISOString(), por: userEmail, obs: obs || '' });
             proc._statusHistory = hist;

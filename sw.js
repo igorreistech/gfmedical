@@ -1,4 +1,4 @@
-const CACHE = 'monitor-cgr-v11';
+const CACHE = 'monitor-cgr-v12';
 const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
   BASE,
@@ -39,9 +39,9 @@ self.addEventListener('fetch', e => {
   }
 
   const isLocal = !url.hostname.includes('googleapis') &&
-                  !url.hostname.includes('gstatic') &&
-                  !url.hostname.includes('firebaseapp') &&
-                  !url.hostname.includes('cdnjs');
+                  !url.hostname.includes('cdnjs') &&
+                  !url.hostname.includes('supabase.co') &&
+                  !url.hostname.includes('esm.sh');
   if (isLocal && url.pathname.startsWith(BASE)) {
     e.respondWith(
       caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {

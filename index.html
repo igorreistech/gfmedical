@@ -7,35 +7,27 @@
     <meta name="theme-color" content="#2a9fbf">
     <link rel="manifest" href="manifest.json">
     <title>Monitor Cirúrgico · Campo Grande - MS</title>
-    <!-- Firebase SDK -->
+    <!-- Supabase SDK (migrado do Firebase) -->
     <script type="module">
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-      import { getFirestore, collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDoc, getDocs, query, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-      import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-      import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+      import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+      import { createFirestoreShim, createStorageShim } from "./supabase-shim.js";
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyCKQ0IFOO-8bQDqBN7oV1GTFbATmXI8MTI",
-        authDomain: "gfcampogrande-3d886.firebaseapp.com",
-        projectId: "gfcampogrande-3d886",
-        storageBucket: "gfcampogrande-3d886.firebasestorage.app",
-        messagingSenderId: "1089347107124",
-        appId: "1:1089347107124:web:2cf047dff32b642c1ecd61"
-      };
+      const SUPABASE_URL = "https://rqzqetfoxiutabsooqqn.supabase.co";
+      const SUPABASE_ANON_KEY = "sb_publishable_P3EggMdsxQUoKnX_pLMaRQ_ZrGEYpIP";
 
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
-      enableIndexedDbPersistence(db).catch(()=>{});
-      const auth = getAuth(app);
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const auth = supabase.auth;
       window._fbAuth = auth;
-      const COLL = "procedimentos_cg";
+      window._supabase = supabase;
+      const COLL = "procedimentos";
 
+      const db = supabase; // mantido como "db" só para minimizar diff no resto do arquivo
       window._fbDb = db;
       window._fbColl = COLL;
-      window._fbModules = { collection, onSnapshot, addDoc, setDoc, deleteDoc, doc, getDoc, getDocs, query, where };
-      const storage = getStorage(app);
-      window._fbStorage = storage;
-      window._fbStorageModules = { ref, uploadBytes, getDownloadURL };
+      window._fbModules = createFirestoreShim(supabase);
+      const { collection, doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, query, orderBy } = window._fbModules;
+      window._fbStorage = supabase.storage;
+      window._fbStorageModules = createStorageShim(supabase, 'opme');
 
       // ─── NOTIFICAÇÕES PUSH ───
       window._notifStatusAnterior = null; // null = primeira carga, não notifica
@@ -79,33 +71,18 @@
         if (!email || !pass) { err.textContent = 'Preencha e-mail e senha.'; err.style.display = 'block'; return; }
         btn.disabled = true; btn.textContent = 'Entrando...'; err.style.display = 'none';
         try {
-          await signInWithEmailAndPassword(auth, email, pass);
+          const { error } = await auth.signInWithPassword({ email, password: pass });
+          if (error) throw error;
         } catch(e) {
           let msg = 'E-mail ou senha incorretos.';
-          if (e.code === 'auth/invalid-email')          msg = 'E-mail inválido.';
-          if (e.code === 'auth/too-many-requests')      msg = 'Muitas tentativas. Tente mais tarde.';
-          if (e.code === 'auth/network-request-failed') msg = 'Erro de rede. Verifique sua conexão.';
+          if (e.message?.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
+          if (e.message?.includes('rate limit'))                msg = 'Muitas tentativas. Tente mais tarde.';
+          if (e.message?.includes('Failed to fetch'))            msg = 'Erro de rede. Verifique sua conexão.';
           err.textContent = msg; err.style.display = 'block';
           document.getElementById('loginPass').value = '';
           const box = document.querySelector('.login-box');
           if (box) { box.style.transform='translateX(-8px)'; setTimeout(()=>{box.style.transform='translateX(8px)';},80); setTimeout(()=>{box.style.transform='translateX(-5px)';},160); setTimeout(()=>{box.style.transform='translateX(0)';},240); }
         } finally { btn.disabled = false; btn.textContent = 'Entrar'; }
-      };
-
-      window.doAdminLoadCodigo = async function() {
-        try {
-          const snap = await getDoc(doc(db, 'config', 'acesso'));
-          const el = document.getElementById('admin-codigo');
-          if (el && snap.exists()) el.value = snap.data().codigo || '';
-        } catch(e) {}
-      };
-      window.doAdminSaveCodigo = async function() {
-        const el = document.getElementById('admin-codigo');
-        const codigo = (el?.value || '').trim();
-        try {
-          await setDoc(doc(db, 'config', 'acesso'), { codigo });
-          if (el) { el.style.borderColor = '#87c396'; setTimeout(()=>{ el.style.borderColor=''; }, 1500); }
-        } catch(e) { alert('Erro ao salvar: '+e.message); }
       };
 
       window.showLogin = function() {
@@ -128,14 +105,15 @@
         if (!email) { err.textContent = 'Informe seu e-mail.'; err.style.display = 'block'; return; }
         btn.disabled = true; btn.textContent = 'Enviando…';
         try {
-          await sendPasswordResetEmail(auth, email);
+          const { error } = await auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin + window.location.pathname.replace(/index\.html$/, '') + 'redefinir-senha.html',
+          });
+          if (error) throw error;
           err.style.display = 'none';
           document.getElementById('resetSuccessMsg').style.display = 'block';
         } catch(e) {
-          let msg = 'Erro ao enviar e-mail.';
-          if (e.code === 'auth/user-not-found') msg = 'E-mail não encontrado.';
-          else if (e.code === 'auth/invalid-email') msg = 'E-mail inválido.';
-          err.textContent = msg; err.style.display = 'block';
+          err.textContent = 'Erro ao enviar e-mail. ' + (e.message || '');
+          err.style.display = 'block';
         } finally {
           btn.disabled = false; btn.textContent = 'Enviar link';
         }
@@ -143,7 +121,7 @@
 
       window.doLogout = async function() {
         if (confirm('Deseja sair do sistema?')) {
-          try { await signOut(auth); } catch(e) {}
+          try { await auth.signOut(); } catch(e) {}
         }
       };
 
@@ -205,11 +183,24 @@
         const nome    = (nomeEl?.value||'').trim();
         if (!email) { emailEl?.focus(); return; }
         try {
-          await setDoc(doc(db, 'usuarios', email.replace(/[^a-z0-9]/g,'_')), { email, role, nome: nome||email });
+          // Cria login real (Supabase Auth) via Edge Function — só o servidor
+          // tem a service_role key necessária para isso, nunca o client.
+          const { data: sessionData } = await auth.getSession();
+          const resp = await fetch(SUPABASE_URL + '/functions/v1/create-user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + sessionData.session.access_token,
+            },
+            body: JSON.stringify({ email, role, nome: nome || email }),
+          });
+          const result = await resp.json();
+          if (!resp.ok) throw new Error(result.error || 'Falha ao criar usuário.');
           if (emailEl) emailEl.value = '';
           if (nomeEl)  nomeEl.value  = '';
+          alert(`Usuário criado. Senha temporária: ${result.temp_password}\n\nPeça para a pessoa usar "Esqueci minha senha" no primeiro acesso.`);
           doAdminLoadUsers();
-        } catch(e) { alert('Erro ao salvar: '+e.message); }
+        } catch(e) { alert('Erro ao criar usuário: '+e.message); }
       };
       window.doAdminDeleteUser = async function(docId) {
         if (!confirm('Remover este usuário?')) return;
@@ -221,14 +212,15 @@
       };
       window.openAdminModal = function() {
         const m = document.getElementById('adminModal');
-        if (m) { m.style.display = 'flex'; doAdminLoadUsers(); doAdminLoadCodigo(); }
+        if (m) { m.style.display = 'flex'; doAdminLoadUsers(); }
       };
       window.closeAdminModal = function() {
         const m = document.getElementById('adminModal');
         if (m) m.style.display = 'none';
       };
 
-      onAuthStateChanged(auth, (user) => {
+      auth.onAuthStateChange((_event, session) => {
+        const user = session?.user ?? null;
         async function aplicarAuth() {
           const overlay = document.getElementById('loginOverlay');
           if (!overlay) { setTimeout(aplicarAuth, 50); return; }
@@ -240,31 +232,32 @@
             const isAdminFixo = ADMIN_EMAILS_FIXOS.includes(emailLower);
             let perfil = null;
             if (isAdminFixo) {
-              perfil = { email: emailLower, nome: user.displayName || user.email, role: 'admin', uid: user.uid };
-              try { await setDoc(doc(db, 'usuarios', user.uid), { ...perfil }); } catch(e) {}
+              perfil = { email: emailLower, nome: user.email, role: 'admin' };
+              try { await setDoc(doc(db, 'usuarios', user.id), { ...perfil }); } catch(e) {}
             } else {
               try {
-                const snap = await getDoc(doc(db, 'usuarios', user.uid));
+                const snap = await getDoc(doc(db, 'usuarios', user.id));
                 if (snap.exists()) {
                   perfil = snap.data();
                 } else {
-                  // Novo usuário via OAuth: auto-cadastra como agendador
-                  perfil = { email: emailLower, nome: user.displayName || user.email, role: 'agendador', uid: user.uid };
-                  await setDoc(doc(db, 'usuarios', user.uid), perfil);
+                  // Usuário autenticado sem perfil ainda (ex.: criado direto no Supabase Auth
+                  // sem passar pelo fluxo de admin) — auto-cadastra como agendador.
+                  perfil = { email: emailLower, nome: user.email, role: 'agendador' };
+                  await setDoc(doc(db, 'usuarios', user.id), perfil);
                 }
               } catch(e) { perfil = null; }
             }
 
             // Garante que sempre há um perfil válido (somente para não-admins)
             if (!perfil) {
-              perfil = { email: emailLower, nome: user.displayName || user.email, role: 'agendador', uid: user.uid };
-              try { await setDoc(doc(db, 'usuarios', user.uid), perfil, { merge: true }); } catch(e2) {}
+              perfil = { email: emailLower, nome: user.email, role: 'agendador' };
+              try { await setDoc(doc(db, 'usuarios', user.id), perfil); } catch(e2) {}
             }
 
             // Segurança final: emails fixos SEMPRE são admin, nunca agendador
             if (isAdminFixo) perfil.role = 'admin';
 
-            window._currentUser = { uid: user.uid, email: user.email, nome: perfil.nome || user.displayName || user.email, role: perfil.role };
+            window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: perfil.role };
             overlay.classList.add('hidden');
             const logoutEl  = document.getElementById('logoutBtn');
             const adminBtn  = document.getElementById('btn-gerenciar-usuarios');
@@ -306,17 +299,6 @@
         }
         aplicarAuth();
       });
-
-      // Garante que config/acesso existe com código padrão na primeira execução
-      (async () => {
-        try {
-          const acessoRef = doc(db, 'config', 'acesso');
-          const acessoSnap = await getDoc(acessoRef);
-          if (!acessoSnap.exists()) {
-            await setDoc(acessoRef, { codigo: '140424' });
-          }
-        } catch(e) {}
-      })();
 
       window.addEventListener('DOMContentLoaded', () => {
         const { collection: col, onSnapshot: snap } = window._fbModules;
@@ -4294,14 +4276,6 @@
             </div>
             <button class="admin-add-btn" onclick="doAdminAddUser()">Adicionar Usuário</button>
         </div>
-        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
-            <div style="font-family:'Space Grotesk',sans-serif;font-size:0.95rem;font-weight:700;color:var(--text);margin-bottom:8px;">Código de Acesso Completo</div>
-            <div style="font-family:var(--mono);font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;">Novos usuários que informarem este código no cadastro recebem acesso completo ao monitor.</div>
-            <div style="display:flex;gap:10px;align-items:center;">
-                <input class="admin-add-input" type="text" id="admin-codigo" placeholder="Defina um código..." style="flex:1;">
-                <button class="admin-add-btn" onclick="doAdminSaveCodigo()" style="padding:10px 18px;white-space:nowrap;border-radius:9px;font-size:0.88rem;">Salvar</button>
-            </div>
-        </div>
         <button class="admin-close-btn" onclick="closeAdminModal()">Fechar</button>
     </div>
 </div>
@@ -5944,7 +5918,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ─── DATA STORE ───
-let procedimentos = []; // preenchido em tempo real pelo Firebase
+let procedimentos = []; // preenchido em tempo real pelo Supabase
 let nextId = 1;
 
 // ─── AUDIO CONTEXT COMPARTILHADO ───
@@ -6378,10 +6352,10 @@ function autoPreencherRetiradaColeta(dataCirurgia) {
 }
 
 async function save() {
-    // Operações já salvas diretamente no Firebase — onSnapshot atualiza a UI
+    // Operações já salvas diretamente no Supabase — onSnapshot atualiza a UI
 }
 
-// ─── FIREBASE: salvar/atualizar procedimento ───
+// ─── SUPABASE: salvar/atualizar procedimento ───
 async function fbSaveProc(proc) {
     try {
         const { collection: col, addDoc, setDoc, doc } = window._fbModules;
@@ -6391,7 +6365,7 @@ async function fbSaveProc(proc) {
         const { _docId, _filial, ...data } = proc;
         data._updatedAt = new Date().toISOString();
         // Histórico de status
-        const userEmail = (window._fbAuth && window._fbAuth.currentUser) ? window._fbAuth.currentUser.email : 'sistema';
+        const userEmail = window._currentUser ? window._currentUser.email : 'sistema';
         if (_docId && proc.status !== undefined) {
             const existing = window.procedimentos ? window.procedimentos.find(p => p._docId === _docId) : null;
             if (existing && existing.status !== proc.status) {
@@ -6413,7 +6387,7 @@ async function fbSaveProc(proc) {
     }
 }
 
-// ─── FIREBASE: deletar procedimento ───
+// ─── SUPABASE: deletar procedimento ───
 async function fbDeleteProc(docId) {
     const { deleteDoc, doc } = window._fbModules;
     await deleteDoc(doc(window._fbDb, window._fbColl, docId));
@@ -8846,7 +8820,7 @@ function renderColetaView() {
                 </div>
                 ${proc.coletaObs ? `<div style="margin-top:8px;padding:7px 10px;background:rgba(99,102,241,0.05);border-radius:8px;border:1px solid rgba(99,102,241,0.15);font-size:0.75rem;color:var(--text-dim);">📝 ${proc.coletaObs}</div>` : ''}
                 ${proc.coletaAnexo ? `<div style="margin-top:8px;">
-                    ${/\.(jpg|jpeg|png|webp|gif)$/i.test(proc.coletaAnexo) || proc.coletaAnexo.startsWith('data:image') || (proc.coletaAnexo.includes('firebasestorage') && !proc.coletaAnexo.includes('.pdf'))
+                    ${/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(proc.coletaAnexo) || proc.coletaAnexo.startsWith('data:image') || ((proc.coletaAnexo.includes('firebasestorage') || proc.coletaAnexo.includes('.supabase.co/storage')) && !proc.coletaAnexo.includes('.pdf'))
                         ? `<img src="${proc.coletaAnexo}" alt="Anexo" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid rgba(99,102,241,0.25);object-fit:cover;cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')"><span>📎</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;">Ver anexo →</span></div>`
                         : `<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);cursor:pointer;" onclick="window.abrirAnexoProc('${realIndex}','coletaAnexo')"><span>📄</span><span style="font-family:var(--mono);font-size:0.7rem;color:#818cf8;font-weight:700;">Ver anexo →</span></div>`
                     }
@@ -9361,7 +9335,7 @@ async function importBackupJSON(event) {
             const confirmMsg = `📂 Backup de ${exportadoEm}\n📋 ${total} procedimento(s) encontrado(s)\n\nOK = Substituir tudo | Cancelar = Abortar`;
             if (!confirm(confirmMsg)) { event.target.value = ''; return; }
 
-            showSyncToast('⏳ Importando para Firebase...');
+            showSyncToast('⏳ Importando para o Supabase...');
 
             const { collection: col, getDocs, deleteDoc, doc, addDoc } = window._fbModules;
             const db = window._fbDb;
@@ -9375,7 +9349,7 @@ async function importBackupJSON(event) {
                 await addDoc(col(db, COLL), data);
             }
 
-            alert(`✅ Backup restaurado com sucesso no Firebase!\n${total} procedimento(s) importado(s).`);
+            alert(`✅ Backup restaurado com sucesso no Supabase!\n${total} procedimento(s) importado(s).`);
         } catch(err) {
             alert('❌ Erro ao ler o arquivo. Certifique-se de que é um JSON válido.\n' + err.message);
         }
@@ -9509,8 +9483,8 @@ function loadItensBuilder(itensStr) {
 }
 
 // ─── LOGIN ───
-// ─── FIREBASE AUTH ───
-// doLogin, doLogout e onAuthStateChanged estão no módulo ES para acesso direto às funções Firebase
+// ─── SUPABASE AUTH ───
+// doLogin, doLogout e onAuthStateChange estão no módulo ES para acesso direto às funções do Supabase
 
 // ─── ANEXO PREVIEW ───
 document.addEventListener('change', function(e) {
@@ -9896,8 +9870,8 @@ setTimeout(verificarLembreteRetirada, 5000);
 setTimeout(atualizarBannerPendencias, 5500);
 
 // ─── INIT ───
-// Dados carregados pelo onSnapshot do Firebase acima
-// Expõe variáveis e funções ao escopo global (window) para o módulo Firebase acessar
+// Dados carregados pelo onSnapshot do Supabase acima
+// Expõe variáveis e funções ao escopo global (window) para o módulo Supabase acessar
 window.procedimentos = procedimentos;
 window.renderCards = renderCards;
 
@@ -9944,7 +9918,7 @@ async function quickSetStatus(docId, novoStatus, e) {
     if (novoStatus === 'reagendado') {
         const dataAnterior = proc.data || '';
         mostrarAlertaReagendado(proc, async (novaData, motivo) => {
-            const userEmail = (window._fbAuth && window._fbAuth.currentUser) ? window._fbAuth.currentUser.email : 'sistema';
+            const userEmail = window._currentUser ? window._currentUser.email : 'sistema';
             const hist = proc._statusHistory || [];
             hist.push({ de: statusAnterior, para: 'reagendado', em: new Date().toISOString(), por: userEmail, dataAnterior, dataNova: novaData, motivo: motivo || '' });
             proc._statusHistory = hist;
@@ -16196,7 +16170,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Hook no splice do array procedimentos (Firebase usa splice para atualizar)
+// Hook no splice do array procedimentos (o app usa splice para atualizar)
 (function hookProcedimentosSplice() {
     function tentarHook() {
         const arr = window.procedimentos;
@@ -16348,7 +16322,7 @@ window._marcarSyncOk = function() {
     if (text) text.textContent = 'Sync ' + agora;
 };
 
-// Hook no splice (Firebase usa splice para atualizar dados)
+// Hook no splice (o app usa splice para atualizar dados)
 (function hookSyncSplice() {
     function tentarHook() {
         const arr = window.procedimentos;
@@ -16512,9 +16486,7 @@ window.exportarColetasExcel = function() {
 
     // Gerar CSV com BOM para Excel reconhecer UTF-8
     const cols = Object.keys(rows[0]);
-    const csv = '﻿' + cols.join(';') + '
-' + rows.map(r => cols.map(c => `"${(r[c]||'').replace(/"/g,'""')}"`).join(';')).join('
-');
+    const csv = '﻿' + cols.join(';') + '\n' + rows.map(r => cols.map(c => `"${(r[c]||'').replace(/"/g,'""')}"`).join(';')).join('\n');
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -16697,7 +16669,7 @@ async function uploadAnexoColetaSeNecessario() {
     const storage = window._fbStorage;
     const { ref, uploadBytes, getDownloadURL } = window._fbStorageModules || {};
     if (!storage || !ref || !uploadBytes || !getDownloadURL) {
-        console.warn('Firebase Storage não disponível');
+        console.warn('Storage não disponível');
         return null;
     }
 
@@ -17101,7 +17073,7 @@ window.executarPesquisaGlobal = function(q) {
         const titulo = isColeta ? (p.coletaFornecedor||'Coleta') : (p.paciente||'—');
         const sub = isColeta ? (p.coletaTransportadora||p.nfCompra||'') : (p.hospital||'');
         const st = labelSt[p.status]||p.status;
-        return `<div onclick="$('modal-pesquisa-global').remove();window.switchView&&window.switchView(${isColeta?''coleta'':''table''});setTimeout(()=>{const el=document.querySelector('[data-id=\'${id}\']');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.outline='2px solid #6366f1';setTimeout(()=>el.style.outline='',2000);}},300);"
+        return `<div onclick="$('modal-pesquisa-global').remove();window.switchView&&window.switchView(${isColeta?"'coleta'":"'table'"});setTimeout(()=>{const el=document.querySelector('[data-id=\'${id}\']');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.outline='2px solid #6366f1';setTimeout(()=>el.style.outline='',2000);}},300);"
             style="padding:10px 0;border-bottom:1px solid var(--border,#f3f4f6);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <div style="flex:1;min-width:0;">
                 <div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:var(--text,#111);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${titulo}</div>
@@ -17606,12 +17578,12 @@ window.buildCardHTML = function(proc) {
         } catch(e) { console.error('OPME carregar erro:', e); }
     }
 
-    // Aguarda Firebase estar pronto e carrega
-    (function aguardaFirebase() {
+    // Aguarda Supabase estar pronto e carrega
+    (function aguardaSupabase() {
         if (window._fbDb && window._fbModules) {
             _opme_carregar();
         } else {
-            setTimeout(aguardaFirebase, 200);
+            setTimeout(aguardaSupabase, 200);
         }
     })();
     function renderOpmeView() {
@@ -19306,7 +19278,7 @@ window.buildCardHTML=function(proc){
 window.abrirComentarios=function(docId){
     const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
     const comentarios=proc._comentarios||[];
-    const user=(window._fbAuth&&window._fbAuth.currentUser)?window._fbAuth.currentUser.email:'usuário';
+    const user=window._currentUser?window._currentUser.email:'usuário';
     const fmtTs=ts=>ts?new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
     const ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);';
@@ -19328,7 +19300,7 @@ window._enviarComentario=async function(docId){
     const inp=document.getElementById('coment-input-'+docId); if(!inp) return;
     const txt=inp.value.trim(); if(!txt) return;
     const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
-    const user=(window._fbAuth&&window._fbAuth.currentUser)?window._fbAuth.currentUser.email:'usuário';
+    const user=window._currentUser?window._currentUser.email:'usuário';
     const comentarios=proc._comentarios||[];
     comentarios.push({texto:txt,autor:user,em:new Date().toISOString()});
     proc._comentarios=comentarios;

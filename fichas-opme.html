@@ -416,26 +416,21 @@ tbody tr:hover .row-acts{opacity:1}
 </div>
 
 <script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { createFirestoreShim, createStorageShim } from './supabase-shim.js';
 
-const firebaseConfig = {
-  apiKey:"AIzaSyCKQ0IFOO-8bQDqBN7oV1GTFbATmXI8MTI",
-  authDomain:"gfcampogrande-3d886.firebaseapp.com",
-  projectId:"gfcampogrande-3d886",
-  storageBucket:"gfcampogrande-3d886.firebasestorage.app",
-  messagingSenderId:"1089347107124",
-  appId:"1:1089347107124:web:2cf047dff32b642c1ecd61"
-};
+const SUPABASE_URL = "https://rqzqetfoxiutabsooqqn.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_P3EggMdsxQUoKnX_pLMaRQ_ZrGEYpIP";
 
 const COLL = 'fichas_opme';
 const FILIAL = 'CGR';
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db   = getFirestore(app);
-const storage = getStorage(app);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const auth = supabase.auth;
+const db   = supabase; // mantido como "db" só para minimizar diff no resto do arquivo
+const { collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs } = createFirestoreShim(supabase);
+const storage = supabase.storage;
+const { ref, uploadBytes, getDownloadURL } = createStorageShim(supabase, 'opme');
+let _currentUser = null;
 
 if (typeof pdfjsLib !== 'undefined')
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -455,11 +450,13 @@ let _arquivoOpme=null, _arquivoPv=null;
 let _anexoUrlAtual={opme:null, pv:null};
 
 // AUTH
-onAuthStateChanged(auth, u => {
+auth.onAuthStateChange((_event, session) => {
+  const u = session?.user || null;
+  _currentUser = u ? { uid: u.id, email: u.email } : null;
   if (u) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-root').style.display = 'flex';
-    const nome = u.displayName || u.email || '';
+    const nome = u.email || '';
     document.getElementById('user-nm').textContent = nome.split(' ')[0] || nome;
     document.getElementById('user-av').textContent = nome.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase() || '?';
     carregarFichas();
@@ -475,11 +472,11 @@ window.doLogin = async () => {
   const senha = document.getElementById('l-senha').value;
   const er = document.getElementById('l-err');
   er.classList.remove('show');
-  try { await signInWithEmailAndPassword(auth, email, senha); }
-  catch { er.classList.add('show'); }
+  const { error } = await auth.signInWithPassword({ email, password: senha });
+  if (error) er.classList.add('show');
 };
 
-window.doLogout = () => signOut(auth);
+window.doLogout = () => auth.signOut();
 
 // FIRESTORE
 let _unsubFichas = null;
@@ -510,7 +507,7 @@ async function uploadAnexo(file, tipo, fichaId) {
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
   const path = `opme/${fichaId}/${tipo}_${Date.now()}.${ext}`;
   const storageRef = ref(storage, path);
-  await comTimeout(uploadBytes(storageRef, file), 10000, 'Tempo esgotado ao enviar anexo (Storage). Verifique se o Storage está habilitado no Firebase Console.');
+  await comTimeout(uploadBytes(storageRef, file), 10000, 'Tempo esgotado ao enviar anexo (Storage). Verifique se o bucket "opme" está configurado no Supabase.');
   return await comTimeout(getDownloadURL(storageRef), 8000, 'Tempo esgotado ao obter link do anexo.');
 }
 
@@ -538,18 +535,17 @@ async function uploadAnexosSeguro(docId) {
     anexos[r.campo + 'Nome'] = r.nome;
   });
   if (Object.keys(anexos).length) {
-    await setDoc(doc(db, COLL, docId), {...anexos, atualizadoEm: serverTimestamp()}, {merge: true});
+    await setDoc(doc(db, COLL, docId), anexos, {merge: true});
   }
   return falhas;
 }
 
 async function persistir(dados, id) {
-  if (!auth.currentUser) throw new Error('Faça login para salvar.');
-  const p = {...dados, filial: FILIAL, atualizadoEm: serverTimestamp()};
+  if (!_currentUser) throw new Error('Faça login para salvar.');
+  const p = {...dados, filial: FILIAL};
   let docId = id;
   if (!docId) {
-    p.criadoEm = serverTimestamp();
-    p.criadoPor = auth.currentUser.email || '';
+    p.criadoPor = _currentUser.uid || '';
     const docRef = await addDoc(collection(db, COLL), p);
     docId = docRef.id;
   } else {
@@ -568,7 +564,7 @@ window.excluirFicha = async id => {
 };
 
 window.mudStatus = async (id, s) => {
-  await setDoc(doc(db, COLL, id), {status:s, atualizadoEm:serverTimestamp()}, {merge:true});
+  await setDoc(doc(db, COLL, id), {status:s}, {merge:true});
 };
 
 // VIEWS
@@ -764,8 +760,9 @@ function renderDashboard() {
   const mx = Math.max(...totais, 1);
   const agora = Date.now();
 
-  function tempoRelativo(seg) {
-    if (!seg) return 'agora';
+  function tempoRelativo(iso) {
+    if (!iso) return 'agora';
+    const seg = new Date(iso).getTime()/1000;
     const d = Math.round((agora/1000 - seg)/60);
     if (d<2) return 'agora';
     if (d<60) return `há ${d}min`;
@@ -773,8 +770,8 @@ function renderDashboard() {
     return `há ${Math.round(d/1440)}d`;
   }
 
-  const recentes = [...fichas].filter(f => f.atualizadoEm?.seconds)
-    .sort((a,b) => (b.atualizadoEm?.seconds||0)-(a.atualizadoEm?.seconds||0)).slice(0,5);
+  const recentes = [...fichas].filter(f => f.atualizadoEm)
+    .sort((a,b) => new Date(b.atualizadoEm||0) - new Date(a.atualizadoEm||0)).slice(0,5);
 
   const convMap = {}; fichas.forEach(f => { const c=f.convenio||'—'; convMap[c]=(convMap[c]||0)+1; });
   const convList = Object.entries(convMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
@@ -822,7 +819,7 @@ function renderDashboard() {
                       <div class="act-name">${esc(f.paciente||'—')}</div>
                       <div class="act-desc">${STATUS[s].label} · ${esc(f.procedimento||f.convenio||'—')}</div>
                     </div>
-                    <span class="act-time">${tempoRelativo(f.atualizadoEm?.seconds)}</span>
+                    <span class="act-time">${tempoRelativo(f.atualizadoEm)}</span>
                   </div>`;
                 }).join('')}
           </div>
@@ -947,13 +944,13 @@ window.salvarFicha = async () => {
     fecharModal();
     if (falhasAnexo.length) {
       toast((editingId ? 'Ficha atualizada' : 'Ficha salva') + ', mas o anexo falhou', 'err');
-      alert('Ficha salva, porém não foi possível enviar o(s) anexo(s):\n\n' + falhasAnexo.join('\n') + '\n\nVerifique se o Firebase Storage está habilitado no projeto (Console → Build → Storage).');
+      alert('Ficha salva, porém não foi possível enviar o(s) anexo(s):\n\n' + falhasAnexo.join('\n') + '\n\nVerifique se o bucket "opme" está configurado no Supabase (Storage → Buckets).');
     } else {
       toast(editingId ? 'Ficha atualizada no banco!' : 'Ficha salva no banco!', 'ok');
     }
   } catch(e) {
     let msg = e.message;
-    if (e.code === 'permission-denied') msg = 'Sem permissão no Firebase. Verifique se está logado e se as regras do Firestore permitem a coleção fichas_opme.';
+    if (e.code === '42501' || msg?.includes('row-level security')) msg = 'Sem permissão no Supabase. Verifique se está logado e se as políticas de RLS permitem escrita na tabela fichas_opme.';
     alert('Erro ao salvar: '+msg);
   }
   finally { btn.disabled=false; btn.textContent='💾 Salvar Ficha'; }
@@ -1316,7 +1313,7 @@ function parsearC160(texto, filename) {
 
 async function carregarRegistros() {
   try {
-    const snap = await getDocs(collection(db, 'procedimentos_cg'));
+    const snap = await getDocs(collection(db, 'procedimentos'));
     const meds = new Set(), hosps = new Set(), convs = new Set();
     snap.forEach(d => {
       const data = d.data();
