@@ -246,7 +246,10 @@
                 else sessionStorage.setItem('_comercialModoCompleto', '1');
               }
               if (nomeOp) window._operadorNome = nomeOp;
-              if (nomeOp) {
+              // "Comercial e Estoque" identifica quem está adicionando, mas usa o
+              // Monitor completo normalmente — só os 8 vendedores caem na tela única.
+              const isEstoque = nomeOp && nomeOp.endsWith(' (Estoque)');
+              if (nomeOp && !isEstoque) {
                 if (mainCont)  mainCont.style.display  = 'none';
                 if (adminBtn)  adminBtn.style.display  = 'none';
                 if (fabGroup)  fabGroup.style.display  = 'none';
