@@ -36,6 +36,8 @@ const FIELD_MAPS = {
     dataConfirmacaoRetirada: 'data_confirmacao_retirada',
     motivoReagendamento: 'motivo_reagendamento',
     operadorNome: 'operador_nome',
+    _updatedAt: 'atualizado_em',
+    _createdAt: 'criado_em',
   },
   fichas_opme: {
     numeroPedido: 'numero_pedido',
