@@ -8152,7 +8152,20 @@ function editProc(docId) {
 // Nomes completos batem com o cadastro de vendedores (select #f-vendedor) —
 // Gabriely Amorim Dias e Gustavo Ovídio Mussi Faverão ficam de fora da
 // identificação por não serem agendadores que usam a conta comercial@.
-const NOMES_OPERADOR_CG = ['Tiago da Silva Siqueira','Marcos Gonçalves da Silva','Marcella Fernandes Ricci','Wilson Cordeiro','Roberto Alex Cândido','Regiane da Silva Ramos','Jeferson Cruz','Leandro Sabino'];
+// "Comercial e Estoque" é uma opção genérica (equipe sem nome fixo na lista):
+// ao escolher, pede o nome da pessoa por texto livre.
+const NOME_ESTOQUE_MARCADOR = 'Comercial e Estoque';
+const NOMES_OPERADOR_CG = ['Tiago da Silva Siqueira','Marcos Gonçalves da Silva','Marcella Fernandes Ricci','Wilson Cordeiro','Roberto Alex Cândido','Regiane da Silva Ramos','Jeferson Cruz','Leandro Sabino', NOME_ESTOQUE_MARCADOR];
+
+function _resolverNomeOperador(nome, callback) {
+    if (nome === NOME_ESTOQUE_MARCADOR) {
+        const real = (prompt('Equipe Comercial e Estoque — qual o seu nome?') || '').trim();
+        if (!real) return; // cancelou, mantém o seletor aberto
+        callback(real + ' (Estoque)');
+        return;
+    }
+    callback(nome);
+}
 let _pendingOpenModal = null;
 
 // Identificação logo após o login da conta comercial@gfmedical.net: se a
@@ -8163,12 +8176,16 @@ window.pedirIdentificacaoComercial = function() {
         const overlay = document.getElementById('identComercialOverlay');
         const lista = document.getElementById('identComercialNomes');
         if (!overlay || !lista) { resolve(null); return; }
-        lista.innerHTML = NOMES_OPERADOR_CG.map(nome =>
-            `<button type="button" class="login-btn" style="margin-top:0;text-transform:none;font-size:0.95rem;" onclick="window._resolverIdentComercial('${nome}')">${nome.split(' ')[0]}</button>`
-        ).join('');
+        lista.innerHTML = NOMES_OPERADOR_CG.map(nome => {
+            const label = nome === NOME_ESTOQUE_MARCADOR ? nome : nome.split(' ')[0];
+            return `<button type="button" class="login-btn" style="margin-top:0;text-transform:none;font-size:0.95rem;" onclick="window._resolverIdentComercial('${nome}')">${label}</button>`;
+        }).join('');
         window._resolverIdentComercial = function(nome) {
-            overlay.classList.add('hidden');
-            resolve(nome || null);
+            if (nome === null) { overlay.classList.add('hidden'); resolve(null); return; }
+            _resolverNomeOperador(nome, nomeFinal => {
+                overlay.classList.add('hidden');
+                resolve(nomeFinal);
+            });
         };
         overlay.classList.remove('hidden');
     });
@@ -8187,9 +8204,11 @@ function cancelarNomeOp() {
 }
 
 function selecionarNomeOp(nome) {
-    window._operadorNome = nome;
-    document.getElementById('modalNomeOp').classList.remove('open');
-    if (_pendingOpenModal) { _pendingOpenModal(); _pendingOpenModal = null; }
+    _resolverNomeOperador(nome, nomeFinal => {
+        window._operadorNome = nomeFinal;
+        document.getElementById('modalNomeOp').classList.remove('open');
+        if (_pendingOpenModal) { _pendingOpenModal(); _pendingOpenModal = null; }
+    });
 }
 
 // ─── MODAL ───
@@ -8199,7 +8218,8 @@ function openModal() {
         const lista = document.getElementById('listaNomeOperador');
         lista.innerHTML = NOMES_OPERADOR_CG.map(nome => {
             const sel = nome === window._operadorNome;
-            return `<button type="button" onclick="selecionarNomeOp('${nome}')" style="padding:10px 14px;border-radius:8px;background:${sel?'rgba(75,180,210,0.12)':'var(--bg3)'};border:1.5px solid ${sel?'var(--accent)':'var(--border)'};color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.88rem;font-weight:600;text-align:left;transition:all .13s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${sel?'var(--accent)':'var(--border)'}'">${sel?'✓ ':''}${nome.split(' ')[0]}</button>`;
+            const label = nome === NOME_ESTOQUE_MARCADOR ? nome : nome.split(' ')[0];
+            return `<button type="button" onclick="selecionarNomeOp('${nome}')" style="padding:10px 14px;border-radius:8px;background:${sel?'rgba(75,180,210,0.12)':'var(--bg3)'};border:1.5px solid ${sel?'var(--accent)':'var(--border)'};color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.88rem;font-weight:600;text-align:left;transition:all .13s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${sel?'var(--accent)':'var(--border)'}'">${sel?'✓ ':''}${label}</button>`;
         }).join('');
         document.getElementById('modalNomeOp').classList.add('open');
         return;
