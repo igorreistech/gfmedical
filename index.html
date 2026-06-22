@@ -4593,13 +4593,11 @@
     <div class="modal-box" style="max-width:380px;">
         <div class="modal-title"><span>Identificação</span></div>
         <div style="padding:20px 24px 8px;">
-            <p style="color:var(--text-dim);font-size:0.88rem;margin:0 0 16px;">Informe seu nome para registrar quem está adicionando esta cirurgia.</p>
-            <label style="font-size:0.78rem;color:var(--text-dim);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;">Seu nome</label>
-            <input id="inputNomeOperador" type="text" style="width:100%;box-sizing:border-box;background:var(--bg3);border:1.5px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:0.92rem;font-family:var(--mono);outline:none;" placeholder="Digite seu nome..." autocomplete="off" onkeydown="if(event.key==='Enter')confirmarNomeOp()">
+            <p style="color:var(--text-dim);font-size:0.88rem;margin:0 0 16px;">Quem está adicionando esta cirurgia?</p>
+            <div id="listaNomeOperador" style="display:flex;flex-direction:column;gap:7px;"></div>
         </div>
-        <div style="padding:14px 24px 20px;display:flex;gap:10px;justify-content:flex-end;">
+        <div style="padding:14px 24px 20px;display:flex;justify-content:flex-end;">
             <button onclick="cancelarNomeOp()" style="padding:8px 18px;border-radius:8px;background:transparent;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-family:var(--mono);font-size:0.82rem;">Cancelar</button>
-            <button onclick="confirmarNomeOp()" style="padding:8px 18px;border-radius:8px;background:var(--accent);border:none;color:#fff;cursor:pointer;font-family:var(--mono);font-size:0.82rem;font-weight:700;">Continuar →</button>
         </div>
     </div>
 </div>
@@ -6318,7 +6316,7 @@ async function fbSaveProc(proc) {
         const { _docId, _filial, ...data } = proc;
         data._updatedAt = new Date().toISOString();
         // Histórico de status
-        const userEmail = window._currentUser ? window._currentUser.email : 'sistema';
+        const userEmail = window._operadorNome || (window._currentUser ? window._currentUser.email : 'sistema');
         if (_docId && proc.status !== undefined) {
             const existing = window.procedimentos ? window.procedimentos.find(p => p._docId === _docId) : null;
             if (existing && existing.status !== proc.status) {
@@ -8077,6 +8075,7 @@ function editProc(docId) {
 }
 
 // ─── IDENTIFICAÇÃO OPERADOR (contas comerciais compartilhadas) ───
+const NOMES_OPERADOR_CG = ['Wilson','Tiago','Marcella','Marcos','Roberto','Jeferson','Regiane','Leandro'];
 let _pendingOpenModal = null;
 
 function _precisaNomeOp() {
@@ -8090,11 +8089,7 @@ function cancelarNomeOp() {
     _pendingOpenModal = null;
 }
 
-function confirmarNomeOp() {
-    const inp = document.getElementById('inputNomeOperador');
-    const nome = inp.value.trim();
-    if (!nome) { inp.style.borderColor = '#ef4444'; inp.focus(); return; }
-    inp.style.borderColor = '';
+function selecionarNomeOp(nome) {
     window._operadorNome = nome;
     document.getElementById('modalNomeOp').classList.remove('open');
     if (_pendingOpenModal) { _pendingOpenModal(); _pendingOpenModal = null; }
@@ -8104,11 +8099,12 @@ function confirmarNomeOp() {
 function openModal() {
     if (_precisaNomeOp()) {
         _pendingOpenModal = _doOpenModal;
-        const inp = document.getElementById('inputNomeOperador');
-        inp.value = window._operadorNome || '';
-        inp.style.borderColor = '';
+        const lista = document.getElementById('listaNomeOperador');
+        lista.innerHTML = NOMES_OPERADOR_CG.map(nome => {
+            const sel = nome === window._operadorNome;
+            return `<button type="button" onclick="selecionarNomeOp('${nome}')" style="padding:10px 14px;border-radius:8px;background:${sel?'rgba(75,180,210,0.12)':'var(--bg3)'};border:1.5px solid ${sel?'var(--accent)':'var(--border)'};color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.88rem;font-weight:600;text-align:left;transition:all .13s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${sel?'var(--accent)':'var(--border)'}'">${sel?'✓ ':''}${nome}</button>`;
+        }).join('');
         document.getElementById('modalNomeOp').classList.add('open');
-        setTimeout(() => inp.focus(), 80);
         return;
     }
     _doOpenModal();
@@ -9871,7 +9867,7 @@ async function quickSetStatus(docId, novoStatus, e) {
     if (novoStatus === 'reagendado') {
         const dataAnterior = proc.data || '';
         mostrarAlertaReagendado(proc, async (novaData, motivo) => {
-            const userEmail = window._currentUser ? window._currentUser.email : 'sistema';
+            const userEmail = window._operadorNome || (window._currentUser ? window._currentUser.email : 'sistema');
             const hist = proc._statusHistory || [];
             hist.push({ de: statusAnterior, para: 'reagendado', em: new Date().toISOString(), por: userEmail, dataAnterior, dataNova: novaData, motivo: motivo || '' });
             proc._statusHistory = hist;
@@ -19231,7 +19227,7 @@ window.buildCardHTML=function(proc){
 window.abrirComentarios=function(docId){
     const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
     const comentarios=proc._comentarios||[];
-    const user=window._currentUser?window._currentUser.email:'usuário';
+    const user=window._operadorNome||(window._currentUser?window._currentUser.email:'usuário');
     const fmtTs=ts=>ts?new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
     const ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);';
@@ -19253,7 +19249,7 @@ window._enviarComentario=async function(docId){
     const inp=document.getElementById('coment-input-'+docId); if(!inp) return;
     const txt=inp.value.trim(); if(!txt) return;
     const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
-    const user=window._currentUser?window._currentUser.email:'usuário';
+    const user=window._operadorNome||(window._currentUser?window._currentUser.email:'usuário');
     const comentarios=proc._comentarios||[];
     comentarios.push({texto:txt,autor:user,em:new Date().toISOString()});
     proc._comentarios=comentarios;
