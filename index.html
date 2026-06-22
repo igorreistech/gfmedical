@@ -5762,6 +5762,7 @@
                         <option>Regiane da Silva Ramos</option>
                         <option>Gustavo Ovídio Mussi Faverão</option>
                         <option>Jeferson Cruz</option>
+                        <option>Leandro Sabino</option>
                     </select>
                 </div>
 
@@ -5892,6 +5893,18 @@
                 <label class="export-opt">
                     <input type="checkbox" class="exp-vendedor" value="Regiane da Silva Ramos" checked>
                     Regiane da Silva Ramos
+                </label>
+                <label class="export-opt">
+                    <input type="checkbox" class="exp-vendedor" value="Gustavo Ovídio Mussi Faverão" checked>
+                    Gustavo Ovídio Mussi Faverão
+                </label>
+                <label class="export-opt">
+                    <input type="checkbox" class="exp-vendedor" value="Jeferson Cruz" checked>
+                    Jeferson Cruz
+                </label>
+                <label class="export-opt">
+                    <input type="checkbox" class="exp-vendedor" value="Leandro Sabino" checked>
+                    Leandro Sabino
                 </label>
             </div>
         </div>
@@ -8136,7 +8149,10 @@ function editProc(docId) {
 }
 
 // ─── IDENTIFICAÇÃO OPERADOR (contas comerciais compartilhadas) ───
-const NOMES_OPERADOR_CG = ['Wilson','Tiago','Marcella','Marcos','Roberto','Jeferson','Regiane','Leandro'];
+// Nomes completos batem com o cadastro de vendedores (select #f-vendedor) —
+// Gabriely Amorim Dias e Gustavo Ovídio Mussi Faverão ficam de fora da
+// identificação por não serem agendadores que usam a conta comercial@.
+const NOMES_OPERADOR_CG = ['Tiago da Silva Siqueira','Marcos Gonçalves da Silva','Marcella Fernandes Ricci','Wilson Cordeiro','Roberto Alex Cândido','Regiane da Silva Ramos','Jeferson Cruz','Leandro Sabino'];
 let _pendingOpenModal = null;
 
 // Identificação logo após o login da conta comercial@gfmedical.net: se a
@@ -8148,7 +8164,7 @@ window.pedirIdentificacaoComercial = function() {
         const lista = document.getElementById('identComercialNomes');
         if (!overlay || !lista) { resolve(null); return; }
         lista.innerHTML = NOMES_OPERADOR_CG.map(nome =>
-            `<button type="button" class="login-btn" style="margin-top:0;text-transform:none;font-size:0.95rem;" onclick="window._resolverIdentComercial('${nome}')">${nome}</button>`
+            `<button type="button" class="login-btn" style="margin-top:0;text-transform:none;font-size:0.95rem;" onclick="window._resolverIdentComercial('${nome}')">${nome.split(' ')[0]}</button>`
         ).join('');
         window._resolverIdentComercial = function(nome) {
             overlay.classList.add('hidden');
@@ -8183,7 +8199,7 @@ function openModal() {
         const lista = document.getElementById('listaNomeOperador');
         lista.innerHTML = NOMES_OPERADOR_CG.map(nome => {
             const sel = nome === window._operadorNome;
-            return `<button type="button" onclick="selecionarNomeOp('${nome}')" style="padding:10px 14px;border-radius:8px;background:${sel?'rgba(75,180,210,0.12)':'var(--bg3)'};border:1.5px solid ${sel?'var(--accent)':'var(--border)'};color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.88rem;font-weight:600;text-align:left;transition:all .13s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${sel?'var(--accent)':'var(--border)'}'">${sel?'✓ ':''}${nome}</button>`;
+            return `<button type="button" onclick="selecionarNomeOp('${nome}')" style="padding:10px 14px;border-radius:8px;background:${sel?'rgba(75,180,210,0.12)':'var(--bg3)'};border:1.5px solid ${sel?'var(--accent)':'var(--border)'};color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.88rem;font-weight:600;text-align:left;transition:all .13s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${sel?'var(--accent)':'var(--border)'}'">${sel?'✓ ':''}${nome.split(' ')[0]}</button>`;
         }).join('');
         document.getElementById('modalNomeOp').classList.add('open');
         return;
@@ -8197,6 +8213,13 @@ function _doOpenModal() {
     document.getElementById('modalTitle').textContent = 'Adicionar Procedimento';
     document.getElementById('procForm').reset();
     document.getElementById('editIndex').value = '';
+    // Pré-preenche o vendedor com quem já se identificou (conta comercial@ compartilhada)
+    if (window._operadorNome) {
+        const selVend = document.getElementById('f-vendedor');
+        if (selVend && [...selVend.options].some(o => o.value === window._operadorNome)) {
+            selVend.value = window._operadorNome;
+        }
+    }
     document.getElementById('f-data').value = todayStr();
     autoRetirada(todayStr());
     // Garante que o status seja resetado e os campos corretos apareçam
