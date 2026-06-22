@@ -67,7 +67,9 @@ function camelToSnakeRow(table, obj) {
   for (const [k, v] of Object.entries(obj)) {
     if (k === '_docId' || k === 'id') continue; // id é tratado à parte
     const col = map[k] || k;
-    out[col] = v;
+    // Firestore aceitava '' em campo de data sem problema; Postgres rejeita
+    // '' em colunas date/timestamp ("invalid input syntax"). Normaliza pra null.
+    out[col] = v === '' ? null : v;
   }
   if (table === 'fichas_opme' && typeof out.status === 'number') {
     out.status = FICHA_STATUS_POR_INDICE[out.status] || 'pendente';
