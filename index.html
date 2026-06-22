@@ -196,6 +196,7 @@
           if (user) {
             const emailLower = (user.email || '').toLowerCase();
             const isAdminFixo = ADMIN_EMAILS_FIXOS.includes(emailLower);
+            const isComercialUnico = emailLower === 'comercial@gfmedical.net';
             let perfil = null;
             if (isAdminFixo) {
               perfil = { email: emailLower, nome: user.email, role: 'admin' };
@@ -228,14 +229,22 @@
             const logoutEl  = document.getElementById('logoutBtn');
             const adminBtn  = document.getElementById('btn-gerenciar-usuarios');
             const agendView = document.getElementById('agendadorView');
+            const comercialView = document.getElementById('comercialView');
             const mainCont  = document.querySelector('.container');
             if (logoutEl) logoutEl.style.display = 'block';
 
             const fabGroup = document.querySelector('.fab-group');
-            if (perfil.role === 'agendador') {
+            if (isComercialUnico) {
               if (mainCont)  mainCont.style.display  = 'none';
               if (adminBtn)  adminBtn.style.display  = 'none';
               if (fabGroup)  fabGroup.style.display  = 'none';
+              if (agendView) agendView.style.display = 'none';
+              if (comercialView) comercialView.style.display = 'flex';
+            } else if (perfil.role === 'agendador') {
+              if (mainCont)  mainCont.style.display  = 'none';
+              if (adminBtn)  adminBtn.style.display  = 'none';
+              if (fabGroup)  fabGroup.style.display  = 'none';
+              if (comercialView) comercialView.style.display = 'none';
               if (agendView) {
                 agendView.style.display = 'flex';
                 const nomeEl = document.getElementById('agendador-nome');
@@ -248,6 +257,7 @@
               if (adminBtn)  adminBtn.style.display  = '';
               if (fabGroup)  fabGroup.style.display  = '';
               if (agendView) agendView.style.display = 'none';
+              if (comercialView) comercialView.style.display = 'none';
               solicitarPermissaoNotificacoes();
             }
           } else {
@@ -256,10 +266,12 @@
             const logoutEl  = document.getElementById('logoutBtn');
             const adminBtn  = document.getElementById('btn-gerenciar-usuarios');
             const agendView = document.getElementById('agendadorView');
+            const comercialView = document.getElementById('comercialView');
             const mainCont  = document.querySelector('.container');
             if (logoutEl)  logoutEl.style.display  = 'none';
             if (adminBtn)  adminBtn.style.display  = 'none';
             if (agendView) agendView.style.display = 'none';
+            if (comercialView) comercialView.style.display = 'none';
             if (mainCont)  mainCont.style.display  = '';
           }
         }
@@ -2360,7 +2372,7 @@
             display: none;
         }
         /* ─── AGENDADOR VIEW ─── */
-        #agendadorView {
+        #agendadorView, #comercialView {
             position: fixed; inset: 0; background: var(--bg); z-index: 500;
             flex-direction: column; overflow-y: auto; display: none;
         }
@@ -4203,6 +4215,25 @@
         <button class="agendador-btn-nova" onclick="openModal()">+ Nova Cirurgia</button>
         <div class="agendador-section-title">Minhas cirurgias cadastradas</div>
         <div id="agendador-lista"><div class="agendador-empty">Nenhuma cirurgia cadastrada ainda.</div></div>
+    </div>
+</div>
+
+<!-- COMERCIAL VIEW (conta compartilhada comercial@gfmedical.net) -->
+<div id="comercialView">
+    <div class="agendador-header">
+        <div class="agendador-brand">
+            <div>
+                <div class="agendador-brand-logo">⬡ GF Medical</div>
+                <div class="agendador-brand-sub">Monitor Cirúrgico · Campo Grande</div>
+            </div>
+        </div>
+        <div class="agendador-user-info">
+            <span class="agendador-user-name">Comercial</span>
+            <button class="agendador-logout-btn" onclick="doLogout()">Sair ↩</button>
+        </div>
+    </div>
+    <div class="agendador-body" style="display:flex;align-items:center;justify-content:center;min-height:70vh;">
+        <button class="agendador-btn-nova" style="margin-bottom:0;font-size:1.25rem;padding:22px 44px;" onclick="openModal()">+ Adicionar Cirurgia</button>
     </div>
 </div>
 
