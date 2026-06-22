@@ -87,6 +87,9 @@
 
       window.doLogout = async function() {
         if (confirm('Deseja sair do sistema?')) {
+          sessionStorage.removeItem('_nomeComercialCGR');
+          sessionStorage.removeItem('_comercialModoCompleto');
+          window._operadorNome = null;
           try { await auth.signOut(); } catch(e) {}
         }
       };
@@ -235,11 +238,28 @@
 
             const fabGroup = document.querySelector('.fab-group');
             if (isComercialUnico) {
-              if (mainCont)  mainCont.style.display  = 'none';
-              if (adminBtn)  adminBtn.style.display  = 'none';
-              if (fabGroup)  fabGroup.style.display  = 'none';
-              if (agendView) agendView.style.display = 'none';
-              if (comercialView) comercialView.style.display = 'flex';
+              let nomeOp = sessionStorage.getItem('_nomeComercialCGR');
+              const modoCompleto = sessionStorage.getItem('_comercialModoCompleto') === '1';
+              if (!nomeOp && !modoCompleto) {
+                nomeOp = window.pedirIdentificacaoComercial ? await window.pedirIdentificacaoComercial() : null;
+                if (nomeOp) sessionStorage.setItem('_nomeComercialCGR', nomeOp);
+                else sessionStorage.setItem('_comercialModoCompleto', '1');
+              }
+              if (nomeOp) window._operadorNome = nomeOp;
+              if (nomeOp) {
+                if (mainCont)  mainCont.style.display  = 'none';
+                if (adminBtn)  adminBtn.style.display  = 'none';
+                if (fabGroup)  fabGroup.style.display  = 'none';
+                if (agendView) agendView.style.display = 'none';
+                if (comercialView) comercialView.style.display = 'flex';
+              } else {
+                if (mainCont)  mainCont.style.display  = '';
+                if (adminBtn)  adminBtn.style.display  = '';
+                if (fabGroup)  fabGroup.style.display  = '';
+                if (agendView) agendView.style.display = 'none';
+                if (comercialView) comercialView.style.display = 'none';
+                solicitarPermissaoNotificacoes();
+              }
             } else if (perfil.role === 'agendador') {
               if (mainCont)  mainCont.style.display  = 'none';
               if (adminBtn)  adminBtn.style.display  = 'none';
@@ -4197,6 +4217,16 @@
     </div>
 </div>
 
+<!-- IDENTIFICAÇÃO — conta compartilhada comercial@gfmedical.net -->
+<div class="login-overlay hidden" id="identComercialOverlay" style="z-index:600;">
+    <div class="login-box">
+        <div class="login-logo">⬡ GF Medical</div>
+        <div class="login-sub">Quem está usando esta conta agora?</div>
+        <div id="identComercialNomes" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
+        <div style="text-align:center;margin-top:16px;"><button type="button" class="login-toggle-link" onclick="window._resolverIdentComercial(null)">Não está na lista → acessar o Monitor completo</button></div>
+    </div>
+</div>
+
 <!-- AGENDADOR VIEW -->
 <div id="agendadorView">
     <div class="agendador-header">
@@ -8109,8 +8139,28 @@ function editProc(docId) {
 const NOMES_OPERADOR_CG = ['Wilson','Tiago','Marcella','Marcos','Roberto','Jeferson','Regiane','Leandro'];
 let _pendingOpenModal = null;
 
+// Identificação logo após o login da conta comercial@gfmedical.net: se a
+// pessoa se reconhece num dos nomes, cai na tela única "+ Adicionar
+// Cirurgia"; se não (botão "Não está na lista"), cai no Monitor completo.
+window.pedirIdentificacaoComercial = function() {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('identComercialOverlay');
+        const lista = document.getElementById('identComercialNomes');
+        if (!overlay || !lista) { resolve(null); return; }
+        lista.innerHTML = NOMES_OPERADOR_CG.map(nome =>
+            `<button type="button" class="login-btn" style="margin-top:0;text-transform:none;font-size:0.95rem;" onclick="window._resolverIdentComercial('${nome}')">${nome}</button>`
+        ).join('');
+        window._resolverIdentComercial = function(nome) {
+            overlay.classList.add('hidden');
+            resolve(nome || null);
+        };
+        overlay.classList.remove('hidden');
+    });
+};
+
 function _precisaNomeOp() {
     if (!window._currentUser) return false;
+    if (window._operadorNome) return false; // já identificado nesta sessão (ex.: tela única do comercial@)
     const em = (window._currentUser.email || '').toLowerCase();
     return em.startsWith('comercialmt@gfmedical') || em.startsWith('comercial@gfmedical');
 }
