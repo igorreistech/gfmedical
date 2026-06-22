@@ -238,6 +238,18 @@ tbody tr:hover .row-acts{opacity:1}
 @media(max-width:860px){.stats-bar{grid-template-columns:repeat(3,1fr)}.dash-grid{grid-template-columns:1fr}}
 @media(max-width:680px){.sidebar{transform:translateX(-100%)}.main{margin-left:0}}
 </style>
+<script>
+  // Se o service worker (registrado por index.html) atualizar enquanto esta
+  // página está aberta, recarrega sozinho em vez de servir JS desatualizado.
+  if ('serviceWorker' in navigator) {
+    let _swRefreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (_swRefreshing) return;
+      _swRefreshing = true;
+      window.location.reload();
+    });
+  }
+</script>
 </head>
 <body>
 
