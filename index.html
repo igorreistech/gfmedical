@@ -349,15 +349,11 @@
                   p.status = 'preparacao';
                   autoTransitar(p, 'agendado');
                 }
-                // Em Separação + dia da cirurgia → Em Procedimento (automático, sem confirmação)
-                else if (p.status === 'preparacao' && p.data && p.data === hoje) {
+                // Em Separação ou Em Trânsito + dia da cirurgia → Em Procedimento (automático, sem confirmação)
+                else if ((p.status === 'preparacao' || p.status === 'em_transito') && p.data && p.data === hoje) {
+                  const statusAnterior = p.status;
                   p.status = 'andamento';
-                  autoTransitar(p, 'preparacao');
-                }
-                // Em Trânsito + dia da cirurgia → continua pedindo confirmação
-                else if (p.status === 'em_transito' && p.data && p.data === hoje
-                         && !window._confirmacaoInicioFeita.has(p._docId)) {
-                  paraPromover.push(p);
+                  autoTransitar(p, statusAnterior);
                 }
               });
 

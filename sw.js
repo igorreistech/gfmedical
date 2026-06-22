@@ -1,4 +1,4 @@
-const CACHE = 'monitor-cgr-v16';
+const CACHE = 'monitor-cgr-v17';
 const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
   BASE,
