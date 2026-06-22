@@ -85,40 +85,6 @@
         } finally { btn.disabled = false; btn.textContent = 'Entrar'; }
       };
 
-      window.showLogin = function() {
-        document.getElementById('loginPanel').style.display = 'block';
-        document.getElementById('resetPanel').style.display = 'none';
-        document.getElementById('loginError').style.display = 'none';
-      };
-      window.showResetPassword = function() {
-        document.getElementById('loginPanel').style.display = 'none';
-        document.getElementById('resetPanel').style.display = 'block';
-        document.getElementById('loginError').style.display = 'none';
-        document.getElementById('resetSuccessMsg').style.display = 'none';
-        const emailField = document.getElementById('loginUser');
-        if (emailField && emailField.value) document.getElementById('resetEmail').value = emailField.value;
-      };
-      window.doResetPassword = async function() {
-        const email = (document.getElementById('resetEmail').value || '').trim();
-        const err = document.getElementById('loginError');
-        const btn = document.getElementById('resetBtn');
-        if (!email) { err.textContent = 'Informe seu e-mail.'; err.style.display = 'block'; return; }
-        btn.disabled = true; btn.textContent = 'Enviando…';
-        try {
-          const { error } = await auth.resetPasswordForEmail(email, {
-            redirectTo: window.location.origin + window.location.pathname.replace(/index\.html$/, '') + 'redefinir-senha.html',
-          });
-          if (error) throw error;
-          err.style.display = 'none';
-          document.getElementById('resetSuccessMsg').style.display = 'block';
-        } catch(e) {
-          err.textContent = 'Erro ao enviar e-mail. ' + (e.message || '');
-          err.style.display = 'block';
-        } finally {
-          btn.disabled = false; btn.textContent = 'Enviar link';
-        }
-      };
-
       window.doLogout = async function() {
         if (confirm('Deseja sair do sistema?')) {
           try { await auth.signOut(); } catch(e) {}
@@ -198,7 +164,7 @@
           if (!resp.ok) throw new Error(result.error || 'Falha ao criar usuário.');
           if (emailEl) emailEl.value = '';
           if (nomeEl)  nomeEl.value  = '';
-          alert(`Usuário criado. Senha temporária: ${result.temp_password}\n\nPeça para a pessoa usar "Esqueci minha senha" no primeiro acesso.`);
+          alert(`Usuário criado. Senha temporária: ${result.temp_password}\n\nCompartilhe com a pessoa por um canal seguro.`);
           doAdminLoadUsers();
         } catch(e) { alert('Erro ao criar usuário: '+e.message); }
       };
@@ -4212,20 +4178,7 @@
                     <input class="login-input" type="password" id="loginPass" name="password" placeholder="••••••••" autocomplete="current-password">
                 </div>
                 <button type="submit" class="login-btn" id="loginBtn">Entrar</button>
-                <div style="text-align:right;margin-top:6px;"><button type="button" class="login-toggle-link" onclick="showResetPassword()" style="font-size:0.78rem;opacity:0.75;">Esqueci minha senha</button></div>
             </form>
-        </div>
-
-        <!-- Painel de recuperação de senha -->
-        <div id="resetPanel" style="display:none;">
-            <p style="font-size:0.84rem;color:var(--text-dim,#8aa4b1);margin:0 0 18px;line-height:1.5;">Informe seu e-mail e enviaremos um link para redefinir sua senha.</p>
-            <div class="login-group">
-                <label class="login-label">E-mail</label>
-                <input class="login-input" type="email" id="resetEmail" placeholder="seu@email.com" autocomplete="email">
-            </div>
-            <div id="resetSuccessMsg" style="display:none;background:rgba(5,150,105,0.1);border:1px solid rgba(5,150,105,0.3);color:#059669;padding:10px 14px;border-radius:8px;font-size:0.82rem;margin-bottom:12px;">✓ Link enviado! Verifique sua caixa de entrada.</div>
-            <button type="button" class="login-btn" id="resetBtn" onclick="doResetPassword()">Enviar link</button>
-            <div class="login-toggle">Lembrou a senha? <button class="login-toggle-link" onclick="showLogin()">Voltar ao login</button></div>
         </div>
 
         <div class="login-error" id="loginError" style="display:none;"></div>
