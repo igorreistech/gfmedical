@@ -8319,15 +8319,20 @@ function editProc(docId) {
     }
 }
 
+// "Comercial e Estoque" é uma opção genérica (equipe sem nome fixo na lista):
+// ao escolher, pede o nome da pessoa por texto livre.
 const NOME_ESTOQUE_MARCADOR = 'Comercial e Estoque';
 const NOMES_OPERADOR_CG = ['Tiago da Silva Siqueira','Marcos Gonçalves da Silva','Marcella Fernandes Ricci','Wilson Cordeiro','Roberto Alex Cândido','Regiane da Silva Ramos','Jeferson Cruz','Leandro Sabino', NOME_ESTOQUE_MARCADOR];
+let _pendingOpenModal = null;
 
 function _resolverNomeOperador(nome, callback) {
     if (nome === NOME_ESTOQUE_MARCADOR) {
-        callback(nome + ' (' + new Date().toLocaleDateString('pt-BR') + ')');
-    } else {
-        callback(nome);
+        const real = (prompt('Equipe Comercial e Estoque — qual o seu nome?') || '').trim();
+        if (!real) return;
+        callback(real + ' (Estoque)');
+        return;
     }
+    callback(nome);
 }
 
 window.pedirIdentificacaoComercial = function() {
