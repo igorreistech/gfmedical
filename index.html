@@ -3,10 +3,12 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#2a9fbf">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0d1f0e">
     <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="logo.jpg">
     <title>Monitor Cirúrgico · Campo Grande - MS</title>
+    <meta name="description" content="Monitor Cirúrgico GF Medical — Campo Grande, MS. Acompanhamento em tempo real de procedimentos cirúrgicos.">
     <!-- Supabase SDK (migrado do Firebase) -->
     <script type="module">
       import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -21,7 +23,7 @@
       window._supabase = supabase;
       const COLL = "procedimentos";
 
-      const db = supabase; // mantido como "db" só para minimizar diff no resto do arquivo
+      const db = supabase;
       window._fbDb = db;
       window._fbColl = COLL;
       window._fbModules = createFirestoreShim(supabase);
@@ -31,6 +33,7 @@
 
       // ─── NOTIFICAÇÕES PUSH ───
       window._notifStatusAnterior = null; // null = primeira carga, não notifica
+      window._resumoInicialMostrado = false;
 
       async function solicitarPermissaoNotificacoes() {
         if (!('Notification' in window)) return;
@@ -42,6 +45,8 @@
 
       function notificarMudancaStatus(proc, statusAnterior) {
         if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        const u = window._currentUser;
+        if (u && u.role === 'agendador' && proc.cadastradoPor !== u.uid) return;
         const labels = {
           a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
           agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
@@ -60,6 +65,123 @@
           });
           n.onclick = () => { window.focus(); n.close(); };
         } catch(e) { console.warn('Notificação:', e); }
+      }
+
+      function notificarNovaCirurgia(proc) {
+        const labels = {
+          a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
+          agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
+          reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
+          urgencia:'URGÊNCIA', coleta_urgente:'Coleta Prioritária'
+        };
+        // Push notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            const n = new Notification('🏥 Nova cirurgia adicionada', {
+              body: (proc.paciente || 'Paciente') + ' · ' + (labels[proc.status] || proc.status || ''),
+              tag: 'nova-' + proc._docId
+            });
+            n.onclick = () => { window.focus(); n.close(); };
+          } catch(e) {}
+        }
+        // CSS da animação (injeta uma vez)
+        if (!document.getElementById('nova-cir-css')) {
+          const s = document.createElement('style');
+          s.id = 'nova-cir-css';
+          s.textContent =
+            '@keyframes novaCirIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}' +
+            '@keyframes novaCirPulse{0%,100%{box-shadow:0 4px 24px rgba(99,102,241,.35)}50%{box-shadow:0 4px 48px rgba(99,102,241,.7),0 0 0 5px rgba(99,102,241,.12)}}' +
+            '.nova-cir-banner{animation:novaCirIn .3s ease forwards,novaCirPulse 1.8s .3s ease-in-out infinite}';
+          document.head.appendChild(s);
+        }
+        const existentes = document.querySelectorAll('.nova-cir-banner').length;
+        const top = 20 + existentes * 115;
+        const id = 'ncb-' + (proc._docId || Date.now());
+        if (document.getElementById(id)) return;
+        const el = document.createElement('div');
+        el.id = id;
+        el.className = 'nova-cir-banner';
+        el.style.cssText = 'position:fixed;top:' + top + 'px;right:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);' +
+          'color:#fff;padding:13px 15px;border-radius:14px;z-index:99999;font-size:.82rem;max-width:290px;cursor:pointer;';
+        el.innerHTML =
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">' +
+            '<span style="font-size:1.05rem">🏥</span>' +
+            '<strong style="font-size:.86rem">Nova cirurgia adicionada</strong>' +
+            '<span class="ncb-close" style="margin-left:auto;opacity:.75;font-size:.95rem;padding:0 4px">✕</span>' +
+          '</div>' +
+          '<div style="opacity:.92;line-height:1.65;font-size:.8rem">' +
+            '👤 <strong>' + (proc.paciente || 'Paciente não informado') + '</strong><br>' +
+            (proc.hospital ? '🏥 ' + proc.hospital + '<br>' : '') +
+            '<span style="display:inline-block;margin-top:3px;background:rgba(255,255,255,.2);padding:1px 8px;border-radius:99px;font-size:.73rem">' +
+              (labels[proc.status] || proc.status || '—') +
+            '</span>' +
+          '</div>';
+        const fechar = () => {
+          el.style.transition = 'opacity .3s,transform .3s';
+          el.style.opacity = '0';
+          el.style.transform = 'translateX(40px)';
+          setTimeout(() => el.remove(), 320);
+        };
+        el.querySelector('.ncb-close').addEventListener('click', e => { e.stopPropagation(); fechar(); });
+        el.addEventListener('click', fechar);
+        document.body.appendChild(el);
+        setTimeout(fechar, 8000);
+      }
+
+      function mostrarResumoInicial() {
+        if (window._resumoInicialMostrado) return;
+        window._resumoInicialMostrado = true;
+        const procs = window.procedimentos || [];
+        const total = procs.length;
+        const hora = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+        const grupos = [
+          { key:'urgencia',       label:'🚨 Urgência',           cor:'#ef4444' },
+          { key:'coleta_urgente', label:'✈️ Coleta Prioritária', cor:'#6366f1' },
+          { key:'a_agendar',      label:'📅 Autorizados',         cor:'#06b6d4' },
+          { key:'agendado',       label:'📋 Agendados',           cor:'#3b82f6' },
+          { key:'preparacao',     label:'⚙️ Em Separação',        cor:'#f59e0b' },
+          { key:'em_transito',    label:'🚚 Em Trânsito',         cor:'#8b5cf6' },
+          { key:'andamento',      label:'🔬 Em Procedimento',     cor:'#10b981' },
+          { key:'a_retirar',      label:'📦 A Retirar',           cor:'#f97316' },
+          { key:'reagendado',     label:'↺ Reagendados',          cor:'#a78bfa' },
+          { key:'concluido',      label:'✅ Concluídos',          cor:'#22c55e' },
+          { key:'cancelado',      label:'❌ Cancelados',           cor:'#6b7280' },
+        ];
+        const rows = grupos.map(g => {
+          const n = procs.filter(p => p.status === g.key).length;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:9px;background:rgba(255,255,255,${n>0?'0.07':'0.03'});">
+            <span style="font-size:0.83rem;color:${n>0?'var(--text,#0f172a)':'var(--text-dim,#94a3b8)'}">${g.label}</span>
+            <span style="font-family:var(--mono,monospace);font-size:1.05rem;font-weight:700;color:${n>0?g.cor:'var(--text-dim,#94a3b8)'};">${n}</span>
+          </div>`;
+        }).join('');
+        if (!document.getElementById('resumo-css')) {
+          const s = document.createElement('style');
+          s.id = 'resumo-css';
+          s.textContent = '@keyframes resumoIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}';
+          document.head.appendChild(s);
+        }
+        const ov = document.createElement('div');
+        ov.id = 'resumo-inicial-ov';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.58);z-index:99998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);';
+        ov.innerHTML = `
+          <div style="background:var(--surface,#fff);border-radius:18px;padding:26px 26px 20px;max-width:380px;width:92%;box-shadow:0 24px 64px rgba(0,0,0,0.3);animation:resumoIn .3s ease;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;">
+              <div>
+                <div style="font-family:var(--mono,monospace);font-size:0.65rem;font-weight:700;color:var(--text-dim,#94a3b8);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">Monitor Cirúrgico · ${hora}</div>
+                <div style="font-size:1.1rem;font-weight:700;color:var(--text,#0f172a);">Resumo · ${total} procedimento${total!==1?'s':''}</div>
+              </div>
+              <button id="resumo-fechar" style="background:rgba(107,114,128,0.1);border:none;border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--text-dim,#6b7280);font-size:0.9rem;">✕</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;max-height:52vh;overflow-y:auto;">${rows}</div>
+            <button id="resumo-entrar" style="margin-top:16px;width:100%;padding:11px;border-radius:10px;background:linear-gradient(135deg,#4db87a,#22c55e);border:none;color:#fff;font-family:var(--mono,monospace);font-size:0.78rem;font-weight:700;cursor:pointer;letter-spacing:0.07em;">
+              ENTRAR NO MONITOR →
+            </button>
+          </div>`;
+        const fechar = () => ov.remove();
+        ov.querySelector('#resumo-fechar').addEventListener('click', fechar);
+        ov.querySelector('#resumo-entrar').addEventListener('click', fechar);
+        ov.addEventListener('click', e => { if (e.target === ov) fechar(); });
+        document.body.appendChild(ov);
       }
 
       // ─── AUTH ───
@@ -110,12 +232,41 @@
                 <td>${p.medico||'-'}</td>
                 <td>${p.data||'-'}</td>
                 <td><span class="agendador-status status-${p.status||''}">${labels[p.status]||p.status||'-'}</span></td>
-                <td style="display:flex;gap:6px;align-items:center;">
-                  <button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button>
+                <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                  ${p.status === 'a_retirar' ? `<button class="agendador-btn-retirada" onclick="confirmarRetiradaAgendador('${p._docId}')">📦 Confirmar Retirada</button>` : `<button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button>`}
                   <button class="agendador-btn-del" onclick="deleteProc('${p._docId}')">🗑</button>
                 </td>
               </tr>`).join('')
             }</tbody></table>`;
+      };
+
+      window.confirmarRetiradaAgendador = async function(docId) {
+        const proc = (window.procedimentos||[]).find(p => p._docId === docId);
+        if (!proc) return;
+        const nome = proc.paciente || proc.hospital || 'este registro';
+        const ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);';
+        ov.innerHTML = `<div style="background:var(--surface,#fff);border:1px solid var(--border);border-top:3px solid #059669;border-radius:18px;padding:28px 24px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);font-family:'Inter',sans-serif;">
+          <div style="font-size:2rem;text-align:center;margin-bottom:10px;">📦</div>
+          <div style="font-weight:700;font-size:1rem;color:#111;text-align:center;margin-bottom:6px;">Confirmar Retirada?</div>
+          <div style="color:#666;font-size:0.83rem;text-align:center;margin-bottom:22px;font-family:var(--mono);">${nome}</div>
+          <div style="display:flex;gap:10px;">
+            <button id="btnCancelRet" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:transparent;color:#555;font-family:var(--mono);font-size:0.8rem;font-weight:700;cursor:pointer;">Cancelar</button>
+            <button id="btnConfirmRet" style="flex:1;padding:11px;border-radius:10px;border:none;background:#059669;color:#fff;font-family:var(--mono);font-size:0.8rem;font-weight:700;cursor:pointer;">✓ Confirmar</button>
+          </div>
+        </div>`;
+        document.body.appendChild(ov);
+        ov.querySelector('#btnCancelRet').onclick = () => ov.remove();
+        ov.onclick = e => { if (e.target === ov) ov.remove(); };
+        ov.querySelector('#btnConfirmRet').onclick = async () => {
+          ov.remove();
+          const idx = window.procedimentos.findIndex(p => p._docId === docId);
+          if (idx !== -1) window.procedimentos[idx].status = 'concluido';
+          window.renderAgendadorLista();
+          const { doc: docFn, setDoc: sd } = window._fbModules;
+          try { await sd(docFn(window._fbDb, window._fbColl, docId), { ...window.procedimentos[idx] }); }
+          catch(e) { alert('Erro ao confirmar: ' + e.message); }
+        };
       };
 
       // Retry renderAgendadorLista após login para garantir que dados do Firestore já chegaram
@@ -152,8 +303,6 @@
         const nome    = (nomeEl?.value||'').trim();
         if (!email) { emailEl?.focus(); return; }
         try {
-          // Cria login real (Supabase Auth) via Edge Function — só o servidor
-          // tem a service_role key necessária para isso, nunca o client.
           const { data: sessionData } = await auth.getSession();
           const resp = await fetch(SUPABASE_URL + '/functions/v1/create-user', {
             method: 'POST',
@@ -210,21 +359,17 @@
                 if (snap.exists()) {
                   perfil = snap.data();
                 } else {
-                  // Usuário autenticado sem perfil ainda (ex.: criado direto no Supabase Auth
-                  // sem passar pelo fluxo de admin) — auto-cadastra como agendador.
                   perfil = { email: emailLower, nome: user.email, role: 'agendador' };
                   await setDoc(doc(db, 'usuarios', user.id), perfil);
                 }
               } catch(e) { perfil = null; }
             }
 
-            // Garante que sempre há um perfil válido (somente para não-admins)
             if (!perfil) {
               perfil = { email: emailLower, nome: user.email, role: 'agendador' };
               try { await setDoc(doc(db, 'usuarios', user.id), perfil); } catch(e2) {}
             }
 
-            // Segurança final: emails fixos SEMPRE são admin, nunca agendador
             if (isAdminFixo) perfil.role = 'admin';
 
             window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: perfil.role };
@@ -246,8 +391,6 @@
                 else sessionStorage.setItem('_comercialModoCompleto', '1');
               }
               if (nomeOp) window._operadorNome = nomeOp;
-              // "Comercial e Estoque" identifica quem está adicionando, mas usa o
-              // Monitor completo normalmente — só os 8 vendedores caem na tela única.
               const isEstoque = nomeOp && nomeOp.endsWith(' (Estoque)');
               if (nomeOp && !isEstoque) {
                 if (mainCont)  mainCont.style.display  = 'none';
@@ -273,7 +416,6 @@
                 const nomeEl = document.getElementById('agendador-nome');
                 if (nomeEl) nomeEl.textContent = (window._currentUser.nome||'').split(' ')[0] || user.email;
               }
-              // Re-renderiza com retry para garantir que dados do Firestore já chegaram
               window._renderAgendadorRetry && window._renderAgendadorRetry();
             } else {
               if (mainCont)  mainCont.style.display  = '';
@@ -314,6 +456,7 @@
             dados.forEach(p => {
               const prev = window._notifStatusAnterior[p._docId];
               if (prev !== undefined && prev !== p.status) notificarMudancaStatus(p, prev);
+              else if (prev === undefined) notificarNovaCirurgia(p);
               window._notifStatusAnterior[p._docId] = p.status;
             });
             const ids = new Set(dados.map(p => p._docId));
@@ -331,6 +474,9 @@
               const hoje = new Date().toISOString().split('T')[0];
               const amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
               const amanha = amanhaD.getFullYear() + '-' + String(amanhaD.getMonth()+1).padStart(2,'0') + '-' + String(amanhaD.getDate()).padStart(2,'0');
+
+              if (!window._confirmacaoInicioFeita) window._confirmacaoInicioFeita = new Set();
+
               function autoTransitar(p, statusAnterior) {
                 p.autoTransicaoEm = new Date().toISOString();
                 try { notificarMudancaStatus(p, statusAnterior); } catch(e3) {}
@@ -340,10 +486,14 @@
                 } catch(e2) { console.warn('Auto-status:', e2); }
               }
 
-              if (!window._confirmacaoInicioFeita) window._confirmacaoInicioFeita = new Set();
-
               const paraPromover = [];
               dados.forEach(p => {
+                // Em Trânsito sem NF → Em Separação (NF obrigatória para manter em trânsito)
+                if (p.status === 'em_transito' && (!p.nf || !p.nf.trim())) {
+                  p.status = 'preparacao';
+                  autoTransitar(p, 'em_transito');
+                }
+
                 // Agendado + véspera (D-1) → Em Separação (silencioso)
                 if (p.status === 'agendado' && p.data && p.data === amanha) {
                   p.status = 'preparacao';
@@ -354,6 +504,21 @@
                   const statusAnterior = p.status;
                   p.status = 'andamento';
                   autoTransitar(p, statusAnterior);
+                }
+
+                // Data de retirada = hoje → Aguardando Retirada (automático)
+                if (!['a_retirar','concluido','cancelado','andamento','urgencia','coleta_urgente'].includes(p.status)
+                    && (p.retirada || p.dataRetirar) === hoje) {
+                  const prev = p.status;
+                  p.status = 'a_retirar';
+                  autoTransitar(p, prev);
+                }
+
+                // Em Procedimento + data de retirada chegou → Aguardando Retirada (automático)
+                if (p.status === 'andamento' && (p.retirada || p.dataRetirar) && (p.retirada || p.dataRetirar) <= hoje) {
+                  const prev = p.status;
+                  p.status = 'a_retirar';
+                  autoTransitar(p, prev);
                 }
               });
 
@@ -366,13 +531,13 @@
               // Renderizar lista do agendador (só para role agendador)
               window.renderAgendadorLista();
 
-
               window.renderCards();
               window.renderTable && window.renderTable();
               window.updateStats();
               window.updatePeriodResult();
               window.updateAlerts();
               window.showSyncToast('🔄 Sincronizado');
+              if (!window._resumoInicialMostrado) mostrarResumoInicial();
             } catch(e) { console.error('Erro ao aplicar dados:', e); }
           }
           aplicar();
@@ -4221,15 +4386,7 @@
     </div>
 </div>
 
-<!-- IDENTIFICAÇÃO — conta compartilhada comercial@gfmedical.net -->
-<div class="login-overlay hidden" id="identComercialOverlay" style="z-index:600;">
-    <div class="login-box">
-        <div class="login-logo">⬡ GF Medical</div>
-        <div class="login-sub">Quem está usando esta conta agora?</div>
-        <div id="identComercialNomes" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
-        <div style="text-align:center;margin-top:16px;"><button type="button" class="login-toggle-link" onclick="window._resolverIdentComercial(null)">Não está na lista → acessar o Monitor completo</button></div>
-    </div>
-</div>
+
 
 <!-- AGENDADOR VIEW -->
 <div id="agendadorView">
@@ -4251,6 +4408,16 @@
         <div id="agendador-lista"><div class="agendador-empty">Nenhuma cirurgia cadastrada ainda.</div></div>
     </div>
 </div>
+
+<div class="login-overlay hidden" id="identComercialOverlay" style="z-index:600;">
+    <div class="login-box">
+        <div class="login-logo">⬡ GF Medical</div>
+        <div class="login-sub">Quem está operando agora?</div>
+        <div id="identComercialNomes" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
+        <div style="margin-top:12px;"><button class="login-toggle-link" onclick="window._resolverIdentComercial(null)">Não está na lista (modo completo)</button></div>
+    </div>
+</div>
+
 
 <!-- COMERCIAL VIEW (conta compartilhada comercial@gfmedical.net) -->
 <div id="comercialView">
@@ -8152,29 +8319,17 @@ function editProc(docId) {
     }
 }
 
-// ─── IDENTIFICAÇÃO OPERADOR (contas comerciais compartilhadas) ───
-// Nomes completos batem com o cadastro de vendedores (select #f-vendedor) —
-// Gabriely Amorim Dias e Gustavo Ovídio Mussi Faverão ficam de fora da
-// identificação por não serem agendadores que usam a conta comercial@.
-// "Comercial e Estoque" é uma opção genérica (equipe sem nome fixo na lista):
-// ao escolher, pede o nome da pessoa por texto livre.
 const NOME_ESTOQUE_MARCADOR = 'Comercial e Estoque';
 const NOMES_OPERADOR_CG = ['Tiago da Silva Siqueira','Marcos Gonçalves da Silva','Marcella Fernandes Ricci','Wilson Cordeiro','Roberto Alex Cândido','Regiane da Silva Ramos','Jeferson Cruz','Leandro Sabino', NOME_ESTOQUE_MARCADOR];
 
 function _resolverNomeOperador(nome, callback) {
     if (nome === NOME_ESTOQUE_MARCADOR) {
-        const real = (prompt('Equipe Comercial e Estoque — qual o seu nome?') || '').trim();
-        if (!real) return; // cancelou, mantém o seletor aberto
-        callback(real + ' (Estoque)');
-        return;
+        callback(nome + ' (' + new Date().toLocaleDateString('pt-BR') + ')');
+    } else {
+        callback(nome);
     }
-    callback(nome);
 }
-let _pendingOpenModal = null;
 
-// Identificação logo após o login da conta comercial@gfmedical.net: se a
-// pessoa se reconhece num dos nomes, cai na tela única "+ Adicionar
-// Cirurgia"; se não (botão "Não está na lista"), cai no Monitor completo.
 window.pedirIdentificacaoComercial = function() {
     return new Promise(resolve => {
         const overlay = document.getElementById('identComercialOverlay');
@@ -8197,7 +8352,7 @@ window.pedirIdentificacaoComercial = function() {
 
 function _precisaNomeOp() {
     if (!window._currentUser) return false;
-    if (window._operadorNome) return false; // já identificado nesta sessão (ex.: tela única do comercial@)
+    if (window._operadorNome) return false;
     const em = (window._currentUser.email || '').toLowerCase();
     return em.startsWith('comercialmt@gfmedical') || em.startsWith('comercial@gfmedical');
 }
