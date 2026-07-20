@@ -31,6 +31,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .sidebar{width:224px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;box-shadow:var(--shadow)}
 .sidebar-logo{padding:15px 16px;border-bottom:1px solid var(--border)}
 html.modo-demo .sidebar-logo,html.modo-demo .login-logo,html.modo-demo .login-filial-badge,html.modo-demo #sidebar-filial-label{display:none!important}
+body.ficha-readonly #btnNovaFicha,body.ficha-readonly .abtn,body.ficha-readonly .kbtn{display:none!important}
 .logo-mark{display:flex;align-items:center;gap:10px}
 .logo-icon{width:34px;height:34px;border-radius:8px;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .logo-icon img{width:100%;height:100%;object-fit:cover;border-radius:8px}
@@ -311,7 +312,7 @@ tbody tr:hover .row-acts{opacity:1}
       <span class="page-title" id="page-title">Lista de Fichas</span>
       <div class="sbox"><span style="color:var(--text3)">🔍</span><input type="text" id="busca" placeholder="Paciente, médico…" oninput="renderAtivo()"></div>
       <button class="tbtn tbtn-g" onclick="exportarCSV()">⬇️ Exportar</button>
-      <button class="tbtn tbtn-p" onclick="abrirModal()">＋ Nova Ficha</button>
+      <button class="tbtn tbtn-p" id="btnNovaFicha" onclick="abrirModal()">＋ Nova Ficha</button>
     </div>
     <div class="vtabs">
       <div class="vtab" id="tab-dashboard" onclick="goView('dashboard')">📊 Dashboard</div>
@@ -441,7 +442,7 @@ const FILIAL = 'CGR';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const auth = supabase.auth;
 const db   = supabase; // mantido como "db" só para minimizar diff no resto do arquivo
-const { collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs } = createFirestoreShim(supabase);
+const { collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs, getDoc } = createFirestoreShim(supabase);
 const storage = supabase.storage;
 const { ref, uploadBytes, getDownloadURL } = createStorageShim(supabase, 'opme');
 let _currentUser = null;
@@ -480,6 +481,15 @@ auth.onAuthStateChange((_event, session) => {
     document.getElementById('user-av').textContent = nome.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase() || '?';
     carregarFichas();
     carregarRegistros();
+    // Escritas de papel "visualizacao" já são bloqueadas no banco (RLS) —
+    // isso aqui é só pra não deixar a pessoa clicar em algo que vai falhar
+    // com um erro confuso.
+    window._fichaReadOnly = false;
+    getDoc(doc(db, 'usuarios', u.id)).then(snap => {
+      const role = snap.exists() ? snap.data().role : null;
+      window._fichaReadOnly = role === 'visualizacao';
+      document.body.classList.toggle('ficha-readonly', window._fichaReadOnly);
+    }).catch(() => {});
   } else {
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('app-root').style.display = 'none';
@@ -871,6 +881,10 @@ function renderDashboard() {
 
 // MODAL
 window.abrirModal = id => {
+  if (window._fichaReadOnly && !id) {
+    if (typeof toast === 'function') toast('Modo somente visualização — não é possível criar novas fichas.', 'info');
+    return;
+  }
   editingId = id || null;
   itens = [];
   _arquivoOpme = null; _arquivoPv = null;
@@ -928,7 +942,20 @@ window.abrirModal = id => {
   }
   renderItens();
   document.getElementById('modal').classList.add('open');
+  aplicarModoLeituraModal();
 };
+
+function aplicarModoLeituraModal() {
+  const modal = document.getElementById('modal');
+  if (!modal) return;
+  const so = !!window._fichaReadOnly;
+  modal.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = so; });
+  modal.querySelectorAll('.item-rm, .add-item').forEach(el => { el.style.display = so ? 'none' : ''; });
+  const btnSalvar = document.getElementById('btn-salvar');
+  if (btnSalvar) btnSalvar.style.display = so ? 'none' : '';
+  const title = document.getElementById('modal-title');
+  if (title && so && editingId) title.textContent = '👁 Ficha OPME (somente visualização)';
+}
 
 window.fecharModal = () => {
   document.getElementById('modal').classList.remove('open');
