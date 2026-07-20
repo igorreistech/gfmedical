@@ -193,6 +193,17 @@
         password: 'demo123',
       };
 
+      // Marca a página inteira como demo assim que possível (antes de qualquer
+      // render), pra cobrir a tela de login e sobreviver a um logout sem reload.
+      if (new URLSearchParams(location.search).get('demo') === '1') {
+        document.body.classList.add('modo-demo');
+      }
+
+      function ocultarMarcaDemo() {
+        const p = document.querySelector('.header-text p');
+        if (p) p.textContent = p.textContent.replace(/\s*[·•]\s*GF\s*Medical/i, '');
+      }
+
       window.entrarDemo = function() {
         document.body.classList.add('modo-demo');
         document.getElementById('loginUser').value = DEMO_USER.email;
@@ -228,7 +239,6 @@
           sessionStorage.removeItem('_nomeComercialCGR');
           sessionStorage.removeItem('_comercialModoCompleto');
           window._isDemoUser = false;
-          document.body.classList.remove('modo-demo');
           window._operadorNome = null;
           try { await auth.signOut(); } catch(e) {}
         }
@@ -445,6 +455,7 @@
               window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: 'visualizacao' };
               window._isDemoUser = emailLower === DEMO_USER.email;
               document.body.classList.toggle('modo-demo', window._isDemoUser);
+              if (window._isDemoUser) ocultarMarcaDemo();
               solicitarPermissaoNotificacoes();
             } else {
               if (mainCont)  mainCont.style.display  = '';
@@ -457,7 +468,6 @@
           } else {
             window._currentUser = null;
             window._isDemoUser = false;
-            document.body.classList.remove('modo-demo');
             overlay.classList.remove('hidden');
             const logoutEl  = document.getElementById('logoutBtn');
             const adminBtn  = document.getElementById('btn-gerenciar-usuarios');
@@ -4399,6 +4409,7 @@
 .header-text{min-width:0!important}
 body.modo-demo .header-logo-bg{display:none!important}
 body.modo-demo .login-logo-img{display:none!important}
+body.modo-demo .marca-gf-brand{display:none!important}
 body.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.55em;font-weight:600;opacity:0.65;text-transform:none;letter-spacing:normal}
 .header-text h1{color:#2a9fbf!important;-webkit-text-fill-color:#2a9fbf!important}
 .header-text p{font-size:.82rem!important;letter-spacing:.12em!important;line-height:1.35!important;color:#56a884!important;max-width:560px}
@@ -18655,7 +18666,7 @@ window.buildCardHTML = function(proc) {
             <span>GF Medical Comércio e Representações Ltda.</span>
         </div>
         <script>window.onload=()=>{window.print();}<\/script>
-        <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;">&copy; 2025 <span style="color:#4db87a;font-weight:700;">GF Medical</span> &middot; Desenvolvido por <a href="https://devigorreis.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
+        <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;">&copy; 2025 <span class="marca-gf-brand" style="color:#4db87a;font-weight:700;">GF Medical &middot;</span> Desenvolvido por <a href="https://devigorreis.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
 </body></html>`);
         win.document.close();
     };
@@ -18779,7 +18790,7 @@ window.buildCardHTML = function(proc) {
 })();
 </script>
 
-<div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;">&copy; 2025 <span style="color:#4db87a;font-weight:700;">GF Medical</span> &middot; Desenvolvido por <a href="https://devigorreis.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
+<div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;">&copy; 2025 <span class="marca-gf-brand" style="color:#4db87a;font-weight:700;">GF Medical &middot;</span> Desenvolvido por <a href="https://devigorreis.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').then(reg => {
