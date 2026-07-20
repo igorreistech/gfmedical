@@ -1,4 +1,4 @@
-﻿<!-- v1.0.1-demo -->
+﻿<!-- v1.0.2-demo-fix -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -202,6 +202,7 @@
         const fabGroup = document.querySelector('.fab-group');
         const loginPanel = document.getElementById('loginPanel');
         window._currentUser = { uid: 'demo-user', email: DEMO_USER.email, nome: DEMO_USER.nome, role: DEMO_USER.role };
+        window._isDemoUser = true;
         if (overlay) overlay.classList.add('hidden');
         if (logoutEl) logoutEl.style.display = 'block';
         if (adminBtn) adminBtn.style.display = 'none';
@@ -210,7 +211,6 @@
         if (mainCont) mainCont.style.display = '';
         if (fabGroup) fabGroup.style.display = 'none';
         if (loginPanel) loginPanel.style.display = 'none';
-        if (window.aplicarMascaraVisualizacao) window.aplicarMascaraVisualizacao();
         sessionStorage.setItem('_demoLogin', '1');
       }
 
@@ -230,7 +230,7 @@
 
         const normalizedEmail = email.toLowerCase();
         const normalizedPass = pass.trim();
-        if (normalizedEmail === DEMO_USER.email && normalizedPass.length > 0) {
+        if (normalizedEmail === DEMO_USER.email && normalizedPass === DEMO_USER.password) {
           aplicarLoginDemo();
           btn.disabled = false; btn.textContent = 'Entrar';
           return;
@@ -256,6 +256,7 @@
           sessionStorage.removeItem('_nomeComercialCGR');
           sessionStorage.removeItem('_comercialModoCompleto');
           sessionStorage.removeItem('_demoLogin');
+          window._isDemoUser = false;
           window._operadorNome = null;
           try { await auth.signOut(); } catch(e) {}
         }
@@ -502,19 +503,15 @@
       });
 
       window.addEventListener('DOMContentLoaded', () => {
-        if (location.search.includes('demo=1') || sessionStorage.getItem('_demoLogin') === '1') {
+        if (new URLSearchParams(location.search).get('demo') === '1' || sessionStorage.getItem('_demoLogin') === '1') {
           window.entrarDemo();
-        } else {
-          const params = new URLSearchParams(location.search);
-          if (params.get('demo') === '1') {
-            window.entrarDemo();
-          } else {
-            window.entrarDemo();
-          }
         }
         const { collection: col, onSnapshot: snap } = window._fbModules;
         snap(col(db, COLL), (snapshot) => {
           const dados = snapshot.docs.map(d => ({ _docId: d.id, ...d.data() }));
+          if (window._isDemoUser) {
+            dados.forEach((p, i) => { if (p.paciente) p.paciente = 'Paciente Demo ' + (i + 1); });
+          }
 
           // ─── Detectar mudanças de status e notificar ───
           if (window._notifStatusAnterior === null) {
