@@ -545,6 +545,7 @@
               if (p.vendedor) p.vendedor = maskField('vendedor', p.vendedor, 'Vendedor');
               if (p.hospital) p.hospital = maskField('hospital', p.hospital, 'Hospital Demo');
               if (p.medico)   p.medico   = maskField('medico', p.medico, 'Dr(a). Demo');
+              if (p.convenio) p.convenio = maskField('convenio', p.convenio, 'Convênio Demo');
             });
             try { localStorage.setItem('_demoMaskMaps', JSON.stringify(maskMaps)); } catch(e) {}
           }

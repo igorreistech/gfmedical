@@ -202,7 +202,7 @@ tbody tr:hover .row-acts{opacity:1}
 .import-badge.show{display:inline-flex}
 .itens-section{margin-bottom:14px}
 .itens-hdr{font-family:var(--mono);font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
-.item-row{display:grid;grid-template-columns:3fr 1.2fr 1fr 0.8fr 0.9fr 28px;gap:6px;align-items:center;margin-bottom:5px}
+.item-row{display:grid;grid-template-columns:1.2fr 3fr 1fr 0.8fr 0.9fr 28px;gap:6px;align-items:center;margin-bottom:5px}
 .item-row .finput{padding:6px 9px;font-size:0.76rem}
 .item-row input[type=number]{font-family:var(--mono);font-size:0.82rem;text-align:center}
 .item-rm{background:none;border:1px solid var(--border);color:var(--text3);border-radius:6px;width:26px;height:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.7rem;transition:all 0.12s}
@@ -402,11 +402,11 @@ tbody tr:hover .row-acts{opacity:1}
       <div class="itens-section">
         <div class="itens-hdr">
           <span>🔩 Itens OPME</span>
-          <span style="font-weight:400;opacity:0.7;font-size:0.58rem">Descrição · Referência · Lote · Qtd · Preço Unit</span>
+          <span style="font-weight:400;opacity:0.7;font-size:0.58rem">Referência · Descrição · Lote · Qtd · Preço Unit</span>
         </div>
-        <div style="display:grid;grid-template-columns:3fr 1.2fr 1fr 0.8fr 0.9fr 28px;gap:6px;margin-bottom:3px;padding:0 2px">
-          <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Descrição</span>
+        <div style="display:grid;grid-template-columns:1.2fr 3fr 1fr 0.8fr 0.9fr 28px;gap:6px;margin-bottom:3px;padding:0 2px">
           <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Referência</span>
+          <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Descrição</span>
           <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Lote</span>
           <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Qtd</span>
           <span style="font-family:var(--mono);font-size:0.53rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3)">Preço Unit</span>
@@ -471,6 +471,7 @@ auth.onAuthStateChange((_event, session) => {
   const u = session?.user || null;
   _currentUser = u ? { uid: u.id, email: u.email } : null;
   const isDemo = !!u && (u.email||'').toLowerCase() === DEMO_EMAIL;
+  window._isDemoUser = isDemo;
   document.documentElement.classList.toggle('modo-demo', isDemo);
   if (isDemo) document.title = document.title.replace(/\s*·\s*GF Medical/i, '').replace(/\s*·\s*Campo Grande/i, '');
   if (u) {
@@ -509,16 +510,50 @@ window.doLogout = () => auth.signOut();
 
 // FIRESTORE
 let _unsubFichas = null;
+// Mascaramento do demo: mesmo localStorage/chaves do Monitor Cirúrgico
+// (index.html), então o mesmo hospital/médico real vira o mesmo rótulo
+// demo nas duas páginas.
+function mascararFichasDemo(lista) {
+  if (!window._isDemoUser) return lista;
+  let maskMaps;
+  try { maskMaps = JSON.parse(localStorage.getItem('_demoMaskMaps') || '{}'); } catch(e) { maskMaps = {}; }
+  const maskField = (campo, chave, rotulo) => {
+    if (!chave) return chave;
+    if (!maskMaps[campo]) maskMaps[campo] = {};
+    if (!maskMaps[campo][chave]) maskMaps[campo][chave] = rotulo + ' ' + (Object.keys(maskMaps[campo]).length + 1);
+    return maskMaps[campo][chave];
+  };
+  const maskData = (dataStr, docId) => {
+    if (!dataStr) return dataStr;
+    let hash = 0;
+    for (let i = 0; i < (docId||'').length; i++) hash = (hash * 31 + docId.charCodeAt(i)) | 0;
+    const d = new Date(dataStr + 'T00:00:00');
+    if (isNaN(d)) return dataStr;
+    d.setDate(d.getDate() + (Math.abs(hash) % 41) - 20);
+    return d.toISOString().split('T')[0];
+  };
+  lista.forEach(f => {
+    if (f.paciente)      f.paciente      = maskField('paciente', f._id, 'Paciente Demo');
+    if (f.medico)        f.medico        = maskField('medico', f.medico, 'Dr(a). Demo');
+    if (f.hospital)      f.hospital      = maskField('hospital', f.hospital, 'Hospital Demo');
+    if (f.convenio)      f.convenio      = maskField('convenio', f.convenio, 'Convênio Demo');
+    if (f.cliente)       f.cliente       = maskField('convenio', f.cliente, 'Convênio Demo');
+    if (f.dataCirurgia)  f.dataCirurgia  = maskData(f.dataCirurgia, f._id);
+  });
+  try { localStorage.setItem('_demoMaskMaps', JSON.stringify(maskMaps)); } catch(e) {}
+  return lista;
+}
+
 function carregarFichas() {
   if (_unsubFichas) { _unsubFichas(); _unsubFichas = null; }
   try {
     const q = query(collection(db, COLL), orderBy('criadoEm','desc'));
     _unsubFichas = onSnapshot(q, snap => {
-      fichas = snap.docs.map(d => ({_id:d.id, ...d.data()}));
+      fichas = mascararFichasDemo(snap.docs.map(d => ({_id:d.id, ...d.data()})));
       atualizarBadges(); renderAtivo();
     }, err => {
       _unsubFichas = onSnapshot(collection(db, COLL), snap => {
-        fichas = snap.docs.map(d => ({_id:d.id, ...d.data()}));
+        fichas = mascararFichasDemo(snap.docs.map(d => ({_id:d.id, ...d.data()})));
         atualizarBadges(); renderAtivo();
       });
     });
@@ -1006,8 +1041,8 @@ window.salvarFicha = async () => {
 function renderItens() {
   document.getElementById('itens-container').innerHTML = itens.map((it,i) => `
     <div class="item-row">
-      <input class="finput" placeholder="Descrição…" value="${esc(it.descricao||'')}" oninput="itens[${i}].descricao=this.value;calcTotal()">
       <input class="finput" placeholder="Ref/Cód" value="${esc(it.referencia||'')}" oninput="itens[${i}].referencia=this.value">
+      <input class="finput" placeholder="Descrição…" value="${esc(it.descricao||'')}" oninput="itens[${i}].descricao=this.value;calcTotal()">
       <input class="finput" placeholder="Lote" value="${esc(it.lote||'')}" oninput="itens[${i}].lote=this.value">
       <input class="finput" type="number" min="0" step="1" value="${it.qtd||1}" oninput="itens[${i}].qtd=+this.value;calcTotal()">
       <input class="finput" type="number" min="0" step="0.01" value="${it.precoUnit||0}" oninput="itens[${i}].precoUnit=+this.value;calcTotal()">
@@ -1023,8 +1058,8 @@ function coletarItens() {
   document.querySelectorAll('#itens-container .item-row').forEach((row,i) => {
     if (!itens[i]) return;
     const inp = row.querySelectorAll('input');
-    itens[i].descricao  = inp[0].value;
-    itens[i].referencia = inp[1].value;
+    itens[i].referencia = inp[0].value;
+    itens[i].descricao  = inp[1].value;
     itens[i].lote       = inp[2].value;
     itens[i].qtd        = Number(inp[3].value)||1;
     itens[i].precoUnit  = Number(inp[4].value)||0;
