@@ -548,6 +548,21 @@ function mascararFichasDemo(lista) {
 
 function carregarFichas() {
   if (_unsubFichas) { _unsubFichas(); _unsubFichas = null; }
+  // Conta demo: carrega uma vez só (sem ficar escutando em tempo real) —
+  // assim, fichas criadas/editadas/excluídas localmente pelo recrutador
+  // (modo sandbox) não somem quando o snapshot original é substituído.
+  if (window._isDemoUser) {
+    getDocs(query(collection(db, COLL), orderBy('criadoEm','desc'))).then(snap => {
+      fichas = mascararFichasDemo(snap.docs.map(d => ({_id:d.id, ...d.data()})));
+      atualizarBadges(); renderAtivo();
+    }).catch(() => {
+      getDocs(collection(db, COLL)).then(snap => {
+        fichas = mascararFichasDemo(snap.docs.map(d => ({_id:d.id, ...d.data()})));
+        atualizarBadges(); renderAtivo();
+      });
+    });
+    return;
+  }
   try {
     const q = query(collection(db, COLL), orderBy('criadoEm','desc'));
     _unsubFichas = onSnapshot(q, snap => {
@@ -608,6 +623,23 @@ async function uploadAnexosSeguro(docId) {
 
 async function persistir(dados, id) {
   if (!_currentUser) throw new Error('Faça login para salvar.');
+  // Conta demo: RLS bloqueia escrita real no banco (de propósito), então
+  // simula a gravação só na lista local — dá pra testar criar/editar sem
+  // nunca tocar em dado de produção.
+  if (window._isDemoUser) {
+    const p = { ...dados, filial: FILIAL };
+    let docId = id;
+    if (!docId) {
+      docId = 'demo-' + Date.now();
+      fichas.unshift({ _id: docId, criadoEm: new Date().toISOString(), ...p });
+    } else {
+      const idx = fichas.findIndex(f => f._id === docId);
+      if (idx !== -1) fichas[idx] = { ...fichas[idx], ...p };
+    }
+    atualizarBadges(); renderAtivo();
+    _arquivoOpme = null; _arquivoPv = null;
+    return { docId, falhasAnexo: [] };
+  }
   const p = {...dados, filial: FILIAL};
   let docId = id;
   if (!docId) {
@@ -625,11 +657,24 @@ async function persistir(dados, id) {
 
 window.excluirFicha = async id => {
   if (!confirm('Excluir esta ficha?')) return;
+  if (window._isDemoUser) {
+    const idx = fichas.findIndex(f => f._id === id);
+    if (idx !== -1) fichas.splice(idx, 1);
+    atualizarBadges(); renderAtivo();
+    toast('Ficha excluída', 'info');
+    return;
+  }
   await deleteDoc(doc(db, COLL, id));
   toast('Ficha excluída', 'info');
 };
 
 window.mudStatus = async (id, s) => {
+  if (window._isDemoUser) {
+    const idx = fichas.findIndex(f => f._id === id);
+    if (idx !== -1) fichas[idx].status = s;
+    atualizarBadges(); renderAtivo();
+    return;
+  }
   await setDoc(doc(db, COLL, id), {status:s}, {merge:true});
 };
 
