@@ -217,9 +217,7 @@
       }
 
       function mostrarTourDemo() {
-        if (localStorage.getItem('_demoTourVisto') === '1') return;
         if (document.getElementById('demoTourOverlay')) return;
-        localStorage.setItem('_demoTourVisto', '1');
         const ov = document.createElement('div');
         ov.id = 'demoTourOverlay';
         ov.style.cssText = 'position:fixed;inset:0;background:rgba(6,20,16,0.55);backdrop-filter:blur(3px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
