@@ -484,11 +484,13 @@ auth.onAuthStateChange((_event, session) => {
     carregarRegistros();
     // Escritas de papel "visualizacao" já são bloqueadas no banco (RLS) —
     // isso aqui é só pra não deixar a pessoa clicar em algo que vai falhar
-    // com um erro confuso.
+    // com um erro confuso. A conta demo fica de fora dessa trava pra
+    // recrutador poder testar a tela livremente (a escrita real continua
+    // bloqueada pelo RLS de qualquer forma).
     window._fichaReadOnly = false;
     getDoc(doc(db, 'usuarios', u.id)).then(snap => {
       const role = snap.exists() ? snap.data().role : null;
-      window._fichaReadOnly = role === 'visualizacao';
+      window._fichaReadOnly = role === 'visualizacao' && !isDemo;
       document.body.classList.toggle('ficha-readonly', window._fichaReadOnly);
     }).catch(() => {});
   } else {
