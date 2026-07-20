@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+<script>if(new URLSearchParams(location.search).get('demo')==='1')document.documentElement.classList.add('modo-demo');</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Fichas OPME · GF Medical · Campo Grande</title>
@@ -29,6 +30,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .app{display:flex;min-height:100vh;position:relative;z-index:1}
 .sidebar{width:224px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;box-shadow:var(--shadow)}
 .sidebar-logo{padding:15px 16px;border-bottom:1px solid var(--border)}
+html.modo-demo .sidebar-logo,html.modo-demo .login-logo{display:none!important}
 .logo-mark{display:flex;align-items:center;gap:10px}
 .logo-icon{width:34px;height:34px;border-radius:8px;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .logo-icon img{width:100%;height:100%;object-fit:cover;border-radius:8px}
@@ -462,9 +464,14 @@ let _arquivoOpme=null, _arquivoPv=null;
 let _anexoUrlAtual={opme:null, pv:null};
 
 // AUTH
+const DEMO_EMAIL = 'demo@test.com';
+
 auth.onAuthStateChange((_event, session) => {
   const u = session?.user || null;
   _currentUser = u ? { uid: u.id, email: u.email } : null;
+  const isDemo = !!u && (u.email||'').toLowerCase() === DEMO_EMAIL;
+  document.documentElement.classList.toggle('modo-demo', isDemo);
+  if (isDemo) document.title = document.title.replace(/\s*·\s*GF Medical/i, '');
   if (u) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-root').style.display = 'flex';
