@@ -194,6 +194,7 @@
       };
 
       window.entrarDemo = function() {
+        document.body.classList.add('modo-demo');
         document.getElementById('loginUser').value = DEMO_USER.email;
         document.getElementById('loginPass').value = DEMO_USER.password;
         window.doLogin();
@@ -4392,6 +4393,7 @@
 .header-logo{height:64px!important;width:auto!important;max-width:none!important;max-height:none!important;object-fit:contain!important;display:block!important;margin:0 auto!important}
 .header-text{min-width:0!important}
 body.modo-demo .header-logo-bg{display:none!important}
+body.modo-demo .login-logo-img{display:none!important}
 body.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.55em;font-weight:600;opacity:0.65;text-transform:none;letter-spacing:normal}
 .header-text h1{color:#2a9fbf!important;-webkit-text-fill-color:#2a9fbf!important}
 .header-text p{font-size:.82rem!important;letter-spacing:.12em!important;line-height:1.35!important;color:#56a884!important;max-width:560px}
