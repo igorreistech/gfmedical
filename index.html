@@ -2,6 +2,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <script>if(new URLSearchParams(location.search).get('demo')==='1')document.documentElement.classList.add('modo-demo');</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#0d1f0e">
@@ -193,11 +194,8 @@
         password: 'demo123',
       };
 
-      // Marca a página inteira como demo assim que possível (antes de qualquer
-      // render), pra cobrir a tela de login e sobreviver a um logout sem reload.
-      if (new URLSearchParams(location.search).get('demo') === '1') {
-        document.body.classList.add('modo-demo');
-      }
+      // A marcação inicial de ?demo=1 já roda num script bloqueante no <head>
+      // (antes de qualquer paint), pra não piscar a marca na primeira tela.
 
       function ocultarMarcaDemo() {
         const p = document.querySelector('.header-text p');
@@ -205,7 +203,7 @@
       }
 
       window.entrarDemo = function() {
-        document.body.classList.add('modo-demo');
+        document.documentElement.classList.add('modo-demo');
         document.getElementById('loginUser').value = DEMO_USER.email;
         document.getElementById('loginPass').value = DEMO_USER.password;
         window.doLogin();
@@ -454,7 +452,7 @@
               if (comercialView) comercialView.style.display = 'none';
               window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: 'visualizacao' };
               window._isDemoUser = emailLower === DEMO_USER.email;
-              document.body.classList.toggle('modo-demo', window._isDemoUser);
+              document.documentElement.classList.toggle('modo-demo', window._isDemoUser);
               if (window._isDemoUser) ocultarMarcaDemo();
               solicitarPermissaoNotificacoes();
             } else {
@@ -4407,10 +4405,10 @@
 .header-logo-bg{background:#fff!important;box-shadow:0 8px 18px rgba(24,80,86,.08)!important;border-radius:18px!important;padding:10px 14px!important;display:flex!important;align-items:center!important;justify-content:center!important;flex-shrink:0!important}
 .header-logo{height:64px!important;width:auto!important;max-width:none!important;max-height:none!important;object-fit:contain!important;display:block!important;margin:0 auto!important}
 .header-text{min-width:0!important}
-body.modo-demo .header-logo-bg{display:none!important}
-body.modo-demo .login-logo-img{display:none!important}
-body.modo-demo .marca-gf-brand{display:none!important}
-body.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.55em;font-weight:600;opacity:0.65;text-transform:none;letter-spacing:normal}
+html.modo-demo .header-logo-bg{display:none!important}
+html.modo-demo .login-logo-img{display:none!important}
+html.modo-demo .marca-gf-brand{display:none!important}
+html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.55em;font-weight:600;opacity:0.65;text-transform:none;letter-spacing:normal}
 .header-text h1{color:#2a9fbf!important;-webkit-text-fill-color:#2a9fbf!important}
 .header-text p{font-size:.82rem!important;letter-spacing:.12em!important;line-height:1.35!important;color:#56a884!important;max-width:560px}
 .header > div:last-child{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:14px!important;flex-wrap:wrap!important}
