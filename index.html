@@ -482,14 +482,19 @@
         snap(col(db, COLL), (snapshot) => {
           const dados = snapshot.docs.map(d => ({ _docId: d.id, ...d.data() }));
           if (window._isDemoUser) {
-            if (!window._vendorMaskMap) window._vendorMaskMap = new Map();
-            const vendorMaskMap = window._vendorMaskMap;
+            if (!window._demoMaskMaps) window._demoMaskMaps = {};
+            const maskMaps = window._demoMaskMaps;
+            const maskField = (campo, valor, rotulo) => {
+              if (!maskMaps[campo]) maskMaps[campo] = new Map();
+              const m = maskMaps[campo];
+              if (!m.has(valor)) m.set(valor, rotulo + ' ' + (m.size + 1));
+              return m.get(valor);
+            };
             dados.forEach((p, i) => {
               if (p.paciente) p.paciente = 'Paciente Demo ' + (i + 1);
-              if (p.vendedor) {
-                if (!vendorMaskMap.has(p.vendedor)) vendorMaskMap.set(p.vendedor, 'Vendedor ' + (vendorMaskMap.size + 1));
-                p.vendedor = vendorMaskMap.get(p.vendedor);
-              }
+              if (p.vendedor) p.vendedor = maskField('vendedor', p.vendedor, 'Vendedor');
+              if (p.hospital) p.hospital = maskField('hospital', p.hospital, 'Hospital Demo');
+              if (p.medico)   p.medico   = maskField('medico', p.medico, 'Dr(a). Demo');
             });
           }
 
