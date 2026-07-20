@@ -1256,10 +1256,13 @@ function parsearC160(texto, filename) {
       }
     }
   }
-  // Fallback antigo: "SEQ PREÇOUNIT VALORTOTAL DATA" em linha própria
+  // Fallback antigo: "SEQ PREÇOUNIT VALORTOTAL DATA" em linha própria — o
+  // pdf.js costuma preservar um espaço à esquerda do número de sequência
+  // (ex.: " 1 1450,91 1.450,91 23/04/2026"), então o início da linha precisa
+  // tolerar esse espaço em vez de exigir o dígito colado no `^`.
   const prices = [];
   if (lineVals.length < bases.length) {
-    const re = /^(\d{1,3})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+\d{2}\/\d{2}\/\d{4}\s*$/gm;
+    const re = /^\s*(\d{1,3})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+\d{2}\/\d{2}\/\d{4}\s*$/gm;
     let m;
     while ((m = re.exec(txt))) prices.push({ precoUnit: pv(m[2]) });
   }
