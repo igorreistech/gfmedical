@@ -204,6 +204,43 @@
           .replace(/\s*[·•]\s*Campo\s*Grande[\s,\/]*MS/i, '');
       }
 
+      // Primeira impressão do demo: cai direto no Painel Executivo com todo o
+      // histórico (em vez do filtro padrão "hoje", que costuma vir zerado).
+      function configurarVisaoDemo(tentativa) {
+        if (window.switchView && window.applyPreset) {
+          window.switchView('dashboard');
+          window.applyPreset('todos');
+          setTimeout(mostrarTourDemo, 400);
+        } else if ((tentativa || 0) < 20) {
+          setTimeout(() => configurarVisaoDemo((tentativa || 0) + 1), 150);
+        }
+      }
+
+      function mostrarTourDemo() {
+        if (localStorage.getItem('_demoTourVisto') === '1') return;
+        if (document.getElementById('demoTourOverlay')) return;
+        localStorage.setItem('_demoTourVisto', '1');
+        const ov = document.createElement('div');
+        ov.id = 'demoTourOverlay';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(6,20,16,0.55);backdrop-filter:blur(3px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+        ov.innerHTML = `
+          <div style="background:#fff;border-radius:18px;max-width:480px;width:100%;padding:28px 26px;box-shadow:0 20px 60px rgba(0,0,0,0.3);font-family:'Space Grotesk',sans-serif;">
+            <div style="font-family:var(--mono);font-size:0.68rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#4db87a;margin-bottom:6px;">Modo demonstração</div>
+            <h2 style="font-size:1.3rem;margin-bottom:14px;color:#1f2937;">Bem-vindo ao Monitor Cirúrgico</h2>
+            <ul style="list-style:none;padding:0;margin:0 0 18px;display:flex;flex-direction:column;gap:10px;font-size:0.88rem;color:#374151;line-height:1.4;">
+              <li>🔴 <strong>Tempo real</strong> — os dados atualizam sozinhos, sem precisar recarregar a página.</li>
+              <li>📱 <strong>PWA</strong> — pode ser instalado como app e funciona offline.</li>
+              <li>💬 <strong>Integração com WhatsApp</strong> — gera mensagens de cobrança e status direto do sistema.</li>
+              <li>🔐 <strong>Controle de acesso por papel</strong> — admin, agendador e somente-visualização, com permissões reforçadas no banco de dados.</li>
+              <li>📄 <strong>Importação automática de PDF</strong> — extrai dados de pedidos de venda sem digitação manual.</li>
+            </ul>
+            <div style="font-size:0.76rem;color:#9ca3af;margin-bottom:18px;">Os nomes de pacientes, hospitais, médicos e vendedores exibidos aqui são fictícios.</div>
+            <button onclick="document.getElementById('demoTourOverlay').remove()" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#4bb4d2,#87c396);color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer;">Entendi, vamos lá →</button>
+          </div>`;
+        document.body.appendChild(ov);
+        ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+      }
+
       window.entrarDemo = function() {
         document.documentElement.classList.add('modo-demo');
         document.getElementById('loginUser').value = DEMO_USER.email;
@@ -455,7 +492,7 @@
               window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: 'visualizacao' };
               window._isDemoUser = emailLower === DEMO_USER.email;
               document.documentElement.classList.toggle('modo-demo', window._isDemoUser);
-              if (window._isDemoUser) ocultarMarcaDemo();
+              if (window._isDemoUser) { ocultarMarcaDemo(); configurarVisaoDemo(); }
               solicitarPermissaoNotificacoes();
             } else {
               if (mainCont)  mainCont.style.display  = '';
@@ -492,20 +529,24 @@
         snap(col(db, COLL), (snapshot) => {
           const dados = snapshot.docs.map(d => ({ _docId: d.id, ...d.data() }));
           if (window._isDemoUser) {
-            if (!window._demoMaskMaps) window._demoMaskMaps = {};
-            const maskMaps = window._demoMaskMaps;
-            const maskField = (campo, valor, rotulo) => {
-              if (!maskMaps[campo]) maskMaps[campo] = new Map();
-              const m = maskMaps[campo];
-              if (!m.has(valor)) m.set(valor, rotulo + ' ' + (m.size + 1));
-              return m.get(valor);
+            // Mapa de mascaramento persiste em localStorage — mesmo nome real
+            // sempre vira o mesmo rótulo demo, mesmo depois de recarregar a página.
+            let maskMaps;
+            try { maskMaps = JSON.parse(localStorage.getItem('_demoMaskMaps') || '{}'); } catch(e) { maskMaps = {}; }
+            const maskField = (campo, chave, rotulo) => {
+              if (!maskMaps[campo]) maskMaps[campo] = {};
+              if (!maskMaps[campo][chave]) {
+                maskMaps[campo][chave] = rotulo + ' ' + (Object.keys(maskMaps[campo]).length + 1);
+              }
+              return maskMaps[campo][chave];
             };
-            dados.forEach((p, i) => {
-              if (p.paciente) p.paciente = 'Paciente Demo ' + (i + 1);
+            dados.forEach((p) => {
+              if (p.paciente) p.paciente = maskField('paciente', p._docId || p.paciente, 'Paciente Demo');
               if (p.vendedor) p.vendedor = maskField('vendedor', p.vendedor, 'Vendedor');
               if (p.hospital) p.hospital = maskField('hospital', p.hospital, 'Hospital Demo');
               if (p.medico)   p.medico   = maskField('medico', p.medico, 'Dr(a). Demo');
             });
+            try { localStorage.setItem('_demoMaskMaps', JSON.stringify(maskMaps)); } catch(e) {}
           }
 
           // ─── Detectar mudanças de status e notificar ───
