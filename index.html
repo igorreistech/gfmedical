@@ -186,8 +186,8 @@
 
       // ─── AUTH ───
       const DEMO_USER = {
-        email: 'demonstracao@teste.com',
-        password: 'Demo123456!',
+        email: 'demo@test.com',
+        password: 'demo123',
         nome: 'Demonstracao',
         role: 'visualizacao',
       };
@@ -505,7 +505,12 @@
         if (location.search.includes('demo=1') || sessionStorage.getItem('_demoLogin') === '1') {
           window.entrarDemo();
         } else {
-          window.entrarDemo();
+          const params = new URLSearchParams(location.search);
+          if (params.get('demo') === '1') {
+            window.entrarDemo();
+          } else {
+            window.entrarDemo();
+          }
         }
         const { collection: col, onSnapshot: snap } = window._fbModules;
         snap(col(db, COLL), (snapshot) => {
