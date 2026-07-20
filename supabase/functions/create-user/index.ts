@@ -60,7 +60,7 @@ Deno.serve(async req => {
   }
 
   const email = (body.email || '').trim().toLowerCase();
-  const role = body.role === 'admin' ? 'admin' : 'agendador';
+  const role = ['admin', 'visualizacao'].includes(body.role || '') ? body.role! : 'agendador';
   const nome = (body.nome || '').trim() || email;
   if (!email) {
     return new Response(JSON.stringify({ error: 'E-mail é obrigatório.' }), { status: 400 });

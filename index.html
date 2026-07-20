@@ -185,39 +185,18 @@
       }
 
       // ─── AUTH ───
+      // Usuário de demonstração: uma conta real no Supabase Auth (papel
+      // "visualizacao"), não um bypass client-side — RLS exige sessão
+      // autenticada de verdade pra ler as tabelas.
       const DEMO_USER = {
         email: 'demo@test.com',
         password: 'demo123',
-        nome: 'Demonstracao',
-        role: 'visualizacao',
       };
-
-      function aplicarLoginDemo() {
-        const overlay = document.getElementById('loginOverlay');
-        const logoutEl = document.getElementById('logoutBtn');
-        const adminBtn = document.getElementById('btn-gerenciar-usuarios');
-        const agendView = document.getElementById('agendadorView');
-        const comercialView = document.getElementById('comercialView');
-        const mainCont = document.querySelector('.container');
-        const fabGroup = document.querySelector('.fab-group');
-        const loginPanel = document.getElementById('loginPanel');
-        window._currentUser = { uid: 'demo-user', email: DEMO_USER.email, nome: DEMO_USER.nome, role: DEMO_USER.role };
-        window._isDemoUser = true;
-        if (overlay) overlay.classList.add('hidden');
-        if (logoutEl) logoutEl.style.display = 'block';
-        if (adminBtn) adminBtn.style.display = 'none';
-        if (agendView) agendView.style.display = 'none';
-        if (comercialView) comercialView.style.display = 'none';
-        if (mainCont) mainCont.style.display = '';
-        if (fabGroup) fabGroup.style.display = 'none';
-        if (loginPanel) loginPanel.style.display = 'none';
-        sessionStorage.setItem('_demoLogin', '1');
-      }
 
       window.entrarDemo = function() {
         document.getElementById('loginUser').value = DEMO_USER.email;
         document.getElementById('loginPass').value = DEMO_USER.password;
-        aplicarLoginDemo();
+        window.doLogin();
       };
 
       window.doLogin = async function() {
@@ -227,14 +206,6 @@
         const err   = document.getElementById('loginError');
         if (!email || !pass) { err.textContent = 'Preencha e-mail e senha.'; err.style.display = 'block'; return; }
         btn.disabled = true; btn.textContent = 'Entrando...'; err.style.display = 'none';
-
-        const normalizedEmail = email.toLowerCase();
-        const normalizedPass = pass.trim();
-        if (normalizedEmail === DEMO_USER.email && normalizedPass === DEMO_USER.password) {
-          aplicarLoginDemo();
-          btn.disabled = false; btn.textContent = 'Entrar';
-          return;
-        }
 
         try {
           const { error } = await auth.signInWithPassword({ email, password: pass });
@@ -255,8 +226,8 @@
         if (confirm('Deseja sair do sistema?')) {
           sessionStorage.removeItem('_nomeComercialCGR');
           sessionStorage.removeItem('_comercialModoCompleto');
-          sessionStorage.removeItem('_demoLogin');
           window._isDemoUser = false;
+          document.body.classList.remove('modo-demo');
           window._operadorNome = null;
           try { await auth.signOut(); } catch(e) {}
         }
@@ -385,10 +356,6 @@
       };
 
       auth.onAuthStateChange((_event, session) => {
-        if (sessionStorage.getItem('_demoLogin') === '1') {
-          aplicarLoginDemo();
-          return;
-        }
         const user = session?.user ?? null;
         async function aplicarAuth() {
           const overlay = document.getElementById('loginOverlay');
@@ -475,6 +442,8 @@
               if (agendView) agendView.style.display = 'none';
               if (comercialView) comercialView.style.display = 'none';
               window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: 'visualizacao' };
+              window._isDemoUser = emailLower === DEMO_USER.email;
+              document.body.classList.toggle('modo-demo', window._isDemoUser);
               solicitarPermissaoNotificacoes();
             } else {
               if (mainCont)  mainCont.style.display  = '';
@@ -486,6 +455,8 @@
             }
           } else {
             window._currentUser = null;
+            window._isDemoUser = false;
+            document.body.classList.remove('modo-demo');
             overlay.classList.remove('hidden');
             const logoutEl  = document.getElementById('logoutBtn');
             const adminBtn  = document.getElementById('btn-gerenciar-usuarios');
@@ -503,14 +474,22 @@
       });
 
       window.addEventListener('DOMContentLoaded', () => {
-        if (new URLSearchParams(location.search).get('demo') === '1' || sessionStorage.getItem('_demoLogin') === '1') {
+        if (new URLSearchParams(location.search).get('demo') === '1') {
           window.entrarDemo();
         }
         const { collection: col, onSnapshot: snap } = window._fbModules;
         snap(col(db, COLL), (snapshot) => {
           const dados = snapshot.docs.map(d => ({ _docId: d.id, ...d.data() }));
           if (window._isDemoUser) {
-            dados.forEach((p, i) => { if (p.paciente) p.paciente = 'Paciente Demo ' + (i + 1); });
+            if (!window._vendorMaskMap) window._vendorMaskMap = new Map();
+            const vendorMaskMap = window._vendorMaskMap;
+            dados.forEach((p, i) => {
+              if (p.paciente) p.paciente = 'Paciente Demo ' + (i + 1);
+              if (p.vendedor) {
+                if (!vendorMaskMap.has(p.vendedor)) vendorMaskMap.set(p.vendedor, 'Vendedor ' + (vendorMaskMap.size + 1));
+                p.vendedor = vendorMaskMap.get(p.vendedor);
+              }
+            });
           }
 
           // ─── Detectar mudanças de status e notificar ───
@@ -4412,6 +4391,8 @@
 .header-logo-bg{background:#fff!important;box-shadow:0 8px 18px rgba(24,80,86,.08)!important;border-radius:18px!important;padding:10px 14px!important;display:flex!important;align-items:center!important;justify-content:center!important;flex-shrink:0!important}
 .header-logo{height:64px!important;width:auto!important;max-width:none!important;max-height:none!important;object-fit:contain!important;display:block!important;margin:0 auto!important}
 .header-text{min-width:0!important}
+body.modo-demo .header-logo-bg{display:none!important}
+body.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.55em;font-weight:600;opacity:0.65;text-transform:none;letter-spacing:normal}
 .header-text h1{color:#2a9fbf!important;-webkit-text-fill-color:#2a9fbf!important}
 .header-text p{font-size:.82rem!important;letter-spacing:.12em!important;line-height:1.35!important;color:#56a884!important;max-width:560px}
 .header > div:last-child{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:14px!important;flex-wrap:wrap!important}
@@ -14806,7 +14787,7 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
   function enhanceLabels(){
     const t = document.title; if(t) document.title = t.replace('Monitor Cirúrgico','Mapa Cirúrgico Hospitalar');
     const h1 = document.querySelector('.header-text h1'); if(h1) h1.textContent = 'Mapa Cirúrgico Hospitalar';
-    const p = document.querySelector('.header-text p'); if(p) p.textContent = 'Central operacional · Campo Grande/MS · GF Medical';
+    const p = document.querySelector('.header-text p'); if(p) p.textContent = window._isDemoUser ? 'Central operacional · Campo Grande/MS' : 'Central operacional · Campo Grande/MS · GF Medical';
     const btnTable = document.getElementById('tab-table'); if(btnTable) btnTable.textContent = '🧭 Central Cirúrgica';
     const btnDash = document.getElementById('tab-dashboard'); if(btnDash) btnDash.textContent = '📊 Painel Executivo';
     const footerSync = document.querySelector('.table-footer-sync'); if(footerSync) footerSync.innerHTML = '<div class="table-footer-dot"></div>Atualização automática · central';
