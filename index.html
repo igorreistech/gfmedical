@@ -185,6 +185,33 @@
       }
 
       // ─── AUTH ───
+      const DEMO_USER = {
+        email: 'demonstracao@teste.com',
+        password: 'Demo123456!',
+        nome: 'Demonstracao',
+        role: 'visualizacao',
+      };
+
+      function aplicarLoginDemo() {
+        const overlay = document.getElementById('loginOverlay');
+        const logoutEl = document.getElementById('logoutBtn');
+        const adminBtn = document.getElementById('btn-gerenciar-usuarios');
+        const agendView = document.getElementById('agendadorView');
+        const comercialView = document.getElementById('comercialView');
+        const mainCont = document.querySelector('.container');
+        const fabGroup = document.querySelector('.fab-group');
+        window._currentUser = { uid: 'demo-user', email: DEMO_USER.email, nome: DEMO_USER.nome, role: DEMO_USER.role };
+        if (overlay) overlay.classList.add('hidden');
+        if (logoutEl) logoutEl.style.display = 'block';
+        if (adminBtn) adminBtn.style.display = 'none';
+        if (agendView) agendView.style.display = 'none';
+        if (comercialView) comercialView.style.display = 'none';
+        if (mainCont) mainCont.style.display = '';
+        if (fabGroup) fabGroup.style.display = 'none';
+        if (window.aplicarMascaraVisualizacao) window.aplicarMascaraVisualizacao();
+        sessionStorage.setItem('_demoLogin', '1');
+      }
+
       window.doLogin = async function() {
         const email = document.getElementById('loginUser').value.trim();
         const pass  = document.getElementById('loginPass').value;
@@ -192,6 +219,13 @@
         const err   = document.getElementById('loginError');
         if (!email || !pass) { err.textContent = 'Preencha e-mail e senha.'; err.style.display = 'block'; return; }
         btn.disabled = true; btn.textContent = 'Entrando...'; err.style.display = 'none';
+
+        if (email.toLowerCase() === DEMO_USER.email && pass === DEMO_USER.password) {
+          aplicarLoginDemo();
+          btn.disabled = false; btn.textContent = 'Entrar';
+          return;
+        }
+
         try {
           const { error } = await auth.signInWithPassword({ email, password: pass });
           if (error) throw error;
@@ -286,9 +320,10 @@
           lista.innerHTML = snap.docs.map(d => {
             const u = d.data();
             const isMe = u.email === (window._currentUser?.email||'').toLowerCase();
+            const roleLabel = u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Somente Visualização' : 'Agendador';
             return `<div class="admin-user-row">
               <div><div class="admin-user-name">${u.nome||u.email}</div><div class="admin-user-email">${u.email}</div></div>
-              <span class="admin-role-badge role-${u.role}">${u.role==='admin'?'Admin':'Agendador'}</span>
+              <span class="admin-role-badge role-${u.role}">${roleLabel}</span>
               <button class="admin-btn-del" onclick="doAdminDeleteUser('${d.id}')" ${isMe?'disabled title="Não pode remover a si mesmo"':''}>🗑 Excluir</button>
             </div>`;
           }).join('');
@@ -338,6 +373,10 @@
       };
 
       auth.onAuthStateChange((_event, session) => {
+        if (sessionStorage.getItem('_demoLogin') === '1') {
+          aplicarLoginDemo();
+          return;
+        }
         const user = session?.user ?? null;
         async function aplicarAuth() {
           const overlay = document.getElementById('loginOverlay');
@@ -417,6 +456,14 @@
                 if (nomeEl) nomeEl.textContent = (window._currentUser.nome||'').split(' ')[0] || user.email;
               }
               window._renderAgendadorRetry && window._renderAgendadorRetry();
+            } else if (perfil.role === 'visualizacao') {
+              if (mainCont)  mainCont.style.display  = '';
+              if (adminBtn)  adminBtn.style.display  = 'none';
+              if (fabGroup)  fabGroup.style.display  = 'none';
+              if (agendView) agendView.style.display = 'none';
+              if (comercialView) comercialView.style.display = 'none';
+              window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: 'visualizacao' };
+              solicitarPermissaoNotificacoes();
             } else {
               if (mainCont)  mainCont.style.display  = '';
               if (adminBtn)  adminBtn.style.display  = '';
@@ -4456,6 +4503,7 @@
                 <label>Perfil</label>
                 <select class="admin-add-select" id="admin-new-role">
                     <option value="agendador">Agendador</option>
+                    <option value="visualizacao">Somente Visualização</option>
                     <option value="admin">Admin</option>
                 </select>
             </div>

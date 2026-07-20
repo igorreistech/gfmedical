@@ -384,6 +384,77 @@ let periodoDe = '';
 let periodoAte = '';
 let currentPreset = 'todos';
 
+function isReadOnlyUser() {
+    return !!(window._currentUser && window._currentUser.role === 'visualizacao');
+}
+
+function getMaskedPatient(value) {
+    if (!value) return '—';
+    return isReadOnlyUser() ? 'Paciente oculto' : String(value).trim();
+}
+
+function getMaskedVendor(value) {
+    if (!value) return '—';
+    return isReadOnlyUser() ? 'Vendedor oculto' : String(value).trim();
+}
+
+function aplicarMascaraVisualizacao() {
+    const readOnly = isReadOnlyUser();
+    if (document.body) {
+        document.body.classList.toggle('role-visualizacao', readOnly);
+    }
+    if (!readOnly) {
+        const style = document.getElementById('mask-visualizacao-style');
+        if (style) style.textContent = '';
+        return;
+    }
+    let style = document.getElementById('mask-visualizacao-style');
+    if (!style) {
+        style = document.createElement('style');
+        style.id = 'mask-visualizacao-style';
+        document.head.appendChild(style);
+    }
+    style.textContent = `
+        body.role-visualizacao .agendador-brand-logo,
+        body.role-visualizacao .login-logo,
+        body.role-visualizacao .login-logo-img,
+        body.role-visualizacao .login-sub,
+        body.role-visualizacao .header-logo,
+        body.role-visualizacao .header-logo-bg,
+        body.role-visualizacao .agendador-brand-sub,
+        body.role-visualizacao .header-text h1,
+        body.role-visualizacao .header-text p,
+        body.role-visualizacao .agendador-user-info,
+        body.role-visualizacao .live-indicator,
+        body.role-visualizacao .logout-btn,
+        body.role-visualizacao .btn-gerenciar-usuarios { display:none !important; }
+    `;
+    document.querySelectorAll('*').forEach(el => {
+        if (el.nodeType !== 1) return;
+        const text = (el.textContent || '').toUpperCase();
+        if (text.includes('GF MEDICAL')) {
+            el.style.display = 'none';
+        }
+    });
+    if (!window.__maskObserver && document.body) {
+        window.__maskObserver = new MutationObserver(() => aplicarMascaraVisualizacao());
+        window.__maskObserver.observe(document.body, { childList: true, subtree: true });
+    }
+}
+
+window.aplicarMascaraVisualizacao = aplicarMascaraVisualizacao;
+document.addEventListener('DOMContentLoaded', aplicarMascaraVisualizacao);
+
+function requireWriteAccess(actionLabel = 'esta ação') {
+    if (isReadOnlyUser()) {
+        const msg = `🔒 Modo visualização ativo: não é possível ${actionLabel}.`;
+        if (window.showSyncToast) window.showSyncToast(msg);
+        else alert(msg);
+        return false;
+    }
+    return true;
+}
+
 function todayStr() {
     const d = new Date();
     const y = d.getFullYear();
@@ -438,6 +509,7 @@ async function save() {
 
 // ─── SUPABASE: salvar/atualizar procedimento ───
 async function fbSaveProc(proc) {
+    if (!requireWriteAccess('salvar alterações')) return;
     try {
         const { collection: col, addDoc, setDoc, doc } = window._fbModules;
         const db = window._fbDb;
@@ -821,10 +893,10 @@ async function exportarWhatsApp() {
     cirurgias.forEach(function(p) {
         linhas.push('');
         linhas.push('---');
-        linhas.push('👤 *Paciente:* ' + (p.paciente || '—'));
+        linhas.push('👤 *Paciente:* ' + getMaskedPatient(p.paciente));
         linhas.push('🏥 *Hospital:* ' + (p.hospital || '—'));
         linhas.push('🧾 *Nº da Nota Fiscal:* ' + (p.nf || '—'));
-        linhas.push('🙍 *Vendedor:* ' + (p.vendedor || '—'));
+        linhas.push('🙍 *Vendedor:* ' + getMaskedVendor(p.vendedor));
         linhas.push('📅 *Data de retirada:* ' + fmt(p.retirada));
     });
     linhas.push('');
@@ -845,7 +917,7 @@ async function confirmarRetiradaCirurgia(docId) {
     if (antigo) antigo.remove();
 
     const retFmt = proc.retirada ? new Date(proc.retirada+'T00:00:00').toLocaleDateString('pt-BR') : '—';
-    const nomePac = proc.paciente || '—';
+    const nomePac = getMaskedPatient(proc.paciente);
 
     return new Promise(resolve => {
         const overlay = document.createElement('div');
@@ -925,7 +997,7 @@ async function confirmarSeparacao(docId) {
     if (!proc) return;
     const antigo = document.getElementById('modalConfSeparacao');
     if (antigo) antigo.remove();
-    const nomePac = proc.paciente || '—';
+    const nomePac = getMaskedPatient(proc.paciente);
     return new Promise(resolve => {
         const overlay = document.createElement('div');
         overlay.id = 'modalConfSeparacao';
@@ -1203,7 +1275,7 @@ function buildCardHTML(proc) {
                 </div>
                 <div class="card-row">
                     <span class="card-label">Vendedor</span>
-                    <span class="card-value">${proc.vendedor}</span>
+                    <span class="card-value">${getMaskedVendor(proc.vendedor)}</span>
                 </div>
                 <div class="card-row">
                     <span class="card-label">Linha</span>
@@ -1252,6 +1324,7 @@ function buildCardHTML(proc) {
             </div>
             ${buildObsInlineHTML(proc, realIndex)}
             <div class="card-actions">
+                ${isReadOnlyUser() ? '<span style="font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.06em;color:var(--text-dim);">🔒 Somente leitura</span>' : `
                 <button class="btn-act edit" onclick="editProc('${realIndex}')">✏ Editar</button>
                 ${agendarRetiradaBtn}
                 ${retirarConfBtn}
@@ -1260,7 +1333,7 @@ function buildCardHTML(proc) {
                 ${coletaInfoBtn}
                 <button class="btn-act" style="background:rgba(42,159,191,0.1);border-color:var(--accent);color:var(--accent);" onclick="duplicarProc('${realIndex}')" title="Duplicar procedimento">⊕ Duplicar</button>
                 <button class="btn-act" style="background:rgba(37,211,102,0.1);border-color:rgba(37,211,102,0.5);color:#25d366;" onclick="compartilharWhatsApp('${realIndex}')" title="Compartilhar via WhatsApp">📲 WhatsApp</button>
-                <button class="btn-act del" onclick="deleteProc('${realIndex}')">✕ Excluir</button>
+                <button class="btn-act del" onclick="deleteProc('${realIndex}')">✕ Excluir</button>`}
             </div>
             ${!_ehColeta(proc) ? buildQuickStatusHTML(proc, realIndex) : ''}
         </div>`;
@@ -1273,7 +1346,7 @@ function perguntarColetaRealizada(docId, tipo) {
     if (!proc) return;
     const label = tipo === 'coleta_urgente' ? 'Coleta Prioritária' : 'Aguardando Retirada';
     const hospital = proc.hospital || '—';
-    const paciente = proc.paciente ? ` · ${proc.paciente}` : '';
+    const paciente = proc.paciente ? ` · ${getMaskedPatient(proc.paciente)}` : '';
 
     const overlay = document.createElement('div');
     overlay.id = 'modalColetaConfirm';
@@ -1352,7 +1425,7 @@ function perguntarMaterialRetirado(docId) {
     const proc = procedimentos.find(p => p._docId === docId);
     if (!proc) return;
     const hospital = proc.hospital || '—';
-    const paciente = proc.paciente ? ` · ${proc.paciente}` : '';
+    const paciente = proc.paciente ? ` · ${getMaskedPatient(proc.paciente)}` : '';
     const dataFmt = proc.retirada ? new Date(proc.retirada+'T00:00:00').toLocaleDateString('pt-BR') : '—';
 
     const overlay = document.createElement('div');
@@ -1600,8 +1673,8 @@ function renderTimeline() {
                     </span>
                 </div>
                 ${proc.procedimento ? `<div class="tl-mc-proc">🔬 ${proc.procedimento}</div>` : ''}
-                ${proc.paciente   ? `<div class="tl-mc-paciente">👤 ${proc.paciente}</div>` : ''}
-                ${proc.vendedor   ? `<div class="tl-mc-vendedor">👤 ${proc.vendedor}</div>` : ''}
+                ${proc.paciente   ? `<div class="tl-mc-paciente">👤 ${getMaskedPatient(proc.paciente)}</div>` : ''}
+                ${proc.vendedor   ? `<div class="tl-mc-vendedor">👤 ${getMaskedVendor(proc.vendedor)}</div>` : ''}
             </div>`;
         }).join('');
 
@@ -1926,6 +1999,7 @@ function promptConfirmarRetirada(proc) {
 
 
 async function deleteProc(docId) {
+    if (!requireWriteAccess('excluir este registro')) return;
     const proc = procedimentos.find(p => (p._docId || String(p.id)) === String(docId));
     if (!proc) return;
     const nome = proc.paciente || proc.hospital || proc.coletaFornecedor || 'este registro';
@@ -1957,6 +2031,7 @@ async function deleteProc(docId) {
 }
 
 function editProc(docId) {
+    if (!requireWriteAccess('editar este procedimento')) return;
     const p = procedimentos.find(proc => (proc._docId || String(proc.id)) === String(docId));
     if (!p) return;
     editingIndex = procedimentos.indexOf(p);
@@ -2078,6 +2153,7 @@ function editProc(docId) {
 
 // ─── MODAL ───
 function openModal() {
+    if (!requireWriteAccess('abrir o formulário de cadastro')) return;
     editingIndex = null;
     editingDocId = null;
     document.getElementById('modalTitle').textContent = 'Adicionar Procedimento';
@@ -2110,6 +2186,7 @@ function closeModal() {
 }
 
 function openModalVolumes() {
+    if (!requireWriteAccess('abrir o formulário de coleta')) return;
     openModal();
     setTimeout(() => {
         const sel = document.getElementById('f-status');
@@ -2168,6 +2245,7 @@ function atualizarSubgrupos(valorAtual, valorAtual2) {
 
 async function saveProcedure(e) {
     e.preventDefault();
+    if (!requireWriteAccess('salvar um procedimento')) return;
 
     let hospital = document.getElementById('f-hospital').value.trim();
     if (hospital === 'Outro...') {
@@ -2851,19 +2929,19 @@ function renderTable() {
         const retiradaFmt = proc.retirada ? new Date(proc.retirada + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '\u2014';
         const tdCell = function(txt, extra, maxW) { extra=extra||''; maxW=maxW||''; return '<td style="font-family:var(--mono);font-size:0.78rem;color:#1a3a45;padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'+(maxW?'max-width:'+maxW+';':'')+extra+'">'+(txt||'\u2014')+'</td>'; };
 
-        var trOnclick = isRetirar
-            ? 'confirmarRetiradaCirurgia(\'' + realIndex + '\')'
-            : 'editProc(\'' + realIndex + '\')';
-        var trTitle = isRetirar ? 'Clique para confirmar retirada' : 'Clique para editar';
+        var trOnclick = isReadOnlyUser()
+            ? ''
+            : (isRetirar ? 'confirmarRetiradaCirurgia(\'' + realIndex + '\')' : 'editProc(\'' + realIndex + '\')');
+        var trTitle = isReadOnlyUser() ? 'Somente leitura' : (isRetirar ? 'Clique para confirmar retirada' : 'Clique para editar');
         const trReagVencido = proc.status === 'reagendado' && proc.data && proc.data < todayStr();
-        var row = '<tr class="row-'+proc.status+(trReagVencido?' reagendado-vencido':'')+'" style="'+rowStyle+'cursor:pointer;" onclick="'+trOnclick+'" title="'+trTitle+'">';
+        var row = '<tr class="row-'+proc.status+(trReagVencido?' reagendado-vencido':'')+'" style="'+rowStyle+(isReadOnlyUser()? '' : 'cursor:pointer;')+'" '+(trOnclick ? 'onclick="'+trOnclick+'" ' : '')+'title="'+trTitle+'">';
         row += '<td style="font-family:var(--mono);font-weight:800;font-size:0.9rem;color:#2a9fbf;padding:9px 12px;line-height:1.5;">'
             +(proc.inicio||'\u2014')
             +(proc.data ? '<div style="font-size:0.65rem;font-weight:600;color:#2a7a4a;margin-top:2px;">📅 '+new Date(proc.data+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+'</div>' : '')
             +(proc.retirada ? '<div style="font-size:0.65rem;font-weight:700;color:#f97316;margin-top:1px;">📦 '+new Date(proc.retirada+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+'</div>' : '')
             +'</td>';
         row += '<td style="padding:9px 12px;">'+statusPill+'</td>';
-        row += '<td style="font-family:\'Space Grotesk\',sans-serif;font-weight:600;font-size:0.83rem;padding:9px 12px;max-width:210px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="'+(proc.paciente||'')+'">'+(proc.paciente||'—')+'</td>';
+        row += '<td style="font-family:\'Space Grotesk\',sans-serif;font-weight:600;font-size:0.83rem;padding:9px 12px;max-width:210px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="'+(proc.paciente||'')+'">'+getMaskedPatient(proc.paciente)+'</td>';
         var nfDataFmt = proc.nfData ? new Date(proc.nfData+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—';
         row += '<td style="font-family:var(--mono);font-size:0.77rem;font-weight:600;padding:9px 12px;min-width:80px;text-align:center;">'+(proc.nf||'—')+'</td>';
         row += '<td style="font-family:var(--mono);font-size:0.77rem;font-weight:600;padding:9px 12px;min-width:90px;text-align:center;'+(proc.nfData?'color:#2a7a6a;':'color:var(--text-dim);')+'">'+ nfDataFmt +'</td>';
@@ -2881,7 +2959,9 @@ function renderTable() {
         const _comtBtn = '<button onclick="event.stopPropagation();window.abrirComentarios&&window.abrirComentarios(\''+realIndex+'\')" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(75,180,210,0.5);background:rgba(75,180,210,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#4bb4d2;white-space:nowrap;">💬</button>';
         // Célula de ações — diferente para a_retirar
         var tdAcoes = '<td onclick="event.stopPropagation()" style="padding:7px 8px;">';
-        if (isRetirar) {
+        if (isReadOnlyUser()) {
+            tdAcoes += '<div style="font-family:var(--mono);font-size:0.62rem;font-weight:700;letter-spacing:0.06em;color:var(--text-dim);white-space:nowrap;">🔒 Somente leitura</div>';
+        } else if (isRetirar) {
             tdAcoes += '<div style="display:flex;flex-direction:column;gap:4px;">';
             tdAcoes += '<button onclick="confirmarRetiradaCirurgia(\'' + realIndex + '\')" style="padding:5px 10px;border-radius:7px;border:1px solid rgba(249,115,22,0.5);background:rgba(249,115,22,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#f97316;white-space:nowrap;">📦 Retirou?</button>';
             tdAcoes += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
@@ -3810,6 +3890,7 @@ const STATUS_FLOW_QUICK = { a_agendar:'agendado', agendado:'preparacao', prepara
 const STATUS_LABEL_QUICK = { a_agendar:'Autorizado', agendado:'Agendado', em_transito:'Em Trânsito', preparacao:'Em Separação', andamento:'Em Procedimento', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'A Retirar', urgencia:'🚨 Urgência' };
 
 function buildQuickStatusHTML(proc, realIndex) {
+    if (isReadOnlyUser()) return '';
     const btns = [];
     const nextStatus = STATUS_FLOW_QUICK[proc.status];
     if (nextStatus) btns.push(`<button class="quick-status-btn qs-next" onclick="quickSetStatus('${realIndex}','${nextStatus}',event)" title="Avançar para próximo status">→ ${STATUS_LABEL_QUICK[nextStatus]}</button>`);
@@ -3821,6 +3902,7 @@ function buildQuickStatusHTML(proc, realIndex) {
 
 async function quickSetStatus(docId, novoStatus, e) {
     e.stopPropagation();
+    if (!requireWriteAccess('alterar o status')) return;
     if (_modalCooldown) return;
     const proc = procedimentos.find(p => (p._docId || String(p.id)) === String(docId));
     if (!proc) return;
@@ -3911,6 +3993,13 @@ function staleBadge(proc) {
 // ════════════════════════════════════════════
 function buildObsInlineHTML(proc, realIndex) {
     const txt = proc.obs || '';
+    if (isReadOnlyUser()) {
+        return `<div class="obs-inline-wrap" id="obs-wrap-${realIndex}">
+            <div class="obs-inline-display${txt ? '' : ' vazio'}" id="obs-display-${realIndex}" title="Observação">
+                ${txt ? txt.replace(/</g,'&lt;').replace(/>/g,'&gt;') : '📝 Sem observação'}
+            </div>
+        </div>`;
+    }
     return `<div class="obs-inline-wrap" id="obs-wrap-${realIndex}">
         <div class="obs-inline-display${txt ? '' : ' vazio'}" onclick="abrirObsInline('${realIndex}')" id="obs-display-${realIndex}" title="Clique para editar observação">
             ${txt ? txt.replace(/</g,'&lt;').replace(/>/g,'&gt;') : '📝 Adicionar observação...'}
@@ -3923,6 +4012,7 @@ function buildObsInlineHTML(proc, realIndex) {
     </div>`;
 }
 function abrirObsInline(idx) {
+    if (isReadOnlyUser()) return;
     document.getElementById('obs-display-'+idx).style.display='none';
     const ta=document.getElementById('obs-ta-'+idx), ac=document.getElementById('obs-actions-'+idx);
     ta.style.display='block'; ac.style.display='flex'; ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length);
@@ -3936,6 +4026,7 @@ function fecharObsInline(idx) {
 }
 function obsKeyDown(e,idx){ if(e.key==='Escape') fecharObsInline(idx); if(e.key==='Enter'&&e.ctrlKey) salvarObsInline(idx); }
 async function salvarObsInline(idx) {
+    if (!requireWriteAccess('editar observações')) return;
     const proc=procedimentos.find(p=>(p._docId||String(p.id))===String(idx));
     if(!proc) return;
     proc.obs=document.getElementById('obs-ta-'+idx).value;
@@ -4028,7 +4119,7 @@ function mostrarAlertaReagendado(proc, onConfirm) {
     overlay.innerHTML = `
         <div class="reagendado-alert-box">
             <h3>📅 Reagendar Cirurgia</h3>
-            <p>${proc.paciente ? `<strong>${proc.paciente}</strong> — ` : ''}Informe a nova data e o motivo do reagendamento.</p>
+            <p>${proc.paciente ? `<strong>${getMaskedPatient(proc.paciente)}</strong> — ` : ''}Informe a nova data e o motivo do reagendamento.</p>
             <span class="alerta-data-label">Nova data de cirurgia</span>
             <input type="date" id="reagendadoNovaData" value="${dataAtual}" min="${hoje}">
             <span class="alerta-data-label">Motivo do reagendamento <span style="font-weight:400;opacity:0.6;">(opcional)</span></span>
@@ -4174,20 +4265,20 @@ function compartilharWhatsApp(docId) {
             proc.coletaTransportadora?`🚚 *Transportadora:* ${proc.coletaTransportadora}`:'',
             ``,
             proc.coletaDataCirurgia?`📅 *Data da Cirurgia:* ${fmt(proc.coletaDataCirurgia)}${proc.coletaHoraCirurgia?' às '+proc.coletaHoraCirurgia:''}`:'',
-            proc.vendedor?`👤 *Vendedor:* ${proc.vendedor}`:'',
+            proc.vendedor?`👤 *Vendedor:* ${getMaskedVendor(proc.vendedor)}`:'',
             proc.obs?`📝 Obs: ${proc.obs}`:'',
             `━━━━━━━━━━━━━━━━━━━━━━`,
         ];
     } else {
         linhas=[
             `*🏥 ${proc.hospital||'—'}*`,
-            proc.paciente?`👤 Paciente: ${proc.paciente}`:'',
+            proc.paciente?`👤 Paciente: ${getMaskedPatient(proc.paciente)}`:'',
             proc.medico?`👨‍⚕️ Médico: ${proc.medico}`:'',
             proc.procedimento?`🔬 Procedimento: ${proc.procedimento}`:'',
             proc.convenio?`🏦 Convênio: ${proc.convenio}`:'',
             proc.data?`📅 Data: ${fmt(proc.data)}${proc.inicio?' às '+proc.inicio:''}`:'',
             `📌 Status: ${sMap[proc.status]||proc.status}`,
-            proc.vendedor?`👤 Vendedor: ${proc.vendedor}`:'',
+            proc.vendedor?`👤 Vendedor: ${getMaskedVendor(proc.vendedor)}`:'',
             proc.nf?`🧾 NF: ${proc.nf}${proc.nfData?' · '+fmt(proc.nfData):''}`:'',
             proc.retirada?`📦 Retirada: ${fmt(proc.retirada)}`:'',
             proc.obs?`📝 Obs: ${proc.obs}`:'',
