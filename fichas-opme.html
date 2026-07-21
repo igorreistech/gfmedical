@@ -470,6 +470,44 @@ let _anexoUrlAtual={opme:null, pv:null};
 // AUTH
 const DEMO_EMAIL = 'demo@test.com';
 
+// Pede permissão de notificação do navegador (mesmo padrão do Monitor Cirúrgico)
+async function solicitarPermissaoNotificacoesOpme() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') toast('🔔 Notificações ativadas', 'ok');
+  }
+}
+
+// Lembrete diário às 09h e 15h: verificar e-mail de fichas em Em Laudação (2)
+// e Aguard. Faturamento (4) — esses status dependem de resposta por e-mail
+// (laudador / convênio), então é fácil ficar esquecido sem esse aviso.
+function verificarLembreteEmailOpme() {
+  if (!('Notification' in window)) return;
+  const agora = new Date();
+  const hhmm = String(agora.getHours()).padStart(2,'0') + ':' + String(agora.getMinutes()).padStart(2,'0');
+  if (hhmm !== '09:00' && hhmm !== '15:00') return;
+  const chave = agora.getFullYear()+'-'+String(agora.getMonth()+1).padStart(2,'0')+'-'+String(agora.getDate()).padStart(2,'0') + '_' + hhmm;
+  if (localStorage.getItem('_lembreteEmailOpme') === chave) return;
+  localStorage.setItem('_lembreteEmailOpme', chave);
+
+  const laudacao = fichas.filter(f => (f.status??0) === 2).length;
+  const faturamento = fichas.filter(f => (f.status??0) === 4).length;
+  if (!laudacao && !faturamento) return;
+  const partes = [];
+  if (laudacao) partes.push(laudacao + ' em Laudação');
+  if (faturamento) partes.push(faturamento + ' Aguard. Faturamento');
+  const msg = 'Verifique o e-mail — ' + partes.join(' · ');
+
+  if (Notification.permission === 'granted') {
+    new Notification('📧 Ficha OPME', { body: msg, tag: 'lembrete-email-'+chave });
+  } else {
+    toast('📧 ' + msg, 'info');
+  }
+}
+setInterval(verificarLembreteEmailOpme, 60000);
+setTimeout(verificarLembreteEmailOpme, 5000);
+
 auth.onAuthStateChange((_event, session) => {
   const u = session?.user || null;
   _currentUser = u ? { uid: u.id, email: u.email } : null;
@@ -485,6 +523,7 @@ auth.onAuthStateChange((_event, session) => {
     document.getElementById('user-av').textContent = nome.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase() || '?';
     carregarFichas();
     carregarRegistros();
+    solicitarPermissaoNotificacoesOpme();
     // Escritas de papel "visualizacao" já são bloqueadas no banco (RLS) —
     // isso aqui é só pra não deixar a pessoa clicar em algo que vai falhar
     // com um erro confuso. A conta demo fica de fora dessa trava pra
