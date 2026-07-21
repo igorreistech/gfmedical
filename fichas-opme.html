@@ -7,6 +7,8 @@
 <title>Fichas OPME · GF Medical · Campo Grande</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -315,6 +317,7 @@ tbody tr:hover .row-acts{opacity:1}
       <span class="page-title" id="page-title">Lista de Fichas</span>
       <div class="sbox"><span style="color:var(--text3)">🔍</span><input type="text" id="busca" placeholder="Paciente, médico…" oninput="renderAtivo()"></div>
       <button class="tbtn tbtn-g" onclick="exportarCSV()">⬇️ Exportar</button>
+      <button class="tbtn tbtn-g" onclick="exportarPDF()">📄 Exportar PDF</button>
       <button class="tbtn tbtn-p" id="btnNovaFicha" onclick="abrirModal()">＋ Nova Ficha</button>
     </div>
     <div class="vtabs">
@@ -1563,6 +1566,129 @@ window.exportarCSV = () => {
   a.href = URL.createObjectURL(new Blob(['﻿'+[cab.join(';'),...rows].join('\n'),{type:'text/csv;charset=utf-8'}]));
   a.download = 'fichas-opme-cgr-'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
+};
+
+// PDF (um arquivo por ficha, com os anexos dela mesclados, dentro de um .zip)
+function wrapPdfText(font, text, size, maxWidth) {
+  const words = String(text||'').split(' ');
+  const linhas = [];
+  let atual = '';
+  for (const w of words) {
+    const teste = atual ? atual+' '+w : w;
+    if (font.widthOfTextAtSize(teste, size) > maxWidth && atual) { linhas.push(atual); atual = w; }
+    else atual = teste;
+  }
+  if (atual) linhas.push(atual);
+  return linhas;
+}
+
+window.exportarPDF = async () => {
+  const lista = filtradas();
+  if (!lista.length) { toast('Nenhuma ficha para exportar.', 'info'); return; }
+  if (typeof PDFLib === 'undefined' || typeof JSZip === 'undefined') {
+    toast('Bibliotecas de PDF não carregaram — verifique a conexão e tente de novo.', 'err');
+    return;
+  }
+  toast('Gerando PDF(s)… pode levar alguns segundos', 'info');
+
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const zip = new JSZip();
+  const fD = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—';
+  const fV = v => v ? 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—';
+  const PW = 595, PH = 842, MARGIN = 40;
+  let falhasAnexo = 0, falhasFicha = 0;
+
+  for (const f of lista) {
+    try {
+      const pdf = await PDFDocument.create();
+      const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+      const reg  = await pdf.embedFont(StandardFonts.Helvetica);
+      let page = pdf.addPage([PW, PH]);
+      let y = PH - 50;
+
+      const novaPagina = () => { page = pdf.addPage([PW, PH]); y = PH - 50; };
+      const escreve = (txt, opts={}) => {
+        const { size=11, font=reg, gap=18, color=rgb(0.05,0.05,0.05) } = opts;
+        if (y < 60) novaPagina();
+        page.drawText(String(txt ?? ''), { x: MARGIN, y, size, font, color });
+        y -= gap;
+      };
+      const escreveMultilinha = (txt, opts={}) => {
+        const { size=9.5, font=reg, gap=13 } = opts;
+        wrapPdfText(font, txt, size, PW - MARGIN*2).forEach(l => escreve(l, {size, font, gap}));
+      };
+
+      escreve('Ficha OPME', {size:18, font:bold, gap:28});
+      escreve('Paciente: ' + (f.paciente||'—'), {size:13, font:bold, gap:20});
+      escreve('Médico: ' + (f.medico||'—'));
+      escreve('Hospital: ' + (f.hospital||'—'));
+      escreve('Convênio: ' + (f.convenio||'—'));
+      escreve('Cliente Faturamento: ' + (f.cliente||'—'));
+      escreve('Nº Pedido (PV): ' + (f.numeroPedido||'—'));
+      escreve('Data da Cirurgia: ' + fD(f.dataCirurgia));
+      escreve('Status: ' + (STATUS[f.status??0]?.label||'—'));
+      escreve('Total: ' + fV(f.total), {gap:26});
+
+      if (f.itens?.length) {
+        escreve('Itens', {size:13, font:bold, gap:18});
+        f.itens.forEach(it => {
+          const linha = '• ' + (it.referencia?it.referencia+' — ':'') + (it.descricao||'')
+            + (it.lote?' · Lote '+it.lote:'') + '  x'+(it.qtd||1) + '  '+fV(it.precoUnit);
+          escreveMultilinha(linha);
+        });
+      }
+
+      // Anexos: PDF é mesclado (páginas copiadas), imagem vira uma página própria
+      const anexos = [
+        { url: f.opmeAnexoUrl, nome: f.opmeAnexoNome || 'ficha-opme.pdf' },
+        { url: f.pvAnexoUrl,   nome: f.pvAnexoNome   || 'pedido-venda.pdf' },
+      ].filter(a => a.url);
+
+      for (const a of anexos) {
+        try {
+          const resp = await fetch(a.url);
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const bytes = await resp.arrayBuffer();
+          const ext = (a.nome.split('.').pop() || '').toLowerCase();
+          if (ext === 'pdf') {
+            const srcPdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
+            const paginas = await pdf.copyPages(srcPdf, srcPdf.getPageIndices());
+            paginas.forEach(p => pdf.addPage(p));
+          } else if (ext === 'png' || ext === 'jpg' || ext === 'jpeg') {
+            const img = ext === 'png' ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
+            const imgPage = pdf.addPage([PW, PH]);
+            const maxW = PW - MARGIN*2, maxH = PH - MARGIN*2;
+            const escala = Math.min(maxW/img.width, maxH/img.height, 1);
+            const w = img.width*escala, h = img.height*escala;
+            imgPage.drawImage(img, { x: (PW-w)/2, y: (PH-h)/2, width: w, height: h });
+          }
+        } catch (e) {
+          console.warn('[Exportar PDF] Falha ao anexar', a.nome, e);
+          falhasAnexo++;
+        }
+      }
+
+      const bytesOut = await pdf.save();
+      const nomeBase = (f.paciente||'ficha').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'_') || 'ficha';
+      const sufixo = (f.numeroPedido || f._id || '').toString().replace(/[^\w-]/g,'').slice(0,20);
+      zip.file(`${nomeBase}_${sufixo}.pdf`, bytesOut);
+    } catch (e) {
+      console.error('[Exportar PDF] Erro na ficha', f._id, e);
+      falhasFicha++;
+    }
+  }
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  const aZip = document.createElement('a');
+  aZip.href = URL.createObjectURL(zipBlob);
+  aZip.download = 'fichas-opme-pdf-' + new Date().toISOString().slice(0,10) + '.zip';
+  aZip.click();
+
+  if (falhasFicha || falhasAnexo) {
+    toast(`PDF gerado, mas ${falhasFicha} ficha(s) e ${falhasAnexo} anexo(s) tiveram problema — veja o console`, 'err');
+  } else {
+    toast('✅ PDF exportado (.zip com ' + lista.length + ' ficha(s))!', 'ok');
+  }
 };
 
 // UTILS
