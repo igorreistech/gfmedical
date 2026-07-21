@@ -44,6 +44,9 @@ body.ficha-readonly #btnNovaFicha,body.ficha-readonly .abtn,body.ficha-readonly 
 .nav-item.active{background:rgba(26,122,74,0.09);color:var(--accent);border-color:rgba(26,122,74,0.15)}
 .nav-icon{font-size:0.9rem;width:18px;text-align:center;flex-shrink:0}
 .nbadge{margin-left:auto;color:white;font-family:var(--mono);font-size:0.57rem;padding:1px 6px;border-radius:20px;min-width:18px;text-align:center}
+.opme-stale{font-family:var(--mono);font-size:0.6rem;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(167,139,250,0.5);background:rgba(167,139,250,0.08);color:#a78bfa;margin-left:6px;white-space:nowrap}
+.opme-stale.warn{border-color:rgba(249,115,22,0.5);background:rgba(249,115,22,0.08);color:#f97316}
+.opme-stale.crit{border-color:rgba(239,68,68,0.5);background:rgba(239,68,68,0.08);color:#ef4444}
 .nb0{background:var(--s0-c)}.nb1{background:var(--s1-c)}.nb2{background:var(--s2-c)}.nb3{background:var(--s3-c)}.nb4{background:var(--s4-c)}.nb5{background:var(--s5-c)}
 .sdiv{height:1px;background:var(--border);margin:7px 0}
 .sidebar-footer{padding:10px;border-top:1px solid var(--border)}
@@ -728,6 +731,19 @@ function atualizarBadges() {
   });
 }
 
+// Alerta (não bloqueia): ficha parada no mesmo status há muitos dias
+function staleBadgeOpme(f) {
+  if ((f.status ?? 0) >= 5) return ''; // Faturado = concluído, sem alerta
+  const ts = f.atualizadoEm || f.criadoEm;
+  if (!ts) return '';
+  const dias = Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
+  if (dias < 3) return '';
+  let cls = 'opme-stale';
+  if (dias >= 7) cls += ' crit';
+  else if (dias >= 5) cls += ' warn';
+  return `<span class="${cls}" title="Sem mudança de status há ${dias} dias">⏳ ${dias}d</span>`;
+}
+
 // LISTA
 function renderLista() {
   const lista = filtradas();
@@ -747,7 +763,7 @@ function renderLista() {
           <td class="td-trunc">${esc(f.procedimento||'—')}</td>
           <td class="td-trunc">${esc(f.cliente||'—')}</td>
           <td class="td-mono">${esc(f.numeroPedido||'—')}</td>
-          <td onclick="event.stopPropagation()"><div class="iflow">${btns}</div></td>
+          <td onclick="event.stopPropagation()"><div class="iflow">${btns}</div>${staleBadgeOpme(f)}</td>
           <td class="td-mono">${fD(f.dataCirurgia)}</td>
           <td class="td-mono">${fV(f.total)}</td>
           <td onclick="event.stopPropagation()"><div class="row-acts">
@@ -772,7 +788,7 @@ function renderKanban() {
             <div class="kcard-proc">${esc(f.procedimento||'—')}${f.medico?' · '+esc(f.medico):''}</div>
             <div class="kcard-bot">
               <span class="kcard-conv">${esc(f.convenio||f.hospital||'—')}</span>
-              <span class="kcard-data">${fD(f.dataCirurgia)}</span>
+              <span class="kcard-data">${fD(f.dataCirurgia)}</span>${staleBadgeOpme(f)}
             </div>
             <div class="kcard-actions" onclick="event.stopPropagation()">
               ${si<5?`<button class="kbtn" style="border-color:var(--s${si+1}-bd);color:var(--s${si+1}-c)" onclick="mudStatus('${f._id}',${si+1})">→ ${STATUS[si+1].label}</button>`:''}
