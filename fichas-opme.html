@@ -1630,12 +1630,46 @@ window.exportarPDF = async () => {
       escreve('Total: ' + fV(f.total), {gap:26});
 
       if (f.itens?.length) {
-        escreve('Itens', {size:13, font:bold, gap:18});
+        escreve('Itens', {size:13, font:bold, gap:14});
+        const cols = [
+          { key:'referencia', label:'Referência',  x: MARGIN,     w: 75  },
+          { key:'descricao',  label:'Descrição',    x: MARGIN+80, w: 215 },
+          { key:'lote',       label:'Lote',         x: MARGIN+300,w: 55  },
+          { key:'qtd',        label:'Qtd',          x: MARGIN+360,w: 30  },
+          { key:'valor',      label:'Valor Unit.',  x: MARGIN+400,w: 115 },
+        ];
+        const desenhaCabecalhoItens = () => {
+          if (y < 80) novaPagina();
+          cols.forEach(c => page.drawText(c.label, { x:c.x, y, size:9, font:bold, color: rgb(0.35,0.35,0.35) }));
+          y -= 5;
+          page.drawLine({ start:{x:MARGIN,y}, end:{x:PW-MARGIN,y}, thickness:0.6, color: rgb(0.75,0.75,0.75) });
+          y -= 12;
+        };
+        desenhaCabecalhoItens();
+
         f.itens.forEach(it => {
-          const linha = '• ' + (it.referencia?it.referencia+' — ':'') + (it.descricao||'')
-            + (it.lote?' · Lote '+it.lote:'') + '  x'+(it.qtd||1) + '  '+fV(it.precoUnit);
-          escreveMultilinha(linha);
+          const valores = {
+            referencia: it.referencia || '—',
+            descricao:  it.descricao || '—',
+            lote:       it.lote || '—',
+            qtd:        String(it.qtd || 1),
+            valor:      fV(it.precoUnit),
+          };
+          const descLinhas = wrapPdfText(reg, valores.descricao, 9, cols[1].w - 4);
+          const nLinhas = Math.max(1, descLinhas.length);
+          const alturaLinha = nLinhas*11 + 4;
+          if (y - alturaLinha < 60) { novaPagina(); desenhaCabecalhoItens(); }
+          const yStart = y;
+          cols.forEach(c => {
+            if (c.key === 'descricao') {
+              descLinhas.forEach((l,i) => page.drawText(l, { x:c.x, y: yStart - i*11, size:9, font:reg, color: rgb(0.05,0.05,0.05) }));
+            } else {
+              page.drawText(valores[c.key], { x:c.x, y:yStart, size:9, font:reg, color: rgb(0.05,0.05,0.05) });
+            }
+          });
+          y = yStart - alturaLinha;
         });
+        y -= 10;
       }
 
       // Anexos: PDF é mesclado (páginas copiadas), imagem vira uma página própria
