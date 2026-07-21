@@ -324,11 +324,14 @@
         ov.querySelector('#btnConfirmRet').onclick = async () => {
           ov.remove();
           const idx = window.procedimentos.findIndex(p => p._docId === docId);
-          if (idx !== -1) window.procedimentos[idx].status = 'concluido';
-          window.renderAgendadorLista();
-          const { doc: docFn, setDoc: sd } = window._fbModules;
-          try { await sd(docFn(window._fbDb, window._fbColl, docId), { ...window.procedimentos[idx] }); }
-          catch(e) { alert('Erro ao confirmar: ' + e.message); }
+          if (idx === -1) return;
+          mostrarChecklist(window.procedimentos[idx], 'concluido', async () => {
+            window.procedimentos[idx].status = 'concluido';
+            window.renderAgendadorLista();
+            const { doc: docFn, setDoc: sd } = window._fbModules;
+            try { await sd(docFn(window._fbDb, window._fbColl, docId), { ...window.procedimentos[idx] }); }
+            catch(e) { alert('Erro ao confirmar: ' + e.message); }
+          }, {blocking:false});
         };
       };
 
@@ -6752,7 +6755,7 @@ function autoBackupJSON() {
             const blob = new Blob([json], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            const dataHoje = new Date().toISOString().split('T')[0];
+            const dataHoje = todayStr();
             const hora = new Date().toTimeString().slice(0,5).replace(':','-');
             a.href = url;
             a.download = `autobackup_campogrande_${dataHoje}_${hora}.json`;
@@ -7107,16 +7110,7 @@ async function confirmarRetiradaCirurgia(docId) {
         btnNao.onclick = () => selecionar('nao');
         overlay.querySelector('#btnFecharConfCir').onclick = () => { overlay.remove(); resolve(null); };
 
-        btnFinal.onclick = async () => {
-            if (!escolha) return;
-            overlay.remove();
-            if (escolha === 'sim') {
-                proc.status = 'concluido';
-                proc.retiradaConfirmada = true;
-                proc.dataConfirmacaoRetirada = todayStr();
-            } else {
-                proc.status = 'a_retirar';
-            }
+        const salvarConfirmacao = async () => {
             try {
                 await fbSaveProc(proc);
                 renderTable && renderTable();
@@ -7125,6 +7119,22 @@ async function confirmarRetiradaCirurgia(docId) {
                 showSyncToast(escolha === 'sim' ? '✅ Retirada confirmada — Concluído!' : '📦 Material ainda não retirado — Aguardando Retirada');
             } catch(e) { alert('Erro ao salvar: ' + e.message); }
             resolve(escolha);
+        };
+
+        btnFinal.onclick = async () => {
+            if (!escolha) return;
+            overlay.remove();
+            if (escolha === 'sim') {
+                mostrarChecklist(proc, 'concluido', async () => {
+                    proc.status = 'concluido';
+                    proc.retiradaConfirmada = true;
+                    proc.dataConfirmacaoRetirada = todayStr();
+                    await salvarConfirmacao();
+                }, {blocking:false});
+            } else {
+                proc.status = 'a_retirar';
+                await salvarConfirmacao();
+            }
         };
     });
 }
@@ -7391,7 +7401,7 @@ function buildCardHTML(proc) {
         <div class="proc-card status-${proc.status}${reagVencido ? ' reagendado-vencido' : ''}" data-id="${proc.id}" style="${cardAnimStyle}">
             <div class="card-header">
                 <div class="hospital-name">${_ehColeta(proc) ? '✈️ Volumes Urgentes' : '🏥 ' + proc.hospital}</div>
-                <div class="status-pill pill-${proc.status}">${statusLabel(proc.status)}</div>${reagBadge}${staleBadge(proc)}${semNfBadge(proc)}
+                <div class="status-pill pill-${proc.status}">${statusLabel(proc.status)}</div>${reagBadge}${staleBadge(proc)}${semNfBadge(proc)}${retiradaAtrasadaBadge(proc)}
             </div>
             <div class="card-body">
                 ${!_ehColeta(proc) ? `
@@ -7504,13 +7514,15 @@ function perguntarColetaRealizada(docId, tipo) {
         overlay.remove();
         const idx = procedimentos.findIndex(p => p._docId === docId);
         if (idx === -1) return;
-        procedimentos[idx].status = 'concluido';
-        try {
-            const { setDoc, doc } = window._fbModules;
-            await setDoc(doc(window._fbDb, window._fbColl, docId), procedimentos[idx]);
-            window.showSyncToast('✅ Coleta marcada como concluída!');
-        } catch(e) { console.error(e); }
-        renderCards(); updateStats(); updateAlerts();
+        mostrarChecklist(procedimentos[idx], 'concluido', async () => {
+            procedimentos[idx].status = 'concluido';
+            try {
+                const { setDoc, doc } = window._fbModules;
+                await setDoc(doc(window._fbDb, window._fbColl, docId), procedimentos[idx]);
+                window.showSyncToast('✅ Coleta marcada como concluída!');
+            } catch(e) { console.error(e); }
+            renderCards(); updateStats(); updateAlerts();
+        }, {blocking:false});
     };
 
     overlay.querySelector('#btnColetaNao').onclick = async () => {
@@ -7584,14 +7596,16 @@ function perguntarMaterialRetirado(docId) {
         overlay.remove();
         const idx = procedimentos.findIndex(p => p._docId === docId);
         if (idx === -1) return;
-        procedimentos[idx].materialRetirado = 'sim';
-        procedimentos[idx].status = 'concluido';
-        try {
-            const { setDoc, doc } = window._fbModules;
-            await setDoc(doc(window._fbDb, window._fbColl, docId), procedimentos[idx]);
-            window.showSyncToast('✅ Material retirado — marcado como concluído!');
-        } catch(e) { console.error(e); }
-        renderCards(); updateStats(); updateAlerts();
+        mostrarChecklist(procedimentos[idx], 'concluido', async () => {
+            procedimentos[idx].materialRetirado = 'sim';
+            procedimentos[idx].status = 'concluido';
+            try {
+                const { setDoc, doc } = window._fbModules;
+                await setDoc(doc(window._fbDb, window._fbColl, docId), procedimentos[idx]);
+                window.showSyncToast('✅ Material retirado — marcado como concluído!');
+            } catch(e) { console.error(e); }
+            renderCards(); updateStats(); updateAlerts();
+        }, {blocking:false});
     };
 
     overlay.querySelector('#btnMatNao').onclick = async () => {
@@ -7833,12 +7847,10 @@ async function conclude(docId) {
     if (!resposta) return;
     proc.procedimentoOcorreu = resposta.ocorreu;
     proc.produtoRetornou = resposta.retornou;
-    if (resposta.retornou === 'sim') {
-        proc.status = 'concluido';
-    } else if (resposta.retornou === 'nao') {
+    if (resposta.retornou === 'nao') {
         proc.status = 'a_retirar';
     } else {
-        proc.status = 'concluido';
+        await new Promise(resolve => mostrarChecklist(proc, 'concluido', () => { proc.status = 'concluido'; resolve(); }, {blocking:false}));
     }
     await fbSaveProc(proc);
 
@@ -7853,7 +7865,7 @@ window.abrirOpmePosConclusao = function(proc) {
     const antigo = document.getElementById('modal-opme-conclusao');
     if (antigo) antigo.remove();
 
-    const dataISO = proc.data || new Date().toISOString().split('T')[0];
+    const dataISO = proc.data || todayStr();
     const dataFmt = dataISO ? dataISO.split('-').reverse().join('/') : '—';
     let opmeItemIdx = 0;
 
@@ -7986,7 +7998,7 @@ window.abrirOpmePosConclusao = function(proc) {
 
         // Monta a ficha no módulo OPME
         const p = typeof procData === 'string' ? JSON.parse(procData) : procData;
-        const dataISO = p.data || new Date().toISOString().split('T')[0];
+        const dataISO = p.data || todayStr();
 
         // Garante que o módulo OPME está inicializado
         window.switchView && window.switchView('opme');
@@ -8093,7 +8105,7 @@ async function marcarRetirada(docId) {
     const hoje = new Date().toLocaleDateString('pt-BR');
     if (!confirm(`Confirmar retirada do material?\n\nProcedimento: ${proc.procedimento}\nMédico: ${proc.medico}\nData da retirada: ${hoje}`)) return;
     proc.status = 'a_retirar';
-    proc.retirada = new Date().toISOString().split('T')[0];
+    proc.retirada = todayStr();
     await fbSaveProc(proc);
 }
 
@@ -8112,13 +8124,10 @@ async function agendarDataRetirada(docId) {
     // Lógica:
     // Produto retornou → concluido (independente de ocorreu)
     // Produto NÃO retornou → a_retirar (independente de ocorreu)
-    if (resposta.retornou === 'sim') {
-        proc.status = 'concluido';
-    } else if (resposta.retornou === 'nao') {
+    if (resposta.retornou === 'nao') {
         proc.status = 'a_retirar';
     } else {
-        // N/A
-        proc.status = 'concluido';
+        await new Promise(resolve => mostrarChecklist(proc, 'concluido', () => { proc.status = 'concluido'; resolve(); }, {blocking:false}));
     }
     await fbSaveProc(proc);
 }
@@ -8131,7 +8140,7 @@ async function confirmarRetiradaVolumes(docId) {
     const antigo = document.getElementById('modalConfRetiradaVolumes');
     if (antigo) antigo.remove();
 
-    const dataAtual = proc.dataRetirar || new Date().toISOString().split('T')[0];
+    const dataAtual = proc.dataRetirar || todayStr();
 
     const overlay = document.createElement('div');
     overlay.id = 'modalConfRetiradaVolumes';
@@ -8210,7 +8219,7 @@ function promptConfirmarRetirada(proc) {
     return new Promise(resolve => {
         const antigo = document.getElementById('modalConfirmarRetirada');
         if (antigo) antigo.remove();
-        const dataAtual = proc.retirada || new Date().toISOString().split('T')[0];
+        const dataAtual = proc.retirada || todayStr();
         const overlay = document.createElement('div');
         overlay.id = 'modalConfirmarRetirada';
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
@@ -9667,7 +9676,7 @@ function exportBackupJSON() {
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const dataHoje = new Date().toISOString().split('T')[0];
+    const dataHoje = todayStr();
     a.href = url;
     a.download = `backup_campogrande_${dataHoje}.json`;
     a.click();
@@ -10258,6 +10267,20 @@ function semNfBadge(proc) {
     return `<span class="stale-badge stale-crit" title="Cirurgia em ${dias} — emitir a NF hoje e mover para Em Trânsito">🚚⚠️ Emitir NF hoje</span>`;
 }
 
+// Alerta (não bloqueia): retirada já deveria ter acontecido e ninguém confirmou
+// (fluxo de confirmação "Retirou?" é manual, de propósito — ver conversa sobre
+// não automatizar a_retirar → concluido).
+function retiradaAtrasadaBadge(proc) {
+    if (proc.status !== 'a_retirar') return '';
+    const ret = proc.retirada || proc.dataRetirar;
+    if (!ret) return '';
+    const hoje = new Date(todayStr() + 'T00:00:00');
+    const dataRet = new Date(ret + 'T00:00:00');
+    const dias = Math.floor((hoje - dataRet) / 86400000);
+    if (dias < 1) return '';
+    return `<span class="stale-badge stale-crit" title="Retirada prevista há ${dias} dia(s) e ainda não foi confirmada">📦⚠️ Retirada atrasada ${dias}d</span>`;
+}
+
 // ════════════════════════════════════════════
 // OBS INLINE
 // ════════════════════════════════════════════
@@ -10342,11 +10365,14 @@ const CHECKLIST_RULES = {
     preparacao: [{label:'Vendedor definido',check:p=>!!p.vendedor},{label:'Linha preenchida',check:p=>!!p.linha}],
     em_transito:[{label:'Número da NF preenchido',check:p=>!!(p.nf&&p.nf.trim())}],
 };
-function mostrarChecklist(proc, novoStatus, onConfirm) {
+function mostrarChecklist(proc, novoStatus, onConfirm, opts) {
+    const blocking = !opts || opts.blocking !== false;
     const regras=CHECKLIST_RULES[novoStatus];
     if(!regras||regras.length===0){ onConfirm(); return; }
     const itens=regras.map(r=>({...r,ok:r.check(proc)}));
     const todasOk=itens.every(i=>i.ok);
+    if (todasOk && !blocking) { onConfirm(); return; }
+    const podeConfirmar = todasOk || !blocking;
     const sNames={concluido:'Concluído',andamento:'Em Procedimento',preparacao:'Em Separação'};
     const overlay=document.createElement('div');
     overlay.className='checklist-modal-overlay'; overlay.id='checklistOverlay';
@@ -10356,7 +10382,7 @@ function mostrarChecklist(proc, novoStatus, onConfirm) {
         ${itens.map(i=>`<div class="checklist-item ${i.ok?'ok':'fail'}"><span class="checklist-icon">${i.ok?'✅':'❌'}</span><span class="checklist-text">${i.label}</span></div>`).join('')}
         <div class="checklist-actions">
             <button class="checklist-btn-cancel" onclick="fecharChecklist()">Cancelar</button>
-            <button class="checklist-btn-ok" id="checklistOkBtn" ${todasOk?'':'disabled'} onclick="fecharChecklist(true)">${todasOk?'→ Confirmar':'⚠ Pendências'}</button>
+            <button class="checklist-btn-ok" id="checklistOkBtn" ${podeConfirmar?'':'disabled'} onclick="fecharChecklist(true)">${todasOk?'→ Confirmar':(blocking?'⚠ Pendências':'⚠ Confirmar mesmo assim')}</button>
         </div>
     </div>`;
     overlay._onConfirm=onConfirm;
@@ -10373,7 +10399,7 @@ function fecharChecklist(confirmar) {
 // ════════════════════════════════════════════
 function mostrarAlertaReagendado(proc, onConfirm) {
     const dataAtual = proc.data || '';
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = todayStr();
     const overlay = document.createElement('div');
     overlay.className = 'reagendado-alert-overlay';
     overlay.id = 'reagendadoAlertOverlay';
@@ -17114,9 +17140,12 @@ window.confirmarItemRetirada = async function(docId, resposta) {
     }
 
     if (resposta === 'sim') {
-        proc.status = 'concluido';
-        proc.retiradaConfirmada = true;
-        proc.dataConfirmacaoRetirada = (function(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
+        await new Promise(resolve => window.mostrarChecklist(proc, 'concluido', () => {
+            proc.status = 'concluido';
+            proc.retiradaConfirmada = true;
+            proc.dataConfirmacaoRetirada = (function(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
+            resolve();
+        }, {blocking:false}));
     }
     // se 'nao' — mantém a_retirar, não altera nada
 
@@ -17950,7 +17979,7 @@ window.buildCardHTML = function(proc) {
             </div>
             <div id="opme-fichas-wrap"></div>`;
 
-            const hoje = new Date().toISOString().split('T')[0];
+            const hoje = todayStr();
             document.getElementById('opme-data').value = hoje;
             _opmePopulateDatalist();
             opmeAddItem();
@@ -18101,7 +18130,7 @@ window.buildCardHTML = function(proc) {
         const antigo = document.getElementById('modal-opme-lancamento');
         if (antigo) antigo.remove();
 
-        const dataISO = proc.data || new Date().toISOString().split('T')[0];
+        const dataISO = proc.data || todayStr();
         const dataFmt = dataISO.split('-').reverse().join('/');
         const nomePac = proc.paciente && proc.paciente.trim() ? proc.paciente : (proc.procedimento || '—');
         let _idx = 0;
@@ -18331,7 +18360,7 @@ window.buildCardHTML = function(proc) {
             window.showSyncToast && window.showSyncToast('⚠️ Preencha ao menos um item OPME.');
             return;
         }
-        const dataISO = proc.data || new Date().toISOString().split('T')[0];
+        const dataISO = proc.data || todayStr();
         const nomePac = proc.paciente && proc.paciente.trim() ? proc.paciente : (proc.procedimento || '—');
         const novaFicha = {
             id: opme_fichas.length + 1,
@@ -18372,7 +18401,7 @@ window.buildCardHTML = function(proc) {
     window.opmeRemItem    = id => { const el = document.getElementById(id); if (el) el.remove(); };
     window.opmeLimparForm = () => {
         ['opme-paciente','opme-medico','opme-hospital','opme-convenio'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-        const dt = document.getElementById('opme-data'); if (dt) dt.value = new Date().toISOString().split('T')[0];
+        const dt = document.getElementById('opme-data'); if (dt) dt.value = todayStr();
         const rep = document.getElementById('opme-representante'); if (rep) rep.value = '';
         const c = document.getElementById('opme-itens-container'); if (c) c.innerHTML = '';
         opmeItemCount = 0; opmeAddItem();
@@ -19243,7 +19272,7 @@ window.buildCardHTML = function(proc) {
         });
 
         // ── 4. RESUMO HOJE / AMANHÃ ACIMA DOS FILTROS ──
-        var hoje = new Date().toISOString().split('T')[0];
+        var hoje = todayStr();
         var amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
         var amanha = amanhaD.toISOString().split('T')[0];
 
@@ -19311,7 +19340,7 @@ function injetarAbaCalendario(){
 // ─── AGENDA SEMANAL (view dentro do calendário) ────────────────────
 window.renderAgendaSemanal=function(){
     const container=document.getElementById('calendarContent'); if(!container) return;
-    const hoje=typeof window.todayStr==='function'?window.todayStr():new Date().toISOString().split('T')[0];
+    const hoje=todayStr();
     const hojeD=new Date(hoje+'T00:00:00');
     const dow=hojeD.getDay();
     const seg=new Date(hojeD); seg.setDate(hojeD.getDate()-dow+1);
@@ -19826,7 +19855,7 @@ function renderVendedorPanel(){
 // ─── 5. RESUMO DO DIA ─────────────────────────────────────────────
 window.abrirResumoDia=function(){
     const procs=window.procedimentos||[];
-    const hoje=typeof window.todayStr==='function'?window.todayStr():new Date().toISOString().split('T')[0];
+    const hoje=todayStr();
     const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'}):'—';
     const cirHoje=procs.filter(p=>(p.status==='agendado'||p.status==='preparacao'||p.status==='andamento')&&p.data===hoje);
     const concHoje=procs.filter(p=>p.status==='concluido'&&p._updatedAt&&p._updatedAt.startsWith(hoje));
@@ -19858,7 +19887,7 @@ window.buildCardHTML=function(proc){
 // ─── 7. RELATÓRIO POR E-MAIL ──────────────────────────────────────
 window.enviarRelatorioEmail=function(){
     const procs=window.procedimentos||[];
-    const hoje=typeof window.todayStr==='function'?window.todayStr():new Date().toISOString().split('T')[0];
+    const hoje=todayStr();
     const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
     const urg=procs.filter(p=>p.status==='urgencia');const reag=procs.filter(p=>p.status==='reagendado');const hj=procs.filter(p=>p.data===hoje);
     let c=`RELATÓRIO CIRÚRGICO — ${new Date().toLocaleDateString('pt-BR')}\n${'─'.repeat(40)}\n\nRESUMO\nTotal ativo: ${procs.filter(p=>!['concluido','cancelado'].includes(p.status)).length}\nUrgências: ${urg.length}\nReagendados: ${reag.length}\nCirurgias hoje: ${hj.length}\n\n`;
@@ -19996,7 +20025,7 @@ function injetarBarraCirurgiaProxima() {
 function atualizarBarraCirurgiaProxima() {
     const bar = document.getElementById('cirurgia-proxima-bar');
     if (!bar) return;
-    const hoje = typeof todayStr === 'function' ? todayStr() : new Date().toISOString().split('T')[0];
+    const hoje = todayStr();
     const aD = new Date(); aD.setDate(aD.getDate() + 1);
     const amanha = `${aD.getFullYear()}-${String(aD.getMonth()+1).padStart(2,'0')}-${String(aD.getDate()).padStart(2,'0')}`;
     const prox = (window.procedimentos || []).filter(p =>
@@ -20121,7 +20150,7 @@ const _origUS_melhorias = window.updateStats;
 window.updateStats = function() {
     if (typeof _origUS_melhorias === 'function') _origUS_melhorias.apply(this, arguments);
     atualizarBarraCirurgiaProxima();
-    const hoje = typeof todayStr === 'function' ? todayStr() : new Date().toISOString().split('T')[0];
+    const hoje = todayStr();
     const temVencido = (window.procedimentos||[]).some(p => p.status === 'reagendado' && p.data && p.data < hoje);
     temVencido ? startReagVencidoSound() : stopReagVencidoSound();
 };
