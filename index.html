@@ -586,8 +586,6 @@
               const amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
               const amanha = amanhaD.getFullYear() + '-' + String(amanhaD.getMonth()+1).padStart(2,'0') + '-' + String(amanhaD.getDate()).padStart(2,'0');
 
-              if (!window._confirmacaoInicioFeita) window._confirmacaoInicioFeita = new Set();
-
               function autoTransitar(p, statusAnterior) {
                 p.autoTransicaoEm = new Date().toISOString();
                 try { notificarMudancaStatus(p, statusAnterior); } catch(e3) {}
@@ -602,6 +600,14 @@
                 if (p.status === 'a_agendar' && p.data && p.data.trim()) {
                   p.status = 'agendado';
                   autoTransitar(p, 'a_agendar');
+                }
+
+                // NF emitida no mesmo dia da cirurgia (sem janela de trânsito) → Em Procedimento direto
+                if (!['andamento','a_retirar','concluido','cancelado','urgencia','coleta_urgente'].includes(p.status)
+                    && p.data && p.nfData && p.nfData === p.data && p.data <= hoje) {
+                  const statusAnterior = p.status;
+                  p.status = 'andamento';
+                  autoTransitar(p, statusAnterior);
                 }
 
                 // Em Trânsito sem NF → Em Separação (NF obrigatória para manter em trânsito)
@@ -9900,89 +9906,6 @@ async function verificarPromocaoRetirada() {
     }
 }
 
-
-// ─── CONFIRMAÇÃO: Em Separação → Em Procedimento ───
-async function confirmarInicioCircurgia(lista, db, COLL) {
-    const pendentes = lista.filter(p => (p.status === 'preparacao' || p.status === 'em_transito') && p._docId);
-    if (pendentes.length === 0) return;
-
-    // Mostra um modal para cada procedimento
-    for (const proc of pendentes) {
-        await new Promise(resolve => {
-            const antigo = document.getElementById('modalConfInicioCircurgia');
-            if (antigo) antigo.remove();
-
-            const nomePac = proc.paciente || '—';
-            const hospital = proc.hospital || '—';
-            const medico = proc.medico || '—';
-            const dataFmt = proc.data ? new Date(proc.data+'T00:00:00').toLocaleDateString('pt-BR') : '—';
-
-            const overlay = document.createElement('div');
-            overlay.id = 'modalConfInicioCircurgia';
-            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px;';
-            overlay.innerHTML =
-                '<div style="background:var(--surface);border:1px solid var(--border);border-top:4px solid #ef4444;border-radius:16px;padding:28px 26px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.4);">' +
-                    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">' +
-                        '<span style="font-family:var(--mono);font-size:0.82rem;font-weight:700;letter-spacing:0.08em;color:#ef4444;text-transform:uppercase;">⚡ Iniciar Procedimento?</span>' +
-                        '<button id="btnFecharConfInicio" style="background:none;border:1px solid var(--border);color:var(--text-dim);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:0.9rem;">✕</button>' +
-                    '</div>' +
-                    '<div style="margin-bottom:20px;padding:14px;background:rgba(239,68,68,0.06);border-radius:10px;border:1px solid rgba(239,68,68,0.2);">' +
-                        '<div style="font-family:var(--sans);font-weight:700;font-size:1rem;color:var(--text);margin-bottom:6px;">🏥 ' + nomePac + '</div>' +
-                        '<div style="font-family:var(--mono);font-size:0.73rem;color:var(--text-dim);margin-bottom:2px;">' + hospital + ' · ' + medico + '</div>' +
-                        '<div style="font-family:var(--mono);font-size:0.73rem;color:#ef4444;font-weight:600;">📅 Cirurgia hoje · ' + dataFmt + '</div>' +
-                    '</div>' +
-                    '<div style="font-family:var(--mono);font-size:0.78rem;color:var(--text-dim);margin-bottom:16px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">O procedimento foi iniciado?</div>' +
-                    '<div style="display:flex;gap:10px;margin-bottom:16px;">' +
-                        '<button id="btnInicioSim" style="flex:1;padding:13px;border-radius:10px;border:2px solid var(--border);background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.9rem;font-weight:700;cursor:pointer;transition:all 0.18s;">✅ SIM</button>' +
-                        '<button id="btnInicioNao" style="flex:1;padding:13px;border-radius:10px;border:2px solid var(--border);background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:0.9rem;font-weight:700;cursor:pointer;transition:all 0.18s;">⏳ AINDA NÃO</button>' +
-                    '</div>' +
-                    '<button id="btnInicioFinal" style="width:100%;padding:13px;border-radius:10px;background:#ef4444;border:none;color:#fff;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;opacity:0.4;pointer-events:none;transition:opacity 0.2s;">Confirmar</button>' +
-                '</div>';
-            document.body.appendChild(overlay);
-
-            let escolha = null;
-            const btnSim  = overlay.querySelector('#btnInicioSim');
-            const btnNao  = overlay.querySelector('#btnInicioNao');
-            const btnFinal = overlay.querySelector('#btnInicioFinal');
-
-            function selecionar(val) {
-                escolha = val;
-                [btnSim, btnNao].forEach(b => { b.style.background='transparent'; b.style.color='var(--text-dim)'; b.style.borderColor='var(--border)'; });
-                const btn = val === 'sim' ? btnSim : btnNao;
-                btn.style.background = val === 'sim' ? '#ef4444' : '#d4920a';
-                btn.style.color = '#fff';
-                btn.style.borderColor = val === 'sim' ? '#ef4444' : '#d4920a';
-                btnFinal.style.opacity = '1';
-                btnFinal.style.pointerEvents = 'auto';
-                btnFinal.style.background = val === 'sim' ? '#ef4444' : '#d4920a';
-                btnFinal.textContent = val === 'sim' ? '⚡ Iniciar Procedimento' : '⏳ Manter Em Separação';
-            }
-
-            btnSim.onclick  = () => selecionar('sim');
-            btnNao.onclick  = () => selecionar('nao');
-            overlay.querySelector('#btnFecharConfInicio').onclick = () => { window._confirmacaoInicioFeita.add(proc._docId); overlay.remove(); resolve(); };
-
-            btnFinal.onclick = async () => {
-                if (!escolha) return;
-                overlay.remove();
-                window._confirmacaoInicioFeita.add(proc._docId);
-                if (escolha === 'sim') {
-                    proc.status = 'andamento';
-                    try {
-                        const { setDoc: sd, doc: docFn } = window._fbModules;
-                        await sd(docFn(db, COLL, proc._docId), { ...proc });
-                        showSyncToast('⚡ ' + nomePac + ' → Em Procedimento');
-                        renderCards(); updateStats();
-                        if (window.currentView === 'table') renderTable();
-                    } catch(e) { alert('Erro ao salvar: ' + e.message); }
-                } else {
-                    showSyncToast('⏳ ' + nomePac + ' mantido em Em Separação');
-                }
-                resolve();
-            };
-        });
-    }
-}
 
 // ─── AUTO REFRESH A CADA MINUTO ───
 setInterval(() => {
