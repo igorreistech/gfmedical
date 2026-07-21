@@ -598,6 +598,12 @@
               }
 
               dados.forEach(p => {
+                // Autorizado + data da cirurgia já cadastrada → Agendado
+                if (p.status === 'a_agendar' && p.data && p.data.trim()) {
+                  p.status = 'agendado';
+                  autoTransitar(p, 'a_agendar');
+                }
+
                 // Em Trânsito sem NF → Em Separação (NF obrigatória para manter em trânsito)
                 if (p.status === 'em_transito' && (!p.nf || !p.nf.trim())) {
                   p.status = 'preparacao';
