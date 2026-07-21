@@ -8471,7 +8471,7 @@ window.pedirIdentificacaoComercial = function() {
         const lista = document.getElementById('identComercialNomes');
         if (!overlay || !lista) { resolve(null); return; }
         lista.innerHTML = NOMES_OPERADOR_CG.map(nome => {
-            const label = nome === NOME_ESTOQUE_MARCADOR ? nome : nome.split(' ')[0];
+            const label = nome;
             return `<button type="button" class="login-btn" style="margin-top:0;text-transform:none;font-size:0.95rem;" onclick="window._resolverIdentComercial('${nome}')">${label}</button>`;
         }).join('');
         window._resolverIdentComercial = function(nome) {
@@ -8512,7 +8512,7 @@ function openModal() {
         const lista = document.getElementById('listaNomeOperador');
         lista.innerHTML = NOMES_OPERADOR_CG.map(nome => {
             const sel = nome === window._operadorNome;
-            const label = nome === NOME_ESTOQUE_MARCADOR ? nome : nome.split(' ')[0];
+            const label = nome;
             return `<button type="button" onclick="selecionarNomeOp('${nome}')" style="padding:10px 14px;border-radius:8px;background:${sel?'rgba(75,180,210,0.12)':'var(--bg3)'};border:1.5px solid ${sel?'var(--accent)':'var(--border)'};color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.88rem;font-weight:600;text-align:left;transition:all .13s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${sel?'var(--accent)':'var(--border)'}'">${sel?'✓ ':''}${label}</button>`;
         }).join('');
         document.getElementById('modalNomeOp').classList.add('open');
@@ -17491,7 +17491,7 @@ window.imprimirRelatorio = function() {
         </tbody>
     </table>
     <script>window.onload=()=>window.print();<\/script>
-    <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.92);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.08);padding:10px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:1.2rem;color:#8a9e97;z-index:9999;letter-spacing:0.05em;"><span style="color:#f5a623;">⚙ Projeto em andamento</span><span>·</span><span>Desenvolvido por <a href="https://devigorreis.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a></span></div>
+    <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.92);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.08);padding:10px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:1.2rem;color:#8a9e97;z-index:9999;letter-spacing:0.05em;"><span style="color:#f5a623;">⚙ Projeto em andamento</span><span>·</span><span>Desenvolvido por <a href="https://igorreisqa.vercel.app/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a></span></div>
 </body></html>`);
     win.document.close();
 };
@@ -18684,7 +18684,7 @@ window.buildCardHTML = function(proc) {
             <span>GF Medical Comércio e Representações Ltda.</span>
         </div>
         <script>window.onload=()=>{window.print();}<\/script>
-        <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;">&copy; 2025 <span class="marca-gf-brand" style="color:#4db87a;font-weight:700;">GF Medical &middot;</span> Desenvolvido por <a href="https://devigorreis.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
+        <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;">&copy; 2025 <span class="marca-gf-brand" style="color:#4db87a;font-weight:700;">GF Medical &middot;</span> Desenvolvido por <a href="https://igorreisqa.vercel.app/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
 </body></html>`);
         win.document.close();
     };
@@ -18808,7 +18808,7 @@ window.buildCardHTML = function(proc) {
 })();
 </script>
 
-<div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;">&copy; 2025 <span class="marca-gf-brand" style="color:#4db87a;font-weight:700;">GF Medical &middot;</span> Desenvolvido por <a href="https://devigorreis.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
+<div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;">&copy; 2025 <span class="marca-gf-brand" style="color:#4db87a;font-weight:700;">GF Medical &middot;</span> Desenvolvido por <a href="https://igorreisqa.vercel.app/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').then(reg => {
