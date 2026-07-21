@@ -7385,7 +7385,7 @@ function buildCardHTML(proc) {
         <div class="proc-card status-${proc.status}${reagVencido ? ' reagendado-vencido' : ''}" data-id="${proc.id}" style="${cardAnimStyle}">
             <div class="card-header">
                 <div class="hospital-name">${_ehColeta(proc) ? '✈️ Volumes Urgentes' : '🏥 ' + proc.hospital}</div>
-                <div class="status-pill pill-${proc.status}">${statusLabel(proc.status)}</div>${reagBadge}${staleBadge(proc)}
+                <div class="status-pill pill-${proc.status}">${statusLabel(proc.status)}</div>${reagBadge}${staleBadge(proc)}${semNfBadge(proc)}
             </div>
             <div class="card-body">
                 ${!_ehColeta(proc) ? `
@@ -10316,6 +10316,21 @@ function staleBadge(proc) {
     if (dias >= 7) cls += ' stale-crit';
     else if (dias >= 5) cls += ' stale-warn';
     return `<span class="${cls}" title="Sem atualização há ${dias} dias">⏳ ${dias}d</span>`;
+}
+
+// Alerta (não bloqueia a automação): cirurgia cadastrada com mais de 2 dias de
+// antecedência — tempo suficiente pra ter passado por Em Trânsito com NF — mas
+// chegou em Em Procedimento/A Retirar sem NF nunca ter sido informada.
+function semNfBadge(proc) {
+    if (proc.status === 'concluido' || proc.status === 'cancelado') return '';
+    if (!['andamento', 'a_retirar'].includes(proc.status)) return '';
+    if (proc.nf && proc.nf.trim()) return '';
+    if (!proc.data || !proc._createdAt) return '';
+    const criado = new Date(proc._createdAt.split('T')[0] + 'T00:00:00');
+    const cirurgia = new Date(proc.data + 'T00:00:00');
+    const diasPrazo = Math.round((cirurgia - criado) / 86400000);
+    if (diasPrazo <= 2) return '';
+    return `<span class="stale-badge stale-crit" title="Cadastrado com ${diasPrazo} dias de antecedência, mas nunca teve NF (não passou por Em Trânsito)">🚚⚠️ Sem NF</span>`;
 }
 
 // ════════════════════════════════════════════
