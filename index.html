@@ -10318,19 +10318,21 @@ function staleBadge(proc) {
     return `<span class="${cls}" title="Sem atualização há ${dias} dias">⏳ ${dias}d</span>`;
 }
 
-// Alerta (não bloqueia a automação): cirurgia cadastrada com mais de 2 dias de
-// antecedência — tempo suficiente pra ter passado por Em Trânsito com NF — mas
-// chegou em Em Procedimento/A Retirar sem NF nunca ter sido informada.
+// Alerta (não bloqueia a automação): "Em Trânsito" existe pro caso de emitir a
+// NF hoje pra uma cirurgia daqui a 1 ou 2 dias. Se a cirurgia já está nessa
+// janela e o registro ainda está em Em Separação sem NF, lembra de emitir a
+// NF hoje e mover pra Em Trânsito.
 function semNfBadge(proc) {
-    if (proc.status === 'concluido' || proc.status === 'cancelado') return '';
-    if (!['andamento', 'a_retirar'].includes(proc.status)) return '';
+    if (proc.status !== 'preparacao') return '';
     if (proc.nf && proc.nf.trim()) return '';
-    if (!proc.data || !proc._createdAt) return '';
-    const criado = new Date(proc._createdAt.split('T')[0] + 'T00:00:00');
-    const cirurgia = new Date(proc.data + 'T00:00:00');
-    const diasPrazo = Math.round((cirurgia - criado) / 86400000);
-    if (diasPrazo <= 2) return '';
-    return `<span class="stale-badge stale-crit" title="Cadastrado com ${diasPrazo} dias de antecedência, mas nunca teve NF (não passou por Em Trânsito)">🚚⚠️ Sem NF</span>`;
+    if (!proc.data) return '';
+    const d1 = new Date(); d1.setDate(d1.getDate() + 1);
+    const amanha = d1.getFullYear() + '-' + String(d1.getMonth() + 1).padStart(2, '0') + '-' + String(d1.getDate()).padStart(2, '0');
+    const d2 = new Date(); d2.setDate(d2.getDate() + 2);
+    const depois = d2.getFullYear() + '-' + String(d2.getMonth() + 1).padStart(2, '0') + '-' + String(d2.getDate()).padStart(2, '0');
+    if (proc.data !== amanha && proc.data !== depois) return '';
+    const dias = proc.data === amanha ? '1 dia' : '2 dias';
+    return `<span class="stale-badge stale-crit" title="Cirurgia em ${dias} — emitir a NF hoje e mover para Em Trânsito">🚚⚠️ Emitir NF hoje</span>`;
 }
 
 // ════════════════════════════════════════════
