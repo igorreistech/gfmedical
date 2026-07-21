@@ -575,7 +575,14 @@
               // abriu o app no dia exato da transição, ela roda mesmo assim na
               // próxima vez que alguém abrir, em vez de deixar o registro preso
               // no status antigo para sempre.
-              const hoje = new Date().toISOString().split('T')[0];
+              // .toISOString() usa UTC, não o horário local — à noite, em
+              // Campo Grande/Cuiabá (UTC-4), o UTC já vira o dia seguinte
+              // antes da meia-noite local, o que adiantava cirurgias de
+              // status errado (visto em produção: retirada do dia seguinte
+              // sendo tratada como "não é mais futuro"). Usa componentes de
+              // data locais (getFullYear/getMonth/getDate) em vez disso.
+              const hojeD = new Date();
+              const hoje = hojeD.getFullYear() + '-' + String(hojeD.getMonth()+1).padStart(2,'0') + '-' + String(hojeD.getDate()).padStart(2,'0');
               const amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
               const amanha = amanhaD.getFullYear() + '-' + String(amanhaD.getMonth()+1).padStart(2,'0') + '-' + String(amanhaD.getDate()).padStart(2,'0');
 
