@@ -1,4 +1,4 @@
-const CACHE = 'monitor-cgr-v20-demo-fix';
+const CACHE = 'monitor-cgr-v21-swfix';
 const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
   BASE,
@@ -38,11 +38,11 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  const isLocal = !url.hostname.includes('googleapis') &&
-                  !url.hostname.includes('cdnjs') &&
-                  !url.hostname.includes('supabase.co') &&
-                  !url.hostname.includes('esm.sh');
-  if (isLocal && url.pathname.startsWith(BASE)) {
+  // Só tenta cache em requisições realmente do mesmo domínio do site (GET) —
+  // a lista de exclusão por substring do hostname deixava passar hosts novos
+  // por engano; checar a origem direto é mais robusto.
+  const isLocal = url.origin === self.location.origin;
+  if (isLocal && e.request.method === 'GET' && url.pathname.startsWith(BASE)) {
     e.respondWith(
       caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
         const clone = res.clone();
