@@ -570,7 +570,11 @@
             try {
                             // Auto-status por data de cirurgia:
               // - Agendado + véspera (D-1) → Em Separação (automático)
-              // - Em Separação ou Em Trânsito + hoje é a cirurgia → pede confirmação para Em Procedimento
+              // - Em Separação ou Em Trânsito + hoje é a cirurgia → Em Procedimento (automático)
+              // Todas as checagens usam "<= hoje" (não "=== hoje"): se ninguém
+              // abriu o app no dia exato da transição, ela roda mesmo assim na
+              // próxima vez que alguém abrir, em vez de deixar o registro preso
+              // no status antigo para sempre.
               const hoje = new Date().toISOString().split('T')[0];
               const amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
               const amanha = amanhaD.getFullYear() + '-' + String(amanhaD.getMonth()+1).padStart(2,'0') + '-' + String(amanhaD.getDate()).padStart(2,'0');
@@ -586,7 +590,6 @@
                 } catch(e2) { console.warn('Auto-status:', e2); }
               }
 
-              const paraPromover = [];
               dados.forEach(p => {
                 // Em Trânsito sem NF → Em Separação (NF obrigatória para manter em trânsito)
                 if (p.status === 'em_transito' && (!p.nf || !p.nf.trim())) {
@@ -594,37 +597,30 @@
                   autoTransitar(p, 'em_transito');
                 }
 
-                // Agendado + véspera (D-1) → Em Separação (silencioso)
-                if (p.status === 'agendado' && p.data && p.data === amanha) {
+                // Agendado: véspera (D-1, aviso antecipado) OU data já chegou/passou
+                // (recuperação de atraso) → Em Separação
+                if (p.status === 'agendado' && p.data && (p.data === amanha || p.data <= hoje)) {
                   p.status = 'preparacao';
                   autoTransitar(p, 'agendado');
                 }
-                // Em Separação ou Em Trânsito + dia da cirurgia → Em Procedimento (automático, sem confirmação)
-                else if ((p.status === 'preparacao' || p.status === 'em_transito') && p.data && p.data === hoje) {
+                // Em Separação ou Em Trânsito + data da cirurgia já chegou/passou → Em Procedimento
+                if ((p.status === 'preparacao' || p.status === 'em_transito') && p.data && p.data <= hoje) {
                   const statusAnterior = p.status;
                   p.status = 'andamento';
                   autoTransitar(p, statusAnterior);
                 }
 
-                // Data de retirada = hoje → Aguardando Retirada (automático)
-                if (!['a_retirar','concluido','cancelado','andamento','urgencia','coleta_urgente'].includes(p.status)
-                    && (p.retirada || p.dataRetirar) === hoje) {
-                  const prev = p.status;
-                  p.status = 'a_retirar';
-                  autoTransitar(p, prev);
-                }
-
-                // Em Procedimento + data de retirada chegou → Aguardando Retirada (automático)
-                if (p.status === 'andamento' && (p.retirada || p.dataRetirar) && (p.retirada || p.dataRetirar) <= hoje) {
+                // Data de retirada já chegou ou passou → Aguardando Retirada (automático,
+                // recupera atraso independente de qual status intermediário o registro
+                // estava parado)
+                if (!['a_retirar','concluido','cancelado','urgencia','coleta_urgente'].includes(p.status)
+                    && (p.retirada || p.dataRetirar) && (p.retirada || p.dataRetirar) <= hoje) {
                   const prev = p.status;
                   p.status = 'a_retirar';
                   autoTransitar(p, prev);
                 }
               });
 
-              if (paraPromover.length > 0) {
-                setTimeout(() => confirmarInicioCircurgia(paraPromover, db, COLL), 800);
-              }
               window.procedimentos.splice(0, window.procedimentos.length, ...dados);
               window.nextId = window.procedimentos.length > 0 ? Math.max(...window.procedimentos.map(p => p.id || 0)) + 1 : 1;
 
