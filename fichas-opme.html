@@ -49,6 +49,10 @@ body.ficha-readonly #btnNovaFicha,body.ficha-readonly .abtn,body.ficha-readonly 
 .opme-stale{font-family:var(--mono);font-size:0.6rem;font-weight:700;padding:2px 7px;border-radius:20px;border:1px solid rgba(167,139,250,0.5);background:rgba(167,139,250,0.08);color:#a78bfa;margin-left:6px;white-space:nowrap}
 .opme-stale.warn{border-color:rgba(249,115,22,0.5);background:rgba(249,115,22,0.08);color:#f97316}
 .opme-stale.crit{border-color:rgba(239,68,68,0.5);background:rgba(239,68,68,0.08);color:#ef4444}
+.dup-warning{background:rgba(234,179,8,0.08);border:1.5px solid rgba(234,179,8,0.45);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none}
+.dup-warning-title{font-family:var(--mono);font-size:0.75rem;font-weight:700;color:#d4920a;margin-bottom:6px;letter-spacing:0.05em}
+.dup-warning-item{font-size:0.76rem;color:var(--text);padding:2px 0;border-bottom:1px solid rgba(234,179,8,0.15)}
+.dup-warning-item:last-child{border-bottom:none}
 .nb0{background:var(--s0-c)}.nb1{background:var(--s1-c)}.nb2{background:var(--s2-c)}.nb3{background:var(--s3-c)}.nb4{background:var(--s4-c)}.nb5{background:var(--s5-c)}
 .sdiv{height:1px;background:var(--border);margin:7px 0}
 .sidebar-footer{padding:10px;border-top:1px solid var(--border)}
@@ -376,6 +380,7 @@ tbody tr:hover .row-acts{opacity:1}
           <div class="import-badge" id="import-badge">✅ Dados importados do C160</div>
         </div>
       </div>
+      <div class="dup-warning" id="dup-warning-box-opme"></div>
       <div class="frow">
         <div class="fg"><label class="flbl">Paciente *</label><input class="finput" id="f-pac" placeholder="Nome completo"></div>
         <div class="fg"><label class="flbl">Médico *</label><input class="finput" id="f-med" placeholder="Dr./Dra." list="dl-medico"><datalist id="dl-medico"></datalist></div>
@@ -712,14 +717,56 @@ window.excluirFicha = async id => {
 };
 
 window.mudStatus = async (id, s) => {
-  if (window._isDemoUser) {
-    const idx = fichas.findIndex(f => f._id === id);
-    if (idx !== -1) fichas[idx].status = s;
-    atualizarBadges(); renderAtivo();
-    return;
+  const idx = fichas.findIndex(f => f._id === id);
+  if (idx === -1) return;
+  const statusAnterior = fichas[idx].status ?? 0;
+  if (statusAnterior === s) return;
+  const agora = new Date().toISOString();
+  const hist = [...(fichas[idx]._statusHistory || []), { de: statusAnterior, para: s, em: agora, por: _currentUser?.email || '' }];
+  fichas[idx].status = s;
+  fichas[idx]._statusHistory = hist;
+  fichas[idx].atualizadoEm = agora;
+  atualizarBadges(); renderAtivo();
+  if (window._isDemoUser) return;
+  try {
+    await setDoc(doc(db, COLL, id), {status:s, _statusHistory:hist, atualizadoEm:agora}, {merge:true});
+  } catch (e) {
+    // Coluna status_history pode não existir ainda no banco (precisa da migração) —
+    // não deixa isso travar a mudança de status em si.
+    console.warn('[mudStatus] Falha ao salvar histórico, salvando só o status:', e);
+    try { await setDoc(doc(db, COLL, id), {status:s}, {merge:true}); }
+    catch (e2) { toast('Erro ao mudar status: ' + e2.message, 'err'); }
   }
-  await setDoc(doc(db, COLL, id), {status:s}, {merge:true});
 };
+
+// Alerta (não bloqueia): possível ficha duplicada — mesmo paciente + hospital + data da cirurgia
+function verificarDuplicatasFicha(paciente, hospital, dataCirurgia, excludeId) {
+  if (!paciente || !hospital || !dataCirurgia) return [];
+  return fichas.filter(f => {
+    if (f._id === excludeId) return false;
+    return (f.paciente||'').toLowerCase() === paciente.toLowerCase()
+        && (f.hospital||'').toLowerCase() === hospital.toLowerCase()
+        && f.dataCirurgia === dataCirurgia;
+  });
+}
+function mostrarAvisoDuplicataFicha() {
+  const el = document.getElementById('dup-warning-box-opme');
+  if (!el) return;
+  const dups = verificarDuplicatasFicha(
+    document.getElementById('f-pac')?.value,
+    document.getElementById('f-hosp')?.value,
+    document.getElementById('f-data')?.value,
+    editingId
+  );
+  if (!dups.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = `<div class="dup-warning-title">⚠️ Possível ficha duplicada (${dups.length})</div>` +
+    dups.map(f => `<div class="dup-warning-item">${f.paciente||'—'} · ${f.hospital||'—'}${f.numeroPedido?' · PV '+f.numeroPedido:''} · ${STATUS[f.status??0]?.label||''}</div>`).join('');
+}
+['f-pac','f-hosp','f-data'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', mostrarAvisoDuplicataFicha);
+});
 
 // VIEWS
 window.goView = v => {
@@ -1025,6 +1072,8 @@ window.abrirModal = id => {
   }
   editingId = id || null;
   itens = [];
+  const dupBox = document.getElementById('dup-warning-box-opme');
+  if (dupBox) dupBox.style.display = 'none';
   _arquivoOpme = null; _arquivoPv = null;
   _anexoUrlAtual = {opme:null, pv:null};
   ['opme','pv'].forEach(t => {

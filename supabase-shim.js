@@ -49,6 +49,7 @@ const FIELD_MAPS = {
     criadoPor: 'criado_por',
     criadoEm: 'criado_em',
     atualizadoEm: 'atualizado_em',
+    _statusHistory: 'status_history',
   },
   usuarios: {
     firebaseUid: 'firebase_uid',
