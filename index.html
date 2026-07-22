@@ -625,6 +625,14 @@
                   p.status = 'preparacao';
                   autoTransitar(p, 'agendado');
                 }
+
+                // Em Separação + NF já emitida → Em Trânsito (NF emitida significa que o
+                // material já foi despachado; "Em Separação" é só pra quando ainda não tem NF)
+                if (p.status === 'preparacao' && p.nf && p.nf.trim()) {
+                  p.status = 'em_transito';
+                  autoTransitar(p, 'preparacao');
+                }
+
                 // Em Separação ou Em Trânsito + data da cirurgia já chegou/passou → Em Procedimento
                 if ((p.status === 'preparacao' || p.status === 'em_transito') && p.data && p.data <= hoje) {
                   const statusAnterior = p.status;
