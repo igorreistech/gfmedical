@@ -458,8 +458,11 @@
                 else sessionStorage.setItem('_comercialModoCompleto', '1');
               }
               if (nomeOp) window._operadorNome = nomeOp;
-              const isEstoque = nomeOp && nomeOp.endsWith(' (Estoque)');
-              if (nomeOp && !isEstoque) {
+              // Se a lista ainda não carregou (script clássico mais lento que
+              // este módulo), assume NÃO-admin por segurança — melhor cair na
+              // visão restrita à toa do que liberar admin sem checar a lista.
+              const isAdminOperador = !!(nomeOp && Array.isArray(window.ADMIN_OPERADORES) && window.ADMIN_OPERADORES.includes(nomeOp));
+              if (nomeOp && !isAdminOperador) {
                 if (mainCont)  mainCont.style.display  = 'none';
                 if (adminBtn)  adminBtn.style.display  = 'none';
                 if (fabGroup)  fabGroup.style.display  = 'none';
@@ -8460,19 +8463,18 @@ function editProc(docId) {
     }
 }
 
-// "Comercial e Estoque" é uma opção genérica (equipe sem nome fixo na lista):
-// ao escolher, pede o nome da pessoa por texto livre.
-const NOME_ESTOQUE_MARCADOR = 'Comercial e Estoque';
-const NOMES_OPERADOR_CG = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Eva Diana de Araujo','Gabriely Amorim Dias','Gustavo Ovídio Mussi Faverão','Igor dos Reis Silva','Izabela Crozetta','Jeferson Rodrigues Cruz','Kauana da Silva Feitoza','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcio Benedito Queiroz','Marcos Gonçalves da Silva','Murilo Julio Sant Ana Pereira','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Thayz Benites Leonel','Tiago da Silva Siqueira','Wilson Cordeiro', NOME_ESTOQUE_MARCADOR];
+const NOMES_OPERADOR_CG = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Eva Diana de Araujo','Gabriely Amorim Dias','Gustavo Ovídio Mussi Faverão','Igor dos Reis Silva','Izabela Crozetta','Jeferson Rodrigues Cruz','Kauana da Silva Feitoza','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcio Benedito Queiroz','Marcos Gonçalves da Silva','Murilo Julio Sant Ana Pereira','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Thayz Benites Leonel','Tiago da Silva Siqueira','Wilson Cordeiro'];
+// Equipe interna (comercial/estoque) identificada por nome — tem acesso
+// completo (painel admin) ao se identificar. Os demais nomes da lista são
+// vendedores de campo e caem na visão restrita (só "Adicionar Cirurgia").
+const ADMIN_OPERADORES = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Eva Diana de Araujo','Igor dos Reis Silva','Izabela Crozetta','Kauana da Silva Feitoza','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Murilo Julio Sant Ana Pereira','Paulo Vitor Leite da Silva','Renata Franco de Lima','Starley Santos Silva','Thayz Benites Leonel'];
+// Exposto em window porque quem consome essa lista (aplicarAuth) roda dentro
+// do <script type="module">, que não enxerga const/let de um <script>
+// clássico como identificador solto — só via window.
+window.ADMIN_OPERADORES = ADMIN_OPERADORES;
 let _pendingOpenModal = null;
 
 function _resolverNomeOperador(nome, callback) {
-    if (nome === NOME_ESTOQUE_MARCADOR) {
-        const real = (prompt('Equipe Comercial e Estoque — qual o seu nome?') || '').trim();
-        if (!real) return;
-        callback(real + ' (Estoque)');
-        return;
-    }
     callback(nome);
 }
 
