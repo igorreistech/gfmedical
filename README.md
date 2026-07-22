@@ -32,4 +32,4 @@ Monitor em tempo real de procedimentos cirúrgicos da unidade de Campo Grande, c
 
 ## Deploy
 
-Hospedado em: `devigorreis.github.io/gfcampogrande/`
+Hospedado em: `igorreisqa.github.io/gfcampogrande/`
