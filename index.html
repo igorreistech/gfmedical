@@ -4976,6 +4976,7 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
                 </div>
                 <div id="pdf-import-result" style="display:none;margin-top:10px;font-family:var(--mono);font-size:0.76rem;line-height:1.9;"></div>
             </div>
+            <div class="dup-warning" id="dup-warning-box"></div>
             <div class="form-grid">
                 <div class="form-group full">
                     <label class="form-label">Hospital *</label>
@@ -8334,6 +8335,8 @@ function editProc(docId) {
     if (!p) return;
     editingIndex = procedimentos.indexOf(p);
     editingDocId = p._docId || null;
+    const dupBox = document.getElementById('dup-warning-box');
+    if (dupBox) dupBox.style.display = 'none';
     document.getElementById('modalTitle').textContent = 'Editar Procedimento';
     document.getElementById('editIndex').value = editingIndex;
 
@@ -8524,6 +8527,8 @@ function openModal() {
 function _doOpenModal() {
     editingIndex = null;
     editingDocId = null;
+    const dupBox = document.getElementById('dup-warning-box');
+    if (dupBox) dupBox.style.display = 'none';
     document.getElementById('modalTitle').textContent = 'Adicionar Procedimento';
     document.getElementById('procForm').reset();
     document.getElementById('editIndex').value = '';
@@ -10745,6 +10750,7 @@ window.duplicarProc    = duplicarProc;
 window.compartilharWhatsApp = compartilharWhatsApp;
 window.hookDupCheck    = hookDupCheck;
 window.mostrarAviso    = mostrarAviso;
+hookDupCheck();
 window.mostrarChecklist= mostrarChecklist;
 window.fecharChecklist = fecharChecklist;
 window.fbSaveProc      = fbSaveProc;
