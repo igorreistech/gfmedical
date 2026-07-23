@@ -14682,6 +14682,13 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
 .premium-mini-kpi .sub{margin-top:5px;font-size:.78rem;color:rgba(239,255,251,.76)}
 .header{border-radius:24px!important;background:rgba(255,255,255,.82)!important;box-shadow:0 12px 34px rgba(24,80,86,.12)!important}
 .header-text h1{font-size:1.52rem!important;line-height:1.05!important;color:#1f7f95!important;background:none!important;-webkit-text-fill-color:initial!important;text-transform:uppercase;letter-spacing:.04em;max-width:540px}
+@media (max-width:600px){
+  .header-text h1{font-size:1.05rem!important;line-height:1.2!important;letter-spacing:.02em!important;max-width:none!important;white-space:normal!important;word-break:break-word;overflow-wrap:break-word}
+  .header-text p{font-size:.68rem!important;white-space:normal!important}
+}
+@media (max-width:380px){
+  .header-text h1{font-size:.92rem!important}
+}
 .stats-bar{gap:12px!important;margin-bottom:18px!important}
 .stat-card{background:linear-gradient(180deg,rgba(255,255,255,.88),rgba(231,248,239,.88))!important;border-radius:18px!important;border:1px solid rgba(104,179,157,.22)!important;box-shadow:0 8px 24px rgba(28,83,86,.07)!important}
 .controls{background:rgba(255,255,255,.78);border:1px solid rgba(135,195,150,.22);border-radius:20px;padding:14px 16px;box-shadow:0 8px 24px rgba(28,83,86,.06)}
@@ -18824,7 +18831,7 @@ window.buildCardHTML = function(proc) {
 })();
 </script>
 
-<div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;">&copy; 2025 <span class="marca-gf-brand" style="color:#4db87a;font-weight:700;">GF Medical &middot;</span> Desenvolvido por <a href="https://igorreisqa.vercel.app/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
+<div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;text-align:center;"><span style="color:#f5a623;font-weight:700;">⚙ Projeto em andamento &mdash; em constante evolução</span><span>&middot;</span>&copy; 2025 <span class="marca-gf-brand" style="color:#4db87a;font-weight:700;">GF Medical &middot;</span> Desenvolvido por <a href="https://igorreisqa.vercel.app/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').then(reg => {
@@ -19940,45 +19947,6 @@ else init();
                        dias no status · exportar CSV
      ═══════════════════════════════════════════════════════════════ -->
 <style>
-/* ─── DARK MODE ──────────────────────────────────────────────────── */
-html[data-theme="dark"] {
-    --bg: #0d1f2a; --surface: #112432; --surface2: #0a1a22;
-    --border: #1d3d52; --accent: #4bb4d2; --accent2: #4db87a;
-    --green: #4db87a; --yellow: #f59e0b; --red: #ef4444;
-    --gray: #6a8a96; --text: #e0f2f8; --text-dim: #7ab8c8;
-}
-html[data-theme="dark"] body {
-    background: #0d1f2a !important;
-    background-image:
-        radial-gradient(ellipse 70% 50% at 10% 5%, rgba(30,64,95,0.35) 0%, transparent 55%),
-        radial-gradient(ellipse 55% 45% at 90% 90%, rgba(30,80,110,0.2) 0%, transparent 55%) !important;
-}
-html[data-theme="dark"] body::before {
-    background-image:
-        linear-gradient(rgba(75,180,210,0.06) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(75,180,210,0.06) 1px, transparent 1px) !important;
-}
-html[data-theme="dark"] .header { background: #091820 !important; border-color: #1d3d52 !important; }
-html[data-theme="dark"] .proc-card { background: var(--surface) !important; border-color: var(--border) !important; }
-html[data-theme="dark"] .stat-card { background: var(--surface) !important; border-color: var(--border) !important; }
-html[data-theme="dark"] .filter-btn { background: rgba(255,255,255,0.04) !important; border-color: var(--border) !important; color: var(--text-dim) !important; }
-html[data-theme="dark"] .filter-btn.active, html[data-theme="dark"] .filter-btn:hover { background: rgba(75,180,210,0.15) !important; border-color: var(--accent) !important; color: var(--accent) !important; }
-html[data-theme="dark"] .search-box { background: #112432 !important; border-color: #1d3d52 !important; color: var(--text) !important; }
-html[data-theme="dark"] select { background: #112432 !important; border-color: #1d3d52 !important; color: var(--text) !important; }
-html[data-theme="dark"] #periodo-painel { background: #091820 !important; border-color: #1d3d52 !important; }
-html[data-theme="dark"] .login-box { background: #091820 !important; border-color: #1d3d52 !important; }
-html[data-theme="dark"] .login-input { background: #112432 !important; border-color: #1d3d52 !important; color: var(--text) !important; }
-html[data-theme="dark"] .proc-table { background: var(--surface) !important; }
-html[data-theme="dark"] .proc-table th { background: #091820 !important; color: var(--text-dim) !important; border-color: #1d3d52 !important; }
-html[data-theme="dark"] .proc-table tbody tr { border-color: #1d3d52 !important; }
-html[data-theme="dark"] .proc-table tbody td { color: var(--text) !important; }
-html[data-theme="dark"] .view-tab { background: rgba(255,255,255,0.04) !important; border-color: #1d3d52 !important; color: var(--text-dim) !important; }
-html[data-theme="dark"] .view-tab.active { background: rgba(75,180,210,0.15) !important; border-color: var(--accent) !important; color: var(--accent) !important; }
-html[data-theme="dark"] .card-label { color: var(--text-dim) !important; }
-html[data-theme="dark"] .card-value { color: var(--text) !important; }
-html[data-theme="dark"] .hospital-name { color: var(--text) !important; }
-html[data-theme="dark"] .btn-dark-mode { background: rgba(75,180,210,0.15) !important; border-color: var(--accent) !important; color: var(--accent) !important; }
-
 /* ─── FAIXA CIRURGIA PRÓXIMA ─────────────────────────────────────── */
 #cirurgia-proxima-bar {
     display: flex; align-items: center; justify-content: space-between;
@@ -19998,34 +19966,10 @@ html[data-theme="dark"] .btn-dark-mode { background: rgba(75,180,210,0.15) !impo
 (function() {
 'use strict';
 
-// ─── 1. DARK MODE ─────────────────────────────────────────────────
-window.toggleDarkMode = function() {
-    const html = document.documentElement;
-    const isDark = html.getAttribute('data-theme') === 'dark';
-    const novo = isDark ? 'light' : 'dark';
-    html.setAttribute('data-theme', novo);
-    localStorage.setItem('gf-theme', novo);
-    const icon = document.getElementById('dark-mode-icon');
-    const lbl = document.getElementById('dark-mode-label');
-    if (icon) icon.textContent = isDark ? '🌙' : '☀️';
-    if (lbl) lbl.textContent = isDark ? 'Escuro' : 'Claro';
-    const btn = document.getElementById('btn-dark-mode');
-    if (btn) btn.classList.toggle('btn-dark-mode', !isDark);
-};
-
-function injetarBotaoDarkMode() {
-    if (document.getElementById('btn-dark-mode')) return;
-    const headerRight = document.querySelector('.header > div[style*="display:flex"]');
-    if (!headerRight) return;
-    const btn = document.createElement('button');
-    btn.id = 'btn-dark-mode';
-    const saved = localStorage.getItem('gf-theme') || 'light';
-    btn.style.cssText = 'display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:10px;color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.06em;transition:all 0.2s;';
-    btn.innerHTML = `<span id="dark-mode-icon">${saved === 'dark' ? '☀️' : '🌙'}</span><span id="dark-mode-label">${saved === 'dark' ? 'Claro' : 'Escuro'}</span>`;
-    btn.onclick = window.toggleDarkMode;
-    headerRight.insertBefore(btn, headerRight.firstChild);
-    document.documentElement.setAttribute('data-theme', saved);
-}
+// Tema escuro removido — força claro pra quem tinha ficado com a
+// preferência salva de uma visita anterior.
+localStorage.removeItem('gf-theme');
+document.documentElement.removeAttribute('data-theme');
 
 // ─── 2. FAIXA ALERTA CIRURGIA PRÓXIMA ────────────────────────────
 function injetarBarraCirurgiaProxima() {
@@ -20173,7 +20117,6 @@ window.updateStats = function() {
 
 // ─── INIT ─────────────────────────────────────────────────────────
 function init() {
-    injetarBotaoDarkMode();
     injetarBarraCirurgiaProxima();
     injetarBotaoCSV();
 }
