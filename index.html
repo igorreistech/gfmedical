@@ -10830,6 +10830,8 @@ function _nomeOperadorLembrete() {
 }
 
 function verificarLembreteCobrancaDiario() {
+    if (document.getElementById('modalLembreteCobrancaDiaria')) return; // já está na tela, não duplica
+
     const agora = new Date();
     const horaAtual = agora.getHours();
     const hoje = todayStr();
@@ -10845,8 +10847,8 @@ function verificarLembreteCobrancaDiario() {
     const pendFicha = procedimentos.filter(p => !_ehColeta(p) && p.status === 'aguardando_ficha_opme').length;
     if (pendRetirada === 0 && pendFicha === 0) return;
 
-    localStorage.setItem(chave, '1');
-
+    // Bloqueante de propósito: sem "Depois" e sem X pra fechar. Só sai clicando
+    // em "Cobrar Agora" (abre o WhatsApp) e depois confirmando "Já enviei".
     const overlay = document.createElement('div');
     overlay.id = 'modalLembreteCobrancaDiaria';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px;';
@@ -10857,18 +10859,22 @@ function verificarLembreteCobrancaDiario() {
                 (pendRetirada > 0 ? '📦 <strong>' + pendRetirada + '</strong> pendência(s) de Aguardando Retirada<br>' : '') +
                 (pendFicha > 0 ? '📋 <strong>' + pendFicha + '</strong> ficha(s) OPME pendente(s)' : '') +
             '</div>' +
+            '<div style="font-family:var(--mono);font-size:0.72rem;color:var(--text-dim,#6b7280);margin-bottom:14px;">Envie a cobrança antes de continuar.</div>' +
             '<div style="display:flex;gap:10px;">' +
                 '<button id="btnLembreteCobrarAgora" style="flex:1;padding:13px;border-radius:10px;border:2px solid #25D366;background:#25D366;color:#fff;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">💬 Cobrar Agora</button>' +
-                '<button id="btnLembreteDepois" style="padding:13px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-dim,#6b7280);font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">Depois</button>' +
+                '<button id="btnLembreteJaCobrei" style="display:none;flex:1;padding:13px;border-radius:10px;border:2px solid #25D366;background:#25D366;color:#fff;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">✅ Já enviei</button>' +
             '</div>' +
         '</div>';
     document.body.appendChild(overlay);
-    const fechar = () => overlay.remove();
-    overlay.querySelector('#btnLembreteDepois').onclick = fechar;
     overlay.querySelector('#btnLembreteCobrarAgora').onclick = () => {
-        fechar();
         var texto = 'Olá! Lembrete diário: hoje tem ' + pendRetirada + ' pendência(s) de Aguardando Retirada e ' + pendFicha + ' ficha(s) OPME pendente(s). Por favor, providencie a cobrança o quanto antes. Qualquer dúvida, me chama!';
         window.open('https://api.whatsapp.com/send?phone=' + NUMERO_COBRANCA_DIARIA + '&text=' + encodeURIComponent(texto), '_blank');
+        overlay.querySelector('#btnLembreteCobrarAgora').style.display = 'none';
+        overlay.querySelector('#btnLembreteJaCobrei').style.display = 'block';
+    };
+    overlay.querySelector('#btnLembreteJaCobrei').onclick = () => {
+        localStorage.setItem(chave, '1');
+        overlay.remove();
     };
 }
 
