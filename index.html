@@ -4498,6 +4498,10 @@ html.modo-demo .header-logo-bg{display:none!important}
 html.modo-demo .login-logo-img{display:none!important}
 html.modo-demo .marca-gf-brand{display:none!important}
 html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.55em;font-weight:600;opacity:0.65;text-transform:none;letter-spacing:normal}
+/* Demo: só o botão de demonstração. Produção: só o login normal. */
+html.modo-demo #loginForm .login-group,
+html.modo-demo #loginForm #loginBtn{display:none!important}
+html:not(.modo-demo) #loginBtnDemo{display:none!important}
 .header-text h1{color:#2a9fbf!important;-webkit-text-fill-color:#2a9fbf!important}
 .header-text p{font-size:.82rem!important;letter-spacing:.12em!important;line-height:1.35!important;color:#56a884!important;max-width:560px}
 .header > div:last-child{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:14px!important;flex-wrap:wrap!important}
@@ -8854,21 +8858,31 @@ function _resolverNomeOperador(nome, callback) {
     callback(nome);
 }
 
+// Seletor (dropdown) em vez de um botão por nome — evita expor a lista
+// inteira de operadores na tela pra quem estiver por perto olhando.
 window.pedirIdentificacaoComercial = function() {
     return new Promise(resolve => {
         const overlay = document.getElementById('identComercialOverlay');
         const lista = document.getElementById('identComercialNomes');
         if (!overlay || !lista) { resolve(null); return; }
-        lista.innerHTML = NOMES_OPERADOR_CG.map(nome => {
-            const label = nome;
-            return `<button type="button" class="login-btn" style="margin-top:0;text-transform:none;font-size:0.95rem;" onclick="window._resolverIdentComercial('${nome}')">${label}</button>`;
-        }).join('');
+        lista.innerHTML =
+            '<select id="selIdentComercial" class="login-input" style="width:100%;">' +
+                '<option value="">Selecione seu nome</option>' +
+                NOMES_OPERADOR_CG.map(nome => `<option value="${nome}">${nome}</option>`).join('') +
+            '</select>' +
+            '<button type="button" class="login-btn" style="margin-top:10px;" id="btnConfirmarIdentComercial">Entrar</button>';
         window._resolverIdentComercial = function(nome) {
             if (nome === null) { overlay.classList.add('hidden'); resolve(null); return; }
             _resolverNomeOperador(nome, nomeFinal => {
                 overlay.classList.add('hidden');
                 resolve(nomeFinal);
             });
+        };
+        const btnConfirmar = document.getElementById('btnConfirmarIdentComercial');
+        const selNome = document.getElementById('selIdentComercial');
+        btnConfirmar.onclick = () => {
+            if (!selNome.value) { selNome.focus(); return; }
+            window._resolverIdentComercial(selNome.value);
         };
         overlay.classList.remove('hidden');
     });
@@ -8887,6 +8901,7 @@ function cancelarNomeOp() {
 }
 
 function selecionarNomeOp(nome) {
+    if (!nome) return;
     _resolverNomeOperador(nome, nomeFinal => {
         window._operadorNome = nomeFinal;
         document.getElementById('modalNomeOp').classList.remove('open');
@@ -8899,11 +8914,12 @@ function openModal() {
     if (_precisaNomeOp()) {
         _pendingOpenModal = _doOpenModal;
         const lista = document.getElementById('listaNomeOperador');
-        lista.innerHTML = NOMES_OPERADOR_CG.map(nome => {
-            const sel = nome === window._operadorNome;
-            const label = nome;
-            return `<button type="button" onclick="selecionarNomeOp('${nome}')" style="padding:10px 14px;border-radius:8px;background:${sel?'rgba(75,180,210,0.12)':'var(--bg3)'};border:1.5px solid ${sel?'var(--accent)':'var(--border)'};color:var(--text);cursor:pointer;font-family:var(--mono);font-size:0.88rem;font-weight:600;text-align:left;transition:all .13s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${sel?'var(--accent)':'var(--border)'}'">${sel?'✓ ':''}${label}</button>`;
-        }).join('');
+        lista.innerHTML =
+            '<select id="selNomeOperador" class="form-select" style="width:100%;">' +
+                '<option value="">Selecione seu nome</option>' +
+                NOMES_OPERADOR_CG.map(nome => `<option value="${nome}" ${nome === window._operadorNome ? 'selected' : ''}>${nome}</option>`).join('') +
+            '</select>' +
+            '<button type="button" onclick="selecionarNomeOp(document.getElementById(\'selNomeOperador\').value)" style="margin-top:10px;width:100%;padding:10px 14px;border-radius:8px;background:var(--accent);border:none;color:#fff;cursor:pointer;font-family:var(--mono);font-size:0.88rem;font-weight:700;">Confirmar</button>';
         document.getElementById('modalNomeOp').classList.add('open');
         return;
     }
