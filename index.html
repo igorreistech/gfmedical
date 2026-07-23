@@ -10816,15 +10816,29 @@ function verificarLembreteRetirada() {
 setTimeout(verificarLembreteRetirada, 5000);
 setTimeout(atualizarBannerPendencias, 5500);
 
-// ─── LEMBRETE DIÁRIO — COBRAR VIA WHATSAPP (número fixo) ───
-// Uma vez por dia, se tiver pendência de Aguardando Retirada ou Aguardando
+// ─── LEMBRETE 2X POR DIA (8h e 14h) — COBRAR VIA WHATSAPP (número fixo) ───
+// Às 8h e às 14h, se tiver pendência de Aguardando Retirada ou Aguardando
 // Ficha OPME, sugere mandar a cobrança direto pro WhatsApp do responsável
 // (número fixo, não é o contato escolhido na hora — abre já apontado pra ele).
+// Cada operador identificado (conta comercial@ compartilhada) recebe seu
+// próprio lembrete em cada horário.
 const NUMERO_COBRANCA_DIARIA = '556784717799'; // 67 8471-7799 — Campo Grande
+const HORARIOS_LEMBRETE_COBRANCA = [8, 14];
+
+function _nomeOperadorLembrete() {
+    return window._operadorNome || (window._currentUser && (window._currentUser.nome || window._currentUser.email)) || 'geral';
+}
 
 function verificarLembreteCobrancaDiario() {
+    const agora = new Date();
+    const horaAtual = agora.getHours();
     const hoje = todayStr();
-    const chave = 'gf_lembrete_cobranca_diaria_' + hoje;
+    const operador = _nomeOperadorLembrete();
+
+    const checkpoint = HORARIOS_LEMBRETE_COBRANCA.filter(h => horaAtual >= h).pop();
+    if (checkpoint === undefined) return;
+
+    const chave = 'gf_lembrete_cobranca_' + hoje + '_' + operador + '_' + checkpoint + 'h';
     if (localStorage.getItem(chave)) return;
 
     const pendRetirada = procedimentos.filter(p => !_ehColeta(p) && p.status === 'a_retirar').length;
@@ -10859,6 +10873,7 @@ function verificarLembreteCobrancaDiario() {
 }
 
 setTimeout(verificarLembreteCobrancaDiario, 6000);
+setInterval(verificarLembreteCobrancaDiario, 5 * 60 * 1000); // rechecagem a cada 5min, pra pegar 8h/14h com a aba já aberta
 
 // ─── INIT ───
 // Dados carregados pelo onSnapshot do Supabase acima
