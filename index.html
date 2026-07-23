@@ -51,7 +51,7 @@
         const labels = {
           a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
           agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
-          reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
+          reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',
           urgencia:'URGÊNCIA', coleta_urgente:'Coleta Prioritária'
         };
         const de   = labels[statusAnterior] || statusAnterior;
@@ -72,7 +72,7 @@
         const labels = {
           a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
           agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
-          reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
+          reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',
           urgencia:'URGÊNCIA', coleta_urgente:'Coleta Prioritária'
         };
         // Push notification
@@ -144,6 +144,7 @@
           { key:'em_transito',    label:'🚚 Em Trânsito',         cor:'#8b5cf6' },
           { key:'andamento',      label:'🔬 Em Procedimento',     cor:'#10b981' },
           { key:'a_retirar',      label:'📦 A Retirar',           cor:'#f97316' },
+          { key:'aguardando_ficha_opme', label:'📋 Aguard. Ficha OPME', cor:'#a855f7' },
           { key:'reagendado',     label:'↺ Reagendados',          cor:'#a78bfa' },
           { key:'concluido',      label:'✅ Concluídos',          cor:'#22c55e' },
           { key:'cancelado',      label:'❌ Cancelados',           cor:'#6b7280' },
@@ -285,7 +286,7 @@
         if (!listaEl) return;
         const dados = window.procedimentos || [];
         const meus = dados.filter(p => p.cadastradoPor === window._currentUser.uid);
-        const labels = { agendado:'Agendado', preparacao:'Em Separação', em_transito:'Em Trânsito', andamento:'Em Procedimento', concluido:'Concluído', a_agendar:'Autorizado', a_retirar:'Aguardando Retirada', cancelado:'Cancelado' };
+        const labels = { agendado:'Agendado', preparacao:'Em Separação', em_transito:'Em Trânsito', andamento:'Em Procedimento', concluido:'Concluído', a_agendar:'Autorizado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', cancelado:'Cancelado' };
         listaEl.innerHTML = meus.length === 0
           ? '<div class="agendador-empty">Nenhuma cirurgia cadastrada ainda.</div>'
           : `<table class="agendador-table"><thead><tr><th>Paciente</th><th>Hospital</th><th>Cirurgião</th><th>Data</th><th>Status</th><th></th></tr></thead><tbody>${
@@ -325,13 +326,22 @@
           ov.remove();
           const idx = window.procedimentos.findIndex(p => p._docId === docId);
           if (idx === -1) return;
-          mostrarChecklist(window.procedimentos[idx], 'concluido', async () => {
-            window.procedimentos[idx].status = 'concluido';
+          const fichaEntregue = window.perguntarFichaOpmeEntregue ? await window.perguntarFichaOpmeEntregue(window.procedimentos[idx]) : 'sim';
+          const salvarAgendador = async () => {
             window.renderAgendadorLista();
             const { doc: docFn, setDoc: sd } = window._fbModules;
             try { await sd(docFn(window._fbDb, window._fbColl, docId), { ...window.procedimentos[idx] }); }
             catch(e) { alert('Erro ao confirmar: ' + e.message); }
-          }, {blocking:false});
+          };
+          if (fichaEntregue === 'sim') {
+            mostrarChecklist(window.procedimentos[idx], 'concluido', async () => {
+              window.procedimentos[idx].status = 'concluido';
+              await salvarAgendador();
+            }, {blocking:false});
+          } else {
+            window.procedimentos[idx].status = 'aguardando_ficha_opme';
+            await salvarAgendador();
+          }
         };
       };
 
@@ -609,7 +619,7 @@
                 }
 
                 // NF emitida no mesmo dia da cirurgia (sem janela de trânsito) → Em Procedimento direto
-                if (!['andamento','a_retirar','concluido','cancelado','urgencia','coleta_urgente'].includes(p.status)
+                if (!['andamento','a_retirar','aguardando_ficha_opme','concluido','cancelado','urgencia','coleta_urgente'].includes(p.status)
                     && p.data && p.nfData && p.nfData === p.data && p.data <= hoje) {
                   const statusAnterior = p.status;
                   p.status = 'andamento';
@@ -620,6 +630,14 @@
                 if (p.status === 'em_transito' && (!p.nf || !p.nf.trim())) {
                   p.status = 'preparacao';
                   autoTransitar(p, 'em_transito');
+                }
+
+                // Agendado + NF já emitida → Em Trânsito direto, independente de quantos
+                // dias faltam pra cirurgia (a NF emitida já indica que o material foi
+                // despachado, não precisa esperar a véspera pra promover o status).
+                if (p.status === 'agendado' && p.nf && p.nf.trim()) {
+                  p.status = 'em_transito';
+                  autoTransitar(p, 'agendado');
                 }
 
                 // Agendado: véspera (D-1, aviso antecipado) OU data já chegou/passou
@@ -646,7 +664,7 @@
                 // Data de retirada já chegou ou passou → Aguardando Retirada (automático,
                 // recupera atraso independente de qual status intermediário o registro
                 // estava parado)
-                if (!['a_retirar','concluido','cancelado','urgencia','coleta_urgente'].includes(p.status)
+                if (!['a_retirar','aguardando_ficha_opme','concluido','cancelado','urgencia','coleta_urgente'].includes(p.status)
                     && (p.retirada || p.dataRetirar) && (p.retirada || p.dataRetirar) <= hoje) {
                   const prev = p.status;
                   p.status = 'a_retirar';
@@ -4548,7 +4566,6 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
         <div class="login-logo">⬡ GF Medical</div>
         <div class="login-sub">Quem está operando agora?</div>
         <div id="identComercialNomes" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
-        <div style="margin-top:12px;"><button class="login-toggle-link" onclick="window._resolverIdentComercial(null)">Não está na lista (modo completo)</button></div>
     </div>
 </div>
 
@@ -4767,6 +4784,10 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
             <div class="stat-label">📦 A Retirar</div>
             <div class="stat-value" id="stat-a_retirar">0</div>
         </div>
+        <div class="stat-card" id="stat-card-aguardando_ficha_opme" style="border-top:3px solid #a855f7;">
+            <div class="stat-label">📋 Aguard. Ficha OPME</div>
+            <div class="stat-value" id="stat-aguardando_ficha_opme">0</div>
+        </div>
         <div class="stat-card" id="stat-card-coleta_urgente" style="border-top:3px solid #6366f1;">
             <div class="stat-label">✈️ Coleta Prioritária</div>
             <div class="stat-value" id="stat-coleta_urgente">0</div>
@@ -4824,6 +4845,7 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
         <button class="filter-btn" data-filter="reagendado">Reagendados</button>
         <button class="filter-btn" data-filter="reagendado_vencido" style="color:#ef4444;border-color:rgba(239,68,68,0.5);">↺ Atrasados</button>
         <button class="filter-btn" data-filter="a_retirar">📦 Aguardando Retirada</button>
+        <button class="filter-btn" data-filter="aguardando_ficha_opme">📋 Aguardando Ficha OPME</button>
         <button class="filter-btn" data-filter="urgencia" style="color:#ff3333;border-color:rgba(255,0,0,0.5);">🚨 Urgência</button>
         <input class="search-box" type="text" id="searchBox" placeholder="Buscar hospital, médico, paciente, NF...">
         <div id="vendedor-filter-wrap">
@@ -4867,7 +4889,7 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
             </select>
         </div>
         <button class="btn-export" onclick="openExportModal()">⬇ Exportar Excel</button>
-        <button onclick="exportarWhatsApp()" style="padding:8px 18px;border-radius:10px;background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;cursor:pointer;">💬 Cobrar via WhatsApp</button>
+        <button onclick="abrirCobrarWhatsApp()" style="padding:8px 18px;border-radius:10px;background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;cursor:pointer;">💬 Cobrar via WhatsApp</button>
         <button id="btn-nova-cirurgia" class="btn-add" onclick="openModal()" style="display:none;"></button>
         <button id="btn-nova-coleta" class="btn-add" onclick="openModalVolumes()" style="display:none;"></button>
     </div>
@@ -4879,6 +4901,7 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
         <button class="view-tab" id="tab-dashboard" onclick="switchView('dashboard')">📊 Dashboard</button>
         <button class="view-tab" id="tab-coleta" onclick="switchView('coleta')" style="color:#818cf8;border-color:rgba(99,102,241,0.5);">✈️ Coleta Prioritária</button>
         <button class="view-tab" id="tab-opme" onclick="window.open('fichas-opme.html','_blank')" style="color:#f59e0b;border-color:rgba(245,158,11,0.5);">📋 Fichas OPME</button>
+        <button class="view-tab" id="tab-atividade" onclick="switchView('atividade')" style="color:#4db87a;border-color:rgba(77,184,122,0.5);">🕐 Atividade</button>
         <button id="btn-toggle-ocultos" onclick="toggleOcultos()" style="margin-left:auto;padding:7px 14px;background:rgba(107,114,128,0.12);border:1.5px solid rgba(107,114,128,0.35);color:#6b7280;border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.05em;transition:all 0.2s;" title="Mostrar/ocultar Concluídos e Cancelados">👁 Ocultos</button>
     </div>
 
@@ -4893,6 +4916,15 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
 
     <div id="timeline-view" style="display:none;">
         <div class="timeline-container" id="timelineContainer"></div>
+    </div>
+
+    <!-- ATIVIDADE: quem lançou o quê e quando (cirurgia, coleta, ficha OPME) -->
+    <div id="atividade-view" style="display:none;padding:16px 0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div style="font-family:var(--mono);font-size:0.78rem;color:var(--text-dim);">Últimos lançamentos — cirurgia, coleta e ficha OPME</div>
+            <button class="btn-act" style="background:rgba(77,184,122,0.1);border-color:var(--accent2);color:var(--accent2);" onclick="renderAtividade(true)">🔄 Atualizar</button>
+        </div>
+        <div id="atividade-lista"></div>
     </div>
 
     <!-- BLACK EXECUTIVE OPS VIEW -->
@@ -5572,6 +5604,7 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
                         <option value="cancelado">Cancelado</option>
                         <option value="reagendado">Reagendado</option>
                         <option value="a_retirar">Aguardando Retirada</option>
+                        <option value="aguardando_ficha_opme">📋 Aguardando Ficha OPME</option>
                         <option value="urgencia">🚨 URGÊNCIA</option>
                         <option value="coleta_urgente">✈️ Coleta Prioritária</option>
                     </select>
@@ -6015,12 +6048,19 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
                 </div>
 
                 <div class="form-group full" id="g-outro-medico" style="display:none;">
-                    <label class="form-label">Nome do Médico (não cadastrado)</label>
+                    <label class="form-label">Nome do Médico (não cadastrado) *</label>
                     <input class="form-input" id="f-outro-medico" placeholder="Digite o nome completo do médico" autocomplete="off">
                 </div>
 
+                <div class="form-group full" id="g-operador">
+                    <label class="form-label">Nome do Operador *</label>
+                    <select class="form-select" id="f-operador" required>
+                        <option value="">Selecione quem está lançando</option>
+                    </select>
+                </div>
+
                 <div class="form-group">
-                    <label class="form-label">Nome do Paciente</label>
+                    <label class="form-label">Nome do Paciente *</label>
                     <input class="form-input" id="f-paciente" placeholder="Nome completo do paciente">
                 </div>
 
@@ -6031,6 +6071,9 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
 
                 <div class="form-group full">
                     <label class="form-label">Procedimento</label>
+                    <select class="form-select" id="f-procedimento-sugestoes" onchange="if(this.value){ document.getElementById('f-procedimento').value = this.value; }" style="margin-bottom:8px;">
+                        <option value="">Sugestões (selecione o Tipo de Cirurgia)</option>
+                    </select>
                     <textarea class="form-textarea" id="f-procedimento" placeholder="Descreva o procedimento"></textarea>
                 </div>
 
@@ -6044,13 +6087,33 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
                         <option>Bradesco Saúde</option>
                         <option>Amil</option>
                         <option>SulAmérica</option>
-                        <option>Cassems</option>
+                        <option>NotreDame Intermédica</option>
+                        <option>Porto Seguro Saúde</option>
+                        <option>Golden Cross</option>
+                        <option>Prevent Senior</option>
+                        <option>Allianz Saúde</option>
+                        <option>Omint</option>
+                        <option>Care Plus</option>
+                        <option>Assim Saúde</option>
+                        <option>São Cristóvão Saúde</option>
+                        <option>Trasmontano</option>
+                        <option>Ameplan</option>
+                        <option>Sompo Saúde</option>
+                        <option>One Health</option>
+                        <option>Blue Life</option>
+                        <option>Santa Helena Saúde</option>
+                        <option>Biovida Saúde</option>
+                        <option>CASSI</option>
+                        <option>Postal Saúde</option>
+                        <option>Petrobras (AMS)</option>
                         <option>Hapvida</option>
+                        <option>Cassems</option>
                         <option>Impcg</option>
                         <option>MT Saúde</option>
                         <option>Geap</option>
                         <option>SES</option>
                         <option>UFMS</option>
+                        <option>IPASGO</option>
                         <option>Particular</option>
                         <option value="__outro">Outro...</option>
                     </select>
@@ -6084,8 +6147,36 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
                         <option value="Urologia">Urologia</option>
                         <option value="Nefro">Nefro</option>
                         <option value="Biópsia">Biópsia</option>
+                        <option value="Ortopédica">Ortopédica</option>
+                        <option value="Traumatológica">Traumatológica</option>
+                        <option value="Cirurgia Geral">Cirurgia Geral</option>
+                        <option value="Vascular">Vascular</option>
+                        <option value="Torácica">Torácica</option>
+                        <option value="Cardiovascular">Cardiovascular</option>
+                        <option value="Oncológica">Oncológica</option>
+                        <option value="Bariátrica">Bariátrica</option>
+                        <option value="Aparelho Digestivo">Aparelho Digestivo</option>
+                        <option value="Coloproctológica">Coloproctológica</option>
+                        <option value="Ginecológica">Ginecológica</option>
+                        <option value="Obstétrica">Obstétrica</option>
+                        <option value="Mastologia">Mastologia</option>
+                        <option value="Plástica">Plástica</option>
+                        <option value="Oftalmológica">Oftalmológica</option>
+                        <option value="Otorrinolaringológica">Otorrinolaringológica</option>
+                        <option value="Cabeça e Pescoço">Cabeça e Pescoço</option>
+                        <option value="Bucomaxilofacial">Bucomaxilofacial</option>
+                        <option value="Pediátrica">Pediátrica</option>
+                        <option value="Cirurgia da Mão">Cirurgia da Mão</option>
+                        <option value="Dermatológica">Dermatológica</option>
+                        <option value="Transplante">Transplante</option>
                         <option value="Outros">Outros</option>
+                        <option value="__outro">Outro (digitar)...</option>
                     </select>
+                </div>
+
+                <div class="form-group" id="g-outro-tipo-cirurgia" style="display:none;">
+                    <label class="form-label">Nome do Tipo de Cirurgia</label>
+                    <input class="form-input" id="f-outro-tipo-cirurgia" placeholder="Digite o tipo de cirurgia">
                 </div>
 
                 <div class="form-group" id="g-outro-conv" style="display:none;">
@@ -6104,6 +6195,27 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
                         <option value="Linha Nefro">Linha Nefro</option>
                         <option value="Linha Periferica">Linha Periferica</option>
                         <option value="Linha Urologia">Linha Urologia</option>
+                        <option value="Linha Neuro">Linha Neuro</option>
+                        <option value="Linha Ortopédica">Linha Ortopédica</option>
+                        <option value="Linha Vascular">Linha Vascular</option>
+                        <option value="Linha Torácica">Linha Torácica</option>
+                        <option value="Linha Oncológica">Linha Oncológica</option>
+                        <option value="Linha Bariátrica">Linha Bariátrica</option>
+                        <option value="Linha Geral">Linha Geral</option>
+                        <option value="Linha Aparelho Digestivo">Linha Aparelho Digestivo</option>
+                        <option value="Linha Coloproctológica">Linha Coloproctológica</option>
+                        <option value="Linha Ginecológica">Linha Ginecológica</option>
+                        <option value="Linha Obstétrica">Linha Obstétrica</option>
+                        <option value="Linha Mastologia">Linha Mastologia</option>
+                        <option value="Linha Plástica">Linha Plástica</option>
+                        <option value="Linha Oftalmológica">Linha Oftalmológica</option>
+                        <option value="Linha Otorrinolaringológica">Linha Otorrinolaringológica</option>
+                        <option value="Linha Cabeça e Pescoço">Linha Cabeça e Pescoço</option>
+                        <option value="Linha Bucomaxilofacial">Linha Bucomaxilofacial</option>
+                        <option value="Linha Pediátrica">Linha Pediátrica</option>
+                        <option value="Linha Cirurgia da Mão">Linha Cirurgia da Mão</option>
+                        <option value="Linha Dermatológica">Linha Dermatológica</option>
+                        <option value="Linha Transplante">Linha Transplante</option>
                     </select>
                 </div>
 
@@ -7024,42 +7136,207 @@ async function _abrirWhatsApp(texto) {
 }
 
 // ─── EXPORTAR WHATSAPP — aguardando retirada ───
-async function exportarWhatsApp() {
+// Nome de quem está disparando a cobrança — pra deixar claro no WhatsApp
+// quem do time está cobrando aquela pendência.
+function _nomeOperadorCobranca() {
+    return window._operadorNome || (window._currentUser && window._currentUser.nome) || (window._currentUser && window._currentUser.email) || 'Equipe GF Medical';
+}
+
+// ─── ESCOLHA DO QUE COBRAR — botão principal da barra ───
+window.abrirCobrarWhatsApp = function() {
+    const antigo = document.getElementById('modalEscolhaCobrar');
+    if (antigo) antigo.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'modalEscolhaCobrar';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px;';
+    overlay.innerHTML =
+        '<div style="background:var(--surface,#fff);border:1px solid var(--border);border-top:4px solid #25D366;border-radius:16px;padding:28px 26px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.35);">' +
+            '<div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;letter-spacing:0.08em;color:#25D366;text-transform:uppercase;margin-bottom:18px;">💬 Cobrar via WhatsApp</div>' +
+            '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:0.92rem;color:var(--text,#111);margin-bottom:18px;">O que você quer cobrar?</div>' +
+            '<div style="display:flex;flex-direction:column;gap:10px;">' +
+                '<button id="btnCobrarSoRetirada" style="padding:13px;border-radius:10px;border:2px solid #f97316;background:transparent;color:#f97316;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">📦 Só Aguardando Retirada</button>' +
+                '<button id="btnCobrarSoFicha" style="padding:13px;border-radius:10px;border:2px solid #a855f7;background:transparent;color:#a855f7;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">📋 Só Ficha OPME</button>' +
+                '<button id="btnCobrarAmbos" style="padding:13px;border-radius:10px;border:2px solid #25D366;background:#25D366;color:#fff;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">📦📋 Os Dois Juntos</button>' +
+                '<button id="btnCobrarCancelar" style="padding:10px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-dim,#6b7280);font-family:var(--mono);font-size:0.78rem;font-weight:700;cursor:pointer;">Cancelar</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    const fechar = () => overlay.remove();
+    overlay.querySelector('#btnCobrarSoRetirada').onclick = () => { fechar(); exportarWhatsApp('retirada'); };
+    overlay.querySelector('#btnCobrarSoFicha').onclick = () => { fechar(); exportarWhatsApp('ficha'); };
+    overlay.querySelector('#btnCobrarAmbos').onclick = () => { fechar(); exportarWhatsApp(); };
+    overlay.querySelector('#btnCobrarCancelar').onclick = fechar;
+};
+
+async function exportarWhatsApp(filtro) {
     await verificarPromocaoRetirada();
 
-    var fmt = function(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—'; };
+    var fmt = function(d) {
+        if (!d) return '—';
+        var s = String(d);
+        var dt = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T00:00:00') : new Date(s);
+        return isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('pt-BR');
+    };
 
-    var cirurgias = procedimentos.filter(function(p) {
+    var cirurgias = filtro === 'ficha' ? [] : procedimentos.filter(function(p) {
         if (_ehColeta(p) || p.isColeta) return false;
         return p.status === 'a_retirar';
     });
     cirurgias.sort(function(a,b) { return (a.retirada||'').localeCompare(b.retirada||''); });
 
-    if (cirurgias.length === 0) {
-        alert('✅ Sem pendências!\n\nNenhum material aguardando retirada.');
+    var fichasPendentes = filtro === 'retirada' ? [] : procedimentos.filter(function(p) {
+        if (_ehColeta(p) || p.isColeta) return false;
+        return p.status === 'aguardando_ficha_opme';
+    });
+    fichasPendentes.sort(function(a,b) { return (a.dataConfirmacaoRetirada||'').localeCompare(b.dataConfirmacaoRetirada||''); });
+
+    if (cirurgias.length === 0 && fichasPendentes.length === 0) {
+        alert('✅ Sem pendências!\n\nNenhum material aguardando retirada e nenhuma ficha OPME pendente.');
         return;
     }
 
     var linhas = [];
-    linhas.push('Olá! 😊');
-    linhas.push('Segue as pendências de *Monitor Cirúrgico* que ainda não foram devolvidos ao estoque:');
-    cirurgias.forEach(function(p) {
+    linhas.push('Olá! ');
+    linhas.push('Segue as pendências do *Monitor Cirúrgico*:');
+
+    if (cirurgias.length > 0) {
+        linhas.push('');
+        linhas.push('*AGUARDANDO RETIRADA* (material ainda não devolvido ao estoque)');
+        cirurgias.forEach(function(p) {
+            linhas.push('');
+            linhas.push('---');
+            linhas.push('*Paciente:* ' + (p.paciente || '—'));
+            linhas.push('*Hospital:* ' + (p.hospital || '—'));
+            linhas.push('*Nº da Nota Fiscal:* ' + (p.nf || '—'));
+            linhas.push('*Vendedor:* ' + (p.vendedor || '—'));
+            linhas.push('*Data de Cirurgia:* ' + fmt(p.data));
+            linhas.push('*Data de retirada:* ' + fmt(p.retirada));
+        });
         linhas.push('');
         linhas.push('---');
-        linhas.push('👤 *Paciente:* ' + (p.paciente || '—'));
-        linhas.push('🏥 *Hospital:* ' + (p.hospital || '—'));
-        linhas.push('🧾 *Nº da Nota Fiscal:* ' + (p.nf || '—'));
-        linhas.push('🙍 *Vendedor:* ' + (p.vendedor || '—'));
-        linhas.push('📅 *Data de retirada:* ' + fmt(p.retirada));
-    });
+        linhas.push('Total: *' + cirurgias.length + ' pendência(s) de retirada*');
+        linhas.push('');
+        linhas.push('Por favor, providencie a devolução o quanto antes para garantir a disponibilidade dos produtos no estoque.');
+        linhas.push('Qualquer dúvida, é só me chamar! 🙏');
+    }
+
+    if (fichasPendentes.length > 0) {
+        linhas.push('');
+        linhas.push('*AGUARDANDO FICHA OPME* (material já retirado, falta entregar a ficha ao estoque)');
+        fichasPendentes.forEach(function(p) {
+            linhas.push('');
+            linhas.push('---');
+            linhas.push('*Paciente:* ' + (p.paciente || '—'));
+            linhas.push('*Hospital:* ' + (p.hospital || '—'));
+            linhas.push('*Nº da Nota Fiscal:* ' + (p.nf || '—'));
+            linhas.push('*Vendedor:* ' + (p.vendedor || '—'));
+            linhas.push('*Data de Cirurgia:* ' + fmt(p.data));
+            linhas.push('*Data de devolução:* ' + (p.dataConfirmacaoRetirada ? fmt(p.dataConfirmacaoRetirada) : '(quando a devolução ocorrer)'));
+        });
+        linhas.push('');
+        linhas.push('---');
+        linhas.push('Total: *' + fichasPendentes.length + ' ficha(s) OPME pendente(s)*');
+        linhas.push('');
+        linhas.push('Poderia providenciar a entrega da ficha do OPME o quanto antes? É pra garantir a laudação com o convênio e o faturamento com o cliente no prazo.');
+    }
+
     linhas.push('');
-    linhas.push('---');
-    linhas.push('Por favor, providencie a devolução o quanto antes para garantir a disponibilidade dos produtos no estoque.');
-    linhas.push('Qualquer dúvida, é só me chamar! 🙏');
+    linhas.push('Cobrança de: *' + _nomeOperadorCobranca() + '*');
 
     _abrirWhatsApp(linhas.join('\n'));
 }
 
+// ─── COBRANÇA INDIVIDUAL — Aguardando Retirada / Aguardando Ficha OPME ───
+window.cobrarIndividualWhatsApp = async function(docId) {
+    const p = procedimentos.find(x => (x._docId || String(x.id)) === String(docId));
+    if (!p) return;
+
+    const fmt = function(d) {
+        if (!d) return '—';
+        var s = String(d);
+        var dt = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T00:00:00') : new Date(s);
+        return isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('pt-BR');
+    };
+    const isFicha = p.status === 'aguardando_ficha_opme';
+
+    const linhas = [];
+    linhas.push(isFicha
+        ? 'Olá! Poderia providenciar a entrega da ficha do OPME o quanto antes? É pra garantir a laudação com o convênio e o faturamento com o cliente no prazo. Qualquer dúvida, me chama!'
+        : 'Olá! Por favor, providencie a devolução/entrega o quanto antes para garantir a disponibilidade dos produtos no estoque.');
+    linhas.push('');
+    linhas.push(isFicha
+        ? '📋 *AGUARDANDO FICHA OPME* (material já retirado, falta entregar a ficha ao estoque)'
+        : '📦 *AGUARDANDO RETIRADA* (material ainda não devolvido ao estoque)');
+    linhas.push('---');
+    linhas.push('👤 *Paciente:* ' + (p.paciente || '—'));
+    linhas.push('🏥 *Hospital:* ' + (p.hospital || '—'));
+    linhas.push('🧾 *Nº da Nota Fiscal:* ' + (p.nf || '—'));
+    linhas.push('🙍 *Vendedor:* ' + (p.vendedor || '—'));
+    linhas.push('📅 *Data de Cirurgia:* ' + fmt(p.data));
+    linhas.push(isFicha
+        ? '📅 *Data de devolução:* ' + (p.dataConfirmacaoRetirada ? fmt(p.dataConfirmacaoRetirada) : '(quando a devolução ocorrer)')
+        : '📅 *Data de retirada:* ' + fmt(p.retirada));
+    linhas.push('---');
+    linhas.push('');
+    linhas.push('Cobrança de: *' + _nomeOperadorCobranca() + '*');
+
+    _abrirWhatsApp(linhas.join('\n'));
+};
+
+
+// ─── PERGUNTA: A FICHA OPME FOI ENTREGUE AO ESTOQUE? ───
+// Disparada sempre que o material físico é confirmado como retirado — se a
+// ficha ainda não foi entregue, o registro fica no novo status "Aguardando
+// Ficha OPME" em vez de ir direto para Concluído, pra não perder o rastro
+// de que falta cobrar a ficha de volta.
+window.perguntarFichaOpmeEntregue = function(proc) {
+    const antigo = document.getElementById('modalConfFichaOpme');
+    if (antigo) antigo.remove();
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.id = 'modalConfFichaOpme';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px;';
+        overlay.innerHTML =
+            '<div style="background:var(--surface,#fff);border:1px solid var(--border);border-top:4px solid #a855f7;border-radius:16px;padding:28px 26px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.35);">' +
+                '<div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;letter-spacing:0.08em;color:#a855f7;text-transform:uppercase;margin-bottom:18px;">📋 Ficha OPME</div>' +
+                '<div style="margin-bottom:18px;padding:12px 14px;background:rgba(168,85,247,0.06);border-radius:10px;border:1px solid rgba(168,85,247,0.2);">' +
+                    '<div style="font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:0.95rem;color:var(--text,#111);margin-bottom:4px;">' + (proc.paciente||'—') + '</div>' +
+                    '<div style="font-family:var(--mono);font-size:0.73rem;color:var(--text-dim,#6b7280);">' + (proc.hospital||'—') + '</div>' +
+                '</div>' +
+                '<div style="font-family:var(--mono);font-size:0.78rem;color:var(--text-dim,#6b7280);margin-bottom:14px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">A ficha OPME preenchida já foi entregue ao estoque?</div>' +
+                '<div style="display:flex;gap:10px;">' +
+                    '<button id="btnFichaOpmeSim" style="flex:1;padding:13px;border-radius:10px;border:2px solid #4db87a;background:#4db87a;color:#fff;font-family:var(--mono);font-size:0.9rem;font-weight:700;cursor:pointer;">✅ SIM</button>' +
+                    '<button id="btnFichaOpmeNao" style="flex:1;padding:13px;border-radius:10px;border:2px solid #a855f7;background:#a855f7;color:#fff;font-family:var(--mono);font-size:0.9rem;font-weight:700;cursor:pointer;">❌ NÃO</button>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        overlay.querySelector('#btnFichaOpmeSim').onclick = () => { overlay.remove(); resolve('sim'); };
+        overlay.querySelector('#btnFichaOpmeNao').onclick = () => { overlay.remove(); resolve('nao'); };
+    });
+};
+
+// ─── CONFIRMAR QUE A FICHA OPME (PENDENTE) FOI ENTREGUE ───
+// Finaliza um registro que ficou parado em "Aguardando Ficha OPME" — marca
+// como Concluído assim que a ficha chega ao estoque.
+window.confirmarFichaOpmeEntregue = async function(docId) {
+    const proc = procedimentos.find(p => (p._docId || String(p.id)) === String(docId));
+    if (!proc) return;
+    const resposta = await window.perguntarFichaOpmeEntregue(proc);
+    if (resposta === 'sim') {
+        mostrarChecklist(proc, 'concluido', async () => {
+            proc.status = 'concluido';
+            try {
+                await fbSaveProc(proc);
+                renderTable && renderTable();
+                renderCards && renderCards();
+                updateStats && updateStats();
+                showSyncToast('✅ Ficha OPME entregue — Concluído!');
+            } catch(e) { alert('Erro ao salvar: ' + e.message); }
+        }, {blocking:false});
+    } else if (resposta === 'nao') {
+        showSyncToast('📋 Ainda aguardando entrega da Ficha OPME ao estoque');
+    }
+};
 
 // ─── CONFIRMAR RETIRADA — TABELA MONITOR ───
 async function confirmarRetiradaCirurgia(docId) {
@@ -7122,13 +7399,13 @@ async function confirmarRetiradaCirurgia(docId) {
         btnNao.onclick = () => selecionar('nao');
         overlay.querySelector('#btnFecharConfCir').onclick = () => { overlay.remove(); resolve(null); };
 
-        const salvarConfirmacao = async () => {
+        const salvarConfirmacao = async (msgToast) => {
             try {
                 await fbSaveProc(proc);
                 renderTable && renderTable();
                 renderCards && renderCards();
                 updateStats && updateStats();
-                showSyncToast(escolha === 'sim' ? '✅ Retirada confirmada — Concluído!' : '📦 Material ainda não retirado — Aguardando Retirada');
+                showSyncToast(msgToast);
             } catch(e) { alert('Erro ao salvar: ' + e.message); }
             resolve(escolha);
         };
@@ -7137,15 +7414,23 @@ async function confirmarRetiradaCirurgia(docId) {
             if (!escolha) return;
             overlay.remove();
             if (escolha === 'sim') {
-                mostrarChecklist(proc, 'concluido', async () => {
-                    proc.status = 'concluido';
+                const fichaEntregue = await perguntarFichaOpmeEntregue(proc);
+                if (fichaEntregue === 'sim') {
+                    mostrarChecklist(proc, 'concluido', async () => {
+                        proc.status = 'concluido';
+                        proc.retiradaConfirmada = true;
+                        proc.dataConfirmacaoRetirada = todayStr();
+                        await salvarConfirmacao('✅ Retirada confirmada — Concluído!');
+                    }, {blocking:false});
+                } else {
+                    proc.status = 'aguardando_ficha_opme';
                     proc.retiradaConfirmada = true;
                     proc.dataConfirmacaoRetirada = todayStr();
-                    await salvarConfirmacao();
-                }, {blocking:false});
+                    await salvarConfirmacao('📋 Material retirado — Aguardando entrega da Ficha OPME ao estoque');
+                }
             } else {
                 proc.status = 'a_retirar';
-                await salvarConfirmacao();
+                await salvarConfirmacao('📦 Material ainda não retirado — Aguardando Retirada');
             }
         };
     });
@@ -7272,7 +7557,7 @@ function setVendedorFilter(val) {
 }
 
 function statusLabel(s) {
-    return { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' }[s] || s;
+    return { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' }[s] || s;
 }
 
 function renderCards() {
@@ -7373,6 +7658,10 @@ function buildCardHTML(proc) {
         // a_retirar: botão de confirmação "Retirou?"
         const retirarConfBtn = proc.status === 'a_retirar'
             ? `<button class="btn-act" style="background:rgba(249,115,22,0.15);border:1.5px solid #f97316;color:#f97316;font-weight:700;animation:pillPulseRetirar 0.8s ease-in-out infinite;" onclick="confirmarRetiradaCirurgia('${realIndex}')" title="Confirmar se o material foi retirado">📦 Retirou?</button>` : '';
+        const fichaOpmeConfBtn = proc.status === 'aguardando_ficha_opme'
+            ? `<button class="btn-act" style="background:rgba(168,85,247,0.15);border:1.5px solid #a855f7;color:#a855f7;font-weight:700;animation:pillPulseRetirar 0.8s ease-in-out infinite;" onclick="confirmarFichaOpmeEntregue('${realIndex}')" title="Confirmar se a ficha OPME foi entregue ao estoque">📋 Ficha entregue?</button>` : '';
+        const cobrarIndividualBtn = (proc.status === 'a_retirar' || proc.status === 'aguardando_ficha_opme')
+            ? `<button class="btn-act" style="background:#25d366;border-color:#25d366;color:#fff;" onclick="cobrarIndividualWhatsApp('${realIndex}')" title="Cobrar esta pendência pelo WhatsApp">💬 Cobrar</button>` : '';
         const agendarRetiradaBtn = (proc.status !== 'concluido' && proc.status !== 'cancelado' && proc.status !== 'a_retirar' && proc.status !== 'coleta_urgente')
             ? `<button class="btn-act agendar-retirada" onclick="agendarDataRetirada('${realIndex}')" title="Confirmar data de retirada">✅ Confirmar Retirada</button>` : '';
         const coletaConfRetiradaBtn = (_ehColeta(proc) && proc.status !== 'concluido' && proc.status !== 'cancelado')
@@ -7485,6 +7774,8 @@ function buildCardHTML(proc) {
                 <button class="btn-act edit" onclick="editProc('${realIndex}')">✏ Editar</button>
                 ${agendarRetiradaBtn}
                 ${retirarConfBtn}
+                ${fichaOpmeConfBtn}
+                ${cobrarIndividualBtn}
                 ${coletaConfRetiradaBtn}
                 ${retirarBtn}
                 ${coletaInfoBtn}
@@ -7608,16 +7899,27 @@ function perguntarMaterialRetirado(docId) {
         overlay.remove();
         const idx = procedimentos.findIndex(p => p._docId === docId);
         if (idx === -1) return;
-        mostrarChecklist(procedimentos[idx], 'concluido', async () => {
-            procedimentos[idx].materialRetirado = 'sim';
-            procedimentos[idx].status = 'concluido';
+        procedimentos[idx].materialRetirado = 'sim';
+        const fichaEntregue = window.perguntarFichaOpmeEntregue ? await window.perguntarFichaOpmeEntregue(procedimentos[idx]) : 'sim';
+        if (fichaEntregue === 'sim') {
+            mostrarChecklist(procedimentos[idx], 'concluido', async () => {
+                procedimentos[idx].status = 'concluido';
+                try {
+                    const { setDoc, doc } = window._fbModules;
+                    await setDoc(doc(window._fbDb, window._fbColl, docId), procedimentos[idx]);
+                    window.showSyncToast('✅ Material retirado — marcado como concluído!');
+                } catch(e) { console.error(e); }
+                renderCards(); updateStats(); updateAlerts();
+            }, {blocking:false});
+        } else {
+            procedimentos[idx].status = 'aguardando_ficha_opme';
             try {
                 const { setDoc, doc } = window._fbModules;
                 await setDoc(doc(window._fbDb, window._fbColl, docId), procedimentos[idx]);
-                window.showSyncToast('✅ Material retirado — marcado como concluído!');
+                window.showSyncToast('📋 Material retirado — Aguardando entrega da Ficha OPME ao estoque');
             } catch(e) { console.error(e); }
             renderCards(); updateStats(); updateAlerts();
-        }, {blocking:false});
+        }
     };
 
     overlay.querySelector('#btnMatNao').onclick = async () => {
@@ -7803,12 +8105,12 @@ function renderTimeline() {
     const statusColors = {
         a_agendar:'#06b6d4', agendado:'#4db87a', em_transito:'#6366f1', preparacao:'#d4920a',
         andamento:'#d94f4f', concluido:'#64748b', cancelado:'#f87171',
-        reagendado:'#a78bfa', a_retirar:'#f97316', urgencia:'#ff0000'
+        reagendado:'#a78bfa', a_retirar:'#f97316', aguardando_ficha_opme:'#a855f7', urgencia:'#ff0000'
     };
     const statusNames = {
         a_agendar:'Autorizado', agendado:'Agendado', em_transito:'Em Trânsito', preparacao:'Em Separação',
         andamento:'Em Procedimento', concluido:'Concluído', cancelado:'Cancelado',
-        reagendado:'Reagendado', a_retirar:'A Retirar', urgencia:'🚨 Urgência'
+        reagendado:'Reagendado', a_retirar:'A Retirar', aguardando_ficha_opme:'Aguard. Ficha OPME', urgencia:'🚨 Urgência'
     };
 
     const miniCards = list.length === 0
@@ -8139,7 +8441,14 @@ async function agendarDataRetirada(docId) {
     if (resposta.retornou === 'nao') {
         proc.status = 'a_retirar';
     } else {
-        await new Promise(resolve => mostrarChecklist(proc, 'concluido', () => { proc.status = 'concluido'; resolve(); }, {blocking:false}));
+        const fichaEntregue = window.perguntarFichaOpmeEntregue ? await window.perguntarFichaOpmeEntregue(proc) : 'sim';
+        if (fichaEntregue === 'sim') {
+            await new Promise(resolve => mostrarChecklist(proc, 'concluido', () => { proc.status = 'concluido'; resolve(); }, {blocking:false}));
+        } else {
+            proc.status = 'aguardando_ficha_opme';
+        }
+        proc.retiradaConfirmada = true;
+        proc.dataConfirmacaoRetirada = todayStr();
     }
     await fbSaveProc(proc);
 }
@@ -8216,10 +8525,25 @@ async function confirmarRetiradaVolumes(docId) {
     document.getElementById('btnSalvarConfColeta').onclick = async () => {
         const data = document.getElementById('inputDataConfColeta').value;
         proc.dataRetirar = data;
-        proc.status = retirou === 'sim' ? 'concluido' : 'a_retirar';
+        let msg;
+        if (retirou === 'sim') {
+            const fichaEntregue = window.perguntarFichaOpmeEntregue ? await window.perguntarFichaOpmeEntregue(proc) : 'sim';
+            if (fichaEntregue === 'sim') {
+                proc.status = 'concluido';
+                msg = '✅ Coleta concluída!';
+            } else {
+                proc.status = 'aguardando_ficha_opme';
+                msg = '📋 Material retirado — Aguardando entrega da Ficha OPME ao estoque';
+            }
+            proc.retiradaConfirmada = true;
+            proc.dataConfirmacaoRetirada = todayStr();
+        } else {
+            proc.status = 'a_retirar';
+            msg = '📦 Aguardando retirada';
+        }
         try {
             await fbSaveProc(proc);
-            showSyncToast(retirou === 'sim' ? '✅ Coleta concluída!' : '📦 Aguardando retirada');
+            showSyncToast(msg);
             fechar();
         } catch(e) {
             alert('Erro ao salvar: ' + e.message);
@@ -8414,7 +8738,31 @@ function editProc(docId) {
     if (document.getElementById('f-pacienteIdade')) document.getElementById('f-pacienteIdade').value = p.pacienteIdade || '';
     document.getElementById('f-procedimento').value = p.procedimento;
     document.getElementById('f-vendedor').value = p.vendedor;
-    if (document.getElementById('f-tipo-cirurgia')) document.getElementById('f-tipo-cirurgia').value = p.tipoCirurgia || '';
+    const selOperadorEdit = document.getElementById('f-operador');
+    if (selOperadorEdit) {
+        selOperadorEdit.innerHTML = '<option value="">Selecione quem está lançando</option>' +
+            _nomesOperadorAtivos().map(nome => `<option value="${nome}">${nome}</option>`).join('');
+        const nomeAtual = p.operadorNome || window._operadorNome || (window._currentUser && window._currentUser.nome) || '';
+        selOperadorEdit.value = [...selOperadorEdit.options].some(o => o.value === nomeAtual) ? nomeAtual : '';
+    }
+    (function() {
+        const selTC = document.getElementById('f-tipo-cirurgia');
+        const gTC = document.getElementById('g-outro-tipo-cirurgia');
+        const oTC = document.getElementById('f-outro-tipo-cirurgia');
+        if (!selTC) return;
+        const tipoOpts = Array.from(selTC.options).map(o => o.value);
+        const tipo = p.tipoCirurgia || '';
+        if (tipo && !tipoOpts.includes(tipo)) {
+            selTC.value = '__outro';
+            if (gTC) gTC.style.display = 'block';
+            if (oTC) oTC.value = tipo;
+        } else {
+            selTC.value = tipo;
+            if (gTC) gTC.style.display = 'none';
+            if (oTC) oTC.value = '';
+        }
+        if (window.atualizarSugestoesProcedimento) window.atualizarSugestoesProcedimento();
+    })();
     document.getElementById('f-linha').value = p.linha || '';
     document.getElementById('f-inicio').value = p.inicio;
     document.getElementById('f-nf').value = p.nf || '';
@@ -8472,6 +8820,9 @@ const ADMIN_OPERADORES = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Eva D
 // do <script type="module">, que não enxerga const/let de um <script>
 // clássico como identificador solto — só via window.
 window.ADMIN_OPERADORES = ADMIN_OPERADORES;
+function _nomesOperadorAtivos() {
+    return NOMES_OPERADOR_CG;
+}
 let _pendingOpenModal = null;
 
 function _resolverNomeOperador(nome, callback) {
@@ -8549,12 +8900,25 @@ function _doOpenModal() {
             selVend.value = window._operadorNome;
         }
     }
+    // Nome do Operador: obrigatório em todo lançamento. Quem já se
+    // identificou (conta comercial@ compartilhada) ou tem login próprio
+    // (nome já conhecido pelo próprio usuário) vem pré-preenchido — só quem
+    // ainda não indicou quem é precisa escolher manualmente.
+    const selOperador = document.getElementById('f-operador');
+    if (selOperador) {
+        selOperador.innerHTML = '<option value="">Selecione quem está lançando</option>' +
+            _nomesOperadorAtivos().map(nome => `<option value="${nome}">${nome}</option>`).join('');
+        const nomeConhecido = window._operadorNome || (window._currentUser && window._currentUser.nome) || '';
+        selOperador.value = [...selOperador.options].some(o => o.value === nomeConhecido) ? nomeConhecido : '';
+    }
     document.getElementById('f-data').value = todayStr();
     autoRetirada(todayStr());
     // Garante que o status seja resetado e os campos corretos apareçam
     autoStatusByDate(todayStr());
     loadItensBuilder('');
     document.getElementById('g-outro-conv').style.display = 'none';
+    const gOutroTipo = document.getElementById('g-outro-tipo-cirurgia'); if (gOutroTipo) gOutroTipo.style.display = 'none';
+    if (window.atualizarSugestoesProcedimento) window.atualizarSugestoesProcedimento();
     const sReset3 = document.getElementById('f-subgrupo3'); if(sReset3) { sReset3.innerHTML='<option value="">Selecione a linha primeiro</option>'; }
     const sReset4 = document.getElementById('f-subgrupo4'); if(sReset4) { sReset4.innerHTML='<option value="">Selecione a linha primeiro</option>'; }
     const sReset5 = document.getElementById('f-subgrupo5'); if(sReset5) { sReset5.innerHTML='<option value="">Selecione a linha primeiro</option>'; }
@@ -8593,7 +8957,26 @@ function openModalVolumes() {
 
 
 // ─── SUBGRUPOS ───
-const SUBGRUPOS_MAP = {"Linha Biopsia": ["Agulha de Biopsia Coaxial", "Agulha de Biopsia Illinois", "Agulha de Biopsia Jamishiditj", "Agulha de Biopsia Jamshidi", "Agulha de Biopsia Magnum", "Fio de Localização", "Insersor", "Inst Semi Automatico", "Instrumento Descartavel", "Kit Inst Semi Automatico", "Lubrificantes", "Marcador", "Recipiente", "Sist Biopsia de Mama", "Sonda"], "Linha Cardiaca": ["Canula Aramada", "Cirurgia Cardiaca", "Clip Cirurgia Aberta", "Clip Cirurgia Fechada", "Enxerto Bifurcado", "Enxerto EPTFE", "Enxerto Tubular Reto", "Guia de Selecao", "Kit Auto Transfusao", "Kit CEC", "Medidor", "Perfurador", "Ponteira Extensora", "Selante", "Sistema Ablação", "Sistema de Sutura", "Valvula Cardiaca"], "Linha Coronaria": ["Agulha de Biopsia", "Balao Coronario", "Cateter Angiografico", "Cateter Balao PowerLine", "Cateter Balao Rise", "Cateter Diagnostico", "Cateter Guia", "Cateter Laco de Captura", "Dispositivo de Torque", "Fio Guia", "Insuflador", "Introdutor Siliconado Femoral", "Introdutor Siliconado Radial", "Kit Introdutor Valvulado", "Manifold", "Stent", "Torneirinha", "Tubo Extensor de Pressao", "Valvula Hemoastatica"], "Linha Endovascular": ["Cateter Balao", "Endoprotese Aortica", "Endoprotese BIF E-liac", "Endoprotese CL", "Endoprotese CP", "Endoprotese Extensao Eliaca", "Endoprotese Hibrida", "Endoprotese Toracica", "Fio Guia", "Radiointervencao", "Stent"], "Linha Nefro": ["Balao Super Altra Pressao", "Cateter de Longa Permanencia", "Endoprotese Wrapsody", "Hero Graft"], "Linha Periferica": ["Agulha de Biopsia", "Bainha Introdutora", "Balao Periferico", "Balao Super Altra Pressao", "Balao de Alta Pressao", "Balao de Scoring", "Bolsa Coletora", "Bolsa Succao", "Bomba de Drenagem", "Cateter Balao", "Cateter Diagnostico", "Cateter Laco de Captura", "Cateter de Aspiracao", "Cateter de Drenagem", "Cateter de Infusao", "Cateter de Longa Permanencia", "Cateter de Suporte", "Dispositivo Venoso", "Dispositivo de Compressão", "Filtro VCF", "Fio Guia", "Fio Guia Teflonado", "Introdutor Longo", "Kit Angiografico", "Kit Cateter", "Kit Drenagem Biliar", "Kit Drenagem Convencional", "Kit Introdutor", "Kit Micropuncao Pedal", "Micro Cateter", "Micro Esfera", "Micro Guia", "Particula de Embolizacao", "Protese Veia Cava", "Protese de Fechamento", "Radiointervencao", "Stent", "Stent Sinus Obliquuos", "Stent Sinus Venous"], "Linha Urologia": ["Acesso", "Calculo Renal", "Dilatacao", "Eletrodo", "Evacuador", "Extrator de Calculo", "Irrigacao", "Kit Dilatacao", "Kit Drenagem Convencional", "Kit Percutaneo", "Laser", "Protese Peniana", "Protese Testicular", "RTU Acessorios"]};
+const SUBGRUPOS_MAP = {"Linha Biopsia": ["Agulha de Biopsia Coaxial", "Agulha de Biopsia Illinois", "Agulha de Biopsia Jamishiditj", "Agulha de Biopsia Jamshidi", "Agulha de Biopsia Magnum", "Fio de Localização", "Insersor", "Inst Semi Automatico", "Instrumento Descartavel", "Kit Inst Semi Automatico", "Lubrificantes", "Marcador", "Recipiente", "Sist Biopsia de Mama", "Sonda"], "Linha Cardiaca": ["Canula Aramada", "Cirurgia Cardiaca", "Clip Cirurgia Aberta", "Clip Cirurgia Fechada", "Enxerto Bifurcado", "Enxerto EPTFE", "Enxerto Tubular Reto", "Guia de Selecao", "Kit Auto Transfusao", "Kit CEC", "Medidor", "Perfurador", "Ponteira Extensora", "Selante", "Sistema Ablação", "Sistema de Sutura", "Valvula Cardiaca"], "Linha Coronaria": ["Agulha de Biopsia", "Balao Coronario", "Cateter Angiografico", "Cateter Balao PowerLine", "Cateter Balao Rise", "Cateter Diagnostico", "Cateter Guia", "Cateter Laco de Captura", "Dispositivo de Torque", "Fio Guia", "Insuflador", "Introdutor Siliconado Femoral", "Introdutor Siliconado Radial", "Kit Introdutor Valvulado", "Manifold", "Stent", "Torneirinha", "Tubo Extensor de Pressao", "Valvula Hemoastatica"], "Linha Endovascular": ["Cateter Balao", "Endoprotese Aortica", "Endoprotese BIF E-liac", "Endoprotese CL", "Endoprotese CP", "Endoprotese Extensao Eliaca", "Endoprotese Hibrida", "Endoprotese Toracica", "Fio Guia", "Radiointervencao", "Stent"], "Linha Nefro": ["Balao Super Altra Pressao", "Cateter de Longa Permanencia", "Endoprotese Wrapsody", "Hero Graft"], "Linha Periferica": ["Agulha de Biopsia", "Bainha Introdutora", "Balao Periferico", "Balao Super Altra Pressao", "Balao de Alta Pressao", "Balao de Scoring", "Bolsa Coletora", "Bolsa Succao", "Bomba de Drenagem", "Cateter Balao", "Cateter Diagnostico", "Cateter Laco de Captura", "Cateter de Aspiracao", "Cateter de Drenagem", "Cateter de Infusao", "Cateter de Longa Permanencia", "Cateter de Suporte", "Dispositivo Venoso", "Dispositivo de Compressão", "Filtro VCF", "Fio Guia", "Fio Guia Teflonado", "Introdutor Longo", "Kit Angiografico", "Kit Cateter", "Kit Drenagem Biliar", "Kit Drenagem Convencional", "Kit Introdutor", "Kit Micropuncao Pedal", "Micro Cateter", "Micro Esfera", "Micro Guia", "Particula de Embolizacao", "Protese Veia Cava", "Protese de Fechamento", "Radiointervencao", "Stent", "Stent Sinus Obliquuos", "Stent Sinus Venous"], "Linha Urologia": ["Acesso", "Calculo Renal", "Dilatacao", "Eletrodo", "Evacuador", "Extrator de Calculo", "Irrigacao", "Kit Dilatacao", "Kit Drenagem Convencional", "Kit Percutaneo", "Laser", "Protese Peniana", "Protese Testicular", "RTU Acessorios"], "Linha Neuro": ["Clipe de Aneurisma", "Derivação Ventrículo-Peritoneal (DVP)", "Eletrodo de Estimulação Cerebral", "Malha de Titânio para Cranioplastia", "Parafuso Pedicular", "Placa de Fixação Craniana", "Sistema de Neuronavegação", "Válvula de Hidrocefalia"], "Linha Ortopédica": ["Âncora de Sutura", "Cimento Ósseo", "Fio de Kirschner", "Fixador Externo", "Haste Intramedular", "Parafuso Canulado", "Parafuso de Compressão", "Placa de Osteossíntese", "Prótese de Joelho", "Prótese de Ombro", "Prótese de Quadril"], "Linha Vascular": ["Enxerto Vascular", "Fio de Sutura Vascular", "Prótese Vascular EPTFE", "Shunt Vascular Temporário", "Torniquete Pneumático"], "Linha Torácica": ["Dreno Torácico", "Grampeador Torácico", "Prótese Traqueal", "Selante Pulmonar", "Sistema de Drenagem Torácica", "Válvula Endobrônquica"], "Linha Oncológica": ["Cateter Port-a-Cath", "Clipe de Marcação Tumoral", "Marcador de Localização Radioativa (ROLL)", "Sistema de Infusão Quimioterápica", "Tela Cirúrgica Oncológica"], "Linha Bariátrica": ["Anel de Contenção Gástrica", "Balão Intragástrico", "Banda Gástrica Ajustável", "Grampeador Bariátrico", "Kit de Sutura Endoscópica", "Tela de Reforço de Sutura"], "Linha Geral": ["Grampeador Linear", "Malha de Hérnia", "Sistema de Drenagem Abdominal", "Tela Cirúrgica", "Trocarte Laparoscópico"], "Linha Aparelho Digestivo": ["Clipe Endoscópico", "Grampeador Circular", "Kit de Sutura Endoscópica Digestiva", "Prótese Esofágica", "Stent Biliar", "Stent Digestivo"], "Linha Coloproctológica": ["Grampeador Circular Transanal", "Kit de Hemorroidectomia", "Malha de Fixação Retal", "Sistema PPH"], "Linha Ginecológica": ["Cateter de Balão Uterino", "DIU", "Malha de Correção de Prolapso", "Sling Vaginal", "Tela de Sustentação Pélvica"], "Linha Obstétrica": ["Cateter de Balão de Bakri", "Kit de Parto", "Vácuo Extrator"], "Linha Mastologia": ["Expansor de Tecido Mamário", "Fio Guia para Localização Mamária", "Marcador de Biópsia Mamária", "Prótese Mamária"], "Linha Plástica": ["Ácido Hialurônico Cirúrgico", "Expansor de Pele", "Fio de Sustentação (PDO)", "Prótese de Silicone", "Tela de Reconstrução"], "Linha Oftalmológica": ["Anel de Tensão Capsular", "Lente Intraocular (LIO)", "Óleo de Silicone Oftálmico", "Tampão de Silicone", "Viscoelástico Oftálmico"], "Linha Otorrinolaringológica": ["Implante Coclear", "Prótese Ossicular", "Stent Sinusal", "Tubo de Ventilação Timpânica"], "Linha Cabeça e Pescoço": ["Placa de Reconstrução Mandibular", "Prótese de Laringe", "Retalho Microcirúrgico — Kit", "Sistema de Fixação Maxilofacial"], "Linha Bucomaxilofacial": ["Fio de Sutura Intraoral", "Mini Placa de Titânio", "Parafuso de Fixação Maxilofacial", "Placa de Reconstrução Facial"], "Linha Pediátrica": ["Cateter Pediátrico", "Fixador Externo Pediátrico", "Prótese Pediátrica", "Válvula de Hidrocefalia Pediátrica"], "Linha Cirurgia da Mão": ["Âncora de Sutura para Mão", "Fio de Kirschner", "Miniplaca de Fixação", "Parafuso de Mini Fragmento", "Prótese de Dedo"], "Linha Dermatológica": ["Fio de Sutura Dérmica", "Substituto de Pele", "Tela de Regeneração Dérmica"], "Linha Transplante": ["Kit de Perfusão de Órgãos", "Solução de Preservação de Órgãos", "Sistema de Perfusão Extracorpórea"]};
+
+// ─── SUGESTÕES DE PROCEDIMENTO POR TIPO DE CIRURGIA ───
+const PROCEDIMENTOS_MAP = {"Cardíaca": ["Revascularização do Miocárdio (RVM)", "Troca Valvar Aórtica", "Troca Valvar Mitral", "Implante de Marca-passo", "Ablação por Cateter", "Correção de Aneurisma de Aorta"], "Endovascular": ["Angioplastia Endovascular", "Implante de Endoprótese Aórtica", "Embolização Endovascular", "Trombectomia Mecânica"], "Neuro": ["Craniotomia", "Clipagem de Aneurisma Cerebral", "Derivação Ventrículo-Peritoneal (DVP)", "Ressecção de Tumor Cerebral", "Artrodese de Coluna", "Descompressão de Hérnia de Disco"], "Periférica": ["Angioplastia Periférica", "Trombectomia Periférica", "Fasciotomia", "Amputação de Membro"], "Urologia": ["Nefrolitotripsia Percutânea", "Ressecção Transuretral de Próstata (RTU)", "Prostatectomia Radical", "Nefrectomia", "Implante de Prótese Peniana"], "Nefro": ["Fístula Arteriovenosa para Hemodiálise", "Implante de Cateter para Diálise Peritoneal", "Transplante Renal"], "Biópsia": ["Biópsia de Mama", "Biópsia Renal", "Biópsia Hepática", "Biópsia Prostática"], "Ortopédica": ["Artroplastia de Quadril", "Artroplastia de Joelho", "Artroscopia de Joelho", "Artrodese de Coluna", "Osteossíntese"], "Traumatológica": ["Redução de Fratura", "Fixação Externa", "Osteossíntese de Fratura", "Amputação Traumática"], "Cirurgia Geral": ["Colecistectomia", "Apendicectomia", "Herniorrafia", "Laparotomia Exploradora"], "Vascular": ["Revascularização Vascular Periférica", "Endarterectomia de Carótida", "Bypass Vascular", "Varizes — Safenectomia"], "Torácica": ["Toracotomia", "Lobectomia Pulmonar", "Pleurodese", "Drenagem Torácica"], "Cardiovascular": ["Cirurgia de Revascularização Cardiovascular", "Correção de Aneurisma", "Troca Valvar"], "Oncológica": ["Ressecção de Tumor", "Mastectomia Oncológica", "Linfadenectomia", "Quimioterapia Intraoperatória"], "Bariátrica": ["Gastroplastia (Bypass Gástrico)", "Sleeve Gástrico", "Banda Gástrica Ajustável"], "Aparelho Digestivo": ["Gastrectomia", "Colectomia", "Esofagectomia", "Endoscopia Digestiva Terapêutica"], "Coloproctológica": ["Hemorroidectomia", "Retossigmoidectomia", "Fistulectomia Anal", "Colonoscopia Terapêutica"], "Ginecológica": ["Histerectomia", "Miomectomia", "Videolaparoscopia Ginecológica", "Correção de Prolapso Genital"], "Obstétrica": ["Cesariana", "Curetagem Uterina", "Laqueadura Tubária"], "Mastologia": ["Mastectomia", "Quadrantectomia", "Biópsia de Linfonodo Sentinela", "Reconstrução Mamária"], "Plástica": ["Abdominoplastia", "Mamoplastia", "Rinoplastia", "Blefaroplastia", "Reconstrução com Retalho"], "Oftalmológica": ["Facectomia com Implante de LIO", "Vitrectomia", "Transplante de Córnea", "Cirurgia de Glaucoma"], "Otorrinolaringológica": ["Septoplastia", "Amigdalectomia", "Timpanoplastia", "Implante Coclear"], "Cabeça e Pescoço": ["Tireoidectomia", "Esvaziamento Cervical", "Ressecção de Tumor de Cabeça e Pescoço"], "Bucomaxilofacial": ["Cirurgia Ortognática", "Redução de Fratura Facial", "Exodontia de Terceiros Molares"], "Pediátrica": ["Herniorrafia Pediátrica", "Correção de Criptorquidia", "Apendicectomia Pediátrica"], "Cirurgia da Mão": ["Liberação de Túnel do Carpo", "Tenorrafia", "Artrodese de Mão", "Reimplante Digital"], "Dermatológica": ["Exérese de Lesão de Pele", "Substituto de Pele", "Cirurgia Micrográfica de Mohs"], "Transplante": ["Transplante Renal", "Transplante Hepático", "Transplante Cardíaco"]};
+
+function atualizarSugestoesProcedimento() {
+    const tipoEl = document.getElementById('f-tipo-cirurgia');
+    const sel = document.getElementById('f-procedimento-sugestoes');
+    if (!sel) return;
+    const tipo = tipoEl ? tipoEl.value : '';
+    sel.innerHTML = '<option value="">Sugestões (selecione o Tipo de Cirurgia)</option>';
+    if (tipo && PROCEDIMENTOS_MAP[tipo]) {
+        PROCEDIMENTOS_MAP[tipo].forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p; opt.textContent = p;
+            sel.appendChild(opt);
+        });
+    }
+}
+document.getElementById('f-tipo-cirurgia')?.addEventListener('change', atualizarSugestoesProcedimento);
 
 function atualizarSubgrupos(valorAtual, valorAtual2) {
     const linha = document.getElementById('f-linha').value;
@@ -8646,32 +9029,87 @@ async function saveProcedure(e) {
     if (!_isColeta && !hospital) { alert('Informe o nome do hospital'); return; }
     if (_isColeta && !hospital) hospital = '✈️ Retirar Volumes Urgentes';
 
+    let paciente = document.getElementById('f-paciente').value.trim();
+    if (!_isColeta && !paciente) {
+        const pEl = document.getElementById('f-paciente');
+        pEl.style.borderColor = '#f97316'; pEl.focus();
+        alert('⚠️ Informe o nome do paciente.');
+        return;
+    }
+    if (_isColeta && !paciente) paciente = '—';
+
     let convenio = document.getElementById('f-convenio').value;
     if (!_isColeta && convenio === '__outro') {
         convenio = document.getElementById('f-outro-convenio').value.trim();
         if (!convenio) { alert('Informe o nome do convênio'); return; }
     }
+    if (!_isColeta && !convenio) {
+        const cEl = document.getElementById('f-convenio');
+        cEl.style.borderColor = '#f97316'; cEl.focus();
+        alert('⚠️ Selecione o convênio.');
+        return;
+    }
     if (_isColeta && (!convenio || convenio === '__outro')) convenio = '—';
+
+    const nomeOperadorForm = document.getElementById('f-operador').value;
+    if (!nomeOperadorForm) {
+        const oEl = document.getElementById('f-operador');
+        oEl.style.borderColor = '#f97316'; oEl.focus();
+        alert('⚠️ Selecione o nome de quem está lançando este registro.');
+        return;
+    }
 
     // Validação médico
     let medico = document.getElementById('f-medico').value.trim();
     if (medico === '__outro') {
-        medico = (document.getElementById('f-outro-medico')?.value || '').trim();
+        const omEl = document.getElementById('f-outro-medico');
+        medico = (omEl?.value || '').trim();
+        if (!_isColeta && !medico) {
+            if (omEl) {
+                omEl.style.borderColor = '#f97316';
+                omEl.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.3)';
+                omEl.focus();
+            }
+            alert('⚠️ Informe o nome do médico não cadastrado.');
+            return;
+        }
     }
     medico = medico.toUpperCase();
     if (!_isColeta && !medico) { alert('Informe o nome do médico'); document.getElementById('f-medico').focus(); return; }
     if (_isColeta && !medico) medico = '';
 
-    // Validação: status Em Trânsito exige NF preenchida
+    // Validação: status Em Trânsito e Em Procedimento exigem NF preenchida
     const status = document.getElementById('f-status').value;
     const nfVal = document.getElementById('f-nf').value.trim();
-    if (status === 'em_transito' && !nfVal) {
+    if ((status === 'em_transito' || status === 'andamento') && !nfVal) {
         const inp = document.getElementById('f-nf');
         inp.style.borderColor = '#f97316';
         inp.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.3)';
         inp.focus();
-        alert('⚠️ Informe o Número da NF para o status "Em Trânsito"!');
+        const nomeStatusNf = status === 'andamento' ? 'Em Procedimento' : 'Em Trânsito';
+        alert('⚠️ Informe o Número da NF para o status "' + nomeStatusNf + '"!');
         return;
+    }
+
+    // Validação: status Em Trânsito e Em Procedimento também exigem Valor e Data de Emissão da NF
+    if (status === 'em_transito' || status === 'andamento') {
+        const nomeStatusNf = status === 'andamento' ? 'Em Procedimento' : 'Em Trânsito';
+        const valorEl = document.getElementById('f-valor');
+        if (valorEl && !valorEl.value.trim()) {
+            valorEl.style.borderColor = '#f97316';
+            valorEl.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.3)';
+            valorEl.focus();
+            alert('⚠️ Informe o Valor (R$) da Nota Fiscal para o status "' + nomeStatusNf + '"!');
+            return;
+        }
+        const nfDataEl = document.getElementById('f-nf-data');
+        if (nfDataEl && !nfDataEl.value) {
+            nfDataEl.style.borderColor = '#f97316';
+            nfDataEl.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.3)';
+            nfDataEl.focus();
+            alert('⚠️ Informe a Data de Emissão da NF para o status "' + nomeStatusNf + '"!');
+            return;
+        }
     }
 
     // Validação: status A Retirar, Em Procedimento e Retirar Volumes Urgentes exigem data de retirada
@@ -8704,12 +9142,18 @@ async function saveProcedure(e) {
         status: document.getElementById('f-status').value,
         data: document.getElementById('f-data').value,
         medico: medico,
-        paciente: document.getElementById('f-paciente').value,
+        paciente: paciente,
+        operadorNome: nomeOperadorForm,
         pacienteIdade: document.getElementById('f-pacienteIdade') ? document.getElementById('f-pacienteIdade').value.trim() : '',
         procedimento: _isColeta ? (document.getElementById('f-procedimento').value || '') : document.getElementById('f-procedimento').value,
         convenio: _isColeta && (!convenio || convenio === '—') ? '' : convenio,
         vendedor: _isColeta ? (document.getElementById('f-vendedor').value || '') : document.getElementById('f-vendedor').value,
-        tipoCirurgia: document.getElementById('f-tipo-cirurgia') ? document.getElementById('f-tipo-cirurgia').value : '',
+        tipoCirurgia: (function(){
+            const elTC = document.getElementById('f-tipo-cirurgia');
+            if (!elTC) return '';
+            if (elTC.value === '__outro') return (document.getElementById('f-outro-tipo-cirurgia')?.value || '').trim();
+            return elTC.value;
+        })(),
         linha: _isColeta ? (document.getElementById('f-linha').value || '') : document.getElementById('f-linha').value,
         subgrupo: document.getElementById('f-subgrupo') ? document.getElementById('f-subgrupo').value : '',
         subgrupo2: document.getElementById('f-subgrupo2') ? document.getElementById('f-subgrupo2').value : '',
@@ -8771,8 +9215,8 @@ async function saveProcedure(e) {
 // ─── CURVA ABC ───
 function renderABC() {
     const list = getFiltered();
-    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
-    const statusColors = { a_agendar:'#06b6d4', andamento:'#ef4444', preparacao:'#f59e0b', agendado:'#10b981', em_transito:'#6366f1', concluido:'#6b7280', cancelado:'#f87171', reagendado:'#a78bfa', a_retirar:'#f97316', urgencia:'#ff0000' };
+    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
+    const statusColors = { a_agendar:'#06b6d4', andamento:'#ef4444', preparacao:'#f59e0b', agendado:'#10b981', em_transito:'#6366f1', concluido:'#6b7280', cancelado:'#f87171', reagendado:'#a78bfa', a_retirar:'#f97316', aguardando_ficha_opme:'#a855f7', urgencia:'#ff0000' };
 
     // Build vendor stats
     const vendorMap = {};
@@ -9047,6 +9491,7 @@ function switchView(v) {
     const isCentral   = v === 'table';
     const isDashboard = v === 'dashboard';
     const isColeta    = v === 'coleta';
+    const isAtividade = v === 'atividade';
 
     // ── Seções da Central Cirúrgica ───────────────────────────────
     show('stats-bar',     isCentral);
@@ -9059,6 +9504,9 @@ function switchView(v) {
 
     // ── Seções da Coleta Prioritária ──────────────────────────────
     show('coleta-view', isColeta);
+
+    // ── Seção de Atividade ─────────────────────────────────────────
+    show('atividade-view', isAtividade);
 
     // ── Seções fora das views (ultraHero, ultra-strip, ultra-grid) ─
     // Essas ficam visíveis só no Painel Executivo
@@ -9079,13 +9527,168 @@ function switchView(v) {
     document.getElementById('tab-dashboard').classList.toggle('active', isDashboard);
     const tabColeta = document.getElementById('tab-coleta');
     if (tabColeta) tabColeta.classList.toggle('active', isColeta);
+    const tabAtividade = document.getElementById('tab-atividade');
+    if (tabAtividade) tabAtividade.classList.toggle('active', isAtividade);
 
     // ── Renderizar ────────────────────────────────────────────────
     if (isCentral)   renderTable();
     if (isDashboard) renderDashboard();
     if (isColeta)    renderColetaView();
+    if (isAtividade) renderAtividade();
 }
 
+
+// ─── ATIVIDADE: quem lançou o quê e quando ───
+let _atividadeUsuarios = null;
+let _atividadeFichas = null;
+
+function _conexoesAtividade() {
+    return [{ code: 'cg', db: window._fbDb, fbModules: window._fbModules }];
+}
+
+async function _carregarUsuariosAtividade() {
+    if (_atividadeUsuarios) return _atividadeUsuarios;
+    const map = {};
+    await Promise.all(_conexoesAtividade().map(async conn => {
+        try {
+            const { collection: col, getDocs: gd } = conn.fbModules;
+            const snap = await gd(col(conn.db, 'usuarios'));
+            snap.docs.forEach(d => { const u = d.data(); map[d.id] = u.nome || u.email || d.id; });
+        } catch (e) { console.warn('[Atividade] Falha ao carregar usuários (' + conn.code + '):', e); }
+    }));
+    _atividadeUsuarios = map;
+    return map;
+}
+
+async function _carregarFichasAtividade() {
+    const resultados = [];
+    await Promise.all(_conexoesAtividade().map(async conn => {
+        try {
+            const { collection: col, getDocs: gd } = conn.fbModules;
+            const snap = await gd(col(conn.db, 'fichas_opme'));
+            snap.docs.forEach(d => resultados.push({ _docId: d.id, ...d.data() }));
+        } catch (e) { console.warn('[Atividade] Falha ao carregar fichas OPME (' + conn.code + '):', e); }
+    }));
+    return resultados;
+}
+
+async function renderAtividade(forcar) {
+    const el = document.getElementById('atividade-lista');
+    if (!el) return;
+    el.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-family:var(--mono);font-size:0.8rem;">Carregando...</div>';
+
+    try {
+    if (forcar) { _atividadeUsuarios = null; _atividadeFichas = null; }
+    const usuarios = await _carregarUsuariosAtividade();
+    if (forcar || !_atividadeFichas) _atividadeFichas = await _carregarFichasAtividade();
+
+    const quem = (uid) => uid ? (usuarios[uid] || uid) : '—';
+    const fmt = (iso) => {
+        if (!iso) return '—';
+        try { return new Date(iso).toLocaleString('pt-BR'); } catch(e) { return iso; }
+    };
+
+    const eventosProc = (window.procedimentos || [])
+        .filter(p => p._createdAt)
+        .map(p => ({
+            quando: p._createdAt,
+            quem: p.operadorNome || quem(p.cadastradoPor),
+            tipo: (typeof _ehColeta === 'function' && _ehColeta(p)) ? '✈️ Coleta' : '🏥 Cirurgia',
+            paciente: p.paciente || '—',
+            hospital: p.hospital || '—',
+        }));
+
+    const eventosFichas = (_atividadeFichas || [])
+        .filter(f => f.criadoEm)
+        .map(f => ({
+            quando: f.criadoEm,
+            quem: f.operadorNome || quem(f.criadoPor),
+            tipo: '📋 Ficha OPME',
+            paciente: f.paciente || f.procedimento || '—',
+            hospital: f.hospital || '—',
+        }));
+
+    const todosEventos = [...eventosProc, ...eventosFichas];
+
+    const resumoPorOperador = {};
+    todosEventos.forEach(ev => {
+        const nome = ev.quem || '—';
+        if (!resumoPorOperador[nome]) resumoPorOperador[nome] = { cirurgias: 0, fichas: 0, coletas: 0 };
+        if (ev.tipo === '🏥 Cirurgia') resumoPorOperador[nome].cirurgias++;
+        else if (ev.tipo === '✈️ Coleta') resumoPorOperador[nome].coletas++;
+        else if (ev.tipo === '📋 Ficha OPME') resumoPorOperador[nome].fichas++;
+    });
+    const resumoLinhas = Object.entries(resumoPorOperador)
+        .map(([nome, c]) => ({ nome, ...c, total: c.cirurgias + c.fichas + c.coletas }))
+        .sort((a, b) => b.total - a.total);
+
+    const eventos = todosEventos
+        .sort((a, b) => new Date(b.quando) - new Date(a.quando))
+        .slice(0, 200);
+
+    if (!eventos.length) {
+        el.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-family:var(--mono);font-size:0.8rem;">Nenhum lançamento registrado ainda.</div>';
+        return;
+    }
+
+    const resumoHTML = `
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.03);">
+                        <th style="text-align:left;padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;border-bottom:1px solid var(--border);">Operador</th>
+                        <th style="text-align:right;padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;border-bottom:1px solid var(--border);">🏥 Cirurgias</th>
+                        <th style="text-align:right;padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;border-bottom:1px solid var(--border);">📋 Fichas OPME</th>
+                        <th style="text-align:right;padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;border-bottom:1px solid var(--border);">✈️ Coletas</th>
+                        <th style="text-align:right;padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;border-bottom:1px solid var(--border);">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${resumoLinhas.map(r => `
+                        <tr style="border-bottom:1px solid var(--border);">
+                            <td style="padding:10px 14px;font-family:var(--mono);font-size:0.75rem;color:var(--accent2);white-space:nowrap;">${r.nome}</td>
+                            <td style="padding:10px 14px;text-align:right;color:var(--text);">${r.cirurgias}</td>
+                            <td style="padding:10px 14px;text-align:right;color:var(--text);">${r.fichas}</td>
+                            <td style="padding:10px 14px;text-align:right;color:var(--text);">${r.coletas}</td>
+                            <td style="padding:10px 14px;text-align:right;font-weight:700;color:var(--text);">${r.total}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>`;
+
+    el.innerHTML = resumoHTML + `
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                <thead>
+                    <tr style="background:rgba(255,255,255,0.03);">
+                        <th style="text-align:left;padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;border-bottom:1px solid var(--border);">Data/Hora</th>
+                        <th style="text-align:left;padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;border-bottom:1px solid var(--border);">Tipo</th>
+                        <th style="text-align:left;padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);">Paciente</th>
+                        <th style="text-align:left;padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--border);">Hospital</th>
+                        <th style="text-align:left;padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;border-bottom:1px solid var(--border);">Operador</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${eventos.map(ev => `
+                        <tr style="border-bottom:1px solid var(--border);">
+                            <td style="padding:10px 14px;font-family:var(--mono);font-size:0.7rem;color:var(--text-dim);white-space:nowrap;">${fmt(ev.quando)}</td>
+                            <td style="padding:10px 14px;white-space:nowrap;">${ev.tipo}</td>
+                            <td style="padding:10px 14px;color:var(--text);">${ev.paciente}</td>
+                            <td style="padding:10px 14px;color:var(--text);">${ev.hospital}</td>
+                            <td style="padding:10px 14px;font-family:var(--mono);font-size:0.75rem;color:var(--accent2);white-space:nowrap;">${ev.quem}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+    } catch (e) {
+        console.error('[Atividade] Falha ao carregar:', e);
+        el.innerHTML = '<div style="padding:20px;color:#d94f4f;font-family:var(--mono);font-size:0.8rem;">❌ Erro ao carregar atividade: ' + (e && e.message ? e.message : e) + '</div>';
+    }
+}
+window.renderAtividade = renderAtividade;
 
 // ─── RENDER COLETA VIEW — VOLUMES URGENTES ───
 // ─── ESTADO FILTROS COLETA ───
@@ -9184,7 +9787,7 @@ function renderColetaView() {
             const corRet = vencida ? '#ff3333' : (ehHoje ? '#f97316' : '#818cf8');
             const labelRet = vencida ? '❌ VENCIDA' : (ehHoje ? '⏰ HOJE' : '📅');
             const retFmt = dataRet ? `${labelRet} ${new Date(dataRet+'T00:00:00').toLocaleDateString('pt-BR')}${proc.horaRetirar ? ' · '+proc.horaRetirar : ''}` : '—';
-            const statusMap = {coleta_urgente:'✈️ Aguardando',concluido:'✔️ Concluído',cancelado:'❌ Cancelado',a_retirar:'📦 A Retirar'};
+            const statusMap = {coleta_urgente:'✈️ Aguardando',concluido:'✔️ Concluído',cancelado:'❌ Cancelado',a_retirar:'📦 A Retirar',aguardando_ficha_opme:'📋 Ficha OPME'};
             const sLabel = statusMap[proc.status] || proc.status;
             const borderTop = vencida ? '#ff3333' : (ehHoje ? '#f97316' : '#6366f1');
             html += `<div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid ${borderTop};border-radius:14px;padding:16px 18px;${vencida||ehHoje?'animation:cardPiscarColeta 0.8s ease-in-out infinite;':''}">
@@ -9261,7 +9864,7 @@ function renderTable() {
     const list = mostrarOcultos
         ? getFiltered().filter(p => p.status === 'concluido' || p.status === 'cancelado')
         : getFiltered().filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
-    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
+    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
 
     // Ordenar por horário (padrão) ou coluna selecionada
     const finalList = [...list].sort((a, b) => {
@@ -9287,7 +9890,7 @@ function renderTable() {
     const statusColors = {
         a_agendar:'#06b6d4', agendado:'#4db87a', em_transito:'#6366f1', preparacao:'#d4920a',
         andamento:'#d94f4f', concluido:'#64748b', cancelado:'#f87171',
-        reagendado:'#a78bfa', a_retirar:'#f97316', urgencia:'#ff0000',
+        reagendado:'#a78bfa', a_retirar:'#f97316', aguardando_ficha_opme:'#a855f7', urgencia:'#ff0000',
         coleta_urgente:'#6366f1'
     };
 
@@ -9302,6 +9905,7 @@ function renderTable() {
     table.querySelector('tbody').innerHTML = finalList.map((proc, idx) => {
         const realIndex = proc._docId || proc.id;
         const isRetirar = (proc.status === 'a_retirar');
+        const isAguardandoFichaOpme = (proc.status === 'aguardando_ficha_opme');
         const dataFmt = proc.data ? new Date(proc.data + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—';
         const cor = statusColors[proc.status] || '#94a3b8';
         const anim = pillAnim[proc.status] || '';
@@ -9355,6 +9959,17 @@ function renderTable() {
         if (isRetirar) {
             tdAcoes += '<div style="display:flex;flex-direction:column;gap:4px;">';
             tdAcoes += '<button onclick="confirmarRetiradaCirurgia(\'' + realIndex + '\')" style="padding:5px 10px;border-radius:7px;border:1px solid rgba(249,115,22,0.5);background:rgba(249,115,22,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#f97316;white-space:nowrap;">📦 Retirou?</button>';
+            tdAcoes += '<button onclick="cobrarIndividualWhatsApp(\'' + realIndex + '\')" style="padding:5px 10px;border-radius:7px;border:none;background:#25d366;font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#fff;white-space:nowrap;">💬 Cobrar</button>';
+            tdAcoes += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+            tdAcoes += _lembBtn + _comtBtn;
+            tdAcoes += '<button onclick="editProc(\'' + realIndex + '\')" style="flex:1;padding:4px 9px;border-radius:6px;border:1px solid rgba(135,195,150,0.4);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:var(--text-dim);">✏ Editar</button>';
+            tdAcoes += '<button onclick="deleteProc(\'' + realIndex + '\')" style="padding:4px 9px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#d94f4f;">✕</button>';
+            tdAcoes += '</div>';
+            tdAcoes += '</div>';
+        } else if (isAguardandoFichaOpme) {
+            tdAcoes += '<div style="display:flex;flex-direction:column;gap:4px;">';
+            tdAcoes += '<button onclick="confirmarFichaOpmeEntregue(\'' + realIndex + '\')" style="padding:5px 10px;border-radius:7px;border:1px solid rgba(168,85,247,0.5);background:rgba(168,85,247,0.1);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#a855f7;white-space:nowrap;">📋 Ficha entregue?</button>';
+            tdAcoes += '<button onclick="cobrarIndividualWhatsApp(\'' + realIndex + '\')" style="padding:5px 10px;border-radius:7px;border:none;background:#25d366;font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:#fff;white-space:nowrap;">💬 Cobrar</button>';
             tdAcoes += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
             tdAcoes += _lembBtn + _comtBtn;
             tdAcoes += '<button onclick="editProc(\'' + realIndex + '\')" style="flex:1;padding:4px 9px;border-radius:6px;border:1px solid rgba(135,195,150,0.4);background:rgba(255,255,255,0.75);font-family:var(--mono);font-size:0.6rem;font-weight:700;cursor:pointer;color:var(--text-dim);">✏ Editar</button>';
@@ -9610,7 +10225,7 @@ function doExport() {
         return;
     }
 
-    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
+    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
 
     // Sheet 1: Resumo completo
     const resumo = filtered.map(p => ({
@@ -9969,7 +10584,12 @@ function atualizarBannerPendencias() {
         (p.status === 'agendado' || p.status === 'preparacao') && (p.data === hoje || p.data === amanha)
     );
 
-    const total = retiradas.length + coletasAtivas.length + agendadosHojeAmanha.length;
+    // 4. Fichas OPME pendentes de entrega ao estoque (material já retirado)
+    const fichasOpmePendentes = procedimentos.filter(p =>
+        !_ehColeta(p) && p.status === 'aguardando_ficha_opme'
+    );
+
+    const total = retiradas.length + coletasAtivas.length + agendadosHojeAmanha.length + fichasOpmePendentes.length;
 
     let banner = document.getElementById('banner-pendencias');
     if (total === 0) {
@@ -9997,7 +10617,19 @@ function atualizarBannerPendencias() {
                 <div style="font-size:0.8rem;font-weight:800;letter-spacing:0.06em;">AGUARDANDO RETIRADA</div>
                 <div style="font-size:0.72rem;opacity:0.85;margin-top:1px;">${retiradas.length} material(is) com retirada vencida</div>
             </div>
-            <button onclick="exportarWhatsApp()" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:6px 12px;border-radius:8px;font-family:var(--mono);font-size:0.68rem;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:0.05em;">💬 Cobrar</button>
+            <button onclick="exportarWhatsApp('retirada')" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:6px 12px;border-radius:8px;font-family:var(--mono);font-size:0.68rem;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:0.05em;">💬 Cobrar</button>
+        </div>`;
+    }
+
+    // ── Bloco 1b: Aguardando Ficha OPME (material já retirado, falta a ficha) ──
+    if (fichasOpmePendentes.length > 0) {
+        itens += `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.15);">
+            <span style="font-size:1.3rem;">📋</span>
+            <div style="flex:1;">
+                <div style="font-size:0.8rem;font-weight:800;letter-spacing:0.06em;">AGUARDANDO FICHA OPME</div>
+                <div style="font-size:0.72rem;opacity:0.85;margin-top:1px;">${fichasOpmePendentes.length} ficha(s) pendente(s) de entrega ao estoque</div>
+            </div>
+            <button onclick="exportarWhatsApp('ficha')" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:6px 12px;border-radius:8px;font-family:var(--mono);font-size:0.68rem;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:0.05em;">💬 Cobrar</button>
         </div>`;
     }
 
@@ -10168,6 +10800,117 @@ function verificarLembreteRetirada() {
 setTimeout(verificarLembreteRetirada, 5000);
 setTimeout(atualizarBannerPendencias, 5500);
 
+// ─── LEMBRETE DIÁRIO — COBRAR VIA WHATSAPP (número fixo) ───
+// Uma vez por dia, se tiver pendência de Aguardando Retirada ou Aguardando
+// Ficha OPME, sugere mandar a cobrança direto pro WhatsApp do responsável
+// (número fixo, não é o contato escolhido na hora — abre já apontado pra ele).
+const NUMERO_COBRANCA_DIARIA = '556784717799'; // 67 8471-7799 — Campo Grande
+
+function verificarLembreteCobrancaDiario() {
+    const hoje = todayStr();
+    const chave = 'gf_lembrete_cobranca_diaria_' + hoje;
+    if (localStorage.getItem(chave)) return;
+
+    const pendRetirada = procedimentos.filter(p => !_ehColeta(p) && p.status === 'a_retirar').length;
+    const pendFicha = procedimentos.filter(p => !_ehColeta(p) && p.status === 'aguardando_ficha_opme').length;
+    if (pendRetirada === 0 && pendFicha === 0) return;
+
+    localStorage.setItem(chave, '1');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modalLembreteCobrancaDiaria';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px;';
+    overlay.innerHTML =
+        '<div style="background:var(--surface,#fff);border:1px solid var(--border);border-top:4px solid #25D366;border-radius:16px;padding:28px 26px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.35);">' +
+            '<div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;letter-spacing:0.08em;color:#25D366;text-transform:uppercase;margin-bottom:18px;">⏰ Lembrete diário</div>' +
+            '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:0.92rem;color:var(--text,#111);margin-bottom:18px;line-height:1.5;">' +
+                (pendRetirada > 0 ? '📦 <strong>' + pendRetirada + '</strong> pendência(s) de Aguardando Retirada<br>' : '') +
+                (pendFicha > 0 ? '📋 <strong>' + pendFicha + '</strong> ficha(s) OPME pendente(s)' : '') +
+            '</div>' +
+            '<div style="display:flex;gap:10px;">' +
+                '<button id="btnLembreteCobrarAgora" style="flex:1;padding:13px;border-radius:10px;border:2px solid #25D366;background:#25D366;color:#fff;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">💬 Cobrar Agora</button>' +
+                '<button id="btnLembreteDepois" style="padding:13px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-dim,#6b7280);font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">Depois</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    const fechar = () => overlay.remove();
+    overlay.querySelector('#btnLembreteDepois').onclick = fechar;
+    overlay.querySelector('#btnLembreteCobrarAgora').onclick = () => {
+        fechar();
+        let filtro;
+        if (pendRetirada > 0 && pendFicha > 0) filtro = undefined;
+        else if (pendFicha > 0) filtro = 'ficha';
+        else filtro = 'retirada';
+        _abrirWhatsAppNumero(NUMERO_COBRANCA_DIARIA, filtro);
+    };
+}
+
+// Monta a mesma mensagem de exportarWhatsApp, mas manda direto pro número fixo
+// em vez de abrir o seletor de contato do WhatsApp.
+async function _abrirWhatsAppNumero(numero, filtro) {
+    await verificarPromocaoRetirada();
+    var fmt = function(d) {
+        if (!d) return '—';
+        var s = String(d);
+        var dt = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T00:00:00') : new Date(s);
+        return isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('pt-BR');
+    };
+    var cirurgias = filtro === 'ficha' ? [] : procedimentos.filter(p => !_ehColeta(p) && !p.isColeta && p.status === 'a_retirar');
+    var fichasPendentes = filtro === 'retirada' ? [] : procedimentos.filter(p => !_ehColeta(p) && !p.isColeta && p.status === 'aguardando_ficha_opme');
+    if (cirurgias.length === 0 && fichasPendentes.length === 0) return;
+
+    var linhas = ['Olá! ', 'Segue as pendências do *Monitor Cirúrgico*:'];
+    if (cirurgias.length > 0) {
+        linhas.push('');
+        linhas.push('*AGUARDANDO RETIRADA* (material ainda não devolvido ao estoque)');
+        cirurgias.forEach(p => {
+            linhas.push('');
+            linhas.push('---');
+            linhas.push('*Paciente:* ' + (p.paciente || '—'));
+            linhas.push('*Hospital:* ' + (p.hospital || '—'));
+            linhas.push('*Nº da Nota Fiscal:* ' + (p.nf || '—'));
+            linhas.push('*Vendedor:* ' + (p.vendedor || '—'));
+            linhas.push('*Data de Cirurgia:* ' + fmt(p.data));
+            linhas.push('*Data de retirada:* ' + fmt(p.retirada));
+        });
+        linhas.push('');
+        linhas.push('---');
+        linhas.push('Total: *' + cirurgias.length + ' pendência(s) de retirada*');
+        linhas.push('');
+        linhas.push('Por favor, providencie a devolução o quanto antes para garantir a disponibilidade dos produtos no estoque.');
+        linhas.push('Qualquer dúvida, é só me chamar! 🙏');
+    }
+    if (fichasPendentes.length > 0) {
+        linhas.push('');
+        linhas.push('*AGUARDANDO FICHA OPME* (material já retirado, falta entregar a ficha ao estoque)');
+        fichasPendentes.forEach(p => {
+            linhas.push('');
+            linhas.push('---');
+            linhas.push('*Paciente:* ' + (p.paciente || '—'));
+            linhas.push('*Hospital:* ' + (p.hospital || '—'));
+            linhas.push('*Nº da Nota Fiscal:* ' + (p.nf || '—'));
+            linhas.push('*Vendedor:* ' + (p.vendedor || '—'));
+            linhas.push('*Data de Cirurgia:* ' + fmt(p.data));
+            linhas.push('*Data de devolução:* ' + (p.dataConfirmacaoRetirada ? fmt(p.dataConfirmacaoRetirada) : '(quando a devolução ocorrer)'));
+        });
+        linhas.push('');
+        linhas.push('---');
+        linhas.push('Total: *' + fichasPendentes.length + ' ficha(s) OPME pendente(s)*');
+        linhas.push('');
+        linhas.push('Poderia providenciar a entrega da ficha do OPME o quanto antes? É pra garantir a laudação com o convênio e o faturamento com o cliente no prazo.');
+    }
+    linhas.push('');
+    linhas.push('Cobrança de: *' + _nomeOperadorCobranca() + '*');
+
+    const textoLimpo = linhas.join('\n')
+        .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?(‍[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?)*/gu, '')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/^ /gm, '');
+    window.open('https://api.whatsapp.com/send?phone=' + numero + '&text=' + encodeURIComponent(textoLimpo), '_blank');
+}
+
+setTimeout(verificarLembreteCobrancaDiario, 6000);
+
 // ─── INIT ───
 // Dados carregados pelo onSnapshot do Supabase acima
 // Expõe variáveis e funções ao escopo global (window) para o módulo Supabase acessar
@@ -10195,7 +10938,7 @@ window.showSyncToast = showSyncToast;
 // ATALHO STATUS RÁPIDO
 // ════════════════════════════════════════════
 const STATUS_FLOW_QUICK = { a_agendar:'agendado', agendado:'preparacao', preparacao:'em_transito', em_transito:'andamento', andamento:'concluido' };
-const STATUS_LABEL_QUICK = { a_agendar:'Autorizado', agendado:'Agendado', em_transito:'Em Trânsito', preparacao:'Em Separação', andamento:'Em Procedimento', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'A Retirar', urgencia:'🚨 Urgência' };
+const STATUS_LABEL_QUICK = { a_agendar:'Autorizado', agendado:'Agendado', em_transito:'Em Trânsito', preparacao:'Em Separação', andamento:'Em Procedimento', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'A Retirar', aguardando_ficha_opme:'Aguard. Ficha OPME', urgencia:'🚨 Urgência' };
 
 function buildQuickStatusHTML(proc, realIndex) {
     const btns = [];
@@ -10358,7 +11101,7 @@ function verificarDuplicatas(hospital, medico, data, excludeDocId) {
 function mostrarAviso(dups) {
     const el=document.getElementById('dup-warning-box'); if(!el) return;
     if(dups.length===0){ el.style.display='none'; return; }
-    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',aguardando_ficha_opme:'Aguard. Ficha OPME',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
     el.style.display='block';
     el.innerHTML=`<div class="dup-warning-title">⚠️ Possível duplicata (${dups.length})</div>`+dups.map(p=>`<div class="dup-warning-item">${p.hospital} · ${p.medico||'—'} · ${p.data?new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR'):''} · ${sMap[p.status]||p.status}</div>`).join('');
 }
@@ -10550,7 +11293,7 @@ function duplicarProc(docId) {
 function compartilharWhatsApp(docId) {
     const proc=procedimentos.find(p=>(p._docId||String(p.id))===String(docId));
     if(!proc) return;
-    const sMap={a_agendar:'✅ Autorizado',agendado:'📅 Agendado',em_transito:'🚚 Em Trânsito',preparacao:'🔧 Em Separação',andamento:'⚡ Em Procedimento',concluido:'✔️ Concluído',cancelado:'❌ Cancelado',reagendado:'🔄 Reagendado',a_retirar:'📦 Aguard. Retirada',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta Prioritária'};
+    const sMap={a_agendar:'✅ Autorizado',agendado:'📅 Agendado',em_transito:'🚚 Em Trânsito',preparacao:'🔧 Em Separação',andamento:'⚡ Em Procedimento',concluido:'✔️ Concluído',cancelado:'❌ Cancelado',reagendado:'🔄 Reagendado',a_retirar:'📦 Aguard. Retirada',aguardando_ficha_opme:'📋 Aguard. Ficha OPME',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta Prioritária'};
     const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
     let linhas=[];
     if(proc.status==='coleta_urgente'){
@@ -10600,8 +11343,8 @@ function renderDashboard() {
     const hojeCirg=list.filter(p=>p.data===todayStr()).length;
     const urgentes=list.filter(p=>p.status==='urgencia').length;
     const taxa=total>0?Math.round(list.filter(p=>p.status==='concluido').length/total*100):0;
-    const sColors={a_agendar:'#06b6d4',agendado:'#4db87a',em_transito:'#6366f1',preparacao:'#d4920a',andamento:'#d94f4f',concluido:'#64748b',cancelado:'#f87171',reagendado:'#a78bfa',a_retirar:'#f97316',urgencia:'#ff0000',coleta_urgente:'#818cf8'};
-    const sNames={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+    const sColors={a_agendar:'#06b6d4',agendado:'#4db87a',em_transito:'#6366f1',preparacao:'#d4920a',andamento:'#d94f4f',concluido:'#64748b',cancelado:'#f87171',reagendado:'#a78bfa',a_retirar:'#f97316',aguardando_ficha_opme:'#a855f7',urgencia:'#ff0000',coleta_urgente:'#818cf8'};
+    const sNames={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',aguardando_ficha_opme:'Aguard. Ficha OPME',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
     const sCount={};
     list.forEach(p=>{ sCount[p.status]=(sCount[p.status]||0)+1; });
     const sEntries=Object.entries(sCount).sort((a,b)=>b[1]-a[1]).slice(0,8);
@@ -10738,7 +11481,7 @@ function calNav(dir){ calMonth+=dir; if(calMonth<0){calMonth=11;calYear--;} if(c
 function calDayClick(ds){
     const evts=procedimentos.filter(p=>p.data===ds); if(!evts.length) return;
     const dateFmt=new Date(ds+'T00:00:00').toLocaleDateString('pt-BR');
-    const sN={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'🚨 Urgência',coleta_urgente:'✈️ Coleta Prioritária'};
+    const sN={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',aguardando_ficha_opme:'Aguard. Ficha OPME',urgencia:'🚨 Urgência',coleta_urgente:'✈️ Coleta Prioritária'};
     alert(`📅 ${dateFmt} — ${evts.length} procedimento(s)\n\n`+evts.map(p=>`• ${p.hospital} | ${p.medico||'—'} | ${sN[p.status]||p.status}`).join('\n'));
 }
 
@@ -14376,7 +15119,7 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
 </style>
 <script>
 (function(){
-  const statusColors = { a_agendar:'#06b6d4', urgencia:'#ff0000', coleta_urgente:'#6366f1', agendado:'#10b981', em_transito:'#6366f1', preparacao:'#f59e0b', andamento:'#ef4444', reagendado:'#a78bfa', a_retirar:'#f97316', concluido:'#6b7280', cancelado:'#f87171' };
+  const statusColors = { a_agendar:'#06b6d4', urgencia:'#ff0000', coleta_urgente:'#6366f1', agendado:'#10b981', em_transito:'#6366f1', preparacao:'#f59e0b', andamento:'#ef4444', reagendado:'#a78bfa', a_retirar:'#f97316', aguardando_ficha_opme:'#a855f7', concluido:'#6b7280', cancelado:'#f87171' };
   window.currentHospitalFilter = 'all';
   window.currentMedicoFilter = 'all';
   window.currentTipoFilter = 'all';
@@ -14515,6 +15258,8 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
         <div class="card-actions">
           <button class="btn-act" onclick="editProc('${esc(realIndex)}')">✏ Editar</button>
           ${proc.status === 'a_retirar' ? `<button class="btn-act" style="background:rgba(249,115,22,0.15);border:1.5px solid #f97316;color:#f97316;font-weight:700;" onclick="confirmarRetiradaCirurgia('${esc(realIndex)}')">📦 Retirou?</button>` : ''}
+          ${proc.status === 'aguardando_ficha_opme' ? `<button class="btn-act" style="background:rgba(168,85,247,0.15);border:1.5px solid #a855f7;color:#a855f7;font-weight:700;" onclick="confirmarFichaOpmeEntregue('${esc(realIndex)}')">📋 Ficha entregue?</button>` : ''}
+          ${(proc.status === 'a_retirar' || proc.status === 'aguardando_ficha_opme') ? `<button class="btn-act" style="background:#25d366;border-color:#25d366;color:#fff;" onclick="cobrarIndividualWhatsApp('${esc(realIndex)}')">💬 Cobrar</button>` : ''}
           <button class="btn-act" style="background:#25d366;border-color:#25d366;" onclick="enviarWhatsAppIndividual('${esc(realIndex)}')">💬 WhatsApp</button>
           <button class="btn-act del" onclick="deleteProc('${esc(realIndex)}')">✕ Excluir</button>
         </div>
@@ -14577,7 +15322,8 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
       const dia = getDateLabel(proc.data);
       const badgeDia = dia === 'today' ? '<span class="v2-badge today">Hoje</span>' : (dia === 'tomorrow' ? '<span class="v2-badge tomorrow">Amanhã</span>' : '');
       const isRetirar = proc.status === 'a_retirar';
-      const trOnclick = isRetirar ? `confirmarRetiradaCirurgia('${esc(realIndex)}')` : `editProc('${esc(realIndex)}')`;
+      const isAguardandoFichaOpme = proc.status === 'aguardando_ficha_opme';
+      const trOnclick = isRetirar ? `confirmarRetiradaCirurgia('${esc(realIndex)}')` : isAguardandoFichaOpme ? `confirmarFichaOpmeEntregue('${esc(realIndex)}')` : `editProc('${esc(realIndex)}')`;
       const trTitle = isRetirar ? 'Clique para confirmar retirada' : 'Clique para editar';
       return `
       <tr class="row-${esc(proc.status)}" onclick="${trOnclick}" style="cursor:pointer;" title="${trTitle}">
@@ -14592,7 +15338,7 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
         <td>${esc(proc.vendedor || '—')}</td>
         <td>${esc(proc.convenio || '—')}</td>
         <td>${sla}${prazo ? `<div style="font-size:.68rem;color:#5d7480;margin-top:4px;">${esc(prazo.label)}</div>` : ''}</td>
-        <td onclick="event.stopPropagation()"><div class="table-actions">${isRetirar ? `<button class="table-btn" style="background:rgba(249,115,22,0.12);border-color:#f97316;color:#f97316;font-weight:700;" onclick="confirmarRetiradaCirurgia('${esc(realIndex)}')">📦 Retirou?</button>` : ''}${['preparacao','agendado','reagendado','andamento'].includes(proc.status)?`<button class="table-btn" style="background:rgba(77,184,122,0.1);border-color:rgba(77,184,122,0.5);color:#4db87a;font-weight:700;" onclick="event.stopPropagation();window.abrirChecklist&&window.abrirChecklist('${esc(realIndex)}')">☑ CK</button>`:''}<button class="table-btn" style="background:rgba(99,102,241,0.1);border-color:rgba(99,102,241,0.5);color:#6366f1;" onclick="event.stopPropagation();window.abrirModalLembrete&&window.abrirModalLembrete('${esc(realIndex)}')">⏰</button><button class="table-btn" style="background:rgba(75,180,210,0.1);border-color:rgba(75,180,210,0.5);color:#4bb4d2;" onclick="event.stopPropagation();window.abrirComentarios&&window.abrirComentarios('${esc(realIndex)}')">💬</button><button class="table-btn t-edit" onclick="editProc('${esc(realIndex)}')">Editar</button><button class="table-btn" onclick="enviarWhatsAppIndividual('${esc(realIndex)}')">WhatsApp</button><button class="table-btn t-del" onclick="deleteProc('${esc(realIndex)}')">Excluir</button></div></td>
+        <td onclick="event.stopPropagation()"><div class="table-actions">${isRetirar ? `<button class="table-btn" style="background:rgba(249,115,22,0.12);border-color:#f97316;color:#f97316;font-weight:700;" onclick="confirmarRetiradaCirurgia('${esc(realIndex)}')">📦 Retirou?</button>` : ''}${isAguardandoFichaOpme ? `<button class="table-btn" style="background:rgba(168,85,247,0.12);border-color:#a855f7;color:#a855f7;font-weight:700;" onclick="confirmarFichaOpmeEntregue('${esc(realIndex)}')">📋 Ficha entregue?</button>` : ''}${(isRetirar || isAguardandoFichaOpme) ? `<button class="table-btn" style="background:#25d366;border-color:#25d366;color:#fff;" onclick="cobrarIndividualWhatsApp('${esc(realIndex)}')">💬 Cobrar</button>` : ''}${['preparacao','agendado','reagendado','andamento'].includes(proc.status)?`<button class="table-btn" style="background:rgba(77,184,122,0.1);border-color:rgba(77,184,122,0.5);color:#4db87a;font-weight:700;" onclick="event.stopPropagation();window.abrirChecklist&&window.abrirChecklist('${esc(realIndex)}')">☑ CK</button>`:''}<button class="table-btn" style="background:rgba(99,102,241,0.1);border-color:rgba(99,102,241,0.5);color:#6366f1;" onclick="event.stopPropagation();window.abrirModalLembrete&&window.abrirModalLembrete('${esc(realIndex)}')">⏰</button><button class="table-btn" style="background:rgba(75,180,210,0.1);border-color:rgba(75,180,210,0.5);color:#4bb4d2;" onclick="event.stopPropagation();window.abrirComentarios&&window.abrirComentarios('${esc(realIndex)}')">💬</button><button class="table-btn t-edit" onclick="editProc('${esc(realIndex)}')">Editar</button><button class="table-btn" onclick="enviarWhatsAppIndividual('${esc(realIndex)}')">WhatsApp</button><button class="table-btn t-del" onclick="deleteProc('${esc(realIndex)}')">Excluir</button></div></td>
       </tr>`;
     }).join('');
     const footer = document.getElementById('tblFooterTotal');
@@ -15200,7 +15946,8 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
     { key:'agendado', label:'Pronto Hospital', tone:'green' },
     { key:'andamento', label:'Em Cirurgia', tone:'red' },
     { key:'concluido', label:'Finalizado', tone:'slate' },
-    { key:'a_retirar', label:'A Retirar', tone:'orange' }
+    { key:'a_retirar', label:'A Retirar', tone:'orange' },
+    { key:'aguardando_ficha_opme', label:'Aguard. Ficha OPME', tone:'purple' }
   ];
   function dateBadge(proc){
     if(!proc || !proc.data || typeof getDateLabel !== 'function') return '';
@@ -16808,7 +17555,7 @@ window.exportarColetasExcel = function() {
     if (!coletas.length) { alert('Nenhuma coleta encontrada.'); return; }
 
     const fmt = d => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '';
-    const statusMap = {coleta_urgente:'✈️ Aguardando', concluido:'✔️ Concluído', cancelado:'❌ Cancelado', a_retirar:'📦 A Retirar'};
+    const statusMap = {coleta_urgente:'✈️ Aguardando', concluido:'✔️ Concluído', cancelado:'❌ Cancelado', a_retirar:'📦 A Retirar', aguardando_ficha_opme:'📋 Ficha OPME'};
 
     const rows = coletas.map(p => ({
         'Status':           statusMap[p.status] || p.status,
@@ -17162,23 +17909,38 @@ window.confirmarItemRetirada = async function(docId, resposta) {
         itemEl.style.pointerEvents = 'none';
     }
 
+    let statusFinal = 'a_retirar'; // 'nao' — mantém a_retirar, não altera nada
     if (resposta === 'sim') {
-        await new Promise(resolve => window.mostrarChecklist(proc, 'concluido', () => {
-            proc.status = 'concluido';
+        const fichaEntregue = window.perguntarFichaOpmeEntregue ? await window.perguntarFichaOpmeEntregue(proc) : 'sim';
+        if (fichaEntregue === 'sim') {
+            await new Promise(resolve => window.mostrarChecklist(proc, 'concluido', () => {
+                proc.status = 'concluido';
+                proc.retiradaConfirmada = true;
+                proc.dataConfirmacaoRetirada = (function(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
+                statusFinal = 'concluido';
+                resolve();
+            }, {blocking:false}));
+        } else {
+            proc.status = 'aguardando_ficha_opme';
             proc.retiradaConfirmada = true;
             proc.dataConfirmacaoRetirada = (function(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
-            resolve();
-        }, {blocking:false}));
+            statusFinal = 'aguardando_ficha_opme';
+        }
     }
-    // se 'nao' — mantém a_retirar, não altera nada
+
+    const msgs = {
+        concluido: { texto: '✅ Confirmado — Concluído', cor: '#22c55e', toast: '✅ Retirada confirmada!' },
+        aguardando_ficha_opme: { texto: '📋 Retirado — Aguardando Ficha OPME', cor: '#a855f7', toast: '📋 Material retirado — Aguardando entrega da Ficha OPME ao estoque' },
+        a_retirar: { texto: '📦 Mantido — Aguardando Retirada', cor: '#9ca3af', toast: '📦 Mantido como aguardando retirada' },
+    };
 
     try {
         await window.fbSaveProc(proc);
         if (itemEl) {
-            itemEl.innerHTML = `<div style="padding:8px 0;font-family:var(--mono);font-size:0.75rem;color:${resposta==='sim'?'#22c55e':'#9ca3af'};font-weight:700;">${resposta==='sim'?'✅ Confirmado — Concluído':'📦 Mantido — Aguardando Retirada'}: ${proc.paciente||'—'}</div>`;
+            itemEl.innerHTML = `<div style="padding:8px 0;font-family:var(--mono);font-size:0.75rem;color:${msgs[statusFinal].cor};font-weight:700;">${msgs[statusFinal].texto}: ${proc.paciente||'—'}</div>`;
             itemEl.style.opacity = '1';
         }
-        window.showSyncToast && window.showSyncToast(resposta === 'sim' ? '✅ Retirada confirmada!' : '📦 Mantido como aguardando retirada');
+        window.showSyncToast && window.showSyncToast(msgs[statusFinal].toast);
         if (typeof window.renderTable === 'function') window.renderTable();
         window.updateStats && window.updateStats();
     } catch(e) {
@@ -17208,7 +17970,7 @@ window.verHistoricoStatus = function(docId) {
     const proc = (window.procedimentos||[]).find(p => (p._docId||String(p.id)) === String(docId));
     if (!proc) return;
     const hist = proc._statusHistory || [];
-    const labelMap = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta Prioritária'};
+    const labelMap = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',aguardando_ficha_opme:'Aguardando Ficha OPME',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta Prioritária'};
 
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);';
@@ -17409,7 +18171,7 @@ window.executarPesquisaGlobal = function(q) {
 
     if (!resultados.length) { el.innerHTML = '<div style="text-align:center;padding:30px;color:#9ca3af;font-family:var(--mono);font-size:0.8rem;">Nenhum resultado encontrado</div>'; return; }
 
-    const labelSt = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta'};
+    const labelSt = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar',aguardando_ficha_opme:'Aguard. Ficha OPME',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta'};
     el.innerHTML = `<div style="font-family:var(--mono);font-size:0.68rem;color:#9ca3af;margin-bottom:8px;">${resultados.length} resultado(s)</div>` +
     resultados.map(p => {
         const id = p._docId || p.id;
@@ -17480,7 +18242,7 @@ window.imprimirRelatorio = function() {
     const procs = window.procedimentos || [];
     const hojeStr = hoje();
     const doHoje = procs.filter(p => p.data === hojeStr && !window._ehColeta(p));
-    const labelSt = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'URGÊNCIA',coleta_urgente:'Coleta Prioritária'};
+    const labelSt = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',aguardando_ficha_opme:'Aguardando Ficha OPME',urgencia:'URGÊNCIA',coleta_urgente:'Coleta Prioritária'};
 
     const win = window.open('','_blank');
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Cirurgias — ${fmtData(hojeStr)}</title>
@@ -19690,7 +20452,7 @@ window.buildCardHTML=function(proc){
 window.abrirQRCode=function(docId){
     const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
     const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
-    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',urgencia:'URGÊNCIA'};
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',aguardando_ficha_opme:'Aguard. Ficha OPME',urgencia:'URGÊNCIA'};
     const txt=[`GF Medical — Ficha Cirúrgica`,proc.hospital||'',proc.paciente?`Paciente: ${proc.paciente}`:'',proc.medico?`Médico: ${proc.medico}`:'',proc.data?`Data: ${fmt(proc.data)}${proc.inicio?' às '+proc.inicio:''}`:'',`Status: ${sMap[proc.status]||proc.status}`,proc.vendedor?`Vendedor: ${proc.vendedor}`:''].filter(Boolean).join('\n');
     const qrUrl=`https://api.qrserver.com/v1/create-qr-code/?size=200x200&format=svg&data=${encodeURIComponent(txt)}`;
     const ov=document.createElement('div');
@@ -19816,7 +20578,7 @@ function _swMelhorias(v){
         window.currentView=v;
     },0);
 }
-const _KS=[{key:'urgencia',label:'🚨 Urgência',cor:'#ef4444'},{key:'a_agendar',label:'Autorizado',cor:'#06b6d4'},{key:'agendado',label:'Agendado',cor:'#4db87a'},{key:'em_transito',label:'Em Trânsito',cor:'#6366f1'},{key:'preparacao',label:'Em Separação',cor:'#d4920a'},{key:'andamento',label:'Em Procedimento',cor:'#d94f4f'},{key:'reagendado',label:'Reagendado',cor:'#a78bfa'},{key:'a_retirar',label:'Aguard. Retirada',cor:'#f97316'}];
+const _KS=[{key:'urgencia',label:'🚨 Urgência',cor:'#ef4444'},{key:'a_agendar',label:'Autorizado',cor:'#06b6d4'},{key:'agendado',label:'Agendado',cor:'#4db87a'},{key:'em_transito',label:'Em Trânsito',cor:'#6366f1'},{key:'preparacao',label:'Em Separação',cor:'#d4920a'},{key:'andamento',label:'Em Procedimento',cor:'#d94f4f'},{key:'reagendado',label:'Reagendado',cor:'#a78bfa'},{key:'a_retirar',label:'Aguard. Retirada',cor:'#f97316'},{key:'aguardando_ficha_opme',label:'Aguard. Ficha OPME',cor:'#a855f7'}];
 function renderKanban(){
     const c=document.getElementById('kanban-view'); if(!c) return;
     const procs=(window.procedimentos||[]).filter(p=>!['concluido','cancelado','coleta_urgente'].includes(p.status));
@@ -19840,7 +20602,7 @@ function renderKanban(){
 
 // ─── 3. ALERTA SLA ────────────────────────────────────────────────
 const _SLA={a_agendar:15,agendado:10,reagendado:5,preparacao:4};
-const _SL={a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+const _SL={a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada',aguardando_ficha_opme:'Aguardando Ficha OPME',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
 function _diasStatus(proc){const h=proc._statusHistory||[];for(let i=h.length-1;i>=0;i--){if(h[i].para===proc.status)return Math.floor((Date.now()-new Date(h[i].em).getTime())/86400000);}return 0;}
 function injetarBarraSLA2(){
     if(document.getElementById('sla-alert-bar')) return;
@@ -19894,7 +20656,7 @@ window.abrirResumoDia=function(){
 window.copiarFicha=function(docId){
     const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId)); if(!proc) return;
     const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
-    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',urgencia:'URGÊNCIA'};
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguard. Retirada',aguardando_ficha_opme:'Aguard. Ficha OPME',urgencia:'URGÊNCIA'};
     const txt=[`── Ficha Cirúrgica ──`,proc.hospital?`Hospital: ${proc.hospital}`:'',proc.paciente?`Paciente: ${proc.paciente}`:'',proc.medico?`Médico: ${proc.medico}`:'',proc.procedimento?`Procedimento: ${proc.procedimento}`:'',proc.convenio?`Convênio: ${proc.convenio}`:'',proc.data?`Data: ${fmt(proc.data)}${proc.inicio?' às '+proc.inicio:''}`:'',`Status: ${sMap[proc.status]||proc.status}`,proc.vendedor?`Vendedor: ${proc.vendedor}`:'',proc.nf?`NF: ${proc.nf}`:'',proc.obs?`Obs: ${proc.obs}`:''].filter(Boolean).join('\n');
     (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).catch(()=>{const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);});
     window.showSyncToast&&window.showSyncToast('📋 Ficha copiada!');
@@ -19931,7 +20693,7 @@ window.updateStats=function(){
 };
 
 function injetarBotoesControles(){
-    const ref=document.querySelector('[onclick="exportarWhatsApp()"]'); if(!ref) return;
+    const ref=document.querySelector('[onclick="abrirCobrarWhatsApp()"]'); if(!ref) return;
     if(!document.getElementById('btn-resumo-dia')){const b=document.createElement('button');b.id='btn-resumo-dia';b.textContent='📊 Resumo do Dia';b.style.cssText='padding:8px 18px;border-radius:10px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.4);color:#6366f1;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;';b.onclick=window.abrirResumoDia;ref.insertAdjacentElement('beforebegin',b);}
     if(!document.getElementById('btn-email-rel')){const b=document.createElement('button');b.id='btn-email-rel';b.textContent='📧 E-mail';b.style.cssText='padding:8px 18px;border-radius:10px;background:rgba(75,180,210,.12);border:1px solid rgba(75,180,210,.4);color:#4bb4d2;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;';b.onclick=window.enviarRelatorioEmail;ref.insertAdjacentElement('beforebegin',b);}
 }
@@ -20040,7 +20802,7 @@ function _beepReagVencido() {
 const _statusLabelMap = {
     a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
     agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
-    reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
+    reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',
     urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária'
 };
 
