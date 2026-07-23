@@ -8898,6 +8898,14 @@ function _precisaNomeOp() {
     return em.startsWith('comercialmt@gfmedical') || em.startsWith('comercial@gfmedical');
 }
 
+// Independe de já ter (ou não) escolhido o nome — usado pra decidir se a
+// sequência forçada de login (operador → lembrete → resumo) se aplica.
+function _isContaComercialCompartilhada() {
+    if (!window._currentUser) return false;
+    const em = (window._currentUser.email || '').toLowerCase();
+    return em.startsWith('comercialmt@gfmedical') || em.startsWith('comercial@gfmedical');
+}
+
 function cancelarNomeOp() {
     document.getElementById('modalNomeOp').classList.remove('open');
     _pendingOpenModal = null;
@@ -10883,9 +10891,14 @@ function _nomeOperadorLembrete() {
     return window._operadorNome || (window._currentUser && (window._currentUser.nome || window._currentUser.email)) || 'geral';
 }
 
-function verificarLembreteCobrancaDiario() {
-    if (document.getElementById('modalEscolhaCobrar')) return; // já está na tela, não duplica
-    if (typeof _precisaNomeOp === 'function' && _precisaNomeOp()) return; // espera identificar o operador primeiro
+// "depois" roda sempre que este checkpoint terminar de ser tratado — seja
+// porque o lembrete foi respondido, seja porque nem precisava aparecer.
+// Usado pra encadear o Resumo do Dia automático (só contas comercial) sem
+// que ele apareça em cima do lembrete.
+function verificarLembreteCobrancaDiario(depois) {
+    const finalizarSemMostrar = () => { if (depois) depois(); };
+    if (document.getElementById('modalEscolhaCobrar')) return; // já está na tela, não duplica (nem chama depois — quem abriu é dono do fluxo)
+    if (typeof _precisaNomeOp === 'function' && _precisaNomeOp()) { finalizarSemMostrar(); return; } // espera identificar o operador primeiro
 
     const agora = new Date();
     const horaAtual = agora.getHours();
@@ -10893,20 +10906,78 @@ function verificarLembreteCobrancaDiario() {
     const operador = _nomeOperadorLembrete();
 
     const checkpoint = HORARIOS_LEMBRETE_COBRANCA.filter(h => horaAtual >= h).pop();
-    if (checkpoint === undefined) return;
+    if (checkpoint === undefined) { finalizarSemMostrar(); return; }
 
     const chave = 'gf_lembrete_cobranca_' + hoje + '_' + operador + '_' + checkpoint + 'h';
-    if (localStorage.getItem(chave)) return;
+    if (localStorage.getItem(chave)) { finalizarSemMostrar(); return; }
 
     const pendRetirada = procedimentos.filter(p => !_ehColeta(p) && p.status === 'a_retirar').length;
     const pendFicha = procedimentos.filter(p => !_ehColeta(p) && p.status === 'aguardando_ficha_opme').length;
-    if (pendRetirada === 0 && pendFicha === 0) return;
+    if (pendRetirada === 0 && pendFicha === 0) { finalizarSemMostrar(); return; }
 
-    window.abrirCobrarWhatsApp({ bloqueante: true, aoEscolher: () => localStorage.setItem(chave, '1') });
+    window.abrirCobrarWhatsApp({ bloqueante: true, aoEscolher: () => { localStorage.setItem(chave, '1'); finalizarSemMostrar(); } });
 }
 
-setTimeout(verificarLembreteCobrancaDiario, 6000);
-setInterval(verificarLembreteCobrancaDiario, 5 * 60 * 1000); // rechecagem a cada 5min, pra pegar 8h/14h com a aba já aberta
+// ─── RESUMO DO DIA AUTOMÁTICO (só contas comercial compartilhadas) ───
+// Mesmo esquema de checkpoints do lembrete (8h/14h, uma vez por operador por
+// checkpoint) — só que sempre depois do lembrete ter sido tratado, nunca
+// antes nem em cima dele.
+function _verificarResumoDiaAutomatico() {
+    if (!_isContaComercialCompartilhada()) return;
+    if (typeof _precisaNomeOp === 'function' && _precisaNomeOp()) return; // ainda não escolheu o nome — não mostra nada ainda
+    const horaAtual = new Date().getHours();
+    const checkpoint = HORARIOS_LEMBRETE_COBRANCA.filter(h => horaAtual >= h).pop();
+    if (checkpoint === undefined) return;
+    const hoje = todayStr();
+    const operador = _nomeOperadorLembrete();
+    const chave = 'gf_resumo_dia_auto_' + hoje + '_' + operador + '_' + checkpoint + 'h';
+    if (localStorage.getItem(chave)) return;
+    localStorage.setItem(chave, '1');
+    if (typeof window.abrirResumoDia === 'function') window.abrirResumoDia();
+}
+
+setTimeout(function() { verificarLembreteCobrancaDiario(_verificarResumoDiaAutomatico); }, 6000);
+setInterval(function() { verificarLembreteCobrancaDiario(_verificarResumoDiaAutomatico); }, 5 * 60 * 1000); // rechecagem a cada 5min, pra pegar 8h/14h com a aba já aberta
+
+// ─── SEQUÊNCIA FORÇADA NO LOGIN (só contas comercial compartilhadas) ───
+// Ordem: 1) selecionar operador (se ainda não escolheu)  2) lembrete de
+// cobrança  3) Resumo do Dia. Pra comercial@gfmedical.net o passo 1 já é
+// forçado no próprio login (tela "Quem está operando agora?"); aqui a gente
+// cobre também comercialmt@gfmedical.net, que hoje só pedia o nome de forma
+// preguiçosa (só ao clicar em "+ Nova Cirurgia").
+function _forcarModalSelecaoOperador(callback) {
+    const overlay = document.getElementById('modalNomeOp');
+    if (!overlay || overlay.classList.contains('open')) return;
+    const lista = document.getElementById('listaNomeOperador');
+    const opcoes = _nomesOperadorAtivos();
+    lista.innerHTML =
+        '<select id="selNomeOperador" class="form-select" style="width:100%;">' +
+            '<option value="">Selecione seu nome</option>' +
+            opcoes.map(nome => `<option value="${nome}">${nome}</option>`).join('') +
+        '</select>' +
+        '<button type="button" onclick="selecionarNomeOp(document.getElementById(\'selNomeOperador\').value)" style="margin-top:10px;width:100%;padding:10px 14px;border-radius:8px;background:var(--accent);border:none;color:#fff;cursor:pointer;font-family:var(--mono);font-size:0.88rem;font-weight:700;">Confirmar</button>';
+    const btnCancelar = overlay.querySelector('button[onclick="cancelarNomeOp()"]');
+    if (btnCancelar) btnCancelar.style.display = 'none'; // no login é obrigatório escolher — sem opção de cancelar
+    _pendingOpenModal = () => { if (btnCancelar) btnCancelar.style.display = ''; if (callback) callback(); };
+    overlay.classList.add('open');
+}
+
+function _iniciarSequenciaLoginComercial() {
+    if (!window._currentUser) { setTimeout(_iniciarSequenciaLoginComercial, 800); return; }
+    if (!_isContaComercialCompartilhada()) return;
+    if (_precisaNomeOp()) {
+        const identOverlay = document.getElementById('identComercialOverlay');
+        if (identOverlay && !identOverlay.classList.contains('hidden')) {
+            // comercial@ já está escolhendo o nome pela tela própria de login — só espera resolver
+            setTimeout(_iniciarSequenciaLoginComercial, 800);
+            return;
+        }
+        _forcarModalSelecaoOperador(() => verificarLembreteCobrancaDiario(_verificarResumoDiaAutomatico));
+        return;
+    }
+    verificarLembreteCobrancaDiario(_verificarResumoDiaAutomatico);
+}
+setTimeout(_iniciarSequenciaLoginComercial, 1500);
 
 // ─── INIT ───
 // Dados carregados pelo onSnapshot do Supabase acima
