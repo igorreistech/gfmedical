@@ -4636,7 +4636,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
         </div>
         <div style="display:flex; align-items:center; gap:20px;">
             <button class="btn-gerenciar-usuarios" id="btn-gerenciar-usuarios" onclick="openAdminModal()">👥 Usuários</button>
-            <button class="logout-btn" onclick="doLogout()" id="logoutBtn" style="display:none;">Sair ↩</button>
+            <button class="logout-btn" onclick="window._confirmarSair()" id="logoutBtn" style="display:none;">Sair ↩</button>
             <button id="btn-ativar-som" onclick="ativarSom()">
                 <span class="som-dot"></span>
                 <span id="btn-som-label">Som desativado</span>
@@ -4924,9 +4924,12 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
 
     <!-- ATIVIDADE: quem lançou o quê e quando (cirurgia, coleta, ficha OPME) -->
     <div id="atividade-view" style="display:none;padding:16px 0;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
             <div style="font-family:var(--mono);font-size:0.78rem;color:var(--text-dim);">Últimos lançamentos — cirurgia, coleta e ficha OPME</div>
-            <button class="btn-act" style="background:rgba(77,184,122,0.1);border-color:var(--accent2);color:var(--accent2);" onclick="renderAtividade(true)">🔄 Atualizar</button>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <select id="atividade-filtro-mes" class="form-select" style="padding:6px 10px;font-size:0.78rem;" onchange="window._atividadeFiltroMes = this.value; renderAtividade();"></select>
+                <button class="btn-act" style="background:rgba(77,184,122,0.1);border-color:var(--accent2);color:var(--accent2);" onclick="renderAtividade(true)">🔄 Atualizar</button>
+            </div>
         </div>
         <div id="atividade-lista"></div>
     </div>
@@ -6143,7 +6146,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                         <option>Gabriely Amorim Dias</option>
                         <option>Regiane da Silva Ramos</option>
                         <option>Gustavo Ovídio Mussi Faverão</option>
-                        <option>Jeferson Cruz</option>
+                        <option>Jeferson Cruz Rodrigues</option>
                         <option>Leandro Sabino</option>
                     </select>
                 </div>
@@ -6330,8 +6333,8 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                     Gustavo Ovídio Mussi Faverão
                 </label>
                 <label class="export-opt">
-                    <input type="checkbox" class="exp-vendedor" value="Jeferson Cruz" checked>
-                    Jeferson Cruz
+                    <input type="checkbox" class="exp-vendedor" value="Jeferson Cruz Rodrigues" checked>
+                    Jeferson Cruz Rodrigues
                 </label>
                 <label class="export-opt">
                     <input type="checkbox" class="exp-vendedor" value="Leandro Sabino" checked>
@@ -7122,7 +7125,7 @@ function _iniciarSomGeral(procs) {
 }
 function _tocarSomGeral(procs) {
     if (!_somEstaAtivo()) return;
-    const ctx = _getAudioCtx(); if (!ctx) return;
+    const ctx = getAudioCtx(); if (!ctx) return;
     const t = ctx.currentTime;
     // beep suave único — não repetitivo, apenas lembrete
     const o = ctx.createOscillator();
@@ -9649,7 +9652,28 @@ async function renderAtividade(forcar) {
             hospital: f.hospital || '—',
         }));
 
-    const todosEventos = [...eventosProc, ...eventosFichas];
+    const todosEventosBrutos = [...eventosProc, ...eventosFichas];
+
+    // Filtro por mês — permite ver quantos lançamentos foram feitos em cada
+    // período, não só o total acumulado.
+    const mesesDisponiveis = [...new Set(todosEventosBrutos.map(ev => (ev.quando || '').slice(0, 7)).filter(Boolean))]
+        .sort().reverse();
+    const selMes = document.getElementById('atividade-filtro-mes');
+    if (selMes) {
+        const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+        const valorAtual = window._atividadeFiltroMes || '';
+        selMes.innerHTML = '<option value="">Todos os meses</option>' +
+            mesesDisponiveis.map(ym => {
+                const [y, m] = ym.split('-');
+                const label = nomesMes[parseInt(m, 10) - 1] + ' de ' + y;
+                return `<option value="${ym}">${label}</option>`;
+            }).join('');
+        selMes.value = mesesDisponiveis.includes(valorAtual) ? valorAtual : '';
+        window._atividadeFiltroMes = selMes.value;
+    }
+    const todosEventos = window._atividadeFiltroMes
+        ? todosEventosBrutos.filter(ev => (ev.quando || '').slice(0, 7) === window._atividadeFiltroMes)
+        : todosEventosBrutos;
 
     const resumoPorOperador = {};
     todosEventos.forEach(ev => {
@@ -9668,7 +9692,9 @@ async function renderAtividade(forcar) {
         .slice(0, 200);
 
     if (!eventos.length) {
-        el.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-family:var(--mono);font-size:0.8rem;">Nenhum lançamento registrado ainda.</div>';
+        el.innerHTML = '<div style="padding:20px;color:var(--text-dim);font-family:var(--mono);font-size:0.8rem;">' +
+            (window._atividadeFiltroMes ? 'Nenhum lançamento nesse mês.' : 'Nenhum lançamento registrado ainda.') +
+            '</div>';
         return;
     }
 
@@ -10859,6 +10885,7 @@ function _nomeOperadorLembrete() {
 
 function verificarLembreteCobrancaDiario() {
     if (document.getElementById('modalEscolhaCobrar')) return; // já está na tela, não duplica
+    if (typeof _precisaNomeOp === 'function' && _precisaNomeOp()) return; // espera identificar o operador primeiro
 
     const agora = new Date();
     const horaAtual = agora.getHours();
@@ -20486,6 +20513,32 @@ else init();
 (function(){
 'use strict';
 
+// ─── CONFIRMAÇÃO GENÉRICA SIM/NÃO ──────────────────────────────────
+window._confirmarSimNao = function(titulo, mensagem, corAccent){
+    corAccent = corAccent || '#25D366';
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px;';
+        overlay.innerHTML =
+            '<div style="background:var(--surface,#fff);border:1px solid var(--border);border-top:4px solid ' + corAccent + ';border-radius:16px;padding:28px 26px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.35);">' +
+                '<div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;letter-spacing:0.08em;color:' + corAccent + ';text-transform:uppercase;margin-bottom:14px;">' + titulo + '</div>' +
+                '<div style="font-family:\'Space Grotesk\',sans-serif;font-size:0.92rem;color:var(--text,#111);margin-bottom:20px;">' + mensagem + '</div>' +
+                '<div style="display:flex;gap:10px;">' +
+                    '<button id="_csnSim" style="flex:1;padding:12px;border-radius:10px;border:2px solid ' + corAccent + ';background:' + corAccent + ';color:#fff;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">Sim</button>' +
+                    '<button id="_csnNao" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-dim,#6b7280);font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">Não</button>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        overlay.querySelector('#_csnSim').onclick = () => { overlay.remove(); resolve(true); };
+        overlay.querySelector('#_csnNao').onclick = () => { overlay.remove(); resolve(false); };
+    });
+};
+
+window._confirmarSair = async function(){
+    const ok = await window._confirmarSimNao('🚪 Sair', 'Tem certeza que quer sair do sistema?', '#d94f4f');
+    if (ok) doLogout();
+};
+
 // ─── 1. BOTÃO NOTIFICAÇÕES ────────────────────────────────────────
 function injetarBotaoNotif(){
     if(document.getElementById('btn-notificacoes')) return;
@@ -20496,6 +20549,8 @@ function injetarBotaoNotif(){
     btn.innerHTML='<span>🔔</span><span id="notif-lbl">Notif.</span>';
     btn.onclick=async()=>{
         if(!('Notification' in window)){alert('Navegador não suporta notificações');return;}
+        const ok = await window._confirmarSimNao('🔔 Notificações', 'Ativar notificações do navegador para este sistema?');
+        if (!ok) return;
         const perm=await Notification.requestPermission();
         if(perm==='granted') window.showSyncToast&&window.showSyncToast('🔔 Notificações ativadas!');
         _atualizarBotaoNotif();
@@ -20755,7 +20810,7 @@ function stopReagVencidoSound() {
 }
 function _beepReagVencido() {
     if (typeof _somEstaAtivo === 'function' && !_somEstaAtivo()) return;
-    const ctx = typeof _getAudioCtx === 'function' ? _getAudioCtx() : null;
+    const ctx = typeof getAudioCtx === 'function' ? getAudioCtx() : null;
     if (!ctx) return;
     const t = ctx.currentTime;
     [0, 0.22].forEach(off => {
