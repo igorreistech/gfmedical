@@ -6062,6 +6062,14 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
                 <div class="form-group">
                     <label class="form-label">Nome do Paciente *</label>
                     <input class="form-input" id="f-paciente" placeholder="Nome completo do paciente">
+                    <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:0.78rem;color:var(--text-dim);cursor:pointer;">
+                        <input type="checkbox" id="f-paciente-nao-informado" onchange="
+                            const el = document.getElementById('f-paciente');
+                            if (this.checked) { el.value = 'Não informado'; el.disabled = true; }
+                            else { el.value = ''; el.disabled = false; el.focus(); }
+                        ">
+                        Não informado
+                    </label>
                 </div>
 
                 <div class="form-group">
@@ -8735,6 +8743,14 @@ function editProc(docId) {
         }
     })();
     document.getElementById('f-paciente').value = p.paciente || '';
+    (function() {
+        const pEl = document.getElementById('f-paciente');
+        const pChk = document.getElementById('f-paciente-nao-informado');
+        if (!pChk) return;
+        const naoInformado = (p.paciente || '').trim() === 'Não informado';
+        pChk.checked = naoInformado;
+        pEl.disabled = naoInformado;
+    })();
     if (document.getElementById('f-pacienteIdade')) document.getElementById('f-pacienteIdade').value = p.pacienteIdade || '';
     document.getElementById('f-procedimento').value = p.procedimento;
     document.getElementById('f-vendedor').value = p.vendedor;
@@ -10837,76 +10853,9 @@ function verificarLembreteCobrancaDiario() {
     overlay.querySelector('#btnLembreteDepois').onclick = fechar;
     overlay.querySelector('#btnLembreteCobrarAgora').onclick = () => {
         fechar();
-        let filtro;
-        if (pendRetirada > 0 && pendFicha > 0) filtro = undefined;
-        else if (pendFicha > 0) filtro = 'ficha';
-        else filtro = 'retirada';
-        _abrirWhatsAppNumero(NUMERO_COBRANCA_DIARIA, filtro);
+        var texto = 'Olá! Lembrete diário: hoje tem ' + pendRetirada + ' pendência(s) de Aguardando Retirada e ' + pendFicha + ' ficha(s) OPME pendente(s). Por favor, providencie a cobrança o quanto antes. Qualquer dúvida, me chama!';
+        window.open('https://api.whatsapp.com/send?phone=' + NUMERO_COBRANCA_DIARIA + '&text=' + encodeURIComponent(texto), '_blank');
     };
-}
-
-// Monta a mesma mensagem de exportarWhatsApp, mas manda direto pro número fixo
-// em vez de abrir o seletor de contato do WhatsApp.
-async function _abrirWhatsAppNumero(numero, filtro) {
-    await verificarPromocaoRetirada();
-    var fmt = function(d) {
-        if (!d) return '—';
-        var s = String(d);
-        var dt = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T00:00:00') : new Date(s);
-        return isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('pt-BR');
-    };
-    var cirurgias = filtro === 'ficha' ? [] : procedimentos.filter(p => !_ehColeta(p) && !p.isColeta && p.status === 'a_retirar');
-    var fichasPendentes = filtro === 'retirada' ? [] : procedimentos.filter(p => !_ehColeta(p) && !p.isColeta && p.status === 'aguardando_ficha_opme');
-    if (cirurgias.length === 0 && fichasPendentes.length === 0) return;
-
-    var linhas = ['Olá! ', 'Segue as pendências do *Monitor Cirúrgico*:'];
-    if (cirurgias.length > 0) {
-        linhas.push('');
-        linhas.push('*AGUARDANDO RETIRADA* (material ainda não devolvido ao estoque)');
-        cirurgias.forEach(p => {
-            linhas.push('');
-            linhas.push('---');
-            linhas.push('*Paciente:* ' + (p.paciente || '—'));
-            linhas.push('*Hospital:* ' + (p.hospital || '—'));
-            linhas.push('*Nº da Nota Fiscal:* ' + (p.nf || '—'));
-            linhas.push('*Vendedor:* ' + (p.vendedor || '—'));
-            linhas.push('*Data de Cirurgia:* ' + fmt(p.data));
-            linhas.push('*Data de retirada:* ' + fmt(p.retirada));
-        });
-        linhas.push('');
-        linhas.push('---');
-        linhas.push('Total: *' + cirurgias.length + ' pendência(s) de retirada*');
-        linhas.push('');
-        linhas.push('Por favor, providencie a devolução o quanto antes para garantir a disponibilidade dos produtos no estoque.');
-        linhas.push('Qualquer dúvida, é só me chamar! 🙏');
-    }
-    if (fichasPendentes.length > 0) {
-        linhas.push('');
-        linhas.push('*AGUARDANDO FICHA OPME* (material já retirado, falta entregar a ficha ao estoque)');
-        fichasPendentes.forEach(p => {
-            linhas.push('');
-            linhas.push('---');
-            linhas.push('*Paciente:* ' + (p.paciente || '—'));
-            linhas.push('*Hospital:* ' + (p.hospital || '—'));
-            linhas.push('*Nº da Nota Fiscal:* ' + (p.nf || '—'));
-            linhas.push('*Vendedor:* ' + (p.vendedor || '—'));
-            linhas.push('*Data de Cirurgia:* ' + fmt(p.data));
-            linhas.push('*Data de devolução:* ' + (p.dataConfirmacaoRetirada ? fmt(p.dataConfirmacaoRetirada) : '(quando a devolução ocorrer)'));
-        });
-        linhas.push('');
-        linhas.push('---');
-        linhas.push('Total: *' + fichasPendentes.length + ' ficha(s) OPME pendente(s)*');
-        linhas.push('');
-        linhas.push('Poderia providenciar a entrega da ficha do OPME o quanto antes? É pra garantir a laudação com o convênio e o faturamento com o cliente no prazo.');
-    }
-    linhas.push('');
-    linhas.push('Cobrança de: *' + _nomeOperadorCobranca() + '*');
-
-    const textoLimpo = linhas.join('\n')
-        .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?(‍[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?)*/gu, '')
-        .replace(/[ \t]+/g, ' ')
-        .replace(/^ /gm, '');
-    window.open('https://api.whatsapp.com/send?phone=' + numero + '&text=' + encodeURIComponent(textoLimpo), '_blank');
 }
 
 setTimeout(verificarLembreteCobrancaDiario, 6000);
