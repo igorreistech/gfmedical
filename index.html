@@ -10736,6 +10736,8 @@ function cobrarVolumesWhatsApp() {
     linhas.push('');
     linhas.push('━━━━━━━━━━━━━━━━━━━━━━');
     linhas.push('Total: *' + coletas.length + ' volume(s) urgente(s)*');
+    linhas.push('');
+    linhas.push('Cobrança de: *' + _nomeOperadorCobranca() + '*');
 
     _abrirWhatsApp(linhas.join('\n'));
 }
@@ -10794,6 +10796,8 @@ function cobrarAgendadosWhatsApp() {
     linhas.push('');
     linhas.push('━━━━━━━━━━━━━━━━━━━━━━');
     linhas.push(`Total: *${lista.length} cirurgia(s) agendada(s)*`);
+    linhas.push('');
+    linhas.push('Cobrança de: *' + _nomeOperadorCobranca() + '*');
 
     _abrirWhatsApp(linhas.join('\n'));
 }
@@ -17331,6 +17335,7 @@ window.exportarWhatsAppColeta = function() {
         linhas.push('');
     });
     linhas.push('_Enviado pelo Monitor Cirúrgico GF Medical_');
+    linhas.push('Cobrança de: *' + _nomeOperadorCobranca() + '*');
     _abrirWhatsApp(linhas.join('\n'));
 };
 
