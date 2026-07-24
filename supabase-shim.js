@@ -67,6 +67,12 @@ function camelToSnakeRow(table, obj) {
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
     if (k === '_docId' || k === 'id') continue; // id é tratado à parte
+    // Qualquer campo com "_" que não esteja no FIELD_MAPS é metadado só de
+    // memória (ex.: _filialOrigem, adicionado em processarSnapshotFilial pra
+    // saber de qual cidade veio o registro) — nunca é coluna real da tabela.
+    // Mandar isso pro Postgres causava 400 silencioso em autoTransitar toda
+    // vez que um registro do Consolidado era resalvo em background.
+    if (k.startsWith('_') && !map[k]) continue;
     const col = map[k] || k;
     // Firestore aceitava '' em campo de data sem problema; Postgres rejeita
     // '' em colunas date/timestamp ("invalid input syntax"). Normaliza pra null.
