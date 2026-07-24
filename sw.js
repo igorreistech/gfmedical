@@ -1,10 +1,13 @@
-const CACHE = 'monitor-unificado-v2';
+const CACHE = 'monitor-unificado-v3';
 const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
   BASE,
   BASE + 'index.html',
   BASE + 'manifest.json',
-  BASE + 'icon.svg',
+  BASE + 'icon-192.png',
+  BASE + 'icon-512.png',
+  BASE + 'icon-192-maskable.png',
+  BASE + 'icon-512-maskable.png',
 ];
 
 self.addEventListener('install', e => {
