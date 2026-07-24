@@ -450,6 +450,11 @@
             if (isAdminFixo) perfil.role = 'admin';
 
             window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: perfil.role };
+            // Independe do "role" que a conta demo@test.com tiver no banco —
+            // seja qual for a visão que essa conta cai (admin, visualização,
+            // etc.), a primeira impressão do demo tem que ser sempre a mesma.
+            window._isDemoUser = emailLower === DEMO_USER.email;
+            document.documentElement.classList.toggle('modo-demo', window._isDemoUser);
             overlay.classList.add('hidden');
             const logoutEl  = document.getElementById('logoutBtn');
             const adminBtn  = document.getElementById('btn-gerenciar-usuarios');
@@ -504,9 +509,6 @@
               if (agendView) agendView.style.display = 'none';
               if (comercialView) comercialView.style.display = 'none';
               window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: 'visualizacao' };
-              window._isDemoUser = emailLower === DEMO_USER.email;
-              document.documentElement.classList.toggle('modo-demo', window._isDemoUser);
-              if (window._isDemoUser) { ocultarMarcaDemo(); configurarVisaoDemo(); }
               solicitarPermissaoNotificacoes();
             } else {
               if (mainCont)  mainCont.style.display  = '';
@@ -516,6 +518,10 @@
               if (comercialView) comercialView.style.display = 'none';
               solicitarPermissaoNotificacoes();
             }
+            // Roda pra qualquer role que a conta demo caia — garante que a
+            // primeira tela seja sempre a Central Cirúrgica, nunca o Painel
+            // Executivo, independente de qual branch acima foi executado.
+            if (window._isDemoUser) { ocultarMarcaDemo(); configurarVisaoDemo(); }
           } else {
             window._currentUser = null;
             window._isDemoUser = false;
