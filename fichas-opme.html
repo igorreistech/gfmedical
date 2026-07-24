@@ -394,6 +394,13 @@ tbody tr:hover .row-acts{opacity:1}
         <div class="fg"><label class="flbl">Convênio</label><input class="finput" id="f-conv" placeholder="Ex: Unimed, SUS…" list="dl-convenio"><datalist id="dl-convenio"></datalist></div>
       </div>
       <div class="frow">
+        <div class="fg"><label class="flbl">Operador *</label>
+          <select class="finput" id="f-operador-ficha">
+            <option value="">Selecione quem está lançando</option>
+          </select>
+        </div>
+      </div>
+      <div class="frow">
         <div class="fg"><label class="flbl">Nº Pedido de Venda</label><input class="finput" id="f-pedido" placeholder="Ex: 4795"></div>
         <div class="fg"></div>
       </div>
@@ -448,6 +455,12 @@ const SUPABASE_ANON_KEY = "sb_publishable_P3EggMdsxQUoKnX_pLMaRQ_ZrGEYpIP";
 
 const COLL = 'fichas_opme';
 const FILIAL = 'CGR';
+
+// Mesma lista do index.html — quem lança a ficha precisa se identificar,
+// senão a Atividade cai no fallback e mostra o e-mail da conta em vez do
+// nome de quem realmente fez o lançamento.
+const NOMES_OPERADOR_CGR = ['Eva Diana de Araujo','Igor dos Reis Silva','Larissa Amanda Bernardo do Valle','Gabriely Amorim Dias','Luis Felipe Moura Braga','Paulo Vitor Leite da Silva','Thayz Benites Leonel','Tiago da Silva Siqueira','Jeferson Rodrigues Cruz','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Regiane da Silva Ramos','Gustavo Ovídio Mussi Faverão'];
+function _nomesOperadorAtivos() { return NOMES_OPERADOR_CGR; }
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const auth = supabase.auth;
 const db   = supabase; // mantido como "db" só para minimizar diff no resto do arquivo
@@ -636,8 +649,11 @@ async function uploadAnexo(file, tipo, fichaId) {
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
   const path = `opme/${fichaId}/${tipo}_${Date.now()}.${ext}`;
   const storageRef = ref(storage, path);
-  await comTimeout(uploadBytes(storageRef, file), 10000, 'Tempo esgotado ao enviar anexo (Storage). Verifique se o bucket "opme" está configurado no Supabase.');
-  return await comTimeout(getDownloadURL(storageRef), 8000, 'Tempo esgotado ao obter link do anexo.');
+  // 10s/8s era curto demais pra PDF de Pedido de Venda em conexão real e
+  // dava timeout falso culpando o bucket — o mesmo bucket "opme" já é usado
+  // sem timeout nenhum em index.html, então o problema aqui era só o prazo.
+  await comTimeout(uploadBytes(storageRef, file), 45000, 'Tempo esgotado ao enviar anexo. Verifique sua conexão com a internet — se persistir, tente um arquivo menor.');
+  return await comTimeout(getDownloadURL(storageRef), 15000, 'Tempo esgotado ao obter link do anexo. Verifique sua conexão e tente novamente.');
 }
 
 // Sobe os anexos em paralelo; falha de upload não bloqueia o salvamento da ficha (dados já estão no Firestore).
@@ -1083,6 +1099,12 @@ window.abrirModal = id => {
   document.getElementById('import-badge').classList.remove('show');
   document.getElementById('pv-input').value = '';
 
+  const selOperadorFicha = document.getElementById('f-operador-ficha');
+  if (selOperadorFicha) {
+    selOperadorFicha.innerHTML = '<option value="">Selecione quem está lançando</option>' +
+      _nomesOperadorAtivos().map(nome => `<option value="${nome}">${nome}</option>`).join('');
+  }
+
   if (id) {
     const f = fichas.find(x => x._id===id);
     if (!f) return;
@@ -1094,6 +1116,7 @@ window.abrirModal = id => {
     document.getElementById('f-cliente').value = f.cliente||'';
     document.getElementById('f-conv').value   = f.convenio||'';
     document.getElementById('f-pedido').value = f.numeroPedido||'';
+    if (selOperadorFicha) selOperadorFicha.value = f.operadorNome || '';
     document.getElementById('f-data').value   = f.dataCirurgia||'';
     document.getElementById('f-status').value = f.status??0;
     document.getElementById('f-obs').value    = f.observacoes||'';
@@ -1122,6 +1145,7 @@ window.abrirModal = id => {
     document.getElementById('f-hosp').value   = up.get('hospital')    || '';
     document.getElementById('f-conv').value   = up.get('convenio')    || '';
     document.getElementById('f-pedido').value = '';
+    if (selOperadorFicha) selOperadorFicha.value = '';
     document.getElementById('f-data').value   = up.get('data')        || '';
     document.getElementById('f-obs').value    = '';
     document.getElementById('f-status').value = 0;
@@ -1155,6 +1179,13 @@ window.salvarFicha = async () => {
   const proc = document.getElementById('f-proc').value.trim();
   if (!pac)  { alert('Informe o paciente.'); return; }
   if (!med)  { alert('Informe o médico.'); return; }
+  const operadorFicha = document.getElementById('f-operador-ficha')?.value || '';
+  if (!operadorFicha) {
+    const oEl = document.getElementById('f-operador-ficha');
+    if (oEl) { oEl.style.borderColor = '#f97316'; oEl.focus(); }
+    alert('⚠️ Selecione o nome de quem está lançando esta ficha.');
+    return;
+  }
   coletarItens();
   const iv = itens.filter(i => i.descricao.trim());
   const total = iv.reduce((s,i) => s + (Number(i.precoUnit)||0)*(Number(i.qtd)||0), 0);
@@ -1167,7 +1198,8 @@ window.salvarFicha = async () => {
     dataCirurgia: document.getElementById('f-data').value,
     status:       parseInt(document.getElementById('f-status').value),
     observacoes:  document.getElementById('f-obs').value.trim(),
-    itens:iv, total
+    itens:iv, total,
+    operadorNome: operadorFicha
   };
   const btn = document.getElementById('btn-salvar');
   btn.disabled = true; btn.textContent = 'Salvando…';
@@ -1177,7 +1209,7 @@ window.salvarFicha = async () => {
     fecharModal();
     if (falhasAnexo.length) {
       toast((editingId ? 'Ficha atualizada' : 'Ficha salva') + ', mas o anexo falhou', 'err');
-      alert('Ficha salva, porém não foi possível enviar o(s) anexo(s):\n\n' + falhasAnexo.join('\n') + '\n\nVerifique se o bucket "opme" está configurado no Supabase (Storage → Buckets).');
+      alert('Ficha salva, porém não foi possível enviar o(s) anexo(s):\n\n' + falhasAnexo.join('\n') + '\n\nVerifique sua conexão com a internet e tente anexar novamente editando a ficha.');
     } else {
       toast(editingId ? 'Ficha atualizada no banco!' : 'Ficha salva no banco!', 'ok');
     }
