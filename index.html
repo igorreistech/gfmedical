@@ -35,6 +35,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#0d1f0e">
     <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/jpeg" href="logo.jpg">
     <link rel="apple-touch-icon" href="logo.jpg">
     <title>Monitor Cirúrgico · GF Medical</title>
     <meta name="description" content="Monitor Cirúrgico GF Medical. Acompanhamento em tempo real de procedimentos cirúrgicos.">
@@ -11417,6 +11418,26 @@ function _forcarModalSelecaoOperador(callback) {
     overlay.classList.add('open');
 }
 
+// Bloqueio de cobrança pra conta comercial compartilhada — SEM limite de
+// horário e SEM "já resolvido hoje": escolher uma opção só abre o WhatsApp,
+// não garante que a mensagem foi realmente enviada nem que a pendência foi
+// resolvida, então a tela volta a bloquear em toda nova abertura do sistema
+// enquanto o status continuar como Aguardando Retirada/Ficha OPME. Só some
+// de verdade quando o status do procedimento mudar.
+function _verificarBloqueioCobrancaComercial(tentativa) {
+    if (!_isContaComercialCompartilhada()) return;
+    if (typeof _precisaNomeOp === 'function' && _precisaNomeOp()) return;
+    if (document.getElementById('modalEscolhaCobrar')) return;
+    if (!procedimentos.length && (tentativa || 0) < 15) {
+        setTimeout(() => _verificarBloqueioCobrancaComercial((tentativa || 0) + 1), 1000);
+        return;
+    }
+    const pendRetirada = procedimentos.filter(p => !_ehColeta(p) && p.status === 'a_retirar').length;
+    const pendFicha = procedimentos.filter(p => !_ehColeta(p) && p.status === 'aguardando_ficha_opme').length;
+    if (pendRetirada === 0 && pendFicha === 0) { _verificarResumoDiaAutomatico(); return; }
+    window.abrirCobrarWhatsApp({ bloqueante: true, aoEscolher: () => _verificarResumoDiaAutomatico() });
+}
+
 function _iniciarSequenciaLoginComercial() {
     if (!window._currentUser) { setTimeout(_iniciarSequenciaLoginComercial, 800); return; }
     if (!_isContaComercialCompartilhada()) return;
@@ -11427,10 +11448,10 @@ function _iniciarSequenciaLoginComercial() {
             setTimeout(_iniciarSequenciaLoginComercial, 800);
             return;
         }
-        _forcarModalSelecaoOperador(() => verificarLembreteCobrancaDiario(_verificarResumoDiaAutomatico));
+        _forcarModalSelecaoOperador(() => _verificarBloqueioCobrancaComercial());
         return;
     }
-    verificarLembreteCobrancaDiario(_verificarResumoDiaAutomatico);
+    _verificarBloqueioCobrancaComercial();
 }
 setTimeout(_iniciarSequenciaLoginComercial, 1500);
 
