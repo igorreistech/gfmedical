@@ -7,8 +7,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#0d1f0e">
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/jpeg" href="logo.jpg">
-    <link rel="apple-touch-icon" href="logo.jpg">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <title>Monitor Cirúrgico · Campo Grande - MS</title>
     <meta name="description" content="Monitor Cirúrgico GF Medical — Campo Grande, MS. Acompanhamento em tempo real de procedimentos cirúrgicos.">
     <!-- Supabase SDK (migrado do Firebase) -->
@@ -19820,9 +19820,18 @@ window.buildCardHTML = function(proc) {
             if (nums) valor = parseFloat(nums[nums.length - 1].replace(/\./g,'').replace(',','.'));
         }
         if (!valor) {
-            var mVal = t.match(/VALOR TOTAL DA NOTA\s+([\d.,]+)/i);
-            if (!mVal) mVal = t.match(/VALOR TOTAL\s+([\d.,]+)/i);
-            if (mVal) valor = parseFloat(mVal[1].replace(/\./g,'').replace(',','.'));
+            var valorPatterns = [
+                /VALOR TOTAL DA NOTA\s+([\d.,]+)/i,
+                /VALOR TOTAL\s+([\d.,]+)/i,
+                /TOTAL DA NOTA FISCAL[:\s]*R?\$?\s*([\d.,]+)/i,
+                /VALOR L[IÍ]QUIDO DA NOTA[:\s]*R?\$?\s*([\d.,]+)/i,
+                /VALOR TOTAL DO DOCUMENTO[:\s]*R?\$?\s*([\d.,]+)/i,
+                /VALOR A PAGAR[:\s]*R?\$?\s*([\d.,]+)/i,
+            ];
+            for (var vi = 0; vi < valorPatterns.length; vi++) {
+                var mVal = t.match(valorPatterns[vi]);
+                if (mVal) { valor = parseFloat(mVal[1].replace(/\./g,'').replace(',','.')); break; }
+            }
         }
 
         // ── Fallback: regex genéricas (outros layouts de NF) ──
