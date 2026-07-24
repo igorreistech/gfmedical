@@ -9643,7 +9643,17 @@ async function renderAtividade(forcar) {
     const usuarios = await _carregarUsuariosAtividade();
     if (forcar || !_atividadeFichas) _atividadeFichas = await _carregarFichasAtividade();
 
-    const quem = (uid) => uid ? (usuarios[uid] || uid) : '—';
+    // Contas compartilhadas (comercial@/comercialmt@) têm "nome" = o próprio
+    // e-mail quando o perfil foi criado sem operadorNome no lançamento (antes
+    // do campo existir, ou lançamento sem identificação). Mostrar o e-mail
+    // cru confunde com "quem" de verdade — deixa explícito que é histórico
+    // sem operador registrado, em vez de fingir que o e-mail é um nome.
+    const quem = (uid) => {
+        if (!uid) return '—';
+        const nome = usuarios[uid] || uid;
+        if (typeof nome === 'string' && nome.includes('@')) return 'Conta compartilhada (sem operador registrado)';
+        return nome;
+    };
     const fmt = (iso) => {
         if (!iso) return '—';
         try { return new Date(iso).toLocaleString('pt-BR'); } catch(e) { return iso; }
