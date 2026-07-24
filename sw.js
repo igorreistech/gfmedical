@@ -1,4 +1,4 @@
-const CACHE = 'monitor-cgr-v22-icons';
+const CACHE = 'monitor-cgr-v23-icons';
 const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
   BASE,
@@ -6,6 +6,7 @@ const LOCAL_ASSETS = [
   BASE + 'styles.css',
   BASE + 'app.js',
   BASE + 'manifest.json',
+  BASE + 'nf-import.js',
   BASE + 'icon-192.png',
   BASE + 'icon-512.png',
   BASE + 'icon-192-maskable.png',
