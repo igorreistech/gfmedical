@@ -11011,10 +11011,10 @@ function _iniciarSequenciaLoginComercial() {
             setTimeout(_iniciarSequenciaLoginComercial, 800);
             return;
         }
-        _forcarModalSelecaoOperador(() => _verificarBloqueioCobrancaComercial());
+        _forcarModalSelecaoOperador(() => verificarLembreteCobrancaDiario(_verificarResumoDiaAutomatico));
         return;
     }
-    _verificarBloqueioCobrancaComercial();
+    verificarLembreteCobrancaDiario(_verificarResumoDiaAutomatico);
 }
 setTimeout(_iniciarSequenciaLoginComercial, 1500);
 
