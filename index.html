@@ -11648,8 +11648,23 @@ function verificarDuplicatas(hospital, medico, data, excludeDocId) {
     return procedimentos.filter(p => {
         if (p._docId===excludeDocId) return false;
         if (['concluido','cancelado'].includes(p.status)) return false;
+        if (_ehColeta(p) || p.isColeta) return false;
         const mMatch=!medico||!p.medico||p.medico.toLowerCase()===medico.toLowerCase();
         return p.hospital&&p.hospital.toLowerCase()===hospital.toLowerCase()&&p.data===data&&mMatch;
+    });
+}
+// Coleta não tem hospital/médico reais (usa rótulo fixo "✈️ Retirar Volumes
+// Urgentes"), então o cruzamento acima nunca pega duplicata de coleta — aqui
+// usamos data da cirurgia + fornecedor, os campos que de fato identificam
+// "é a mesma retirada sendo lançada de novo".
+function verificarDuplicatasColeta(coletaDataCirurgia, coletaFornecedor, excludeDocId) {
+    if (!coletaDataCirurgia || !coletaFornecedor) return [];
+    return procedimentos.filter(p => {
+        if (p._docId===excludeDocId) return false;
+        if (['concluido','cancelado'].includes(p.status)) return false;
+        if (!(_ehColeta(p) || p.isColeta)) return false;
+        return p.coletaDataCirurgia===coletaDataCirurgia
+            && (p.coletaFornecedor||'').toLowerCase()===coletaFornecedor.toLowerCase();
     });
 }
 function mostrarAviso(dups) {
@@ -11657,14 +11672,22 @@ function mostrarAviso(dups) {
     if(dups.length===0){ el.style.display='none'; return; }
     const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar', aguardando_ficha_opme:'Ficha OPME',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
     el.style.display='block';
-    el.innerHTML=`<div class="dup-warning-title">⚠️ Possível duplicata (${dups.length})</div>`+dups.map(p=>`<div class="dup-warning-item">${p.hospital} · ${p.medico||'—'} · ${p.data?new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR'):''} · ${sMap[p.status]||p.status}</div>`).join('');
+    el.innerHTML=`<div class="dup-warning-title">⚠️ Possível duplicata (${dups.length})</div>`+dups.map(p=>{
+        const linha = (_ehColeta(p)||p.isColeta)
+            ? `✈️ ${p.coletaFornecedor||'—'} · ${p.coletaDataCirurgia?new Date(p.coletaDataCirurgia+'T00:00:00').toLocaleDateString('pt-BR'):''}`
+            : `${p.hospital} · ${p.medico||'—'} · ${p.data?new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR'):''}`;
+        return `<div class="dup-warning-item">${linha} · ${sMap[p.status]||p.status}</div>`;
+    }).join('');
+}
+function executarCheckDuplicata() {
+    const d1 = verificarDuplicatas(document.getElementById('f-hospital')?.value, document.getElementById('f-medico')?.value, document.getElementById('f-data')?.value, editingDocId);
+    const d2 = verificarDuplicatasColeta(document.getElementById('f-coleta-data-cirurgia')?.value, document.getElementById('f-coleta-fornecedor')?.value, editingDocId);
+    mostrarAviso([...d1, ...d2]);
 }
 function hookDupCheck() {
-    ['f-hospital','f-data','f-medico'].forEach(id=>{
+    ['f-hospital','f-data','f-medico','f-coleta-data-cirurgia','f-coleta-fornecedor'].forEach(id=>{
         const el=document.getElementById(id);
-        if(el) el.addEventListener('change',()=>{
-            mostrarAviso(verificarDuplicatas(document.getElementById('f-hospital')?.value, document.getElementById('f-medico')?.value, document.getElementById('f-data')?.value, editingDocId));
-        });
+        if(el) el.addEventListener('change', executarCheckDuplicata);
     });
 }
 
