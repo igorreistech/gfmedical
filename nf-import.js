@@ -78,6 +78,24 @@
         var mNf = t.match(/N[°º\s\.]{0,3}(\d[\d.]{2,})/i);
         if (mNf) nf = mNf[1].replace(/\./g, '');
 
+        // ── CT-e (Conhecimento de Transporte) — número curto do documento ──
+        var cte = null;
+        var mCte = t.match(/CT-?e\b[^\d]{0,25}(\d{3,9})/i) || t.match(/CONHECIMENTO\s+DE\s+TRANSPORTE[^\d]{0,30}(\d{3,9})/i);
+        if (mCte) cte = mCte[1].replace(/\./g, '');
+
+        // ── Chave de acesso (44 dígitos) — DANFE/CT-e, usada pro rastreio SSW ──
+        // Costuma vir em grupos de 4 dígitos separados por espaço, ou corrida.
+        var coletaChaveAcesso = null;
+        var mChaveBlocos = t.match(/(?:\d[\s.]?){44,60}/);
+        if (mChaveBlocos) {
+            var soDigitos = mChaveBlocos[0].replace(/\D/g, '');
+            if (soDigitos.length >= 44) coletaChaveAcesso = soDigitos.slice(0, 44);
+        }
+        if (!coletaChaveAcesso) {
+            var mChave44 = t.match(/\b\d{44}\b/);
+            if (mChave44) coletaChaveAcesso = mChave44[0];
+        }
+
         // ── Data de emissão da NF ──
         // Pega a última data dd/mm/yyyy antes do primeiro "Lote:" (área do cabeçalho).
         // Datas de fabricação/validade dos lotes ficam depois de "Lote:" e são ignoradas.
@@ -145,7 +163,7 @@
             /PLANO[:\s]+([A-ZÀ-ÿa-z\s&.']{3,60})(?=\s*(?:\n|CART[AÃ]O|\d))/i,
         ]);
 
-        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio, nf: nf, valor: valor, dataEmissao: dataEmissao };
+        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio, nf: nf, valor: valor, dataEmissao: dataEmissao, cte: cte, coletaChaveAcesso: coletaChaveAcesso };
     }
 
     // Retorna array de { code, desc, lote, qty }
@@ -277,6 +295,14 @@
         if (dados.valor) {
             var fval = document.getElementById('f-valor');
             if (fval) fval.value = dados.valor;
+        }
+        if (dados.cte) {
+            var fcte = document.getElementById('f-cte');
+            if (fcte) fcte.value = dados.cte;
+        }
+        if (dados.coletaChaveAcesso) {
+            var fchave = document.getElementById('f-coleta-chave-acesso');
+            if (fchave) fchave.value = dados.coletaChaveAcesso;
         }
         // Preencher itens
         if (produtos && produtos.length > 0 && typeof addItemRow === 'function') {
