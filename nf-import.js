@@ -101,12 +101,17 @@
             if (mCte) cte = mCte[1].replace(/\./g, '');
         }
 
-        // ── Fornecedor = emitente do CT-e (a transportadora que emitiu o documento) ──
-        // Padrão típico: nome da transportadora numa linha, seguido de "CNPJ:" (não
-        // "CNPJ / CPF:", que é usado pelo remetente/destinatário), antes do título "DACTE".
+        // ── Fornecedor = REMETENTE do CT-e (quem envia a mercadoria, não a
+        // transportadora que emitiu o documento) ──
         var coletaFornecedor = null;
-        var mEmitenteCte = t.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\/\.,\- ]{3,60})\n\s*CNPJ:\s*\d{11,14}[\s\S]{0,250}?\bDACTE\b/);
-        if (mEmitenteCte) coletaFornecedor = mEmitenteCte[1].trim();
+        var mRemetente = t.match(/REMETENTE:\s*([^\n]+)/i);
+        if (mRemetente) coletaFornecedor = mRemetente[1].trim();
+        if (!coletaFornecedor) {
+            // Fallback: emitente do CT-e (nome da transportadora antes de "CNPJ:"
+            // — não "CNPJ / CPF:", que é do remetente/destinatário — e do título "DACTE").
+            var mEmitenteCte = t.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\/\.,\- ]{3,60})\n\s*CNPJ:\s*\d{11,14}[\s\S]{0,250}?\bDACTE\b/);
+            if (mEmitenteCte) coletaFornecedor = mEmitenteCte[1].trim();
+        }
 
         // ── Chave de acesso (44 dígitos) — DANFE/CT-e, usada pro rastreio SSW ──
         // Costuma vir em grupos de 4 dígitos separados por espaço, ou corrida.
