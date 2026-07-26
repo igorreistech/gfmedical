@@ -28,6 +28,7 @@ const FIELD_MAPS = {
     coletaObs: 'coleta_obs',
     coletaAnexo: 'coleta_anexo',
     coletaChaveAcesso: 'coleta_chave_acesso',
+    coletaCirurgiaId: 'coleta_cirurgia_id',
     _filial: 'filial',
     isColeta: 'is_coleta',
     cadastradoPor: 'cadastrado_por',
