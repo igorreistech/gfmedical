@@ -27,6 +27,7 @@ const FIELD_MAPS = {
     coletaTransportadora: 'coleta_transportadora',
     coletaObs: 'coleta_obs',
     coletaAnexo: 'coleta_anexo',
+    coletaChaveAcesso: 'coleta_chave_acesso',
     _filial: 'filial',
     isColeta: 'is_coleta',
     cadastradoPor: 'cadastrado_por',
@@ -36,8 +37,6 @@ const FIELD_MAPS = {
     dataConfirmacaoRetirada: 'data_confirmacao_retirada',
     motivoReagendamento: 'motivo_reagendamento',
     operadorNome: 'operador_nome',
-    _updatedAt: 'atualizado_em',
-    _createdAt: 'criado_em',
   },
   fichas_opme: {
     numeroPedido: 'numero_pedido',
@@ -71,9 +70,7 @@ function camelToSnakeRow(table, obj) {
     // memória — nunca é coluna real da tabela (evita 400 do PostgREST).
     if (k.startsWith('_') && !map[k]) continue;
     const col = map[k] || k;
-    // Firestore aceitava '' em campo de data sem problema; Postgres rejeita
-    // '' em colunas date/timestamp ("invalid input syntax"). Normaliza pra null.
-    out[col] = v === '' ? null : v;
+    out[col] = v;
   }
   if (table === 'fichas_opme' && typeof out.status === 'number') {
     out.status = FICHA_STATUS_POR_INDICE[out.status] || 'pendente';

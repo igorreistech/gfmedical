@@ -5667,6 +5667,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                             <div>
                                 <label class="form-label" style="color:#818cf8;">📦 Nº CTE</label>
                                 <input class="form-input" id="f-cte" placeholder="Ex: 9876543" style="border-color:rgba(99,102,241,0.4);">
+                                <input type="hidden" id="f-coleta-chave-acesso">
                             </div>
                             <div style="grid-column:1 / -1;">
                                 <label class="form-label" style="color:#818cf8;">🏭 Fornecedor</label>
@@ -7794,7 +7795,7 @@ function buildCardHTML(proc) {
                 ${_ehColeta(proc) && proc.dataRetirar ? `<div class="card-row"><span class="card-label">📦 Retirada</span><span class="card-value" style="color:#818cf8;font-weight:700;">${new Date(proc.dataRetirar+'T00:00:00').toLocaleDateString('pt-BR')}</span></div>` : ''}
                 ${_ehColeta(proc) && proc.horaRetirar ? `<div class="card-row"><span class="card-label">⏰ Hr. Ret.</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.horaRetirar}</span></div>` : ''}
                 ${_ehColeta(proc) && proc.nfCompra ? `<div class="card-row"><span class="card-label">🧾 NF Compra</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.nfCompra}</span></div>` : ''}
-                ${_ehColeta(proc) && proc.cte ? `<div class="card-row"><span class="card-label">📦 CTE</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.cte}</span></div>` : ''}
+                ${_ehColeta(proc) && proc.cte ? `<div class="card-row"><span class="card-label">📦 CTE</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.cte} <a href="#" onclick="event.preventDefault();window.rastrearSSW('${(proc.coletaChaveAcesso||'').replace(/'/g,'')}')" style="margin-left:6px;font-size:0.68rem;color:#818cf8;text-decoration:underline;white-space:nowrap;">🔍 Rastrear</a></span></div>` : ''}
                 ${_ehColeta(proc) && proc.coletaFornecedor ? `<div class="card-row"><span class="card-label">🏭 Fornecedor</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.coletaFornecedor}</span></div>` : ''}
                 ${_ehColeta(proc) && proc.coletaTransportadora ? `<div class="card-row"><span class="card-label">🚚 Transportadora</span><span class="card-value" style="color:#818cf8;font-weight:700;">${proc.coletaTransportadora}</span></div>` : ''}
                 ${proc.anexo ? `<div class="card-row"><span class="card-label">📎 Anexo</span><span class="card-value"><button onclick="window.abrirAnexoProc('${realIndex}','anexo')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:0.86rem;padding:0;font-family:inherit;text-decoration:underline;">📎 Ver imagem</button></span></div>` : ''}
@@ -8816,6 +8817,7 @@ function editProc(docId) {
     document.getElementById('f-retirada').value = p.retirada || '';
     if (document.getElementById('f-nf-compra'))     document.getElementById('f-nf-compra').value     = p.nfCompra    || '';
     if (document.getElementById('f-cte'))           document.getElementById('f-cte').value           = p.cte         || '';
+    if (document.getElementById('f-coleta-chave-acesso')) document.getElementById('f-coleta-chave-acesso').value = p.coletaChaveAcesso || '';
     if (document.getElementById('f-data-retirar'))  document.getElementById('f-data-retirar').value  = p.dataRetirar || '';
     if (document.getElementById('f-hora-retirar'))          document.getElementById('f-hora-retirar').value          = p.horaRetirar        || '';
     if (document.getElementById('f-coleta-data-cirurgia')) document.getElementById('f-coleta-data-cirurgia').value = p.coletaDataCirurgia || '';
@@ -9240,6 +9242,7 @@ async function saveProcedure(e) {
         retirada: document.getElementById('f-retirada').value,
         nfCompra:          document.getElementById('f-nf-compra')           ? document.getElementById('f-nf-compra').value           : '',
         cte:               document.getElementById('f-cte')                 ? document.getElementById('f-cte').value                 : '',
+        coletaChaveAcesso: document.getElementById('f-coleta-chave-acesso') ? document.getElementById('f-coleta-chave-acesso').value : '',
         dataRetirar:       document.getElementById('f-data-retirar')        ? document.getElementById('f-data-retirar').value        : '',
         horaRetirar:       document.getElementById('f-hora-retirar')        ? document.getElementById('f-hora-retirar').value        : '',
         coletaDataCirurgia:document.getElementById('f-coleta-data-cirurgia')? document.getElementById('f-coleta-data-cirurgia').value: '',
@@ -9913,7 +9916,7 @@ function renderColetaView() {
                 </div>
                 <div style="display:flex;flex-direction:column;gap:7px;font-size:0.83rem;">
                     ${proc.nfCompra ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">🧾 NF COMPRA</span><span style="font-weight:700;color:var(--text);text-align:right;">${proc.nfCompra}</span></div>` : ''}
-                    ${proc.cte ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">📦 CTE</span><span style="font-weight:700;color:var(--text);text-align:right;">${proc.cte}</span></div>` : ''}
+                    ${proc.cte ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">📦 CTE</span><span style="font-weight:700;color:var(--text);text-align:right;">${proc.cte} <a href="#" onclick="event.preventDefault();window.rastrearSSW('${(proc.coletaChaveAcesso||'').replace(/'/g,'')}')" style="margin-left:6px;font-size:0.68rem;color:#818cf8;text-decoration:underline;white-space:nowrap;">🔍 Rastrear</a></span></div>` : ''}
                     ${proc.coletaFornecedor ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">🏭 FORNECEDOR</span><span style="font-weight:700;color:var(--text);text-align:right;margin-left:8px;">${proc.coletaFornecedor}</span></div>` : ''}
                     ${proc.coletaTransportadora ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">🚚 TRANSPORTADORA</span><span style="font-weight:700;color:var(--text);text-align:right;margin-left:8px;">${proc.coletaTransportadora}</span></div>` : ''}
                     ${proc.coletaDataCirurgia ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">🗓 CIRURGIA</span><span style="font-weight:700;color:#818cf8;text-align:right;">${new Date(proc.coletaDataCirurgia+'T00:00:00').toLocaleDateString('pt-BR')}${proc.coletaHoraCirurgia?' · ⏰ '+proc.coletaHoraCirurgia:''}</span></div>` : ''}
@@ -19951,6 +19954,29 @@ window.abrirAnexo=function(url){
 window.abrirAnexoProc=function(docId,campo){
     const proc=(window.procedimentos||[]).find(p=>(p._docId||String(p.id))===String(docId));
     if(proc) window.abrirAnexo(proc[campo||'anexo']);
+};
+
+// Rastreio de carga via SSW (transportadoras que usam a plataforma).
+// A busca por lá é por Chave de Acesso (44 dígitos) via POST — se tivermos
+// a chave (extraída do PDF do CT-e), abre já no resultado; senão, abre a
+// página pra digitar manualmente.
+window.rastrearSSW = function(chave) {
+    if (!chave || chave.length !== 44) {
+        window.open('https://ssw.inf.br/2/rastreamento_danfe', '_blank');
+        return;
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'https://ssw.inf.br/2/rastreamento_danfe';
+    form.target = '_blank';
+    const inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'danfe';
+    inp.value = chave;
+    form.appendChild(inp);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
 };
 
 // ─── 1. CHECKLIST DE PREPARAÇÃO ───────────────────────────────────
