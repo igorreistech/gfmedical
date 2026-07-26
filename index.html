@@ -5939,6 +5939,12 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                     <div style="border:1px solid rgba(99,102,241,0.35);border-top:3px solid #6366f1;border-radius:12px;padding:16px 18px;background:rgba(99,102,241,0.06);">
                         <div style="font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.12em;color:#818cf8;text-transform:uppercase;margin-bottom:14px;">✈️ Informações — Retirada de Material</div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div style="grid-column:1 / -1;">
+                                <label class="form-label" style="color:#818cf8;">🏥 Para qual cirurgia é essa retirada? *</label>
+                                <select class="form-select" id="f-coleta-cirurgia-vinculada" style="border-color:rgba(99,102,241,0.4);">
+                                    <option value="">Selecione a cirurgia</option>
+                                </select>
+                            </div>
                             <div>
                                 <label class="form-label" style="color:#818cf8;">🧾 Nº NF de Compra</label>
                                 <input class="form-input" id="f-nf-compra" placeholder="Ex: 001234" style="border-color:rgba(99,102,241,0.4);">
@@ -7966,6 +7972,14 @@ function renderCards() {
     grid.innerHTML = htmlParts.join('');
 }
 
+function _labelCirurgiaVinculada(id) {
+    if (!id) return '';
+    const c = (window.procedimentos || []).find(p => (p._docId || String(p.id)) === String(id));
+    if (!c) return '';
+    const dataFmt = c.data ? new Date(c.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+    return (c.paciente || '—') + ' · ' + (c.hospital || '—') + ' · ' + dataFmt;
+}
+
 function _ehColeta(p) {
     return p.isColeta
         || p.status === 'coleta_urgente'
@@ -9106,6 +9120,8 @@ function editProc(docId) {
     if (_ehColeta(p)) {
         const optC = document.getElementById('opt-coleta-urgente');
         if (optC) optC.style.display = '';
+        const selVinc = document.getElementById('f-coleta-cirurgia-vinculada');
+        if (selVinc) selVinc.dataset.pending = p.coletaCirurgiaId || '';
     }
     document.getElementById('f-status').value = _ehColeta(p) ? 'coleta_urgente' : p.status;
     document.getElementById('f-status').dispatchEvent(new Event('change'));
@@ -9331,6 +9347,8 @@ function _doOpenModal() {
     if (dupBox) dupBox.style.display = 'none';
     const optCReset = document.getElementById('opt-coleta-urgente');
     if (optCReset) optCReset.style.display = 'none';
+    const selVincReset = document.getElementById('f-coleta-cirurgia-vinculada');
+    if (selVincReset) delete selVincReset.dataset.pending;
     document.getElementById('modalTitle').textContent = 'Adicionar Procedimento';
     document.getElementById('procForm').reset();
     document.getElementById('editIndex').value = '';
@@ -9491,6 +9509,14 @@ async function saveProcedure(e) {
     const _isColeta = _statusAtual === 'coleta_urgente' || (_existingForColeta && _ehColeta(_existingForColeta));
     if (!_isColeta && !hospital) { alert('Informe o nome do hospital'); return; }
     if (_isColeta && !hospital) hospital = '✈️ Retirar Volumes Urgentes';
+    if (_isColeta) {
+        const selVincObrig = document.getElementById('f-coleta-cirurgia-vinculada');
+        if (!selVincObrig || !selVincObrig.value) {
+            if (selVincObrig) { selVincObrig.style.borderColor = '#f97316'; selVincObrig.focus(); }
+            alert('⚠️ Selecione para qual cirurgia é essa retirada de material.');
+            return;
+        }
+    }
 
     let paciente = document.getElementById('f-paciente').value.trim();
     if (!_isColeta && !paciente) {
@@ -9638,6 +9664,7 @@ async function saveProcedure(e) {
         nfCompra:          document.getElementById('f-nf-compra')           ? document.getElementById('f-nf-compra').value           : '',
         cte:               document.getElementById('f-cte')                 ? document.getElementById('f-cte').value                 : '',
         coletaChaveAcesso: document.getElementById('f-coleta-chave-acesso') ? document.getElementById('f-coleta-chave-acesso').value : '',
+        coletaCirurgiaId: document.getElementById('f-coleta-cirurgia-vinculada') ? document.getElementById('f-coleta-cirurgia-vinculada').value : '',
         dataRetirar:       document.getElementById('f-data-retirar')        ? document.getElementById('f-data-retirar').value        : '',
         horaRetirar:       document.getElementById('f-hora-retirar')        ? document.getElementById('f-hora-retirar').value        : '',
         coletaDataCirurgia:document.getElementById('f-coleta-data-cirurgia')? document.getElementById('f-coleta-data-cirurgia').value: '',
@@ -10332,6 +10359,7 @@ function renderColetaView() {
                     ${proc.cte ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">📦 CTE</span><span style="font-weight:700;color:var(--text);text-align:right;">${proc.cte} <a href="#" onclick="event.preventDefault();window.rastrearSSW('${(proc.coletaChaveAcesso||'').replace(/'/g,'')}')" style="margin-left:6px;font-size:0.68rem;color:#818cf8;text-decoration:underline;white-space:nowrap;">🔍 Rastrear</a></span></div>` : ''}
                     ${proc.coletaFornecedor ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">🏭 FORNECEDOR</span><span style="font-weight:700;color:var(--text);text-align:right;margin-left:8px;">${proc.coletaFornecedor}</span></div>` : ''}
                     ${proc.coletaTransportadora ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">🚚 TRANSPORTADORA</span><span style="font-weight:700;color:var(--text);text-align:right;margin-left:8px;">${proc.coletaTransportadora}</span></div>` : ''}
+                    ${proc.coletaCirurgiaId && _labelCirurgiaVinculada(proc.coletaCirurgiaId) ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">🏥 PARA</span><span style="font-weight:700;color:#818cf8;text-align:right;">${_labelCirurgiaVinculada(proc.coletaCirurgiaId)}</span></div>` : ''}
                     ${proc.coletaDataCirurgia ? `<div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">🗓 CIRURGIA</span><span style="font-weight:700;color:#818cf8;text-align:right;">${new Date(proc.coletaDataCirurgia+'T00:00:00').toLocaleDateString('pt-BR')}${proc.coletaHoraCirurgia?' · ⏰ '+proc.coletaHoraCirurgia:''}</span></div>` : ''}
                     <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="color:var(--text-dim);font-family:var(--mono);font-size:0.7rem;white-space:nowrap;">📦 RETIRADA</span><span style="font-weight:700;color:${corRet};text-align:right;">${retFmt}${dataRet && window._diasParaRetirada ? ` <span style="font-size:0.65rem;background:${(window._diasParaRetirada(dataRet)||{}).cor||'#818cf8'}22;border:1px solid ${(window._diasParaRetirada(dataRet)||{}).cor||'#818cf8'}44;border-radius:6px;padding:1px 5px;margin-left:4px;">${(window._diasParaRetirada(dataRet)||{}).txt||''}</span>` : ''}</span></div>
                 </div>
@@ -10533,11 +10561,31 @@ document.getElementById('f-tipo-cirurgia').addEventListener('change', function()
     document.getElementById('g-outro-tipo-cirurgia').style.display = this.value === '__outro' ? 'block' : 'none';
 });
 
+// Lista de cirurgias que uma Retirada de Material pode ser vinculada — só
+// cirurgias reais (não outra retirada) em status ativo, mais recente primeiro.
+function popularCirurgiasVinculaveisColeta() {
+    const sel = document.getElementById('f-coleta-cirurgia-vinculada');
+    if (!sel) return;
+    const pendente = sel.dataset.pending || sel.value;
+    delete sel.dataset.pending;
+    const ativos = ['a_agendar','agendado','preparacao','andamento','a_retirar','reagendado'];
+    const opcoes = (window.procedimentos || [])
+        .filter(p => !_ehColeta(p) && !p.isColeta && ativos.includes(p.status))
+        .sort((a,b) => (a.data||'').localeCompare(b.data||''));
+    sel.innerHTML = '<option value="">Selecione a cirurgia</option>' + opcoes.map(p => {
+        const dataFmt = p.data ? new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR') : '—';
+        const label = (p.paciente||'—') + ' · ' + (p.hospital||'—') + ' · ' + dataFmt;
+        return '<option value="' + (p._docId||'') + '">' + label.replace(/</g,'&lt;') + '</option>';
+    }).join('');
+    if (pendente && [...sel.options].some(o => o.value === pendente)) sel.value = pendente;
+}
+
 // ─── STATUS → RETIRADA obrigatória + modo Retirar Volumes Urgentes ───
 document.getElementById('f-status').addEventListener('change', function() {
     const val = this.value;
     const isRetirar = val === 'a_retirar';
     const isColeta  = val === 'coleta_urgente';
+    if (isColeta) popularCirurgiasVinculaveisColeta();
     const grp = document.getElementById('g-retirada');
     const inp = document.getElementById('f-retirada');
     const lbl = document.getElementById('label-retirada');
