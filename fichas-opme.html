@@ -1434,6 +1434,13 @@ window.salvarFicha = async () => {
     filial: filialEscolhida,
     operadorNome: operadorFicha
   };
+  const dupsFicha = verificarDuplicatasFicha(dados.paciente, dados.hospital, dados.dataCirurgia, editingId);
+  if (dupsFicha.length > 0) {
+    const desc = dupsFicha.map(f => `${f.paciente||'—'} · ${f.hospital||'—'}${f.numeroPedido?' · PV '+f.numeroPedido:''}`).join('\n');
+    if (!confirm('⚠️ Possível ficha duplicada encontrada:\n\n' + desc + '\n\nDeseja salvar mesmo assim?')) {
+      return;
+    }
+  }
   const btn = document.getElementById('btn-salvar');
   btn.disabled = true; btn.textContent = 'Salvando…';
   try {

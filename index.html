@@ -9674,6 +9674,20 @@ async function saveProcedure(e) {
     // comercial@ compartilhada), então fica registrado em todo lançamento.
     proc.operadorNome = nomeOperadorForm;
 
+    const dupsCheck = [
+        ...verificarDuplicatas(proc.hospital, proc.medico, proc.data, editingDocId),
+        ...verificarDuplicatasColeta(proc.coletaDataCirurgia, proc.coletaFornecedor, editingDocId),
+    ];
+    if (dupsCheck.length > 0) {
+        const desc = dupsCheck.map(p => (_ehColeta(p)||p.isColeta)
+            ? `✈️ ${p.coletaFornecedor||'—'} · ${p.coletaDataCirurgia?new Date(p.coletaDataCirurgia+'T00:00:00').toLocaleDateString('pt-BR'):''}`
+            : `${p.hospital} · ${p.medico||'—'} · ${p.data?new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR'):''}`
+        ).join('\n');
+        if (!confirm('⚠️ Possível duplicata encontrada:\n\n' + desc + '\n\nDeseja salvar mesmo assim?')) {
+            return;
+        }
+    }
+
     try {
         await fbSaveProc(proc);
         closeModal();
