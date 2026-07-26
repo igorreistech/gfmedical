@@ -102,9 +102,11 @@
         }
 
         // ── Fornecedor = REMETENTE do CT-e (quem envia a mercadoria, não a
-        // transportadora que emitiu o documento) ──
+        // transportadora que emitiu o documento). O layout do DACTE costuma pôr
+        // REMETENTE e DESTINATÁRIO lado a lado na mesma linha (colunas), então a
+        // captura para na próxima "PALAVRA:" (outro rótulo), não só na quebra de linha.
         var coletaFornecedor = null;
-        var mRemetente = t.match(/REMETENTE:\s*([^\n]+)/i);
+        var mRemetente = t.match(/REMETENTE:\s*([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\s&.,'\-]*?)(?=\s+[A-ZÀ-Ú]{3,25}:|\s*\n|$)/i);
         if (mRemetente) coletaFornecedor = mRemetente[1].trim();
         if (!coletaFornecedor) {
             // Fallback: emitente do CT-e (nome da transportadora antes de "CNPJ:"
@@ -113,12 +115,13 @@
             if (mEmitenteCte) coletaFornecedor = mEmitenteCte[1].trim();
         }
 
-        // ── Chave de acesso (44 dígitos) — DANFE/CT-e, usada pro rastreio SSW ──
-        // Costuma vir em grupos de 4 dígitos separados por espaço, ou corrida.
+        // ── Chave de acesso (44 dígitos) — DANFE/CT-e, usada pro rastreio SSW.
+        // Exige o rótulo "CHAVE DE ACESSO" por perto — sem isso, sequências de
+        // dígitos de CNPJs vizinhos podem se colar e formar um falso 44-dígitos. ──
         var coletaChaveAcesso = null;
-        var mChaveBlocos = t.match(/(?:\d[\s.]?){44,60}/);
-        if (mChaveBlocos) {
-            var soDigitos = mChaveBlocos[0].replace(/\D/g, '');
+        var mChaveLabel = t.match(/CHAVE\s+DE\s+ACESSO[^\n]*\n\s*((?:\d[\s.]?){44,60})/i);
+        if (mChaveLabel) {
+            var soDigitos = mChaveLabel[1].replace(/\D/g, '');
             if (soDigitos.length >= 44) coletaChaveAcesso = soDigitos.slice(0, 44);
         }
         if (!coletaChaveAcesso) {
@@ -261,11 +264,19 @@
     }
 
     function preencherFormularioPdf(dados, produtos) {
-        if (dados.hospital) {
+        // No modo Retirada de Material só interessam os campos de coleta
+        // (cte/chave/fornecedor/nfCompra) — os campos de cirurgia (hospital, NF,
+        // médico, convênio...) ficam ocultos nesse modo mas continuam graváveis
+        // via JS, então preenchê-los aqui só suja o registro salvo com dado de
+        // outro contexto (ex.: "hospital" pegando o destinatário do CT-e).
+        var fStatusEl = document.getElementById('f-status');
+        var emModoColeta = !!fStatusEl && fStatusEl.value === 'coleta_urgente';
+
+        if (!emModoColeta && dados.hospital) {
             var h = document.getElementById('f-hospital');
             if (h) { h.value = dados.hospital; h.dispatchEvent(new Event('input')); }
         }
-        if (dados.data) {
+        if (!emModoColeta && dados.data) {
             var d = document.getElementById('f-data');
             if (d) {
                 d.value = dados.data;
@@ -273,11 +284,11 @@
                 d.dispatchEvent(new Event('input'));
             }
         }
-        if (dados.paciente) {
+        if (!emModoColeta && dados.paciente) {
             var p = document.getElementById('f-paciente');
             if (p) p.value = dados.paciente;
         }
-        if (dados.medico) {
+        if (!emModoColeta && dados.medico) {
             var sel = document.getElementById('f-medico');
             if (sel) {
                 var nomeU = dados.medico.toUpperCase().replace(/\s+/g, ' ').trim();
@@ -294,7 +305,7 @@
                 }
             }
         }
-        if (dados.convenio) {
+        if (!emModoColeta && dados.convenio) {
             var selC = document.getElementById('f-convenio');
             if (selC) {
                 var convU = dados.convenio.toUpperCase().replace(/\s+/g, ' ').trim();
@@ -314,15 +325,15 @@
                 }
             }
         }
-        if (dados.nf) {
+        if (!emModoColeta && dados.nf) {
             var fnf = document.getElementById('f-nf');
             if (fnf) fnf.value = dados.nf;
         }
-        if (dados.dataEmissao) {
+        if (!emModoColeta && dados.dataEmissao) {
             var fde = document.getElementById('f-nf-data');
             if (fde) fde.value = dados.dataEmissao;
         }
-        if (dados.valor) {
+        if (!emModoColeta && dados.valor) {
             var fval = document.getElementById('f-valor');
             if (fval) fval.value = dados.valor;
         }
