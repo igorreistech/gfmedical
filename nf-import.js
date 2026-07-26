@@ -78,10 +78,35 @@
         var mNf = t.match(/N[°º\s\.]{0,3}(\d[\d.]{2,})/i);
         if (mNf) nf = mNf[1].replace(/\./g, '');
 
-        // ── CT-e (Conhecimento de Transporte) — número curto do documento ──
+        // ── Nº NF de Compra — vem embutido na chave de acesso da NF-e referenciada
+        // no CT-e (seção "DOCUMENTOS ORIGINÁRIOS": "NF-e <CNPJ> <chave de 44 dígitos>").
+        // O número da nota é os 9 dígitos entre a posição 26 e 34 da chave (padrão
+        // oficial da chave de acesso NFe/CTe), sem os zeros à esquerda.
+        // Ex.: ...550010000013311227859232 → dígitos 000001331 → NF nº 1331.
+        var nfCompra = null;
+        var mNfCompraChave = t.match(/NF-?e\s+\d{14}\s+(\d{44})/i);
+        if (mNfCompraChave) {
+            var numNfEmbutido = mNfCompraChave[1].slice(25, 34).replace(/^0+/, '');
+            nfCompra = numNfEmbutido || '0';
+        }
+
+        // ── CT-e — número operacional (AWB), que é o número que de fato identifica
+        // o conhecimento de transporte na prática (rótulo "NÚMERO OPERACIONAL" ou
+        // "NÚMERO OPERACIONAL DO CONHECIMENTO AÉREO", valor tipo "127-4689 2333") ──
         var cte = null;
-        var mCte = t.match(/CT-?e\b[^\d]{0,25}(\d{3,9})/i) || t.match(/CONHECIMENTO\s+DE\s+TRANSPORTE[^\d]{0,30}(\d{3,9})/i);
-        if (mCte) cte = mCte[1].replace(/\./g, '');
+        var mCteOperacional = t.match(/N[ÚU]MERO OPERACIONAL(?:\s+DO\s+CONHECIMENTO\s+A[ÉE]REO)?[^\n]*\n\s*([\d][\d\-\s]{5,20}\d)/i);
+        if (mCteOperacional) cte = mCteOperacional[1].trim().replace(/\s+/g, ' ');
+        if (!cte) {
+            var mCte = t.match(/CT-?e\b[^\d]{0,25}(\d{3,9})/i) || t.match(/CONHECIMENTO\s+DE\s+TRANSPORTE[^\d]{0,30}(\d{3,9})/i);
+            if (mCte) cte = mCte[1].replace(/\./g, '');
+        }
+
+        // ── Fornecedor = emitente do CT-e (a transportadora que emitiu o documento) ──
+        // Padrão típico: nome da transportadora numa linha, seguido de "CNPJ:" (não
+        // "CNPJ / CPF:", que é usado pelo remetente/destinatário), antes do título "DACTE".
+        var coletaFornecedor = null;
+        var mEmitenteCte = t.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\/\.,\- ]{3,60})\n\s*CNPJ:\s*\d{11,14}[\s\S]{0,250}?\bDACTE\b/);
+        if (mEmitenteCte) coletaFornecedor = mEmitenteCte[1].trim();
 
         // ── Chave de acesso (44 dígitos) — DANFE/CT-e, usada pro rastreio SSW ──
         // Costuma vir em grupos de 4 dígitos separados por espaço, ou corrida.
@@ -163,7 +188,7 @@
             /PLANO[:\s]+([A-ZÀ-ÿa-z\s&.']{3,60})(?=\s*(?:\n|CART[AÃ]O|\d))/i,
         ]);
 
-        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio, nf: nf, valor: valor, dataEmissao: dataEmissao, cte: cte, coletaChaveAcesso: coletaChaveAcesso };
+        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio, nf: nf, valor: valor, dataEmissao: dataEmissao, cte: cte, coletaChaveAcesso: coletaChaveAcesso, coletaFornecedor: coletaFornecedor, nfCompra: nfCompra };
     }
 
     // Retorna array de { code, desc, lote, qty }
@@ -303,6 +328,14 @@
         if (dados.coletaChaveAcesso) {
             var fchave = document.getElementById('f-coleta-chave-acesso');
             if (fchave) fchave.value = dados.coletaChaveAcesso;
+        }
+        if (dados.coletaFornecedor) {
+            var ffornecedor = document.getElementById('f-coleta-fornecedor');
+            if (ffornecedor) ffornecedor.value = dados.coletaFornecedor;
+        }
+        if (dados.nfCompra) {
+            var fnfCompra = document.getElementById('f-nf-compra');
+            if (fnfCompra) fnfCompra.value = dados.nfCompra;
         }
         // Preencher itens
         if (produtos && produtos.length > 0 && typeof addItemRow === 'function') {
