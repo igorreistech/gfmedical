@@ -5903,7 +5903,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                         <option value="a_retirar">Aguardando Retirada</option>
                         <option value="aguardando_ficha_opme">📋 Aguardando Ficha OPME</option>
                         <option value="urgencia">🚨 URGÊNCIA</option>
-                        <option value="coleta_urgente">✈️ Coleta Prioritária</option>
+                        <option id="opt-coleta-urgente" value="coleta_urgente" style="display:none;">✈️ Coleta Prioritária</option>
                     </select>
                 </div>
 
@@ -9112,6 +9112,10 @@ function editProc(docId) {
     }
 
     // Se for retirar volumes urgentes (independente do status atual), manter modo coleta no modal
+    if (_ehColeta(p)) {
+        const optC = document.getElementById('opt-coleta-urgente');
+        if (optC) optC.style.display = '';
+    }
     document.getElementById('f-status').value = _ehColeta(p) ? 'coleta_urgente' : p.status;
     document.getElementById('f-status').dispatchEvent(new Event('change'));
     // Restaurar o status real após ativar o modo coleta (para salvar corretamente)
@@ -9333,6 +9337,8 @@ function _doOpenModal() {
     editingDocId = null;
     const dupBox = document.getElementById('dup-warning-box');
     if (dupBox) dupBox.style.display = 'none';
+    const optCReset = document.getElementById('opt-coleta-urgente');
+    if (optCReset) optCReset.style.display = 'none';
     document.getElementById('modalTitle').textContent = 'Adicionar Procedimento';
     document.getElementById('procForm').reset();
     document.getElementById('editIndex').value = '';
@@ -9388,6 +9394,8 @@ function closeModal() {
 function openModalVolumes() {
     openModal();
     setTimeout(() => {
+        const optC = document.getElementById('opt-coleta-urgente');
+        if (optC) optC.style.display = '';
         const sel = document.getElementById('f-status');
         if (sel) {
             sel.value = 'coleta_urgente';
