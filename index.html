@@ -188,7 +188,7 @@
           a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
           agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
           reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',
-          urgencia:'URGÊNCIA', coleta_urgente:'Coleta Prioritária'
+          urgencia:'URGÊNCIA', coleta_urgente:'Retirada de Material'
         };
         const de   = labels[statusAnterior] || statusAnterior;
         const para = labels[proc.status]    || proc.status;
@@ -209,7 +209,7 @@
           a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
           agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
           reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',
-          urgencia:'URGÊNCIA', coleta_urgente:'Coleta Prioritária'
+          urgencia:'URGÊNCIA', coleta_urgente:'Retirada de Material'
         };
         // Push notification
         if ('Notification' in window && Notification.permission === 'granted') {
@@ -273,7 +273,7 @@
         const hora = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
         const grupos = [
           { key:'urgencia',       label:'🚨 Urgência',           cor:'#ef4444' },
-          { key:'coleta_urgente', label:'✈️ Coleta Prioritária', cor:'#6366f1' },
+          { key:'coleta_urgente', label:'✈️ Retirada de Material', cor:'#6366f1' },
           { key:'a_agendar',      label:'📅 Autorizados',         cor:'#06b6d4' },
           { key:'agendado',       label:'📋 Agendados',           cor:'#3b82f6' },
           { key:'preparacao',     label:'⚙️ Em Separação',        cor:'#f59e0b' },
@@ -5067,7 +5067,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
             <div class="stat-value" id="stat-aguardando_ficha_opme">0</div>
         </div>
         <div class="stat-card" id="stat-card-coleta_urgente" style="border-top:3px solid #6366f1;">
-            <div class="stat-label">✈️ Coleta Prioritária</div>
+            <div class="stat-label">✈️ Retirada de Material</div>
             <div class="stat-value" id="stat-coleta_urgente">0</div>
         </div>
         <div class="stat-card concluido">
@@ -5177,7 +5177,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
     <div class="view-tabs" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <button class="view-tab active" id="tab-table" onclick="switchView('table')">🏥 Central Cirúrgica</button>
         <button class="view-tab" id="tab-dashboard" onclick="switchView('dashboard')">📊 Dashboard</button>
-        <button class="view-tab" id="tab-coleta" onclick="switchView('coleta')" style="color:#818cf8;border-color:rgba(99,102,241,0.5);">✈️ Coleta Prioritária</button>
+        <button class="view-tab" id="tab-coleta" onclick="switchView('coleta')" style="color:#818cf8;border-color:rgba(99,102,241,0.5);">✈️ Retirada de Material</button>
         <button class="view-tab" id="tab-opme" onclick="window.open('fichas-opme.html','_blank')" style="color:#f59e0b;border-color:rgba(245,158,11,0.5);">📋 Fichas OPME</button>
         <button class="view-tab" id="tab-atividade" onclick="switchView('atividade')" style="color:#4db87a;border-color:rgba(77,184,122,0.5);">🕐 Atividade</button>
         <button id="btn-toggle-ocultos" onclick="toggleOcultos()" style="margin-left:auto;padding:7px 14px;background:rgba(107,114,128,0.12);border:1.5px solid rgba(107,114,128,0.35);color:#6b7280;border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.05em;transition:all 0.2s;" title="Mostrar/ocultar Concluídos e Cancelados">👁 Ocultos</button>
@@ -5901,7 +5901,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                         <option value="a_retirar">Aguardando Retirada</option>
                         <option value="aguardando_ficha_opme">📋 Aguardando Ficha OPME</option>
                         <option value="urgencia">🚨 URGÊNCIA</option>
-                        <option id="opt-coleta-urgente" value="coleta_urgente" style="display:none;">✈️ Coleta Prioritária</option>
+                        <option id="opt-coleta-urgente" value="coleta_urgente" style="display:none;">✈️ Retirada de Material</option>
                     </select>
                 </div>
 
@@ -5937,7 +5937,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                 </div>
                 <div class="form-group full" id="g-coleta-urgente" style="display:none;">
                     <div style="border:1px solid rgba(99,102,241,0.35);border-top:3px solid #6366f1;border-radius:12px;padding:16px 18px;background:rgba(99,102,241,0.06);">
-                        <div style="font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.12em;color:#818cf8;text-transform:uppercase;margin-bottom:14px;">✈️ Informações — Coleta Prioritária</div>
+                        <div style="font-family:var(--mono);font-size:0.72rem;font-weight:700;letter-spacing:0.12em;color:#818cf8;text-transform:uppercase;margin-bottom:14px;">✈️ Informações — Retirada de Material</div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                             <div>
                                 <label class="form-label" style="color:#818cf8;">🧾 Nº NF de Compra</label>
@@ -7933,7 +7933,7 @@ function setVendedorFilter(val) {
 }
 
 function statusLabel(s) {
-    return { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' }[s] || s;
+    return { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Retirada de Material' }[s] || s;
 }
 
 function renderCards() {
@@ -8169,7 +8169,7 @@ function buildCardHTML(proc) {
 function perguntarColetaRealizada(docId, tipo) {
     const proc = procedimentos.find(p => p._docId === docId);
     if (!proc) return;
-    const label = tipo === 'coleta_urgente' ? 'Coleta Prioritária' : 'Aguardando Retirada';
+    const label = tipo === 'coleta_urgente' ? 'Retirada de Material' : 'Aguardando Retirada';
     const hospital = proc.hospital || '—';
     const paciente = proc.paciente ? ` · ${proc.paciente}` : '';
 
@@ -9209,9 +9209,9 @@ function editProc(docId) {
 
     // Se for retirar volumes urgentes, ajustar título e ocultar campos desnecessários
     if (_ehColeta(p)) {
-        document.getElementById('modalTitle').textContent = '✈️ Editar Coleta Prioritária';
+        document.getElementById('modalTitle').textContent = '✈️ Editar Retirada de Material';
         const btnSave = document.getElementById('btn-save-main');
-        if (btnSave) btnSave.textContent = 'Salvar Coleta Prioritária';
+        if (btnSave) btnSave.textContent = 'Salvar Retirada de Material';
         const gOutroMedico = document.getElementById('g-outro-medico');
         if (gOutroMedico) gOutroMedico.style.display = 'none';
         // Garante painel coleta visível
@@ -9393,9 +9393,9 @@ function openModalVolumes() {
             sel.value = 'coleta_urgente';
             sel.dispatchEvent(new Event('change'));
         }
-        document.getElementById('modalTitle').textContent = '✈️ Adicionar Coleta Prioritária';
+        document.getElementById('modalTitle').textContent = '✈️ Adicionar Retirada de Material';
         const btnSave = document.getElementById('btn-save-main');
-        if (btnSave) btnSave.textContent = 'Salvar Coleta Prioritária';
+        if (btnSave) btnSave.textContent = 'Salvar Retirada de Material';
         const painel = document.getElementById('g-coleta-urgente');
         if (painel) painel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 80);
@@ -9701,7 +9701,7 @@ async function saveProcedure(e) {
 // ─── CURVA ABC ───
 function renderABC() {
     const list = getFiltered();
-    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
+    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Retirada de Material' };
     const statusColors = { a_agendar:'#06b6d4', andamento:'#ef4444', preparacao:'#f59e0b', agendado:'#10b981', em_transito:'#6366f1', concluido:'#6b7280', cancelado:'#f87171', reagendado:'#a78bfa', a_retirar:'#f97316', aguardando_ficha_opme:'#a855f7', urgencia:'#ff0000' };
 
     // Build vendor stats
@@ -9988,7 +9988,7 @@ function switchView(v) {
     // ── Seções do Painel Executivo ────────────────────────────────
     show('dashboard-view', isDashboard);
 
-    // ── Seções da Coleta Prioritária ──────────────────────────────
+    // ── Seções da Retirada de Material ──────────────────────────────
     show('coleta-view', isColeta);
 
     // ── Seção de Atividade (log de lançamentos) ───────────────────
@@ -10275,7 +10275,7 @@ function renderColetaView() {
     <div style="margin-bottom:14px;">
         <!-- Header -->
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-            <div style="font-family:var(--mono);font-size:0.85rem;font-weight:700;letter-spacing:0.1em;color:#818cf8;text-transform:uppercase;">✈️ Coleta Prioritária</div>
+            <div style="font-family:var(--mono);font-size:0.85rem;font-weight:700;letter-spacing:0.1em;color:#818cf8;text-transform:uppercase;">✈️ Retirada de Material</div>
             <div style="display:flex;gap:7px;flex-wrap:wrap;">
                 <button onclick="exportarWhatsAppColeta()" style="padding:7px 12px;border-radius:10px;background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;font-family:var(--mono);font-size:0.7rem;font-weight:700;cursor:pointer;">📲 Cobrar lote (${pendentesLote.length})</button>
                 <button onclick="openModalVolumes()" style="padding:7px 14px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;border:none;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;">+ Adicionar</button>
@@ -10324,7 +10324,7 @@ function renderColetaView() {
             const borderTop = vencida ? '#ff3333' : (ehHoje ? '#f97316' : '#6366f1');
             html += `<div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid ${borderTop};border-radius:14px;padding:16px 18px;${vencida||ehHoje?'animation:cardPiscarColeta 0.8s ease-in-out infinite;':''}">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                    <span style="font-family:var(--mono);font-size:0.78rem;font-weight:700;color:#818cf8;text-transform:uppercase;">✈️ Coleta Prioritária</span>
+                    <span style="font-family:var(--mono);font-size:0.78rem;font-weight:700;color:#818cf8;text-transform:uppercase;">✈️ Retirada de Material</span>
                     <span style="font-family:var(--mono);font-size:0.72rem;font-weight:700;background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.4);border-radius:20px;padding:2px 10px;">${sLabel}</span>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:7px;font-size:0.83rem;">
@@ -10396,7 +10396,7 @@ function renderTable() {
     const list = mostrarOcultos
         ? getFiltered().filter(p => p.status === 'concluido' || p.status === 'cancelado')
         : getFiltered().filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
-    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
+    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Retirada de Material' };
 
     // Ordenar por horário (padrão) ou coluna selecionada
     const finalList = [...list].sort((a, b) => {
@@ -10770,7 +10770,7 @@ function doExport() {
         return;
     }
 
-    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária' };
+    const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Retirada de Material' };
 
     // Sheet 1: Resumo completo
     const resumo = filtered.map(p => ({
@@ -11685,7 +11685,7 @@ function verificarDuplicatasColeta(coletaDataCirurgia, coletaFornecedor, exclude
 function mostrarAviso(dups) {
     const el=document.getElementById('dup-warning-box'); if(!el) return;
     if(dups.length===0){ el.style.display='none'; return; }
-    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar', aguardando_ficha_opme:'Ficha OPME',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+    const sMap={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar', aguardando_ficha_opme:'Ficha OPME',urgencia:'Urgência',coleta_urgente:'Retirada de Material'};
     el.style.display='block';
     el.innerHTML=`<div class="dup-warning-title">⚠️ Possível duplicata (${dups.length})</div>`+dups.map(p=>{
         const linha = (_ehColeta(p)||p.isColeta)
@@ -11887,14 +11887,14 @@ function duplicarProc(docId) {
 function compartilharWhatsApp(docId) {
     const proc=procedimentos.find(p=>(p._docId||String(p.id))===String(docId));
     if(!proc) return;
-    const sMap={a_agendar:'✅ Autorizado',agendado:'📅 Agendado',em_transito:'🚚 Em Trânsito',preparacao:'🔧 Em Separação',andamento:'⚡ Em Procedimento',concluido:'✔️ Concluído',cancelado:'❌ Cancelado',reagendado:'🔄 Reagendado',a_retirar:'📦 Aguard. Retirada', aguardando_ficha_opme:'📋 Aguard. Ficha OPME',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta Prioritária'};
+    const sMap={a_agendar:'✅ Autorizado',agendado:'📅 Agendado',em_transito:'🚚 Em Trânsito',preparacao:'🔧 Em Separação',andamento:'⚡ Em Procedimento',concluido:'✔️ Concluído',cancelado:'❌ Cancelado',reagendado:'🔄 Reagendado',a_retirar:'📦 Aguard. Retirada', aguardando_ficha_opme:'📋 Aguard. Ficha OPME',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Retirada de Material'};
     const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
     let linhas=[];
     if(proc.status==='coleta_urgente'){
         const retFmtColeta = proc.retirada ? fmt(proc.retirada) : (proc.dataRetirar ? fmt(proc.dataRetirar) : '');
         const retHoraColeta = proc.horaRetirar || '';
         linhas=[
-            `*✈️ COLETA PRIORITÁRIA — GF Medical*`,
+            `*✈️ RETIRADA DE MATERIAL — GF Medical*`,
             `━━━━━━━━━━━━━━━━━━━━━━`,
             proc.retirada||proc.dataRetirar ? `📦 *Data de Retirada: ${retFmtColeta}${retHoraColeta?' às '+retHoraColeta:''}*` : '',
             ``,
@@ -11938,7 +11938,7 @@ function renderDashboard() {
     const urgentes=list.filter(p=>p.status==='urgencia').length;
     const taxa=total>0?Math.round(list.filter(p=>p.status==='concluido').length/total*100):0;
     const sColors={a_agendar:'#06b6d4',agendado:'#4db87a',em_transito:'#6366f1',preparacao:'#d4920a',andamento:'#d94f4f',concluido:'#64748b',cancelado:'#f87171',reagendado:'#a78bfa',a_retirar:'#f97316', aguardando_ficha_opme:'#a855f7',urgencia:'#ff0000',coleta_urgente:'#818cf8'};
-    const sNames={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar', aguardando_ficha_opme:'Ficha OPME',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+    const sNames={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar', aguardando_ficha_opme:'Ficha OPME',urgencia:'Urgência',coleta_urgente:'Retirada de Material'};
     const sCount={};
     list.forEach(p=>{ sCount[p.status]=(sCount[p.status]||0)+1; });
     const sEntries=Object.entries(sCount).sort((a,b)=>b[1]-a[1]).slice(0,8);
@@ -12075,7 +12075,7 @@ function calNav(dir){ calMonth+=dir; if(calMonth<0){calMonth=11;calYear--;} if(c
 function calDayClick(ds){
     const evts=procedimentos.filter(p=>p.data===ds); if(!evts.length) return;
     const dateFmt=new Date(ds+'T00:00:00').toLocaleDateString('pt-BR');
-    const sN={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar', aguardando_ficha_opme:'Ficha OPME',urgencia:'🚨 Urgência',coleta_urgente:'✈️ Coleta Prioritária'};
+    const sN={a_agendar:'Autorizado',agendado:'Agendado',em_transito:'Em Trânsito',preparacao:'Em Separação',andamento:'Em Procedimento',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'A Retirar', aguardando_ficha_opme:'Ficha OPME',urgencia:'🚨 Urgência',coleta_urgente:'✈️ Retirada de Material'};
     alert(`📅 ${dateFmt} — ${evts.length} procedimento(s)\n\n`+evts.map(p=>`• ${p.hospital} | ${p.medico||'—'} | ${sN[p.status]||p.status}`).join('\n'));
 }
 
@@ -17490,7 +17490,7 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
     border-color: rgba(42,159,191,0.45) !important;
     box-shadow: 0 3px 10px rgba(42,159,191,0.18) !important;
   }
-  /* Tab Coleta Prioritária — cor roxa */
+  /* Tab Retirada de Material — cor roxa */
   #tab-coleta {
     color: #6366f1 !important;
     border-color: rgba(99,102,241,0.35) !important;
@@ -17563,7 +17563,7 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
   }
 }
 
-/* ─── Coleta Prioritária view — grid mobile bonito ─── */
+/* ─── Retirada de Material view — grid mobile bonito ─── */
 @media (max-width: 768px) {
   #coleta-view {
     padding: 8px 0 !important;
@@ -17604,7 +17604,7 @@ function atualizarBadgesAbas() {
         }
         if (tabColeta) {
             const badge = totalColeta > 0 ? ` <span style="display:inline-flex;align-items:center;justify-content:center;background:${coletaVenc>0?'rgba(239,68,68,0.85)':'rgba(99,102,241,0.75)'};color:#fff;border-radius:999px;padding:1px 7px;font-size:0.62rem;font-weight:800;letter-spacing:0.04em;margin-left:5px;min-width:20px;">${totalColeta}</span>` : '';
-            tabColeta.innerHTML = '✈️ Coleta Prioritária' + badge;
+            tabColeta.innerHTML = '✈️ Retirada de Material' + badge;
         }
     } catch(e) {}
 }
@@ -17716,7 +17716,7 @@ function _chip(icon, count, label, bg, color, border) {
 }
 
 // ════════════════════════════════════════════════════════
-// FEATURE 4 — NOTIFICAÇÃO PUSH para nova coleta prioritária
+// FEATURE 4 — NOTIFICAÇÃO PUSH para nova retirada de material
 // ════════════════════════════════════════════════════════
 let _coletasConhecidas = null;
 
@@ -17726,7 +17726,7 @@ async function solicitarPermissaoNotificacao() {
         const perm = await Notification.requestPermission();
         if (perm === 'granted') {
             new Notification('✈️ Monitor Cirúrgico', {
-                body: 'Notificações de Coleta Prioritária ativadas!',
+                body: 'Notificações de Retirada de Material ativadas!',
                 icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">✈️</text></svg>'
             });
         }
@@ -17758,7 +17758,7 @@ function verificarNovasColetas() {
 
             // Notificação push (se permitido)
             if (Notification.permission === 'granted') {
-                new Notification('✈️ Nova Coleta Prioritária!', {
+                new Notification('✈️ Nova Retirada de Material!', {
                     body: `Fornecedor: ${forn}
 Retirada: ${ret}`,
                     icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">✈️</text></svg>',
@@ -17785,7 +17785,7 @@ function _toastColeta(forn, ret) {
         max-width:90vw;text-align:center;line-height:1.5;
         border:1px solid rgba(255,255,255,0.25);
     `;
-    t.innerHTML = `✈️ Nova Coleta Prioritária<br><span style="opacity:0.85;font-size:0.7rem;">${forn} · Ret: ${ret}</span>`;
+    t.innerHTML = `✈️ Nova Retirada de Material<br><span style="opacity:0.85;font-size:0.7rem;">${forn} · Ret: ${ret}</span>`;
     document.body.appendChild(t);
     requestAnimationFrame(() => {
         t.style.opacity = '1';
@@ -17946,7 +17946,7 @@ window.exportarWhatsAppColeta = async function() {
     pendentes.sort((a,b) => (a.dataRetirar||a.retirada||'').localeCompare(b.dataRetirar||b.retirada||''));
 
     const linhas = [
-        '✈️ *COLETA PRIORITÁRIA — GF Medical* 🔴',
+        '✈️ *RETIRADA DE MATERIAL — GF Medical* 🔴',
         `_${new Date().toLocaleDateString('pt-BR')} · ${pendentes.length} pendente(s)_`,
         ''
     ];
@@ -18087,9 +18087,9 @@ window.duplicarColeta = function(docId) {
                 const el = document.getElementById(id); if (el) el.value = val;
             }
             const t = document.getElementById('modalTitle');
-            if (t) t.textContent = '📋 Duplicar Coleta Prioritária';
+            if (t) t.textContent = '📋 Duplicar Retirada de Material';
             const b = document.getElementById('btn-save-main');
-            if (b) b.textContent = 'Salvar Coleta Prioritária';
+            if (b) b.textContent = 'Salvar Retirada de Material';
         }, 80);
     }, 80);
 };
@@ -18321,7 +18321,7 @@ window.switchView = function(v) {
 
 <script id="coleta-anexo-upload">
 // ════════════════════════════════════════════
-// UPLOAD DE ANEXO NA COLETA PRIORITÁRIA
+// UPLOAD DE ANEXO NA RETIRADA DE MATERIAL
 // ════════════════════════════════════════════
 
 let _coletaFileParaUpload = null;
@@ -18577,7 +18577,7 @@ window.verHistoricoStatus = function(docId) {
     const proc = (window.procedimentos||[]).find(p => (p._docId||String(p.id)) === String(docId));
     if (!proc) return;
     const hist = proc._statusHistory || [];
-    const labelMap = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Coleta Prioritária'};
+    const labelMap = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',urgencia:'🚨 URGÊNCIA',coleta_urgente:'✈️ Retirada de Material'};
 
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);';
@@ -18849,7 +18849,7 @@ window.imprimirRelatorio = function() {
     const procs = window.procedimentos || [];
     const hojeStr = hoje();
     const doHoje = procs.filter(p => p.data === hojeStr && !window._ehColeta(p));
-    const labelSt = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',urgencia:'URGÊNCIA',coleta_urgente:'Coleta Prioritária'};
+    const labelSt = {a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',urgencia:'URGÊNCIA',coleta_urgente:'Retirada de Material'};
 
     const win = window.open('','_blank');
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Cirurgias — ${fmtData(hojeStr)}</title>
@@ -20494,7 +20494,7 @@ window.buildCardHTML=function(proc){
     const pct=Math.round(feitos/total*100);
     const cor=pct===100?'#4db87a':(pct>=50?'#f59e0b':'#9ca3af');
     const badge=feitos>0?`<span style="display:inline-flex;align-items:center;background:${cor}18;border:1px solid ${cor}44;color:${cor};border-radius:999px;padding:1px 7px;font-family:var(--mono);font-size:0.62rem;font-weight:700;margin-left:4px;" title="Checklist: ${feitos}/${total}">☑ ${pct}%</span>`:'';
-    if(badge){const lbl=({'a_agendar':'Autorizado','andamento':'Em Procedimento','preparacao':'Em Separação','agendado':'Agendado','em_transito':'Em Trânsito','concluido':'Concluído','cancelado':'Cancelado','reagendado':'Reagendado','a_retirar':'Aguardando Retirada','urgencia':'🚨 URGÊNCIA','coleta_urgente':'✈️ Coleta Prioritária'}[proc.status]||proc.status).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp('('+lbl+'<\\/div>)'),'$1'+badge);}
+    if(badge){const lbl=({'a_agendar':'Autorizado','andamento':'Em Procedimento','preparacao':'Em Separação','agendado':'Agendado','em_transito':'Em Trânsito','concluido':'Concluído','cancelado':'Cancelado','reagendado':'Reagendado','a_retirar':'Aguardando Retirada','urgencia':'🚨 URGÊNCIA','coleta_urgente':'✈️ Retirada de Material'}[proc.status]||proc.status).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');html=html.replace(new RegExp('('+lbl+'<\\/div>)'),'$1'+badge);}
     return html;
 };
 
@@ -20887,7 +20887,7 @@ function renderKanban(){
 
 // ─── 3. ALERTA SLA ────────────────────────────────────────────────
 const _SLA={a_agendar:15,agendado:10,reagendado:5,preparacao:4};
-const _SL={a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',urgencia:'Urgência',coleta_urgente:'Coleta Prioritária'};
+const _SL={a_agendar:'Autorizado',andamento:'Em Procedimento',preparacao:'Em Separação',agendado:'Agendado',em_transito:'Em Trânsito',concluido:'Concluído',cancelado:'Cancelado',reagendado:'Reagendado',a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',urgencia:'Urgência',coleta_urgente:'Retirada de Material'};
 function _diasStatus(proc){const h=proc._statusHistory||[];for(let i=h.length-1;i>=0;i--){if(h[i].para===proc.status)return Math.floor((Date.now()-new Date(h[i].em).getTime())/86400000);}return 0;}
 function injetarBarraSLA2(){
     if(document.getElementById('sla-alert-bar')) return;
@@ -21122,7 +21122,7 @@ const _statusLabelMap = {
     a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
     agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
     reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME',
-    urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Coleta Prioritária'
+    urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Retirada de Material'
 };
 
 function _diasNoBadge(proc) {
@@ -21208,8 +21208,8 @@ else init();
 })();
 </script>
 <div class="fab-group">
-    <button class="fab-btn fab-coleta" onclick="openModalVolumes()" aria-label="Nova coleta prioritária">
-        <span class="fab-btn-label">Coleta Prioritária</span>
+    <button class="fab-btn fab-coleta" onclick="openModalVolumes()" aria-label="Nova retirada de material">
+        <span class="fab-btn-label">Retirada de Material</span>
         ✈
     </button>
     <button class="fab-btn fab-cirurgia" onclick="openModal()" aria-label="Nova cirurgia">
