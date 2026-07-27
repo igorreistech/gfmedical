@@ -1,4 +1,4 @@
-const CACHE = 'monitor-cgr-v24-nfimport';
+const CACHE = 'monitor-cgr-v25-nfimport';
 const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
   BASE,
