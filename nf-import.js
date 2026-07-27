@@ -419,19 +419,28 @@
             var produtos = parsearProdutos(texto);
             preencherFormularioPdf(dados, produtos);
 
-            var labels = { paciente: 'Paciente', hospital: 'Hospital', data: 'Data Cirurgia', medico: 'Médico', convenio: 'Convênio', nf: 'Nº NF', dataEmissao: 'Emissão NF', valor: 'Valor Total' };
+            var fStatusChk = document.getElementById('f-status');
+            var emColetaChk = !!fStatusChk && fStatusChk.value === 'coleta_urgente';
+            var labels = emColetaChk
+                ? { cte: 'Nº CTE', coletaFornecedor: 'Fornecedor', nfCompra: 'Nº NF de Compra', coletaChaveAcesso: 'Chave de Acesso (rastreio)' }
+                : { paciente: 'Paciente', hospital: 'Hospital', data: 'Data Cirurgia', medico: 'Médico', convenio: 'Convênio', nf: 'Nº NF', dataEmissao: 'Emissão NF', valor: 'Valor Total' };
             var html = '';
             Object.keys(labels).forEach(function (k) {
                 var v = dados[k];
                 if (v) html += '<span style="color:#4ade80;">✔ ' + labels[k] + ': <b>' + v + '</b></span><br>';
                 else    html += '<span style="color:#f59e0b;">– ' + labels[k] + ': não encontrado</span><br>';
             });
-            if (produtos.length > 0) {
-                html += '<span style="color:#4ade80;">✔ Produtos: <b>' + produtos.length + ' item(ns) importado(s)</b></span><br>';
-            } else {
-                html += '<span style="color:#f59e0b;">– Produtos: não encontrados</span><br>';
+            if (!emColetaChk) {
+                if (produtos.length > 0) {
+                    html += '<span style="color:#4ade80;">✔ Produtos: <b>' + produtos.length + ' item(ns) importado(s)</b></span><br>';
+                } else {
+                    html += '<span style="color:#f59e0b;">– Produtos: não encontrados</span><br>';
+                }
             }
-            if (!dados.medico || !dados.convenio || !dados.nf || !dados.valor || produtos.length === 0) {
+            var faltouAlgo = emColetaChk
+                ? (!dados.cte || !dados.coletaFornecedor || !dados.nfCompra)
+                : (!dados.medico || !dados.convenio || !dados.nf || !dados.valor || produtos.length === 0);
+            if (faltouAlgo) {
                 var dbIdx = texto.toUpperCase().indexOf('COMPLEMENTAR');
                 var dbTxt = dbIdx >= 0
                     ? texto.slice(Math.max(0, dbIdx - 50), dbIdx + 3000)
@@ -442,8 +451,9 @@
             }
             result.innerHTML = html;
             result.style.display = 'block';
+            var totalCampos = Object.keys(labels).length;
             var nok = Object.keys(labels).filter(function (k) { return !dados[k]; }).length;
-            status.textContent = (8 - nok) + '/8 campos + ' + produtos.length + ' produto(s)';
+            status.textContent = (totalCampos - nok) + '/' + totalCampos + ' campos' + (emColetaChk ? '' : ' + ' + produtos.length + ' produto(s)');
         } catch (err) {
             var msg = err && err.message ? err.message : String(err);
             var dica = msg.toLowerCase().includes('password') || msg.toLowerCase().includes('encrypt')
