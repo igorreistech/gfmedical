@@ -92,14 +92,28 @@
 
         // ── CT-e — número operacional (AWB), que é o número que de fato identifica
         // o conhecimento de transporte na prática (rótulo "NÚMERO OPERACIONAL" ou
-        // "NÚMERO OPERACIONAL DO CONHECIMENTO AÉREO", valor tipo "127-4689 2333") ──
+        // "NÚMERO OPERACIONAL DO CONHECIMENTO AÉREO", valor tipo "127-4689 2333").
+        // Tenta primeiro o formato rígido de AWB (IATA: 3 dígitos-4 dígitos 4 dígitos)
+        // pra não vazar pra dígitos de blocos vizinhos (ex.: início da chave de acesso
+        // colada na mesma linha quando o PDF tem colunas muito próximas); se não bater
+        // esse formato exato (CT-e não-aéreo), cai pro padrão solto de antes. ──
         var cte = null;
-        var mCteOperacional = t.match(/N[ÚU]MERO OPERACIONAL(?:\s+DO\s+CONHECIMENTO\s+A[ÉE]REO)?[^\n]*\n\s*([\d][\d\-\s]{5,20}\d)/i);
-        if (mCteOperacional) cte = mCteOperacional[1].trim().replace(/\s+/g, ' ');
+        var mCteAwb = t.match(/N[ÚU]MERO OPERACIONAL(?:\s+DO\s+CONHECIMENTO\s+A[ÉE]REO)?[^\n]*\n?\s*(\d{3}-\d{4}\s?\d{4})\b/i);
+        if (mCteAwb) cte = mCteAwb[1].replace(/\s+/g, ' ');
+        if (!cte) {
+            var mCteOperacional = t.match(/N[ÚU]MERO OPERACIONAL(?:\s+DO\s+CONHECIMENTO\s+A[ÉE]REO)?[^\n]*\n\s*([\d][\d\-\s]{5,20}\d)/i);
+            if (mCteOperacional) cte = mCteOperacional[1].trim().replace(/\s+/g, ' ');
+        }
         if (!cte) {
             var mCte = t.match(/CT-?e\b[^\d]{0,25}(\d{3,9})/i) || t.match(/CONHECIMENTO\s+DE\s+TRANSPORTE[^\d]{0,30}(\d{3,9})/i);
             if (mCte) cte = mCte[1].replace(/\./g, '');
         }
+
+        // ── Emitente do CT-e (a transportadora que emitiu o documento, ex.: GOLLOG/
+        // GOL Linhas Aéreas) — nome numa linha, seguido de "CNPJ:" (não "CNPJ / CPF:",
+        // que é do remetente/destinatário) e do título "DACTE". Usado como Transportadora. ──
+        var mEmitenteCte = t.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\/\.,\- ]{3,60})\n\s*CNPJ:\s*\d{11,14}[\s\S]{0,250}?\bDACTE\b/);
+        var coletaTransportadora = mEmitenteCte ? mEmitenteCte[1].trim() : null;
 
         // ── Fornecedor = REMETENTE do CT-e (quem envia a mercadoria, não a
         // transportadora que emitiu o documento). O layout do DACTE costuma pôr
@@ -108,12 +122,7 @@
         var coletaFornecedor = null;
         var mRemetente = t.match(/REMETENTE:\s*([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\s&.,'\-]*?)(?=\s+[A-ZÀ-Ú]{3,25}:|\s*\n|$)/i);
         if (mRemetente) coletaFornecedor = mRemetente[1].trim();
-        if (!coletaFornecedor) {
-            // Fallback: emitente do CT-e (nome da transportadora antes de "CNPJ:"
-            // — não "CNPJ / CPF:", que é do remetente/destinatário — e do título "DACTE").
-            var mEmitenteCte = t.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\/\.,\- ]{3,60})\n\s*CNPJ:\s*\d{11,14}[\s\S]{0,250}?\bDACTE\b/);
-            if (mEmitenteCte) coletaFornecedor = mEmitenteCte[1].trim();
-        }
+        if (!coletaFornecedor) coletaFornecedor = coletaTransportadora;
 
         // ── Chave de acesso (44 dígitos) — DANFE/CT-e, usada pro rastreio SSW.
         // Exige o rótulo "CHAVE DE ACESSO" por perto — sem isso, sequências de
@@ -196,7 +205,7 @@
             /PLANO[:\s]+([A-ZÀ-ÿa-z\s&.']{3,60})(?=\s*(?:\n|CART[AÃ]O|\d))/i,
         ]);
 
-        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio, nf: nf, valor: valor, dataEmissao: dataEmissao, cte: cte, coletaChaveAcesso: coletaChaveAcesso, coletaFornecedor: coletaFornecedor, nfCompra: nfCompra };
+        return { paciente: paciente, hospital: hospital, data: data, medico: medico, convenio: convenio, nf: nf, valor: valor, dataEmissao: dataEmissao, cte: cte, coletaChaveAcesso: coletaChaveAcesso, coletaFornecedor: coletaFornecedor, coletaTransportadora: coletaTransportadora, nfCompra: nfCompra };
     }
 
     // Retorna array de { code, desc, lote, qty }
@@ -349,6 +358,10 @@
             var ffornecedor = document.getElementById('f-coleta-fornecedor');
             if (ffornecedor) ffornecedor.value = dados.coletaFornecedor;
         }
+        if (dados.coletaTransportadora) {
+            var ftransp = document.getElementById('f-coleta-transportadora');
+            if (ftransp) ftransp.value = dados.coletaTransportadora;
+        }
         if (dados.nfCompra) {
             var fnfCompra = document.getElementById('f-nf-compra');
             if (fnfCompra) fnfCompra.value = dados.nfCompra;
@@ -422,7 +435,7 @@
             var fStatusChk = document.getElementById('f-status');
             var emColetaChk = !!fStatusChk && fStatusChk.value === 'coleta_urgente';
             var labels = emColetaChk
-                ? { cte: 'Nº CTE', coletaFornecedor: 'Fornecedor', nfCompra: 'Nº NF de Compra', coletaChaveAcesso: 'Chave de Acesso (rastreio)' }
+                ? { cte: 'Nº CTE', coletaFornecedor: 'Fornecedor', coletaTransportadora: 'Transportadora', nfCompra: 'Nº NF de Compra', coletaChaveAcesso: 'Chave de Acesso (rastreio)' }
                 : { paciente: 'Paciente', hospital: 'Hospital', data: 'Data Cirurgia', medico: 'Médico', convenio: 'Convênio', nf: 'Nº NF', dataEmissao: 'Emissão NF', valor: 'Valor Total' };
             var html = '';
             Object.keys(labels).forEach(function (k) {
