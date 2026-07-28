@@ -79,12 +79,14 @@
         if (mNf) nf = mNf[1].replace(/\./g, '');
 
         // ── Nº NF de Compra — vem embutido na chave de acesso da NF-e referenciada
-        // no CT-e (seção "DOCUMENTOS ORIGINÁRIOS": "NF-e <CNPJ> <chave de 44 dígitos>").
+        // no CT-e (seção "DOCUMENTOS ORIGINÁRIOS"). Duas transportadoras já vistas
+        // usam formatos diferentes: "NF-e <CNPJ> <chave 44 dígitos>" (com CNPJ no
+        // meio) ou "NFe CHAVE: <chave 44 dígitos>" (direto). O CNPJ é opcional aqui.
         // O número da nota é os 9 dígitos entre a posição 26 e 34 da chave (padrão
         // oficial da chave de acesso NFe/CTe), sem os zeros à esquerda.
         // Ex.: ...550010000013311227859232 → dígitos 000001331 → NF nº 1331.
         var nfCompra = null;
-        var mNfCompraChave = t.match(/NF-?e\s+\d{14}\s+(\d{44})/i);
+        var mNfCompraChave = t.match(/NF-?e\s*(?:CHAVE\s*:\s*)?(?:\d{14}\s+)?(\d{44})/i);
         if (mNfCompraChave) {
             var numNfEmbutido = mNfCompraChave[1].slice(25, 34).replace(/^0+/, '');
             nfCompra = numNfEmbutido || '0';
@@ -92,51 +94,43 @@
 
         // ── CT-e — número operacional (AWB), que é o número que de fato identifica
         // o conhecimento de transporte na prática (rótulo "NÚMERO OPERACIONAL" ou
-        // "NÚMERO OPERACIONAL DO CONHECIMENTO AÉREO", valor tipo "127-4689 2333").
-        // Tenta primeiro o formato rígido de AWB (IATA: 3 dígitos-4 dígitos 4 dígitos)
-        // pra não vazar pra dígitos de blocos vizinhos (ex.: início da chave de acesso
-        // colada na mesma linha quando o PDF tem colunas muito próximas); se não bater
-        // esse formato exato (CT-e não-aéreo), cai pro padrão solto de antes. ──
+        // "NÚMERO OPERACIONAL DO CONHECIMENTO AÉREO"). O AWB IATA tem sempre 11
+        // dígitos (3 do prefixo da companhia + 8 de série), mas a formatação varia
+        // por transportadora: "127-4689 2333" (com hífen/espaço) ou "57759653786"
+        // (corrido). Em vez de fixar o formato, captura exatamente 11 dígitos
+        // (tolerando hífen/espaço isolado entre eles) — isso impede vazar pros
+        // dígitos de blocos vizinhos (ex.: chave de acesso colada na mesma linha
+        // quando o PDF tem colunas muito próximas), já que para exatamente no 11º. ──
         var cte = null;
-        var mCteAwb = t.match(/N[ÚU]MERO OPERACIONAL(?:\s+DO\s+CONHECIMENTO\s+A[ÉE]REO)?[^\n]*\n?\s*(\d{3}-\d{4}\s?\d{4})\b/i);
-        if (mCteAwb) cte = mCteAwb[1].replace(/\s+/g, ' ');
-        if (!cte) {
-            var mCteOperacional = t.match(/N[ÚU]MERO OPERACIONAL(?:\s+DO\s+CONHECIMENTO\s+A[ÉE]REO)?[^\n]*\n\s*([\d][\d\-\s]{5,20}\d)/i);
-            if (mCteOperacional) cte = mCteOperacional[1].trim().replace(/\s+/g, ' ');
-        }
+        var mCteAwb = t.match(/N[ÚU]MERO OPERACIONAL(?:\s+DO\s+CONHECIMENTO\s+A[ÉE]REO)?[^\n]*\n?\s*((?:\d[\s\-]?){10}\d)\b/i);
+        if (mCteAwb) cte = mCteAwb[1].trim();
         if (!cte) {
             var mCte = t.match(/CT-?e\b[^\d]{0,25}(\d{3,9})/i) || t.match(/CONHECIMENTO\s+DE\s+TRANSPORTE[^\d]{0,30}(\d{3,9})/i);
             if (mCte) cte = mCte[1].replace(/\./g, '');
         }
 
-        // ── Emitente do CT-e (a transportadora que emitiu o documento, ex.: GOLLOG/
-        // GOL Linhas Aéreas), usado como Transportadora. Rótulo "CNPJ:" (não "CNPJ /
-        // CPF:", que é do remetente/destinatário) identifica o bloco certo. A linha
-        // anterior costuma vir colada com texto de outra coluna (o boilerplate fixo
-        // "Documento Auxiliar do Conhecimento de Transporte Eletrônico" + o modal,
-        // ex.: "GOL LINHAS AEREAS S/A de Transporte Eletrônico AÉREO") — por isso não
-        // dá pra exigir só maiúsculas; captura a linha inteira e remove esse
-        // boilerplate conhecido do DACTE pra sobrar só o nome da transportadora. ──
+        // ── Emitente do CT-e (a transportadora que emitiu o documento) — usado como
+        // Transportadora. O rótulo do CNPJ varia por layout ("CNPJ:" só, ou "CNPJ/
+        // CPF:" igual ao do remetente/destinatário), então em vez de ancorar no
+        // rótulo, ancora no sufixo jurídico do nome (S/A, LTDA, EIRELI...), que só a
+        // transportadora tem tão cedo no documento — busca só ANTES do primeiro
+        // "REMETENTE" pra não pegar o nome de outra parte que também termine assim. ──
         var coletaTransportadora = null;
-        var mEmitenteCte = t.match(/([^\n]+)\n\s*CNPJ:\s*\d{11,14}/);
-        if (mEmitenteCte) {
-            var linhaEmitente = mEmitenteCte[1]
-                .replace(/Documento Auxiliar do Conhecimento/gi, '')
-                .replace(/de Transporte Eletr[oô]nico/gi, '')
-                .replace(/\b(A[ÉE]REO|RODOVI[ÁA]RIO|AQUAVI[ÁA]RIO|FERROVI[ÁA]RIO|DUTOVI[ÁA]RIO|MULTIMODAL)\b/gi, '')
-                .replace(/\bMODAL\b/gi, '')
-                .replace(/\bDACTE\b/gi, '')
-                .replace(/\s{2,}/g, ' ')
-                .trim();
-            if (linhaEmitente.length >= 3) coletaTransportadora = linhaEmitente;
-        }
+        // Busca "REMETENTE:" (com dois-pontos) e não só "REMETENTE" — documentos têm
+        // um cabeçalho genérico "EXPEDIDOR/REMETENTE" (sem dois-pontos) bem no topo,
+        // antes até do nome da transportadora, que faria a área de busca cortar cedo demais.
+        var idxRemetenteBusca = t.search(/REMETENTE\s*:/i);
+        var areaEmitente = idxRemetenteBusca > 0 ? t.slice(0, idxRemetenteBusca) : t;
+        var mEmitenteCte = areaEmitente.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú&.,\/\- ]{3,70}\b(?:S\/?A|LTDA\.?|EIRELI|M\.?E\.?|EPP))\b/);
+        if (mEmitenteCte) coletaTransportadora = mEmitenteCte[1].replace(/\s{2,}/g, ' ').trim();
 
         // ── Fornecedor = REMETENTE do CT-e (quem envia a mercadoria, não a
-        // transportadora que emitiu o documento). O layout do DACTE costuma pôr
-        // REMETENTE e DESTINATÁRIO lado a lado na mesma linha (colunas), então a
-        // captura para na próxima "PALAVRA:" (outro rótulo), não só na quebra de linha.
+        // transportadora que emitiu o documento). O rótulo pode vir com ou sem
+        // espaço antes dos dois-pontos ("REMETENTE:" ou "REMETENTE :"). O layout do
+        // DACTE costuma pôr REMETENTE e DESTINATÁRIO lado a lado na mesma linha
+        // (colunas), então a captura para no próximo rótulo, não só na quebra de linha.
         var coletaFornecedor = null;
-        var mRemetente = t.match(/REMETENTE:\s*([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\s&.,'\-]*?)(?=\s+[A-ZÀ-Ú]{3,25}:|\s*\n|$)/i);
+        var mRemetente = t.match(/REMETENTE\s*:\s*([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\s&.,'\-]*?)(?=\s+[A-ZÀ-Ú]{3,25}\s*:|\s*\n|$)/i);
         if (mRemetente) coletaFornecedor = mRemetente[1].trim();
         if (!coletaFornecedor) coletaFornecedor = coletaTransportadora;
 
@@ -144,13 +138,18 @@
         // "CHAVE DE ACESSO" costuma vir num cabeçalho de coluna junto com outros
         // rótulos (NÚMERO OPERACIONAL, DATA...), com os valores de todas as colunas
         // amontoados na linha seguinte — não necessariamente começando por ela. Por
-        // isso procura, numa janela depois do rótulo, o formato pontilhado específico
-        // (11 grupos de 4 dígitos, ex. "3326.0707.5756...2951"), que é exclusivo da
-        // chave formatada — evita pegar a chave "corrida" (sem pontos) de uma NF-e
-        // referenciada em "DOCUMENTOS ORIGINÁRIOS". ──
+        // isso procura, numa janela depois do rótulo, o formato em 11 grupos de 4
+        // dígitos separados por ponto OU espaço (varia por transportadora: "3326.
+        // 0707.5756...2951" ou "3524 1009 2962...7867") — esse agrupamento é
+        // exclusivo da chave formatada e evita pegar a chave "corrida" (sem
+        // separador) de uma NF-e referenciada em "DOCUMENTOS ORIGINÁRIOS". ──
         var coletaChaveAcesso = null;
-        var mChavePontuada = t.match(/CHAVE\s+DE\s+ACESSO[\s\S]{0,150}?((?:\d{4}\.){10}\d{4})/i);
-        if (mChavePontuada) coletaChaveAcesso = mChavePontuada[1].replace(/\./g, '');
+        // O separador precisa ser CONSISTENTE (só ponto OU só espaço) em todos os 10
+        // grupos — uma classe de caracteres [.\s] misturando os dois deixava o regex
+        // "engatar" no meio de outro número vizinho (ex.: fim do AWB + início da
+        // chave), formando um falso início de 11 grupos.
+        var mChavePontuada = t.match(/CHAVE\s+DE\s+ACESSO[\s\S]{0,150}?(?<!\d)((?:\d{4}\.){10}\d{4}|(?:\d{4}\s){10}\d{4})/i);
+        if (mChavePontuada) coletaChaveAcesso = mChavePontuada[1].replace(/\D/g, '');
         if (!coletaChaveAcesso) {
             var mChaveLabel = t.match(/CHAVE\s+DE\s+ACESSO[^\n]*\n\s*((?:\d[\s.]?){44,60})/i);
             if (mChaveLabel) {
