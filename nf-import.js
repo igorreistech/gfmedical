@@ -110,12 +110,26 @@
         }
 
         // ── Emitente do CT-e (a transportadora que emitiu o documento, ex.: GOLLOG/
-        // GOL Linhas Aéreas) — nome numa linha, seguido de "CNPJ:" (não "CNPJ / CPF:",
-        // que é do remetente/destinatário). Usado como Transportadora. Não exige mais
-        // "DACTE" logo depois — a ordem exata do texto extraído varia com o layout. ──
+        // GOL Linhas Aéreas), usado como Transportadora. Rótulo "CNPJ:" (não "CNPJ /
+        // CPF:", que é do remetente/destinatário) identifica o bloco certo. A linha
+        // anterior costuma vir colada com texto de outra coluna (o boilerplate fixo
+        // "Documento Auxiliar do Conhecimento de Transporte Eletrônico" + o modal,
+        // ex.: "GOL LINHAS AEREAS S/A de Transporte Eletrônico AÉREO") — por isso não
+        // dá pra exigir só maiúsculas; captura a linha inteira e remove esse
+        // boilerplate conhecido do DACTE pra sobrar só o nome da transportadora. ──
         var coletaTransportadora = null;
-        var mEmitenteCte = t.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\/\.,\- ]{3,60})\s*\n?\s*CNPJ:\s*(\d{11,14})/);
-        if (mEmitenteCte) coletaTransportadora = mEmitenteCte[1].trim();
+        var mEmitenteCte = t.match(/([^\n]+)\n\s*CNPJ:\s*\d{11,14}/);
+        if (mEmitenteCte) {
+            var linhaEmitente = mEmitenteCte[1]
+                .replace(/Documento Auxiliar do Conhecimento/gi, '')
+                .replace(/de Transporte Eletr[oô]nico/gi, '')
+                .replace(/\b(A[ÉE]REO|RODOVI[ÁA]RIO|AQUAVI[ÁA]RIO|FERROVI[ÁA]RIO|DUTOVI[ÁA]RIO|MULTIMODAL)\b/gi, '')
+                .replace(/\bMODAL\b/gi, '')
+                .replace(/\bDACTE\b/gi, '')
+                .replace(/\s{2,}/g, ' ')
+                .trim();
+            if (linhaEmitente.length >= 3) coletaTransportadora = linhaEmitente;
+        }
 
         // ── Fornecedor = REMETENTE do CT-e (quem envia a mercadoria, não a
         // transportadora que emitiu o documento). O layout do DACTE costuma pôr
@@ -127,13 +141,22 @@
         if (!coletaFornecedor) coletaFornecedor = coletaTransportadora;
 
         // ── Chave de acesso (44 dígitos) — DANFE/CT-e, usada pro rastreio SSW.
-        // Exige o rótulo "CHAVE DE ACESSO" por perto — sem isso, sequências de
-        // dígitos de CNPJs vizinhos podem se colar e formar um falso 44-dígitos. ──
+        // "CHAVE DE ACESSO" costuma vir num cabeçalho de coluna junto com outros
+        // rótulos (NÚMERO OPERACIONAL, DATA...), com os valores de todas as colunas
+        // amontoados na linha seguinte — não necessariamente começando por ela. Por
+        // isso procura, numa janela depois do rótulo, o formato pontilhado específico
+        // (11 grupos de 4 dígitos, ex. "3326.0707.5756...2951"), que é exclusivo da
+        // chave formatada — evita pegar a chave "corrida" (sem pontos) de uma NF-e
+        // referenciada em "DOCUMENTOS ORIGINÁRIOS". ──
         var coletaChaveAcesso = null;
-        var mChaveLabel = t.match(/CHAVE\s+DE\s+ACESSO[^\n]*\n\s*((?:\d[\s.]?){44,60})/i);
-        if (mChaveLabel) {
-            var soDigitos = mChaveLabel[1].replace(/\D/g, '');
-            if (soDigitos.length >= 44) coletaChaveAcesso = soDigitos.slice(0, 44);
+        var mChavePontuada = t.match(/CHAVE\s+DE\s+ACESSO[\s\S]{0,150}?((?:\d{4}\.){10}\d{4})/i);
+        if (mChavePontuada) coletaChaveAcesso = mChavePontuada[1].replace(/\./g, '');
+        if (!coletaChaveAcesso) {
+            var mChaveLabel = t.match(/CHAVE\s+DE\s+ACESSO[^\n]*\n\s*((?:\d[\s.]?){44,60})/i);
+            if (mChaveLabel) {
+                var soDigitos = mChaveLabel[1].replace(/\D/g, '');
+                if (soDigitos.length >= 44) coletaChaveAcesso = soDigitos.slice(0, 44);
+            }
         }
         if (!coletaChaveAcesso) {
             var mChave44 = t.match(/\b\d{44}\b/);
