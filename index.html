@@ -10144,7 +10144,7 @@ function popularCirurgiasVinculaveisColeta() {
     if (!sel) return;
     const pendente = sel.dataset.pending || sel.value;
     delete sel.dataset.pending;
-    const ativos = ['a_agendar','agendado','preparacao','andamento','a_retirar','reagendado'];
+    const ativos = ['agendado','em_transito','preparacao','andamento'];
     const opcoes = (window.procedimentos || [])
         .filter(p => !_ehColeta(p) && !p.isColeta && ativos.includes(p.status))
         .sort((a,b) => (a.data||'').localeCompare(b.data||''));
