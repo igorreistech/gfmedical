@@ -111,9 +111,11 @@
 
         // ── Emitente do CT-e (a transportadora que emitiu o documento, ex.: GOLLOG/
         // GOL Linhas Aéreas) — nome numa linha, seguido de "CNPJ:" (não "CNPJ / CPF:",
-        // que é do remetente/destinatário) e do título "DACTE". Usado como Transportadora. ──
-        var mEmitenteCte = t.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\/\.,\- ]{3,60})\n\s*CNPJ:\s*\d{11,14}[\s\S]{0,250}?\bDACTE\b/);
-        var coletaTransportadora = mEmitenteCte ? mEmitenteCte[1].trim() : null;
+        // que é do remetente/destinatário). Usado como Transportadora. Não exige mais
+        // "DACTE" logo depois — a ordem exata do texto extraído varia com o layout. ──
+        var coletaTransportadora = null;
+        var mEmitenteCte = t.match(/([A-ZÀ-Ú][A-ZÀ-Ú0-9À-Ú\/\.,\- ]{3,60})\s*\n?\s*CNPJ:\s*(\d{11,14})/);
+        if (mEmitenteCte) coletaTransportadora = mEmitenteCte[1].trim();
 
         // ── Fornecedor = REMETENTE do CT-e (quem envia a mercadoria, não a
         // transportadora que emitiu o documento). O layout do DACTE costuma pôr
@@ -451,7 +453,7 @@
                 }
             }
             var faltouAlgo = emColetaChk
-                ? (!dados.cte || !dados.coletaFornecedor || !dados.nfCompra)
+                ? (!dados.cte || !dados.coletaFornecedor || !dados.coletaTransportadora || !dados.nfCompra)
                 : (!dados.medico || !dados.convenio || !dados.nf || !dados.valor || produtos.length === 0);
             if (faltouAlgo) {
                 var dbIdx = texto.toUpperCase().indexOf('COMPLEMENTAR');
