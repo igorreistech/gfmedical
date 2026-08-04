@@ -517,6 +517,9 @@ async function fbSaveProc(proc) {
         if (!db || !COLL) { alert('❌ Banco não inicializado. Recarregue a página.'); return; }
         const { _docId, _filial, ...data } = proc;
         data._updatedAt = new Date().toISOString();
+        // Garante null em todos os campos de data antes de enviar ao Postgres
+        ['data','nfData','retirada','dataRetirar','coletaDataCirurgia','dataConfirmacaoRetirada'].forEach(f => { if (data[f] === '') data[f] = null; });
+        console.log('[fbSaveProc] campos de data:', {data:data.data,nfData:data.nfData,retirada:data.retirada,dataRetirar:data.dataRetirar,coletaDataCirurgia:data.coletaDataCirurgia});
         // Histórico de status
         const userEmail = window._currentUser ? window._currentUser.email : 'sistema';
         if (_docId && proc.status !== undefined) {
