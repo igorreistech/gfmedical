@@ -9715,9 +9715,8 @@ async function saveProcedure(e) {
             ? `✈️ ${p.coletaFornecedor||'—'} · ${p.coletaDataCirurgia?new Date(p.coletaDataCirurgia+'T00:00:00').toLocaleDateString('pt-BR'):''}`
             : `${p.hospital} · ${p.medico||'—'} · ${p.data?new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR'):''}`
         ).join('\n');
-        if (!confirm('⚠️ Possível duplicata encontrada:\n\n' + desc + '\n\nDeseja salvar mesmo assim?')) {
-            return;
-        }
+        alert('🚫 Lançamento bloqueado — já existe um registro igual:\n\n' + desc + '\n\nEdite o lançamento existente em vez de criar um novo, ou altere hospital/médico/data pra confirmar que é um caso diferente.');
+        return;
     }
 
     try {
