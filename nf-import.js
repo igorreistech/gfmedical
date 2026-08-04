@@ -370,23 +370,31 @@
             var fval = document.getElementById('f-valor');
             if (fval) fval.value = dados.valor;
         }
-        if (dados.cte) {
+        // Campos de coleta (cte/chave/fornecedor/transportadora/nfCompra) só
+        // fazem sentido no modo Retirada de Material. Preenchê-los também no
+        // modo normal (cirurgia) é o que causava o bug de toda cirurgia
+        // importada de PDF ser classificada como Retirada de Material — o
+        // extrator às vezes casa texto de boilerplate do DANFE (tipo
+        // "RECEBEMOS DE ... LTDA") com o regex de transportadora/remetente,
+        // e _ehColeta() trata QUALQUER um desses campos preenchido como
+        // sinal de "é coleta", mesmo com status normal.
+        if (emModoColeta && dados.cte) {
             var fcte = document.getElementById('f-cte');
             if (fcte) fcte.value = dados.cte;
         }
-        if (dados.coletaChaveAcesso) {
+        if (emModoColeta && dados.coletaChaveAcesso) {
             var fchave = document.getElementById('f-coleta-chave-acesso');
             if (fchave) fchave.value = dados.coletaChaveAcesso;
         }
-        if (dados.coletaFornecedor) {
+        if (emModoColeta && dados.coletaFornecedor) {
             var ffornecedor = document.getElementById('f-coleta-fornecedor');
             if (ffornecedor) ffornecedor.value = dados.coletaFornecedor;
         }
-        if (dados.coletaTransportadora) {
+        if (emModoColeta && dados.coletaTransportadora) {
             var ftransp = document.getElementById('f-coleta-transportadora');
             if (ftransp) ftransp.value = dados.coletaTransportadora;
         }
-        if (dados.nfCompra) {
+        if (emModoColeta && dados.nfCompra) {
             var fnfCompra = document.getElementById('f-nf-compra');
             if (fnfCompra) fnfCompra.value = dados.nfCompra;
         }

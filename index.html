@@ -9703,6 +9703,28 @@ async function _saveProcedureImpl(e) {
         isColeta: _isColeta || (existingProc && _ehColeta(existingProc)) || false
     };
 
+    // Defesa em profundidade: se não é lançamento de coleta, garante que
+    // nenhum campo exclusivo de coleta vá salvo — mesmo que tenha sobrado
+    // algo no formulário (ex.: import de PDF preenche campos ocultos de
+    // coleta em modo normal por engano). _ehColeta() trata a PRESENÇA
+    // desses campos como sinal de "é coleta" independente do status, então
+    // deixar lixo aqui faz a cirurgia normal ser exibida como Retirada de
+    // Material em outras telas.
+    if (!proc.isColeta) {
+        proc.nfCompra = '';
+        proc.cte = '';
+        proc.coletaChaveAcesso = '';
+        proc.coletaFornecedor = '';
+        proc.coletaTransportadora = '';
+        proc.coletaCirurgiaId = '';
+        proc.coletaDataCirurgia = null;
+        proc.dataRetirar = null;
+        proc.horaRetirar = '';
+        proc.coletaHoraCirurgia = '';
+        proc.coletaObs = '';
+        proc.coletaAnexo = '';
+    }
+
     if (existingProc && existingProc._docId) {
         proc._docId = existingProc._docId;
     }
