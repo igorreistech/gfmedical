@@ -1,10 +1,11 @@
-const CACHE = 'monitor-cgr-v30';
+const CACHE = 'monitor-cgr-v31';
 const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
   BASE,
   BASE + 'index.html',
   BASE + 'styles.css',
   BASE + 'app.js',
+  BASE + 'supabase-shim.js',
   BASE + 'manifest.json',
   BASE + 'nf-import.js',
   BASE + 'icon-192.png',
