@@ -9483,8 +9483,25 @@ function atualizarSubgrupos(valorAtual, valorAtual2) {
     }
 }
 
+let _savingProc = false;
 async function saveProcedure(e) {
     e.preventDefault();
+    // Trava contra clique duplo/duplo-submit — sem isso, dois cliques rápidos
+    // (ou dois cliques de duas pessoas ao mesmo tempo) disparam saveProcedure
+    // em paralelo e a checagem de duplicata do segundo roda antes do primeiro
+    // salvamento terminar e atualizar a lista local, deixando passar duplicata.
+    if (_savingProc) return;
+    _savingProc = true;
+    const _btnSaveMain = document.getElementById('btn-save-main');
+    if (_btnSaveMain) { _btnSaveMain.disabled = true; _btnSaveMain.dataset._origText = _btnSaveMain.textContent; _btnSaveMain.textContent = 'Salvando...'; }
+    try {
+        await _saveProcedureImpl(e);
+    } finally {
+        _savingProc = false;
+        if (_btnSaveMain) { _btnSaveMain.disabled = false; if (_btnSaveMain.dataset._origText) _btnSaveMain.textContent = _btnSaveMain.dataset._origText; }
+    }
+}
+async function _saveProcedureImpl(e) {
 
     // Modo Consolidado: a filial (Campo Grande/Cuiabá) precisa estar escolhida
     // antes de salvar — sem isso não tem como saber em qual dos dois bancos
