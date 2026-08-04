@@ -403,6 +403,21 @@
         }
     }
 
+    // Patch: garante que campos de data sejam null (não '') antes de qualquer save,
+    // independente da versão do index.html em cache no browser.
+    document.addEventListener('DOMContentLoaded', function () {
+        var _orig = window.fbSaveProc;
+        if (typeof _orig !== 'function') return;
+        window.fbSaveProc = async function (proc) {
+            if (proc) {
+                ['data', 'nfData', 'retirada', 'dataRetirar', 'coletaDataCirurgia', 'dataConfirmacaoRetirada'].forEach(function (f) {
+                    if (proc[f] === '') proc[f] = null;
+                });
+            }
+            return _orig.call(this, proc);
+        };
+    });
+
     window.importarPdfNF = async function (input) {
         var file = input.files[0];
         if (!file) return;

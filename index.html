@@ -42,7 +42,7 @@
     <!-- Supabase SDK (migrado do Firebase) -->
     <script type="module">
       import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-      import { createFirestoreShim, createStorageShim } from "./supabase-shim.js";
+      import { createFirestoreShim, createStorageShim } from "./supabase-shim.js?v=1";
 
       // Cada filial é um projeto Supabase totalmente separado (Auth, tabelas,
       // tudo) — não existe backend compartilhado. A filial ativa decide qual
@@ -7110,6 +7110,8 @@ async function fbSaveProc(proc) {
         if (!db || !COLL) { alert('❌ Banco não inicializado. Recarregue a página.'); return; }
         const { _docId, _filial, _filialOrigem, ...data } = proc;
         data._updatedAt = new Date().toISOString();
+        // Garante null em todos os campos de data — Postgres rejeita string vazia em colunas DATE
+        ['data','nfData','retirada','dataRetirar','coletaDataCirurgia','dataConfirmacaoRetirada'].forEach(f => { if (data[f] === '') data[f] = null; });
         // Histórico de status
         const userEmail = window._operadorNome || (window._currentUser ? window._currentUser.email : 'sistema');
         if (_docId && proc.status !== undefined) {
@@ -9635,7 +9637,7 @@ async function saveProcedure(e) {
         hospital,
         cidade: cidadeVal,
         status: document.getElementById('f-status').value,
-        data: document.getElementById('f-data').value,
+        data: document.getElementById('f-data').value || null,
         medico: medico,
         paciente: paciente,
         pacienteIdade: document.getElementById('f-pacienteIdade') ? document.getElementById('f-pacienteIdade').value.trim() : '',
@@ -9661,15 +9663,15 @@ async function saveProcedure(e) {
         subgrupo10: document.getElementById('f-subgrupo10') ? document.getElementById('f-subgrupo10').value : '',
         inicio: document.getElementById('f-inicio').value,
         nf: document.getElementById('f-nf').value,
-        nfData: document.getElementById('f-nf-data').value,
-        retirada: document.getElementById('f-retirada').value,
+        nfData: document.getElementById('f-nf-data').value || null,
+        retirada: document.getElementById('f-retirada').value || null,
         nfCompra:          document.getElementById('f-nf-compra')           ? document.getElementById('f-nf-compra').value           : '',
         cte:               document.getElementById('f-cte')                 ? document.getElementById('f-cte').value                 : '',
         coletaChaveAcesso: document.getElementById('f-coleta-chave-acesso') ? document.getElementById('f-coleta-chave-acesso').value : '',
         coletaCirurgiaId: document.getElementById('f-coleta-cirurgia-vinculada') ? document.getElementById('f-coleta-cirurgia-vinculada').value : '',
-        dataRetirar:       document.getElementById('f-data-retirar')        ? document.getElementById('f-data-retirar').value        : '',
+        dataRetirar:       document.getElementById('f-data-retirar')        ? (document.getElementById('f-data-retirar').value || null)        : null,
         horaRetirar:       document.getElementById('f-hora-retirar')        ? document.getElementById('f-hora-retirar').value        : '',
-        coletaDataCirurgia:document.getElementById('f-coleta-data-cirurgia')? document.getElementById('f-coleta-data-cirurgia').value: '',
+        coletaDataCirurgia:document.getElementById('f-coleta-data-cirurgia')? (document.getElementById('f-coleta-data-cirurgia').value || null): null,
         coletaHoraCirurgia:document.getElementById('f-coleta-hora-cirurgia')? document.getElementById('f-coleta-hora-cirurgia').value: '',
         coletaFornecedor:      document.getElementById('f-coleta-fornecedor')      ? document.getElementById('f-coleta-fornecedor').value.trim()      : '',
         coletaTransportadora: document.getElementById('f-coleta-transportadora') ? document.getElementById('f-coleta-transportadora').value.trim() : '',
