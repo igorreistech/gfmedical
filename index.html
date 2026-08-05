@@ -9752,7 +9752,7 @@ async function _saveProcedureImpl(e) {
     if (dupsCheck.length > 0) {
         const desc = dupsCheck.map(p => (_ehColeta(p)||p.isColeta)
             ? `✈️ ${p.coletaFornecedor||'—'} · ${p.coletaDataCirurgia?new Date(p.coletaDataCirurgia+'T00:00:00').toLocaleDateString('pt-BR'):''}`
-            : `${p.hospital} · ${p.medico||'—'} · ${p.data?new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR'):''}`
+            : `${p.paciente||'Paciente não informado'} · ${p.hospital} · ${p.medico||'—'} · ${p.data?new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR'):''}`
         ).join('\n');
         alert('🚫 Lançamento bloqueado — já existe um registro igual:\n\n' + desc + '\n\nEdite o lançamento existente em vez de criar um novo, ou altere hospital/médico/data pra confirmar que é um caso diferente.');
         return;
