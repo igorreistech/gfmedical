@@ -8007,9 +8007,9 @@ function renderCards() {
     try { list = getFiltered(); } catch(e) {
         grid.innerHTML = `<div style="grid-column:1/-1;padding:20px;color:red;">Erro: ${e.message}</div>`; return;
     }
-    // Ocultar concluído e cancelado dos cards (exceto se mostrarOcultos ativo — mostra SÓ eles)
-    if (!mostrarOcultos) list = list.filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
-    else list = list.filter(p => p.status === 'concluido' || p.status === 'cancelado');
+    // Ocultar concluído e cancelado dos cards (exceto se mostrarOcultos ativo — mostra SÓ eles,
+    // ou se o usuário filtrou/buscou explicitamente por eles — getFiltered() já cuida disso)
+    if (mostrarOcultos) list = list.filter(p => p.status === 'concluido' || p.status === 'cancelado');
     if (list.length === 0) {
         grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim);">Nenhum procedimento encontrado</div>'; return;
     }
@@ -10512,7 +10512,7 @@ function renderTable() {
 
     const list = mostrarOcultos
         ? getFiltered().filter(p => p.status === 'concluido' || p.status === 'cancelado')
-        : getFiltered().filter(p => p.status !== 'concluido' && p.status !== 'cancelado');
+        : getFiltered();
     const statusMap = { a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação', agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', a_retirar:'Aguardando Retirada', aguardando_ficha_opme:'Aguardando Ficha OPME', urgencia:'🚨 URGÊNCIA', coleta_urgente:'✈️ Retirada de Material' };
 
     // Ordenar por horário (padrão) ou coluna selecionada
@@ -18002,40 +18002,46 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
   const HIDDEN = new Set(['concluido','cancelado']);
   function isHiddenStatus(s){ return HIDDEN.has(String(s || '').toLowerCase()); }
 
+  // Observação: mostrarOcultos/currentFilter/searchTerm são "let" declarados
+  // no script principal — como bindings globais são compartilhados entre
+  // <script> tags (mas não viram propriedade de window), usamos os nomes
+  // soltos aqui, e não window.mostrarOcultos etc., senão essas checagens
+  // acabam lendo uma variável fantasma sempre undefined.
   const originalGetFiltered = window.getFiltered;
   window.getFiltered = function(){
-    // Quando mostrarOcultos ativo, inclui concluído/cancelado normalmente
-    if (window.mostrarOcultos) {
-      return typeof originalGetFiltered === 'function' ? originalGetFiltered() : (window.procedimentos || []);
-    }
-    if (isHiddenStatus(window.currentFilter)) window.currentFilter = 'all';
     const base = typeof originalGetFiltered === 'function' ? originalGetFiltered() : (window.procedimentos || []);
+    // Quando mostrarOcultos ativo, inclui concluído/cancelado normalmente
+    if (mostrarOcultos) return base;
+    // Se o usuário selecionou explicitamente o filtro Concluídos/Cancelados,
+    // ou está buscando um termo (ex.: número de NF), não esconde — senão a
+    // busca/filtro nunca encontra os concluídos.
+    const filtroExplicito = isHiddenStatus(currentFilter);
+    const buscando = !!(searchTerm && String(searchTerm).trim());
+    if (filtroExplicito || buscando) return base;
     return (base || []).filter(function(p){ return !isHiddenStatus(p && p.status); });
   };
 
   // toggleOcultos: ativa/desativa exibição de concluídos e cancelados
   window.toggleOcultos = function(){
-    window.mostrarOcultos = !window.mostrarOcultos;
-    document.body.classList.toggle('mostrar-ocultos', window.mostrarOcultos);
+    mostrarOcultos = !mostrarOcultos;
+    document.body.classList.toggle('mostrar-ocultos', mostrarOcultos);
     const btn = document.getElementById('btn-toggle-ocultos');
     if (btn) {
-      btn.style.background   = window.mostrarOcultos ? 'rgba(99,102,241,0.18)' : 'rgba(107,114,128,0.12)';
-      btn.style.color        = window.mostrarOcultos ? '#6366f1' : '#6b7280';
-      btn.style.borderColor  = window.mostrarOcultos ? 'rgba(99,102,241,0.5)' : 'rgba(107,114,128,0.35)';
-      btn.textContent        = window.mostrarOcultos ? '👁 Ocultos (visíveis)' : '👁 Ocultos';
+      btn.style.background   = mostrarOcultos ? 'rgba(99,102,241,0.18)' : 'rgba(107,114,128,0.12)';
+      btn.style.color        = mostrarOcultos ? '#6366f1' : '#6b7280';
+      btn.style.borderColor  = mostrarOcultos ? 'rgba(99,102,241,0.5)' : 'rgba(107,114,128,0.35)';
+      btn.textContent        = mostrarOcultos ? '👁 Ocultos (visíveis)' : '👁 Ocultos';
     }
     if (typeof renderCards === 'function') renderCards();
   };
 
   document.addEventListener('DOMContentLoaded', function(){
-    window.mostrarOcultos = false;
     // Garante que o btn-toggle-ocultos apareça
     const btn = document.getElementById('btn-toggle-ocultos');
     if (btn) {
       btn.style.display = '';
       btn.textContent = '👁 Ocultos';
     }
-    if (isHiddenStatus(window.currentFilter)) window.currentFilter = 'all';
     if (typeof renderCards === 'function') renderCards();
   });
 })();
