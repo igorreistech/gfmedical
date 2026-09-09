@@ -978,10 +978,11 @@
               // Renderizar lista do agendador (só para role agendador)
               window.renderAgendadorLista();
 
+              // renderCards() já chama renderTable()/updateStats()/updatePeriodResult()
+              // internamente (view "table" é a padrão) — chamar de novo aqui só
+              // duplicava o trabalho de reconstruir a tabela inteira a cada evento
+              // em tempo real do Supabase.
               window.renderCards();
-              window.renderTable && window.renderTable();
-              window.updateStats();
-              window.updatePeriodResult();
               window.updateAlerts();
               window.showSyncToast('🔄 Sincronizado');
               window._filiaisCarregadas.add(branchCode);
@@ -9112,7 +9113,6 @@ async function deleteProc(docId) {
         if (idx !== -1) window.procedimentos.splice(idx, 1);
         window.renderAgendadorLista && window.renderAgendadorLista();
         window.renderCards && window.renderCards();
-        window.renderTable && window.renderTable();
         if (proc._docId) fbDeleteProc(proc._docId);
     };
 }
