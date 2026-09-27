@@ -9520,6 +9520,7 @@ function atualizarSubgrupos(valorAtual, valorAtual2) {
     if (linha && SUBGRUPOS_MAP[linha]) {
         SUBGRUPOS_MAP[linha].forEach(s => {
             [sel, sel2, sel3, sel4, sel5, sel6, sel7, sel8, sel9, sel10].forEach(el => {
+                if (!el) return;
                 const opt = document.createElement('option');
                 opt.value = s; opt.textContent = s;
                 el.appendChild(opt);
@@ -9683,6 +9684,26 @@ async function _saveProcedureImpl(e) {
         inp.focus();
         const nomeStatus = status === 'andamento' ? 'Em Procedimento' : status === 'coleta_urgente' ? 'Retirar Volumes Urgentes' : 'A Retirar';
         alert('⚠️ Informe a Data de Retirada para o status "' + nomeStatus + '"!\n\nEssa data é necessária para o controle de cobranças via WhatsApp.');
+        return;
+    }
+
+    // Validação final: rede de segurança que garante que NENHUM campo marcado
+    // como "required" no HTML ficou vazio antes de salvar. O form usa
+    // novalidate (pra poder mostrar os alerts customizados acima em vez do
+    // balão nativo do browser), então sem essa checagem o "required" do HTML
+    // é só decoração — nada impede o submit com o campo vazio. Os campos que
+    // já têm validação específica acima (hospital, paciente, convênio,
+    // operador, médico) chegam aqui sempre preenchidos, então isso não gera
+    // alerta duplicado — ele só pega o que ainda não tinha checagem própria
+    // (ex.: Data de Cirurgia, Vendedor) e qualquer "required" futuro.
+    for (const campo of document.getElementById('procForm').querySelectorAll('[required]')) {
+        if (campo.disabled || campo.offsetParent === null) continue;
+        if (campo.value && campo.value.trim()) continue;
+        campo.style.borderColor = '#f97316';
+        campo.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.3)';
+        campo.focus();
+        const nomeCampo = campo.closest('.form-group')?.querySelector('.form-label')?.textContent?.replace('*', '').trim() || 'um campo obrigatório';
+        alert('⚠️ Preencha o campo "' + nomeCampo + '" antes de salvar.');
         return;
     }
 
@@ -10692,7 +10713,10 @@ document.getElementById('f-status').addEventListener('change', function() {
     if (lblNfData) lblNfData.textContent = exigeNf ? 'Data de Emissão NF *' : 'Data de Emissão NF';
 
     // Campos required a desativar no modo coleta
-    const reqIds = ['f-status','f-data','f-medico','f-vendedor','f-hospital','f-convenio','f-paciente','f-procedimento','f-linha','f-subgrupo'];
+    // Só entram aqui campos que de fato são obrigatórios fora do modo coleta —
+    // f-linha, f-procedimento e f-subgrupo (sem número) nunca tiveram required
+    // nem elemento no DOM, então só inflavam essa lista sem efeito nenhum.
+    const reqIds = ['f-status','f-data','f-medico','f-vendedor','f-hospital','f-convenio','f-paciente'];
 
     // Ocultar/mostrar todos os form-group quando Retirar Volumes Urgentes
     const formGrid = document.getElementById('procForm')?.querySelector('.form-grid');
@@ -10768,6 +10792,34 @@ document.getElementById('f-status').addEventListener('change', function() {
         inp.value = '';
     }
 });
+
+// ─── DESTAQUE EM TEMPO REAL DOS CAMPOS OBRIGATÓRIOS ───
+// Marca em laranja um campo obrigatório assim que o usuário sai dele vazio
+// (em vez de só avisar no clique de "Salvar"), e limpa o destaque assim que
+// ele começa a preencher — mesma cor/estilo já usados nos avisos de salvar,
+// só que dando o feedback mais cedo. No modo Retirada de Material esses
+// campos ficam ocultos e não são obrigatórios, então nada é destacado ali.
+(function () {
+    var CAMPOS_OBRIGATORIOS = ['f-hospital', 'f-data', 'f-medico', 'f-vendedor', 'f-operador', 'f-paciente', 'f-convenio'];
+    CAMPOS_OBRIGATORIOS.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('blur', function () {
+            var emColeta = document.getElementById('f-status').value === 'coleta_urgente';
+            if (emColeta || (el.value && el.value.trim())) return;
+            el.style.borderColor = '#f97316';
+            el.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.3)';
+        });
+        ['input', 'change'].forEach(function (evt) {
+            el.addEventListener(evt, function () {
+                if (el.value && el.value.trim()) {
+                    el.style.borderColor = '';
+                    el.style.boxShadow = '';
+                }
+            });
+        });
+    });
+})();
 
 // ─── AUTO PREENCHER RETIRADA NO MODAL RETIRAR VOLUMES URGENTES ───
 function autoPreencherRetiradaColeta(val) {
