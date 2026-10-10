@@ -182,6 +182,25 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.calc-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;align-items:start}
+.calc-nf{font-family:var(--display);font-size:1.15rem;font-weight:700;padding:10px 12px}
+.calc-op{display:grid;grid-template-columns:1.6fr 1fr 0.7fr 28px;gap:6px;margin-bottom:6px}
+.calc-op .finput{padding:7px 9px}
+.add-item{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:8px;border:1.5px dashed var(--border2);background:transparent;color:var(--text3);font-family:var(--mono);font-size:0.68rem;font-weight:600;cursor:pointer;margin-top:3px}
+.add-item:hover{border-color:var(--accent);color:var(--accent)}
+.item-rm{background:none;border:1px solid var(--border);color:var(--text3);border-radius:6px;width:28px;height:30px;cursor:pointer}
+.item-rm:hover{border-color:var(--crit-c);color:var(--crit-c)}
+.calc-limites{margin-top:14px;padding:10px 12px;border-radius:var(--radius);background:var(--bg);border:1px dashed var(--border2);font-size:0.74rem;color:var(--text2);line-height:1.7}
+.calc-card{border:1px solid var(--border);border-left:4px solid var(--mute-c);border-radius:var(--radius);padding:11px 13px;margin-bottom:9px;background:var(--surface)}
+.calc-card.ok{border-left-color:var(--ok-c)}.calc-card.warn{border-left-color:var(--warn-c)}.calc-card.crit{border-left-color:var(--crit-c)}
+.calc-card-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.calc-card-top b{font-family:var(--display);font-size:0.86rem;color:var(--text)}
+.calc-pct{font-family:var(--display);font-size:1.35rem;font-weight:700;margin-left:auto}
+.calc-pct.ok{color:var(--ok-c)}.calc-pct.warn{color:var(--warn-c)}.calc-pct.crit{color:var(--crit-c)}
+.calc-veredito{font-size:0.78rem;font-weight:600;margin-top:4px;color:var(--text)}
+.calc-det{font-size:0.7rem;color:var(--text3);margin-top:3px;line-height:1.6}
+.calc-melhor{font-family:var(--mono);font-size:0.56rem;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--accent);color:white;letter-spacing:0.05em}
+@media(max-width:860px){.calc-grid{grid-template-columns:1fr}}
 .modal.modal-lg{max-width:1200px}
 .lote-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:0.76rem;color:var(--text2)}
 .lote-acts{margin-left:auto;display:flex;gap:6px}
@@ -260,6 +279,7 @@ textarea.finput{resize:vertical;min-height:60px}
       <a class="nav-item" data-view="cotacoes" href="#"><span class="nav-icon">💬</span> Cotações<span class="nbadge" id="nb-cot">0</span></a>
       <a class="nav-item" data-view="comparativo" href="#"><span class="nav-icon">⚖️</span> Comparativo</a>
       <a class="nav-item" data-view="transportadoras" href="#"><span class="nav-icon">🚚</span> Transportadoras<span class="nbadge" id="nb-transp">0</span></a>
+      <a class="nav-item" data-view="calculadora" href="#"><span class="nav-icon">🧮</span> Calculadora de frete</a>
       <div class="sdiv"></div>
       <div class="slabel">Atenção</div>
       <a class="nav-item" href="#" onclick="atalhoStatus('Atrasado');return false"><span class="nav-icon">⏰</span> Entregas atrasadas<span class="nbadge crit" id="nb-atr">0</span></a>
@@ -295,6 +315,7 @@ textarea.finput{resize:vertical;min-height:60px}
       <div class="vtab" data-view="cotacoes">💬 Cotações</div>
       <div class="vtab" data-view="comparativo">⚖️ Comparativo</div>
       <div class="vtab" data-view="transportadoras">🚚 Transp.</div>
+      <div class="vtab" data-view="calculadora">🧮 Calculadora</div>
     </div>
 
     <div class="page-content">
@@ -342,6 +363,28 @@ textarea.finput{resize:vertical;min-height:60px}
           <div class="thead-bar"><span class="thead-title">Comparativo de transportadoras</span><span class="tcount" id="cnt-comp">0</span>
             <span class="td-mono" style="margin-left:auto">Cotações + CT-es realizados no período</span></div>
           <div class="tscroll"><table id="tb-comp"></table></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-calculadora">
+        <div class="calc-grid">
+          <div class="dcard">
+            <div class="dcard-head">🧮 Vale a pena contratar este frete?</div>
+            <div class="dcard-body">
+              <div class="fg s4" style="margin-bottom:12px">
+                <label class="flbl" for="calc-nf">Valor total da mercadoria / NF-e (R$)</label>
+                <input class="finput calc-nf" id="calc-nf" type="number" min="0" step="0.01" placeholder="Ex.: 25000,00">
+              </div>
+              <div class="flbl" style="margin-bottom:6px">Opções de frete (cotações)</div>
+              <div id="calc-opcoes"></div>
+              <button class="add-item" onclick="calcAdicionar()">＋ adicionar opção</button>
+              <div class="calc-limites" id="calc-limites"></div>
+            </div>
+          </div>
+          <div class="dcard">
+            <div class="dcard-head">📋 Resultado<small id="calc-sub"></small></div>
+            <div class="dcard-body" id="calc-resultado"></div>
+          </div>
         </div>
       </section>
 
@@ -716,7 +759,7 @@ $('f-cte-tipo').onchange = e => { ui.cteTipo = e.target.value; render(); };
 $('f-cte-pct').onchange = e => { ui.ctePct = e.target.value; render(); };
 $('f-cot-transp').onchange = e => { ui.cotTransp = e.target.value; render(); };
 
-const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras' };
+const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete' };
 function goView(v) {
   ui.view = v;
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === v));
@@ -744,7 +787,7 @@ function render() {
   $('nb-transp').textContent = data.transp.length;
   $('nb-atr').textContent = ctesTodos.filter(c => c.status_entrega === 'Atrasado' || cteVencido(c)).length;
   $('nb-pend').textContent = ctesTodos.filter(c => c.status_entrega === 'Pendente' || c.status_entrega === 'Em trânsito').length;
-  ({ dashboard: renderDashboard, ctes: renderCtes, cotacoes: renderCot, comparativo: renderComparativo, transportadoras: renderTransp })[ui.view]();
+  ({ dashboard: renderDashboard, ctes: renderCtes, cotacoes: renderCot, comparativo: renderComparativo, transportadoras: renderTransp, calculadora: renderCalc })[ui.view]();
 }
 
 function agrupar(lista, chaveFn) {
@@ -1798,6 +1841,96 @@ $('f-import').onchange = async e => {
     console.error(err);
     toast('Não foi possível ler a planilha: ' + err.message, 'err');
   }
+};
+
+// ───────────────────────── Calculadora de frete ─────────────────────────
+// % frete = valor do frete ÷ valor da mercadoria, nas mesmas faixas da planilha
+// (≤ 3% vale a pena · 3–5% negociar · > 5% não compensa). Compara cada opção
+// com o histórico de CT-es da transportadora e permite salvar como cotação.
+let _calcMontada = false;
+// Diferença entre percentuais, em pontos percentuais (4,80% − 3,34% = 1,46 p.p.).
+const pp = v => (v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' p.p.';
+const VEREDITO = {
+  ok:   '✔ Vale a pena — frete dentro do esperado (até 3% da mercadoria).',
+  warn: '▲ Avaliar — frete entre 3% e 5%: tente negociar ou compare com outra opção.',
+  crit: '■ Não compensa — frete acima de 5% da mercadoria: negocie ou busque outra transportadora.',
+};
+function calcLinhaHTML(o = {}) {
+  return `<div class="calc-op">
+    <input class="finput" list="dl-transp" placeholder="Transportadora" aria-label="Transportadora" value="${esc(o.transportadora || '')}" data-k="transportadora">
+    <input class="finput" type="number" min="0" step="0.01" placeholder="Frete R$" aria-label="Valor do frete" value="${o.frete ?? ''}" data-k="frete">
+    <input class="finput" type="number" min="0" step="1" placeholder="Prazo" aria-label="Prazo em dias" value="${o.prazo ?? ''}" data-k="prazo">
+    <button class="item-rm" title="Remover opção" onclick="this.parentElement.remove();calcAtualizar()">✕</button>
+  </div>`;
+}
+window.calcAdicionar = () => { $('calc-opcoes').insertAdjacentHTML('beforeend', calcLinhaHTML()); calcAtualizar(); $('calc-opcoes').lastElementChild.querySelector('input').focus(); };
+function calcOpcoes() {
+  return [...$('calc-opcoes').querySelectorAll('.calc-op')].map(el => {
+    const g = k => el.querySelector(`[data-k="${k}"]`).value.trim();
+    return { transportadora: g('transportadora'), frete: g('frete') === '' ? null : Number(g('frete')), prazo: g('prazo') === '' ? null : Number(g('prazo')) };
+  });
+}
+// % médio (ponderado) dos CT-es já registrados para a transportadora.
+function historicoTransp(nome) {
+  if (!nome) return null;
+  const cs = data.cte.filter(c => norm(c.transportadora) === norm(nome) && num(c.valor_nfe) > 0);
+  if (!cs.length) return null;
+  const fr = cs.reduce((a, c) => a + num(c.valor_frete), 0), nf = cs.reduce((a, c) => a + num(c.valor_nfe), 0);
+  return { qtd: cs.length, pct: fr / nf };
+}
+function renderCalc() {
+  if (!_calcMontada) {
+    $('calc-opcoes').innerHTML = calcLinhaHTML() + calcLinhaHTML();
+    $('view-calculadora').addEventListener('input', calcAtualizar);
+    _calcMontada = true;
+  }
+  calcAtualizar();
+}
+window.calcAtualizar = () => {
+  const nf = num($('calc-nf').value);
+  const ops = calcOpcoes();
+  const geral = (() => { const cs = data.cte.filter(c => num(c.valor_nfe) > 0); const nfT = cs.reduce((a, c) => a + num(c.valor_nfe), 0); return nfT > 0 ? cs.reduce((a, c) => a + num(c.valor_frete), 0) / nfT : null; })();
+  $('calc-limites').innerHTML = nf > 0
+    ? `<b>Para ${brl(nf)} de mercadoria:</b><br>
+       <span class="pct b-ok">● até ${brl(nf * 0.03)}</span> vale a pena (3%)<br>
+       <span class="pct b-warn">▲ até ${brl(nf * 0.05)}</span> limite de atenção (5%)<br>
+       <span class="pct b-crit">■ acima de ${brl(nf * 0.05)}</span> não compensa
+       ${geral != null ? `<br><span class="td-mono">Sua média histórica: ${pctFmt(geral)} → ${brl(nf * geral)} para essa carga</span>` : ''}`
+    : 'Informe o valor da mercadoria para ver até quanto vale a pena pagar de frete.';
+  const validas = ops.map((o, i) => ({ ...o, i })).filter(o => o.frete > 0);
+  $('calc-sub').textContent = validas.length ? `${validas.length} opção(ões)` : '';
+  if (!(nf > 0) || !validas.length) {
+    $('calc-resultado').innerHTML = `<div class="empty-mini">${!(nf > 0) ? 'Informe o valor da mercadoria' : 'Informe o valor do frete de pelo menos uma opção'} para calcular.</div>`;
+    return;
+  }
+  const melhor = validas.reduce((a, b) => (b.frete < a.frete ? b : a));
+  $('calc-resultado').innerHTML = validas.map(o => {
+    const p = o.frete / nf, f = faixaPct(p), h = historicoTransp(o.transportadora);
+    const dif = h ? p - h.pct : null;
+    return `<div class="calc-card ${f}">
+      <div class="calc-card-top"><b>${esc(o.transportadora || 'Opção ' + (o.i + 1))}</b>${validas.length > 1 && o === melhor ? '<span class="calc-melhor">MAIS BARATA</span>' : ''}
+        <span class="calc-pct ${f}">${pctFmt(p)}</span></div>
+      <div class="calc-veredito">${VEREDITO[f]}</div>
+      <div class="calc-det">Frete ${brl(o.frete)} ÷ mercadoria ${brl(nf)}${o.prazo != null ? ` · prazo ${o.prazo} dia(s)` : ''}
+        ${f !== 'ok' ? `<br>Para ficar em 3%, o frete precisaria baixar para ${brl(nf * 0.03)} (−${brl(o.frete - nf * 0.03)}).` : ''}
+        ${h ? `<br>Histórico ${esc(o.transportadora)}: ${pctFmt(h.pct)} em ${h.qtd} CT-e(s) — esta cotação está ${Math.abs(dif) < 0.0005 ? 'na média' : dif > 0 ? `<b style="color:var(--crit-c)">${pp(dif)} acima</b> da média` : `<b style="color:var(--ok-c)">${pp(-dif)} abaixo</b> da média`}.` : ''}
+        ${validas.length > 1 && o !== melhor ? `<br>${brl(o.frete - melhor.frete)} mais cara que a opção mais barata.` : ''}</div>
+      <div class="row-acts w-only" style="justify-content:flex-start;margin-top:7px"><button class="fchip" onclick="calcSalvarCotacao(${o.i})">💬 Salvar como cotação</button></div>
+    </div>`;
+  }).join('');
+};
+window.calcSalvarCotacao = async i => {
+  const o = calcOpcoes()[i], nf = num($('calc-nf').value);
+  if (!o?.transportadora) { toast('Informe a transportadora dessa opção para salvar.', 'err'); return; }
+  const p = o.frete / nf;
+  const { error } = await supabase.from(T.cot).insert({
+    numero: proximoNumeroCot(), data_cotacao: hojeISO(), transportadora: o.transportadora.toUpperCase(),
+    valor_frete: o.frete, prazo_dias: o.prazo, status: 'Em análise', filial: FILIAL, criado_por: _user?.email || null,
+    observacoes: `Calculadora: mercadoria ${brl(nf)} · frete ${pctFmt(p)} (${PCT_FAIXAS[faixaPct(p)].label})`,
+  });
+  if (error) { toast('Erro ao salvar cotação: ' + msgErroBanco(error), 'err'); return; }
+  toast('✔ Cotação salva em Cotações (Em análise)');
+  await carregar('cot'); montarFiltros(); render();
 };
 
 // ───────────────────────── Apresentar números (WhatsApp / PDF) ─────────────────────────
