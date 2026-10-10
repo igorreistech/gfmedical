@@ -182,6 +182,11 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.modal.modal-lg{max-width:1200px}
+.lote-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:0.76rem;color:var(--text2)}
+.lote-acts{margin-left:auto;display:flex;gap:6px}
+#tb-lote td{padding:7px 9px}
+#btn-lote-importar:disabled{opacity:0.5;cursor:not-allowed}
 .fpreview{grid-column:span 4;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--radius);background:var(--bg);border:1px dashed var(--border2);font-size:0.74rem;color:var(--text2)}
 
 .toasts{position:fixed;bottom:18px;right:18px;z-index:400;display:flex;flex-direction:column;gap:6px}
@@ -276,8 +281,10 @@ textarea.finput{resize:vertical;min-height:60px}
       <div class="page-title" id="page-title">Dashboard</div>
       <select class="tsel" id="f-periodo" title="Período"></select>
       <div class="sbox"><span>🔍</span><input id="f-busca" placeholder="Buscar CT-e, NF, destino…"></div>
-      <label class="tbtn tbtn-p w-only" title="Lê o PDF do DACTE e preenche o CT-e automaticamente (também dá para arrastar o PDF na tela)">📄 PDF do CT-e<input type="file" id="f-pdf-cte" accept="application/pdf,.pdf" hidden></label>
+      <label class="tbtn tbtn-p w-only" title="Selecione um PDF (abre o formulário preenchido) ou vários de uma vez (importação em lote). Também dá para arrastar os PDFs na tela.">📄 PDF(s) do CT-e<input type="file" id="f-pdf-cte" accept="application/pdf,.pdf" multiple hidden></label>
       <label class="tbtn tbtn-g w-only" title="Importar a planilha Controle_Cotacao_Frete (.xlsx)">📥 Importar<input type="file" id="f-import" accept=".xlsx,.xls" hidden></label>
+      <button class="tbtn tbtn-g" onclick="enviarWhatsApp()" title="Resumo dos números do período para enviar no WhatsApp">📲 WhatsApp</button>
+      <button class="tbtn tbtn-g" onclick="gerarPdf()" title="Relatório do período para salvar em PDF ou imprimir">🖨 PDF</button>
       <button class="tbtn tbtn-g" onclick="exportarExcel()">📤 Exportar</button>
       <button class="tbtn tbtn-p w-only" id="btn-novo" onclick="novoRegistro()">＋ Novo</button>
     </div>
@@ -359,11 +366,23 @@ textarea.finput{resize:vertical;min-height:60px}
   </div>
 </div>
 
+<div id="modal-lote" class="modal-ov">
+  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="lote-title">
+    <div class="mhead"><span class="mtitle" id="lote-title">📄 Importação de CT-es em lote — confira antes de gravar</span><button class="mclose" onclick="fecharLote()" aria-label="Fechar">✕</button></div>
+    <div class="mbody">
+      <div class="lote-bar"><span id="lote-resumo"></span><span class="lote-acts"><button class="fchip" onclick="loteMarcarTodos(true)">Marcar todos</button><button class="fchip" onclick="loteMarcarTodos(false)">Desmarcar</button></span></div>
+      <div class="tscroll"><table id="tb-lote"></table></div>
+      <div class="td-mono" style="margin-top:10px">Incompletos (sem Nº do CT-e ou transportadora) ficam fora — clique em ✏️ para completar no formulário. CT-es já cadastrados são ignorados.</div>
+    </div>
+    <div class="mfoot"><span class="td-mono" id="lote-total" style="margin-right:auto"></span><button class="tbtn tbtn-g" onclick="fecharLote()">Fechar</button><button class="tbtn tbtn-p" id="btn-lote-importar" onclick="importarLoteSelecionados()">💾 Importar</button></div>
+  </div>
+</div>
+
 <datalist id="dl-transp"></datalist>
 <datalist id="dl-tipo"></datalist>
 <datalist id="dl-carga"></datalist>
 <div class="toasts" id="toasts"></div>
-<div class="drop-ov" id="drop-ov">📄 Solte o PDF do CT-e para importar</div>
+<div class="drop-ov" id="drop-ov">📄 Solte o(s) PDF(s) do CT-e para importar</div>
 
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
@@ -391,6 +410,7 @@ window.trocarFilial = code => {
   u.searchParams.delete('filial');
   location.href = u.toString();
 };
+const FILIAL_LABEL = BR.cityLabel;
 const T = { transp: 'frete_transportadoras', cot: 'frete_cotacoes', cte: 'frete_ctes' };
 
 // Mesmas listas suspensas da planilha original.
@@ -437,6 +457,13 @@ const mesLabel = ym => { const [y, m] = ym.split('-'); return MESES[+m - 1] + '/
 const hojeISO = () => new Date().toISOString().slice(0, 10);
 const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
 
+// Coluna nova ainda não criada no banco (PostgREST PGRST204) → diz qual migração rodar.
+function msgErroBanco(error) {
+  if (error?.code === 'PGRST204' || /column .* (does not exist|schema cache)/i.test(error?.message || ''))
+    return 'o banco desta filial está sem as colunas novas — rode supabase/migrations/20261011_fretes_remetente_previsao.sql no Supabase.';
+  return error?.message || String(error);
+}
+
 function toast(msg, tipo = 'ok') {
   const el = document.createElement('div');
   el.className = 'toast t-' + tipo;
@@ -467,13 +494,20 @@ function stars(n) {
   if (!n) return '<span class="td-mono">—</span>';
   return `<span class="stars" title="${n} de 5">${'★'.repeat(n)}<span class="off">${'★'.repeat(5 - n)}</span></span>`;
 }
-// Entrega vencida: não entregue e emissão + prazo (dias corridos) já passou.
-function cteVencido(c) {
-  if (c.status_entrega === 'Entregue' || !c.data_emissao || !c.prazo_dias) return false;
+// Previsão de entrega: a do CT-e quando houver; senão emissão + prazo (dias corridos).
+function previsaoEntrega(c) {
+  if (c.previsao_entrega) return c.previsao_entrega;
+  if (!c.data_emissao || !c.prazo_dias) return null;
   const lim = new Date(c.data_emissao + 'T00:00:00');
   lim.setDate(lim.getDate() + num(c.prazo_dias));
-  return lim.toISOString().slice(0, 10) < hojeISO();
+  return lim.toISOString().slice(0, 10);
 }
+// Entrega vencida: não entregue e a previsão de entrega já passou.
+function cteVencido(c) {
+  const prev = previsaoEntrega(c);
+  return c.status_entrega !== 'Entregue' && !!prev && prev < hojeISO();
+}
+const diasEntre = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
 
 // ───────────────────────── Auth ─────────────────────────
 auth.onAuthStateChange((_event, session) => {
@@ -553,7 +587,7 @@ function casaBusca(obj, campos) {
 
 function ctesFiltrados({ ignorarFiltrosTabela = false } = {}) {
   return data.cte.filter(c => noPeriodo(c.data_emissao)
-    && casaBusca(c, ['numero_cte', 'numero_nfe', 'origem', 'destino', 'transportadora', 'tipo_saida', 'observacoes'])
+    && casaBusca(c, ['numero_cte', 'numero_nfe', 'origem', 'remetente', 'destino', 'transportadora', 'tipo_saida', 'observacoes'])
     && (ignorarFiltrosTabela || (
       (!ui.cteStatus || c.status_entrega === ui.cteStatus)
       && (!ui.cteTransp || norm(c.transportadora) === norm(ui.cteTransp))
@@ -692,7 +726,7 @@ function renderDashboard() {
   // Mensal: últimos 12 meses presentes nos CT-es (ignora o filtro de período
   // para mostrar a tendência; respeita a busca).
   const porMes = new Map();
-  data.cte.filter(c => c.data_emissao && casaBusca(c, ['numero_cte','numero_nfe','origem','destino','transportadora','tipo_saida']))
+  data.cte.filter(c => c.data_emissao && casaBusca(c, ['numero_cte','numero_nfe','origem','remetente','destino','transportadora','tipo_saida']))
     .forEach(c => { const m = c.data_emissao.slice(0, 7); porMes.set(m, (porMes.get(m) || 0) + num(c.valor_frete)); });
   const meses = [...porMes.keys()].sort().slice(-12);
   const maxMes = Math.max(...meses.map(m => porMes.get(m)), 1);
@@ -737,7 +771,8 @@ window.ui_cotStatus = s => { ui.cotStatus = s; goView('cotacoes'); };
 function renderCtes() {
   chips('chips-status-cte', STATUS_CTE, ui.cteStatus, v => ui.cteStatus = v);
   $('legend-pct').innerHTML = '<span class="flabel">% Frete/NF</span>' + Object.values(PCT_FAIXAS).map(f => `<span class="pct ${f.cls}">${f.icon} ${f.label}</span>`).join('');
-  const lista = ordenar(ctesFiltrados(), 'ctes', (r, k) => k === 'pct' ? pctFrete(r) : (/valor|prazo/.test(k) ? (r[k] == null ? null : num(r[k])) : r[k]));
+  const lista = ordenar(ctesFiltrados(), 'ctes', (r, k) => k === 'pct' ? pctFrete(r) : k === 'previsao_entrega' ? previsaoEntrega(r)
+    : (/valor|prazo/.test(k) ? (r[k] == null ? null : num(r[k])) : r[k]));
   $('cnt-ctes').textContent = lista.length;
   if (!lista.length) {
     $('tb-ctes').innerHTML = `<tbody><tr><td><div class="empty-page">${data.cte.length ? 'Nenhum CT-e com esses filtros' : '🧾 Nenhum CT-e lançado ainda.<br><br>Use <b>📥 Importar</b> para trazer a planilha ou <b>＋ Novo CT-e</b>.'}</div></td></tr></tbody>`;
@@ -747,15 +782,16 @@ function renderCtes() {
   const nf = lista.reduce((s, c) => s + num(c.valor_nfe), 0);
   $('tb-ctes').innerHTML = `<thead><tr>
     ${th('ctes', 'numero_cte', 'Nº CT-e')}${th('ctes', 'data_emissao', 'Emissão')}${th('ctes', 'numero_nfe', 'NF-e / Série')}
-    ${th('ctes', 'origem', 'Origem / Rota')}${th('ctes', 'destino', 'Destino')}${th('ctes', 'transportadora', 'Transportadora')}
+    ${th('ctes', 'origem', 'Origem / Rota')}${th('ctes', 'remetente', 'Remetente')}${th('ctes', 'destino', 'Destinatário')}${th('ctes', 'transportadora', 'Transportadora')}
     ${th('ctes', 'tipo_saida', 'Tipo saída')}${th('ctes', 'valor_frete', 'Frete', 'num')}${th('ctes', 'valor_nfe', 'Valor NF-e', 'num')}
-    ${th('ctes', 'pct', '% Frete', 'num')}${th('ctes', 'prazo_dias', 'Prazo', 'num')}${th('ctes', 'status_entrega', 'Status')}${th('ctes', 'data_entrega', 'Entrega')}<th></th>
+    ${th('ctes', 'pct', '% Frete', 'num')}${th('ctes', 'prazo_dias', 'Prazo', 'num')}${th('ctes', 'previsao_entrega', 'Previsão')}${th('ctes', 'status_entrega', 'Status')}${th('ctes', 'data_entrega', 'Entrega')}<th></th>
   </tr></thead><tbody>
   ${lista.map(c => `<tr class="click" onclick="abrirModal('cte','${c.id}')">
     <td class="td-strong">${esc(c.numero_cte)}</td>
     <td class="td-mono">${dataBR(c.data_emissao)}</td>
     <td class="td-mono">${esc(c.numero_nfe || '—')}${c.serie_nf ? ' / ' + esc(c.serie_nf) : ''}</td>
     <td class="td-trunc" title="${esc(c.origem)}">${esc(c.origem || '—')}</td>
+    <td class="td-trunc" title="${esc(c.remetente)}">${esc(c.remetente || '—')}</td>
     <td class="td-trunc" title="${esc(c.destino)}">${esc(c.destino || '—')}</td>
     <td>${esc(c.transportadora || '—')}</td>
     <td class="td-mono">${esc(c.tipo_saida || '—')}</td>
@@ -763,11 +799,12 @@ function renderCtes() {
     <td class="num">${brl(c.valor_nfe)}</td>
     <td class="num">${pctHTML(pctFrete(c))}</td>
     <td class="num">${c.prazo_dias != null ? c.prazo_dias + 'd' : '—'}</td>
-    <td>${badge(c.status_entrega)}${cteVencido(c) && c.status_entrega !== 'Atrasado' ? '<span class="tag-venc" title="Emissão + prazo já passou">⏰ VENCIDO</span>' : ''}</td>
+    <td class="td-mono" ${c.previsao_entrega ? 'title="Previsão do CT-e"' : previsaoEntrega(c) ? 'title="Calculada: emissão + prazo"' : ''}>${previsaoEntrega(c) ? dataBR(previsaoEntrega(c)) + (c.previsao_entrega ? '' : '*') : '—'}</td>
+    <td>${badge(c.status_entrega)}${cteVencido(c) && c.status_entrega !== 'Atrasado' ? '<span class="tag-venc" title="A previsão de entrega já passou">⏰ VENCIDO</span>' : ''}</td>
     <td class="td-mono">${dataBR(c.data_entrega)}</td>
     <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('cte','${c.id}')">🗑</button></div></td>
   </tr>`).join('')}</tbody>
-  <tfoot><tr><td colspan="7">Total (${lista.length})</td><td class="num">${brl(frete)}</td><td class="num">${brl(nf)}</td><td class="num">${pctHTML(nf > 0 ? frete / nf : null)}</td><td colspan="4"></td></tr></tfoot>`;
+  <tfoot><tr><td colspan="8">Total (${lista.length})</td><td class="num">${brl(frete)}</td><td class="num">${brl(nf)}</td><td class="num">${pctHTML(nf > 0 ? frete / nf : null)}</td><td colspan="5"></td></tr></tfoot>`;
 }
 
 function renderCot() {
@@ -889,12 +926,14 @@ const FORMS = {
     { k: 'numero_nfe', l: 'Nº NF-e', s: 1 },
     { k: 'serie_nf', l: 'Série NF', s: 1 },
     { k: 'origem', l: 'Origem / Rota', ph: 'Ex.: SPA - CGB' },
-    { k: 'destino', l: 'Destino / Destinatário' },
     { k: 'transportadora', l: 'Transportadora', dl: 'dl-transp', req: true },
+    { k: 'remetente', l: 'Remetente' },
+    { k: 'destino', l: 'Destinatário' },
     { k: 'tipo_saida', l: 'Tipo de saída', dl: 'dl-tipo', upper: true },
     { k: 'valor_frete', l: 'Valor frete (R$)', t: 'money', s: 1 },
     { k: 'valor_nfe', l: 'Valor NF-e (R$)', t: 'money', s: 1 },
     { k: 'prazo_dias', l: 'Prazo (dias)', t: 'int', s: 1 },
+    { k: 'previsao_entrega', l: 'Previsão entrega', t: 'date', s: 1 },
     { k: 'status_entrega', l: 'Status entrega', o: STATUS_CTE, s: 1, def: 'Pendente' },
     { k: 'data_entrega', l: 'Data entrega', t: 'date', s: 1 },
     { preview: 'cte' },
@@ -958,7 +997,7 @@ function proximoNumeroCot() {
 window.abrirModal = (tipo, id = null, prefill = null) => {
   const form = FORMS[tipo];
   const reg = id ? data[tipo].find(r => r.id === id) : null;
-  _modal = { tipo, id };
+  _modal = { tipo, id, loteIdx: prefill?.loteIdx };
   $('modal-title').textContent = reg ? (_readOnly ? '👁 ' : '✏️ Editar ') + form.titulo
     : prefill ? '📄 CT-e lido do PDF — confira e salve' : '＋ Novo(a) ' + form.titulo;
   const base = { ...(reg || (tipo === 'cot' ? { numero: proximoNumeroCot() } : {})), ...(prefill?.valores || {}) };
@@ -968,11 +1007,35 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
   $('modal').classList.add('open');
   $('modal-form').oninput = atualizarPreview;
   if (tipo === 'cot') $('fm-transportadora').addEventListener('change', autoContato);
+  if (tipo === 'cte') {
+    // Previsão segue emissão + prazo até o usuário (ou o PDF) definir outra data.
+    let auto = !$('fm-previsao_entrega').value;
+    const recalc = () => {
+      const em = $('fm-data_emissao').value, pz = $('fm-prazo_dias').value;
+      if (auto && em && pz !== '') $('fm-previsao_entrega').value = previsaoEntrega({ data_emissao: em, prazo_dias: +pz });
+    };
+    $('fm-data_emissao').addEventListener('change', recalc);
+    $('fm-prazo_dias').addEventListener('input', recalc);
+    $('fm-previsao_entrega').addEventListener('change', () => {
+      auto = !$('fm-previsao_entrega').value;
+      const em = $('fm-data_emissao').value, pv = $('fm-previsao_entrega').value;
+      if (em && pv && pv >= em && $('fm-prazo_dias').value === '') $('fm-prazo_dias').value = diasEntre(em, pv);
+    });
+  }
   atualizarPreview();
   setTimeout(() => $('modal-form').querySelector('input,select')?.focus(), 50);
 };
-window.fecharModal = () => { $('modal').classList.remove('open'); _modal = { tipo: null, id: null }; };
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('modal').classList.contains('open')) fecharModal(); });
+window.fecharModal = () => {
+  const voltarLote = _modal.loteIdx != null && _lote.length;
+  $('modal').classList.remove('open');
+  _modal = { tipo: null, id: null };
+  if (voltarLote) { $('modal-lote').classList.add('open'); renderLote(); }
+};
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if ($('modal').classList.contains('open')) fecharModal();
+  else if ($('modal-lote').classList.contains('open')) fecharLote();
+});
 
 function autoContato() {
   const t = data.transp.find(x => norm(x.nome) === norm($('fm-transportadora').value));
@@ -1031,8 +1094,9 @@ window.salvarModal = async () => {
     if (tipo !== 'transp') row.criado_por = _user?.email || null;
     res = await supabase.from(T[tipo]).insert(row);
   }
-  if (res.error) { toast('Erro ao salvar: ' + res.error.message, 'err'); return; }
+  if (res.error) { toast('Erro ao salvar: ' + msgErroBanco(res.error), 'err'); return; }
   toast(id ? '✔ Alterações salvas' : '✔ Registro criado');
+  if (!id && _modal.loteIdx >= 0 && _lote[_modal.loteIdx]) Object.assign(_lote[_modal.loteIdx], { estado: 'importado', valores: row });
   fecharModal();
   await carregar(tipo); montarFiltros(); render();
 };
@@ -1147,96 +1211,218 @@ function nomeTransportadoraCadastrada(emitente) {
     .some(nw => palavras.some(w => nw.startsWith(w) || w.startsWith(nw)))) || null;
 }
 
+// Lê um PDF de CT-e e devolve os campos do formulário. Não abre tela nenhuma —
+// usado tanto pela importação de um arquivo quanto pela em lote.
+async function extrairCte(file) {
+  const { itens, texto } = await lerItensPdf(file);
+  if (!texto.trim()) throw new Error('SEM_TEXTO');
+  const base = window.NFImport.parsearTextoNF(texto);
+
+  // NF-es referenciadas ("DOCUMENTOS ORIGINÁRIOS"): chaves de 44 dígitos de
+  // modelo 55 que não sejam a chave do próprio CT-e. Nº = dígitos 26–34, série = 23–25.
+  const chaves = [...new Set(texto.replace(/(\d{4})[ .](?=\d{4})/g, '$1').match(/(?<!\d)\d{44}(?!\d)/g) || [])]
+    .filter(k => k !== base.coletaChaveAcesso && k.slice(20, 22) === '55');
+  const nfs = chaves.map(k => k.slice(25, 34).replace(/^0+/, ''));
+  const serie = chaves[0] ? String(+chaves[0].slice(22, 25)) : null;
+
+  const valorFrete = valorDoRotulo(itens, [/VALOR TOTAL DA PRESTA[ÇC][ÃA]O/i, /VALOR TOTAL DO SERVI[ÇC]O/i, /VALOR A RECEBER/i, /TOTAL DA PRESTA/i, /VALOR DO FRETE/i], aceitaMoeda)
+    ?? aceitaMoeda((/VALOR TOTAL DA PRESTA[ÇC][ÃA]O[^\n]*\n?([^\n]*)/i.exec(texto) || [])[1]);
+  const valorNf = valorDoRotulo(itens, [/VALOR TOTAL DA (MERCADORIA|CARGA)/i, /VALOR DA (CARGA|MERCADORIA)/i, /VALOR TOTAL DOS PRODUTOS/i, /VLR\.? ?(DA )?(CARGA|MERCADORIA)/i], aceitaMoeda);
+  // Sem fallback para "primeira data do texto": o DACTE aéreo cita a lei
+  // 7.565 "de 19/12/1986" no rodapé, que vinha antes da emissão.
+  const emissao = valorDoRotulo(itens, [/DATA (E HORA )?(DE |DA )?EMISS[ÃA]O/i, /DATA\/HORA EMISS[ÃA]O/i], aceitaData)
+    ?? aceitaData((/EMISS[ÃA]O[\s\S]{0,200}?(\d{2}\/\d{2}\/\d{2,4})/i.exec(texto) || [])[1]);
+  const previsao = valorDoRotulo(itens, [/DATA PREVISTA DE ENTREGA/i, /PREVIS[ÃA]O DE ENTREGA/i, /DATA PREVISTA/i], aceitaData)
+    ?? aceitaData((/PREVIS(?:TA|[ÃA]O)[^\n]{0,40}ENTREGA[\s\S]{0,80}?(\d{2}\/\d{2}\/\d{2,4})/i.exec(texto) || [])[1]);
+  const prazo = emissao && previsao && previsao >= emissao ? diasEntre(emissao, previsao) : null;
+  const inicio = valorDoRotulo(itens, [/IN[ÍI]CIO DA PRESTA/i, /ORIGEM DA PRESTA/i, /MUNIC[ÍI]PIO DE ORIGEM/i], aceitaMunicipio);
+  const termino = valorDoRotulo(itens, [/T[ÉE]RMINO DA PRESTA/i, /DESTINO DA PRESTA/i, /MUNIC[ÍI]PIO DE DESTINO/i], aceitaMunicipio);
+  // A planilha usa a rota por código de base/aeroporto ("SPA - CGB"); o DACTE
+  // aéreo traz isso nas observações ("OR:[GYN] DE:[CGR]") ou no fluxo da carga.
+  const mCod = /OR:\s*\[([A-Z]{3})\]\s*DE:\s*\[([A-Z]{3})\]/.exec(texto)
+    || /AEROPORTO\s+DE\s+ORIGEM[^\n]*\n\s*([A-Z]{3})(?:\s+[A-Z]{3})?\s+([A-Z]{3})\s*\n/.exec(texto);
+  const rota = mCod ? `${mCod[1]} - ${mCod[2]}` : inicio && termino ? `${inicio} - ${termino}` : inicio;
+  const mDest = /DESTINAT[ÁA]RIO\s*:\s*([A-ZÀ-Ú0-9][A-ZÀ-Ú0-9\s&.,'\/\-]*?)(?=\s+[A-ZÀ-Ú\/]{3,25}\s*:|\s*\n|$)/i.exec(texto);
+  const destinatario = mDest ? mDest[1].trim() : null;
+  // parsearTextoNF cai na transportadora quando não acha "REMETENTE:" — aqui
+  // isso seria errado, então só aceita se veio mesmo do rótulo.
+  const remetente = /REMETENTE\s*:/i.test(texto) && base.coletaFornecedor !== base.coletaTransportadora ? base.coletaFornecedor : null;
+
+  // Tipo de saída sugerido pelas partes (o usuário confere no formulário).
+  const ehGF = s => /GF MEDICAL/i.test(s || '');
+  const tipo = ehGF(remetente) && ehGF(destinatario) ? 'TRANSFERENCIA' : ehGF(destinatario) ? 'COMPRA' : ehGF(remetente) ? 'VENDA' : null;
+
+  const transportadora = nomeTransportadoraCadastrada(base.coletaTransportadora) || base.coletaTransportadora?.toUpperCase() || null;
+
+  const valores = {};
+  const put = (k, v) => { if (v != null && v !== '') valores[k] = v; };
+  put('numero_cte', base.cte ? base.cte.replace(/[\s\-]/g, '') : null);
+  put('data_emissao', emissao);
+  put('numero_nfe', nfs.join(', ') || base.nfCompra);
+  put('serie_nf', serie);
+  put('origem', rota);
+  put('transportadora', transportadora);
+  put('remetente', remetente);
+  put('destino', destinatario);
+  put('tipo_saida', tipo);
+  put('valor_frete', valorFrete);
+  put('valor_nfe', valorNf);
+  put('prazo_dias', prazo);
+  put('previsao_entrega', previsao);
+  put('observacoes', [inicio && termino && mCod ? `${inicio} → ${termino}` : null,
+    base.coletaChaveAcesso ? 'Chave CT-e: ' + base.coletaChaveAcesso : null].filter(Boolean).join(' · ') || null);
+  valores.status_entrega = 'Em trânsito';
+  return { valores, texto };
+}
+
+const ROTULOS_PDF = { numero_cte: 'Nº CT-e', data_emissao: 'Emissão', numero_nfe: 'NF-e', transportadora: 'Transportadora', origem: 'Rota',
+  remetente: 'Remetente', destino: 'Destinatário', valor_frete: 'Valor frete', valor_nfe: 'Valor NF/carga', previsao_entrega: 'Previsão entrega', tipo_saida: 'Tipo de saída' };
+function resumoPdfHTML(nome, valores, texto) {
+  const fmt = (k, v) => /valor/.test(k) ? brl(v) : /data|previsao/.test(k) ? dataBR(v) : v;
+  const achados = Object.keys(ROTULOS_PDF).filter(k => valores[k] != null);
+  const faltas = Object.keys(ROTULOS_PDF).filter(k => valores[k] == null);
+  return `<div class="pdf-result">
+    <b>📄 ${esc(nome)}</b> — ${achados.length}/${Object.keys(ROTULOS_PDF).length} campos lidos. Os campos em azul vieram do PDF; confira antes de salvar.<br>
+    ${achados.map(k => `<span class="ok">✔ ${ROTULOS_PDF[k]}: <b>${esc(fmt(k, valores[k]))}</b></span>`).join(' · ')}
+    ${faltas.length ? `<br>${faltas.map(k => `<span class="miss">– ${ROTULOS_PDF[k]}</span>`).join(' · ')} <span class="miss">não encontrado(s)</span>
+    <details><summary>Ver texto extraído do PDF</summary><textarea readonly>${esc(texto.slice(0, 6000))}</textarea></details>` : ''}
+  </div>`;
+}
+function msgErroPdf(err) {
+  const msg = String(err?.message || err);
+  return msg === 'SEM_TEXTO' ? 'PDF sem texto (imagem escaneada) — não dá para ler automaticamente.'
+    : /password|encrypt/i.test(msg) ? 'PDF protegido por senha.'
+    : /timeout|falha|load/i.test(msg) ? 'Falha ao carregar o leitor de PDF. Verifique a conexão.'
+    : 'Erro ao ler PDF: ' + msg;
+}
+const cteExistente = numero => numero ? data.cte.find(c => norm(c.numero_cte) === norm(numero)) : null;
+
 async function importarPdfCte(file) {
   if (_readOnly) { toast('Seu usuário é somente visualização.', 'err'); return; }
   toast('⏳ Lendo PDF do CT-e…', 'info');
   try {
-    const { itens, texto } = await lerItensPdf(file);
-    if (!texto.trim()) { toast('O PDF não tem texto (provavelmente é imagem escaneada) — não dá para ler automaticamente.', 'err'); return; }
-    const base = window.NFImport.parsearTextoNF(texto);
-
-    // NF-es referenciadas ("DOCUMENTOS ORIGINÁRIOS"): chaves de 44 dígitos de
-    // modelo 55 que não sejam a chave do próprio CT-e. Nº = dígitos 26–34, série = 23–25.
-    const chaves = [...new Set(texto.replace(/(\d{4})[ .](?=\d{4})/g, '$1').match(/(?<!\d)\d{44}(?!\d)/g) || [])]
-      .filter(k => k !== base.coletaChaveAcesso && k.slice(20, 22) === '55');
-    const nfs = chaves.map(k => k.slice(25, 34).replace(/^0+/, ''));
-    const serie = chaves[0] ? String(+chaves[0].slice(22, 25)) : null;
-
-    const valorFrete = valorDoRotulo(itens, [/VALOR TOTAL DA PRESTA[ÇC][ÃA]O/i, /VALOR TOTAL DO SERVI[ÇC]O/i, /VALOR A RECEBER/i, /TOTAL DA PRESTA/i, /VALOR DO FRETE/i], aceitaMoeda)
-      ?? aceitaMoeda((/VALOR TOTAL DA PRESTA[ÇC][ÃA]O[^\n]*\n?([^\n]*)/i.exec(texto) || [])[1]);
-    const valorNf = valorDoRotulo(itens, [/VALOR TOTAL DA (MERCADORIA|CARGA)/i, /VALOR DA (CARGA|MERCADORIA)/i, /VALOR TOTAL DOS PRODUTOS/i, /VLR\.? ?(DA )?(CARGA|MERCADORIA)/i], aceitaMoeda);
-    // Sem fallback para "primeira data do texto": o DACTE aéreo cita a lei
-    // 7.565 "de 19/12/1986" no rodapé, que vinha antes da emissão.
-    const emissao = valorDoRotulo(itens, [/DATA (E HORA )?(DE |DA )?EMISS[ÃA]O/i, /DATA\/HORA EMISS[ÃA]O/i], aceitaData)
-      ?? aceitaData((/EMISS[ÃA]O[\s\S]{0,200}?(\d{2}\/\d{2}\/\d{2,4})/i.exec(texto) || [])[1]);
-    const previsao = valorDoRotulo(itens, [/DATA PREVISTA DE ENTREGA/i, /PREVIS[ÃA]O DE ENTREGA/i], aceitaData);
-    const prazo = emissao && previsao && previsao >= emissao
-      ? Math.round((new Date(previsao + 'T00:00:00') - new Date(emissao + 'T00:00:00')) / 86400000) : null;
-    const inicio = valorDoRotulo(itens, [/IN[ÍI]CIO DA PRESTA/i, /ORIGEM DA PRESTA/i, /MUNIC[ÍI]PIO DE ORIGEM/i], aceitaMunicipio);
-    const termino = valorDoRotulo(itens, [/T[ÉE]RMINO DA PRESTA/i, /DESTINO DA PRESTA/i, /MUNIC[ÍI]PIO DE DESTINO/i], aceitaMunicipio);
-    // A planilha usa a rota por código de base/aeroporto ("SPA - CGB"); o DACTE
-    // aéreo traz isso nas observações ("OR:[GYN] DE:[CGR]") ou no fluxo da carga.
-    const mCod = /OR:\s*\[([A-Z]{3})\]\s*DE:\s*\[([A-Z]{3})\]/.exec(texto)
-      || /AEROPORTO\s+DE\s+ORIGEM[^\n]*\n\s*([A-Z]{3})(?:\s+[A-Z]{3})?\s+([A-Z]{3})\s*\n/.exec(texto);
-    const rota = mCod ? `${mCod[1]} - ${mCod[2]}` : inicio && termino ? `${inicio} - ${termino}` : inicio;
-    const mDest = /DESTINAT[ÁA]RIO\s*:\s*([A-ZÀ-Ú0-9][A-ZÀ-Ú0-9\s&.,'\/\-]*?)(?=\s+[A-ZÀ-Ú\/]{3,25}\s*:|\s*\n|$)/i.exec(texto);
-    const destinatario = mDest ? mDest[1].trim() : null;
-    const remetente = base.coletaFornecedor;
-
-    // Tipo de saída sugerido pelas partes (o usuário confere no formulário).
-    const ehGF = s => /GF MEDICAL/i.test(s || '');
-    const tipo = ehGF(remetente) && ehGF(destinatario) ? 'TRANSFERENCIA' : ehGF(destinatario) ? 'COMPRA' : ehGF(remetente) ? 'VENDA' : null;
-
-    const transportadora = nomeTransportadoraCadastrada(base.coletaTransportadora) || base.coletaTransportadora?.toUpperCase() || null;
-    const numeroCte = base.cte ? base.cte.replace(/[\s\-]/g, '') : null;
-
-    if (numeroCte) {
-      const existe = data.cte.find(c => norm(c.numero_cte) === norm(numeroCte));
-      if (existe) { toast(`CT-e ${numeroCte} já está cadastrado — abrindo o registro.`, 'info'); goView('ctes'); abrirModal('cte', existe.id); return; }
-    }
-
-    const valores = {};
-    const put = (k, v) => { if (v != null && v !== '') valores[k] = v; };
-    put('numero_cte', numeroCte);
-    put('data_emissao', emissao);
-    put('numero_nfe', nfs.join(', ') || base.nfCompra);
-    put('serie_nf', serie);
-    put('origem', rota);
-    put('prazo_dias', prazo);
-    put('destino', destinatario);
-    put('transportadora', transportadora);
-    put('tipo_saida', tipo);
-    put('valor_frete', valorFrete);
-    put('valor_nfe', valorNf);
-    put('observacoes', [inicio && termino && mCod ? `${inicio} → ${termino}` : null, remetente ? 'Remetente: ' + remetente : null,
-      previsao ? 'Previsão de entrega: ' + dataBR(previsao) : null, base.coletaChaveAcesso ? 'Chave CT-e: ' + base.coletaChaveAcesso : null]
-      .filter(Boolean).join(' · ') || null);
-    valores.status_entrega = 'Em trânsito';
-
-    const ROTULOS = { numero_cte: 'Nº CT-e', data_emissao: 'Emissão', numero_nfe: 'NF-e', transportadora: 'Transportadora', origem: 'Rota', destino: 'Destinatário', valor_frete: 'Valor frete', valor_nfe: 'Valor NF/carga', prazo_dias: 'Prazo (dias)', tipo_saida: 'Tipo de saída' };
-    const fmt = (k, v) => /valor/.test(k) ? brl(v) : k === 'data_emissao' ? dataBR(v) : v;
-    const achados = Object.keys(ROTULOS).filter(k => valores[k] != null);
-    const faltas = Object.keys(ROTULOS).filter(k => valores[k] == null);
-    const resumoHTML = `<div class="pdf-result">
-      <b>📄 ${esc(file.name)}</b> — ${achados.length}/${Object.keys(ROTULOS).length} campos lidos. Os campos em azul vieram do PDF; confira antes de salvar.<br>
-      ${achados.map(k => `<span class="ok">✔ ${ROTULOS[k]}: <b>${esc(fmt(k, valores[k]))}</b></span>`).join(' · ')}
-      ${faltas.length ? `<br>${faltas.map(k => `<span class="miss">– ${ROTULOS[k]}</span>`).join(' · ')} <span class="miss">não encontrado(s)</span>
-      <details><summary>Ver texto extraído do PDF</summary><textarea readonly>${esc(texto.slice(0, 6000))}</textarea></details>` : ''}
-    </div>`;
+    const { valores, texto } = await extrairCte(file);
+    const existe = cteExistente(valores.numero_cte);
+    if (existe) { toast(`CT-e ${valores.numero_cte} já está cadastrado — abrindo o registro.`, 'info'); goView('ctes'); abrirModal('cte', existe.id); return; }
     goView('ctes');
-    abrirModal('cte', null, { valores, resumoHTML });
+    abrirModal('cte', null, { valores, resumoHTML: resumoPdfHTML(file.name, valores, texto) });
   } catch (err) {
     console.error('PDF CT-e:', err);
-    const msg = String(err?.message || err);
-    toast(/password|encrypt/i.test(msg) ? 'PDF protegido por senha — não é possível ler automaticamente.'
-      : /timeout|falha|load/i.test(msg) ? 'Falha ao carregar o leitor de PDF. Verifique a conexão e tente de novo.'
-      : 'Erro ao ler PDF: ' + msg, 'err');
+    toast(msgErroPdf(err), 'err');
   }
 }
 
-$('f-pdf-cte').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importarPdfCte(f); };
+// ── Lote: lê vários PDFs, mostra a conferência e grava os selecionados de uma vez.
+// Itens sem Nº do CT-e ou transportadora (campos obrigatórios) ficam desmarcados
+// e podem ser abertos no formulário para completar; já cadastrados são ignorados.
+let _lote = [];
+const SITUACAO_LOTE = {
+  lendo: ['b-mute', '⏳ lendo…'], ok: ['b-ok', '✔ pronto'], incompleto: ['b-warn', '▲ incompleto'],
+  duplicado: ['b-mute', '⧉ já cadastrado'], erro: ['b-crit', '✖ erro'], importado: ['b-info', '✔ importado'],
+};
+function situacaoLote(it) {
+  if (it.estado !== 'lido') return it.estado;
+  const v = it.valores;
+  // Duplicado: já no banco, já importado neste lote ou repetido num PDF anterior da lista.
+  const mesmo = o => o !== it && o.valores?.numero_cte && norm(o.valores.numero_cte) === norm(v.numero_cte);
+  if (cteExistente(v.numero_cte) || _lote.some(o => mesmo(o)
+      && (o.estado === 'importado' || (o.estado === 'lido' && _lote.indexOf(o) < _lote.indexOf(it))))) return 'duplicado';
+  return v.numero_cte && v.transportadora ? 'ok' : 'incompleto';
+}
 
-// Arrastar o PDF em qualquer lugar da tela.
+function renderLote() {
+  const sits = _lote.map(situacaoLote);
+  const lendo = sits.filter(s => s === 'lendo').length;
+  const sel = _lote.filter((it, i) => it.incluir && sits[i] === 'ok');
+  $('lote-resumo').textContent = lendo ? `Lendo ${_lote.length - lendo}/${_lote.length} PDF(s)…`
+    : `${_lote.length} PDF(s) · ${sits.filter(s => s === 'ok').length} pronto(s) · ${sits.filter(s => s === 'incompleto').length} incompleto(s) · ${sits.filter(s => s === 'duplicado').length} já cadastrado(s) · ${sits.filter(s => s === 'erro').length} com erro · ${sits.filter(s => s === 'importado').length} importado(s)`;
+  $('btn-lote-importar').disabled = !!lendo || !sel.length;
+  $('btn-lote-importar').textContent = `💾 Importar ${sel.length} selecionado(s)`;
+  const fretes = sel.reduce((s, it) => s + num(it.valores.valor_frete), 0);
+  $('lote-total').textContent = sel.length ? `Frete selecionado: ${brl(fretes)}` : '';
+  $('tb-lote').innerHTML = `<thead><tr><th></th><th>Arquivo</th><th>Nº CT-e</th><th>Emissão</th><th>Transportadora</th><th>Remetente</th><th>Destinatário</th>
+    <th class="num">Frete</th><th class="num">Valor NF</th><th class="num">% Frete</th><th>Previsão</th><th>Situação</th><th></th></tr></thead><tbody>
+    ${_lote.map((it, i) => {
+      const s = sits[i], v = it.valores || {};
+      const [cls, lbl] = SITUACAO_LOTE[s];
+      const podeMarcar = s === 'ok';
+      return `<tr>
+        <td><input type="checkbox" aria-label="Incluir ${esc(it.file.name)}" ${podeMarcar ? '' : 'disabled'} ${podeMarcar && it.incluir ? 'checked' : ''} onchange="loteMarcar(${i}, this.checked)"></td>
+        <td class="td-trunc td-mono" title="${esc(it.file.name)}">${esc(it.file.name)}</td>
+        <td class="td-strong">${esc(v.numero_cte || '—')}</td>
+        <td class="td-mono">${dataBR(v.data_emissao)}</td>
+        <td>${esc(v.transportadora || '—')}</td>
+        <td class="td-trunc" title="${esc(v.remetente)}">${esc(v.remetente || '—')}</td>
+        <td class="td-trunc" title="${esc(v.destino)}">${esc(v.destino || '—')}</td>
+        <td class="num">${v.valor_frete != null ? brl(v.valor_frete) : '—'}</td>
+        <td class="num">${v.valor_nfe != null ? brl(v.valor_nfe) : '—'}</td>
+        <td class="num">${pctHTML(pctFrete(v))}</td>
+        <td class="td-mono">${dataBR(v.previsao_entrega)}</td>
+        <td><span class="badge ${cls}" ${it.erro ? `title="${esc(it.erro)}"` : ''}>${lbl}</span></td>
+        <td><div class="row-acts">${s === 'ok' || s === 'incompleto' ? `<button class="abtn" title="Conferir / completar no formulário" onclick="loteEditar(${i})">✏️</button>` : ''}
+          ${s === 'duplicado' && cteExistente(v.numero_cte) ? `<button class="abtn" title="Abrir o CT-e já cadastrado" onclick="loteAbrirExistente(${i})">👁</button>` : ''}</div></td>
+      </tr>`;
+    }).join('')}</tbody>`;
+}
+
+async function importarLotePdf(files) {
+  if (_readOnly) { toast('Seu usuário é somente visualização.', 'err'); return; }
+  _lote = files.map(file => ({ file, estado: 'lendo', incluir: true, valores: null }));
+  goView('ctes');
+  $('modal-lote').classList.add('open');
+  renderLote();
+  for (const it of _lote) {
+    try {
+      const r = await extrairCte(it.file);
+      Object.assign(it, { estado: 'lido', valores: r.valores, texto: r.texto });
+    } catch (err) {
+      console.error('PDF CT-e (lote):', it.file.name, err);
+      Object.assign(it, { estado: 'erro', erro: msgErroPdf(err) });
+    }
+    renderLote();
+  }
+}
+
+window.loteMarcar = (i, on) => { _lote[i].incluir = on; renderLote(); };
+window.loteMarcarTodos = on => { _lote.forEach(it => it.incluir = on); renderLote(); };
+window.loteEditar = i => {
+  const it = _lote[i];
+  $('modal-lote').classList.remove('open');
+  abrirModal('cte', null, { valores: it.valores, resumoHTML: resumoPdfHTML(it.file.name, it.valores, it.texto || ''), loteIdx: i });
+};
+window.loteAbrirExistente = i => {
+  $('modal-lote').classList.remove('open');
+  abrirModal('cte', cteExistente(_lote[i].valores.numero_cte).id);
+  _modal.loteIdx = -1; // ao fechar, volta para a conferência do lote
+};
+window.fecharLote = () => {
+  const pendentes = _lote.filter((it, i) => situacaoLote(it) === 'ok' && it.incluir).length;
+  if (pendentes && !confirm(`${pendentes} CT-e(s) lido(s) ainda não foram importados. Fechar mesmo assim?`)) return;
+  $('modal-lote').classList.remove('open');
+  _lote = [];
+};
+window.importarLoteSelecionados = async () => {
+  const itens = _lote.filter(it => it.incluir && situacaoLote(it) === 'ok');
+  if (!itens.length) return;
+  const agora = new Date().toISOString();
+  const rows = itens.map(it => ({ ...it.valores, filial: FILIAL, criado_por: _user?.email || null, atualizado_em: agora }));
+  $('btn-lote-importar').disabled = true;
+  const { error } = await supabase.from(T.cte).insert(rows);
+  if (error) { toast('Erro ao importar: ' + msgErroBanco(error), 'err'); renderLote(); return; }
+  itens.forEach(it => it.estado = 'importado');
+  toast(`✔ ${rows.length} CT-e(s) importado(s)`);
+  await carregar('cte'); montarFiltros(); render();
+  renderLote();
+};
+
+function abrirPdfs(files) {
+  const pdfs = [...files].filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+  if (!pdfs.length) { toast('Selecione arquivo(s) PDF do CT-e.', 'err'); return; }
+  if (pdfs.length === 1) importarPdfCte(pdfs[0]); else importarLotePdf(pdfs);
+}
+$('f-pdf-cte').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) abrirPdfs(fs); };
+
+// Arrastar um ou vários PDFs em qualquer lugar da tela.
 let _dragN = 0;
 const temArquivo = e => [...(e.dataTransfer?.types || [])].includes('Files');
 document.addEventListener('dragenter', e => { if (!temArquivo(e) || !_user || _readOnly) return; _dragN++; $('drop-ov').classList.add('show'); });
@@ -1247,8 +1433,7 @@ document.addEventListener('drop', e => {
   e.preventDefault();
   _dragN = 0; $('drop-ov').classList.remove('show');
   if (!_user || _readOnly) return;
-  const f = [...e.dataTransfer.files].find(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
-  if (f) importarPdfCte(f); else toast('Solte um arquivo PDF do CT-e.', 'err');
+  abrirPdfs(e.dataTransfer.files);
 });
 
 // ───────────────────────── Importar planilha ─────────────────────────
@@ -1373,6 +1558,160 @@ $('f-import').onchange = async e => {
   }
 };
 
+// ───────────────────────── Apresentar números (WhatsApp / PDF) ─────────────────────────
+// Mesmos números do Dashboard: respeitam o período e a busca selecionados.
+function numerosPeriodo() {
+  const ctes = ctesFiltrados({ ignorarFiltrosTabela: true });
+  const cots = cotFiltradas({ ignorarFiltrosTabela: true });
+  const frete = ctes.reduce((s, c) => s + num(c.valor_frete), 0);
+  const nf = ctes.reduce((s, c) => s + num(c.valor_nfe), 0);
+  const porMes = agrupar(ctes.filter(c => c.data_emissao), c => c.data_emissao.slice(0, 7)).sort((a, b) => a.nome.localeCompare(b.nome));
+  return {
+    periodo: ui.periodo ? mesLabel(ui.periodo) : 'Todo o período',
+    busca: ui.busca.trim(),
+    ctes, cots, frete, nf, pMedio: nf > 0 ? frete / nf : null,
+    abertos: ctes.filter(c => c.status_entrega !== 'Entregue').length,
+    atrasados: ctes.filter(c => c.status_entrega === 'Atrasado' || cteVencido(c)).length,
+    porTransp: agrupar(ctes, c => c.transportadora?.trim()),
+    porTipo: agrupar(ctes, c => c.tipo_saida?.trim().toUpperCase()),
+    porMes,
+    altos: ctes.filter(c => faixaPct(pctFrete(c)) === 'crit').sort((a, b) => pctFrete(b) - pctFrete(a)),
+    cotStatus: STATUS_COT.map(s => ({ s, l: cots.filter(c => c.status === s) })),
+    investido: cots.filter(c => c.status === 'Aprovado').reduce((s, c) => s + num(c.valor_frete) + num(c.ad_valorem), 0),
+  };
+}
+const agoraBR = () => new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+
+window.enviarWhatsApp = () => {
+  const n = numerosPeriodo();
+  if (!n.ctes.length && !n.cots.length) { toast('Sem dados no período selecionado.', 'info'); return; }
+  const fx = faixaPct(n.pMedio);
+  const L = [
+    `*Controle de Fretes — GF Medical ${FILIAL_LABEL}*`,
+    `Período: ${n.periodo}${n.busca ? ` · filtro: "${n.busca}"` : ''}`,
+    '',
+    '*CT-e / Frete*',
+    `CT-es: ${n.ctes.length}`,
+    `Frete pago: ${brl(n.frete)}`,
+    `Valor em NF-e: ${brl(n.nf)}`,
+    `% Frete/NF: ${pctFmt(n.pMedio)}${fx ? ` (${PCT_FAIXAS[fx].label})` : ''}`,
+    `Ticket médio: ${brl(n.ctes.length ? n.frete / n.ctes.length : 0)}`,
+    `Entregas em aberto: ${n.abertos}${n.atrasados ? ` (${n.atrasados} atrasada(s))` : ''}`,
+  ];
+  if (n.porTransp.length) {
+    L.push('', '*Por transportadora*');
+    n.porTransp.slice(0, 8).forEach((g, i) => L.push(`${i + 1}. ${g.nome} — ${brl(g.frete)} (${g.qtd} CT-e · ${pctFmt(g.nf > 0 ? g.frete / g.nf : null)})`));
+  }
+  if (n.porTipo.length) {
+    L.push('', '*Por tipo de saída*');
+    n.porTipo.forEach(g => L.push(`- ${g.nome}: ${brl(g.frete)} (${g.qtd} CT-e)`));
+  }
+  if (n.porMes.length > 1) {
+    L.push('', '*Por mês*');
+    n.porMes.forEach(g => L.push(`- ${mesLabel(g.nome)}: ${brl(g.frete)} (${g.qtd} CT-e · ${pctFmt(g.nf > 0 ? g.frete / g.nf : null)})`));
+  }
+  if (n.cots.length) {
+    const st = Object.fromEntries(n.cotStatus.map(x => [x.s, x.l.length]));
+    L.push('', '*Cotações*', `Total: ${n.cots.length} · Aprovadas: ${st['Aprovado']} · Em análise: ${st['Em análise']} · Aguardando: ${st['Aguardando']} · Reprovadas: ${st['Reprovado']}`,
+      `Total investido (aprovadas): ${brl(n.investido)}`);
+  }
+  if (n.altos.length) {
+    L.push('', `*Atenção: ${n.altos.length} CT-e(s) com frete acima de 5% da NF*`);
+    n.altos.slice(0, 5).forEach(c => L.push(`- ${c.numero_cte} · ${c.transportadora || '—'} · ${brl(c.valor_frete)} / NF ${brl(c.valor_nfe)} = ${pctFmt(pctFrete(c))}`));
+    if (n.altos.length > 5) L.push(`  …e mais ${n.altos.length - 5}`);
+  }
+  L.push('', `Gerado em ${agoraBR()}`);
+  // Igual ao Monitor: tira emojis (o WhatsApp Web às vezes os corrompe no link).
+  const texto = L.join('\n').replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]️?/gu, '');
+  navigator.clipboard?.writeText(texto).catch(() => {}); // cópia de reserva, se o link não abrir
+  window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
+};
+
+window.gerarPdf = () => {
+  const n = numerosPeriodo();
+  if (!n.ctes.length && !n.cots.length) { toast('Sem dados no período selecionado.', 'info'); return; }
+  const win = window.open('', '_blank');
+  if (!win) { toast('O navegador bloqueou a janela do relatório — libere pop-ups para este site.', 'err'); return; }
+  const fx = faixaPct(n.pMedio);
+  const corFx = { ok: '#1a7a4a', warn: '#b7790a', crit: '#dc2626' };
+  const pctCel = p => { const f = faixaPct(p); return f ? `<span style="color:${corFx[f]};font-weight:700">${PCT_FAIXAS[f].icon} ${pctFmt(p)}</span>` : '—'; };
+  const barras = (grupos, rotulo) => {
+    const max = Math.max(...grupos.map(g => g.frete), 1);
+    return `<table><thead><tr><th>${rotulo}</th><th class="n">CT-es</th><th style="width:34%">Frete pago</th><th class="n">Valor</th><th class="n">Valor NF</th><th class="n">% Frete/NF</th></tr></thead><tbody>
+      ${grupos.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td>
+        <td><div class="bar"><div style="width:${(g.frete / max * 100).toFixed(1)}%"></div></div></td>
+        <td class="n">${brl(g.frete)}</td><td class="n">${brl(g.nf)}</td><td class="n">${pctCel(g.nf > 0 ? g.frete / g.nf : null)}</td></tr>`).join('')}
+      </tbody></table>`;
+  };
+  const logo = new URL('logo.jpg', location.href).href;
+  const ctesOrd = [...n.ctes].sort((a, b) => (a.data_emissao || '').localeCompare(b.data_emissao || ''));
+  win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+  <title>Controle de Fretes — ${esc(FILIAL_LABEL)} — ${esc(n.periodo)}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#111;padding:22px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    header{display:flex;align-items:center;gap:12px;border-bottom:2px solid #1a7a4a;padding-bottom:10px;margin-bottom:14px}
+    header img{width:42px;height:42px;border-radius:8px;object-fit:cover}
+    h1{font-size:16px;color:#0a2a18}.sub{color:#555;font-size:10px;margin-top:2px}
+    h2{font-size:12px;color:#1a7a4a;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .kpi{border:1px solid #cfe5d7;border-top:3px solid #1a7a4a;border-radius:6px;padding:8px 10px}
+    .kpi.warn{border-top-color:#b7790a}.kpi.crit{border-top-color:#dc2626}
+    .kpi b{display:block;font-size:15px;margin-top:3px;color:#0a2a18}.kpi span{font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.05em}
+    .kpi small{display:block;color:#666;margin-top:2px}
+    table{width:100%;border-collapse:collapse;margin-top:2px}
+    th{background:#e8f5ee;text-align:left;padding:5px 6px;border:1px solid #cfe5d7;font-size:9px;text-transform:uppercase;color:#2a5a3a}
+    td{padding:4px 6px;border:1px solid #e1ece5;vertical-align:middle}
+    tr:nth-child(even) td{background:#f7fbf8}
+    .n{text-align:right;white-space:nowrap}
+    tfoot td{font-weight:700;background:#e8f5ee!important}
+    .bar{height:9px;background:#eef5f0;border-radius:2px}.bar div{height:100%;background:#1a7a4a;border-radius:0 2px 2px 0}
+    .legenda{font-size:9px;color:#555;margin-top:4px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    footer{margin-top:18px;font-size:9px;color:#777;border-top:1px solid #ddd;padding-top:6px}
+    .quebra{page-break-before:always}
+    @page{size:A4 landscape;margin:10mm}
+    table.rel td,table.rel th{font-size:8.5px;padding:3px 4px}
+    @media print{body{padding:8px}.noprint{display:none}}
+    .noprint{position:fixed;top:10px;right:10px;padding:8px 14px;background:#1a7a4a;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer}
+  </style></head><body>
+  <button class="noprint" onclick="window.print()">Salvar como PDF / Imprimir</button>
+  <header><img src="${logo}" alt=""><div><h1>Controle de Fretes — GF Medical ${esc(FILIAL_LABEL)}</h1>
+    <div class="sub">Período: <b>${esc(n.periodo)}</b>${n.busca ? ` · filtro: "${esc(n.busca)}"` : ''} · Gerado em ${agoraBR()}</div></div></header>
+
+  <div class="kpis">
+    <div class="kpi"><span>Frete pago</span><b>${brl(n.frete)}</b><small>${n.ctes.length} CT-e(s)</small></div>
+    <div class="kpi"><span>Valor em NF-e</span><b>${brl(n.nf)}</b><small>Ticket médio ${brl(n.ctes.length ? n.frete / n.ctes.length : 0)}</small></div>
+    <div class="kpi ${fx === 'crit' ? 'crit' : fx === 'warn' ? 'warn' : ''}"><span>% Frete / NF</span><b>${pctFmt(n.pMedio)}</b><small>${fx ? PCT_FAIXAS[fx].label : '—'}</small></div>
+    <div class="kpi ${n.atrasados ? 'crit' : ''}"><span>Entregas em aberto</span><b>${n.abertos}</b><small>${n.atrasados ? n.atrasados + ' atrasada(s)' : 'nenhuma atrasada'}</small></div>
+  </div>
+  <div class="legenda">% Frete/NF = soma do frete ÷ soma do valor das NF-e. Faixas: ● ≤ 3% esperado · ▲ 3–5% atenção · ■ &gt; 5% revisar.</div>
+
+  ${n.porTransp.length ? `<h2>Frete por transportadora</h2>${barras(n.porTransp, 'Transportadora')}` : ''}
+  ${n.porTipo.length ? `<h2>Frete por tipo de saída</h2>${barras(n.porTipo, 'Tipo de saída')}` : ''}
+  ${n.porMes.length > 1 ? `<h2>Frete por mês</h2>${barras(n.porMes.map(g => ({ ...g, nome: mesLabel(g.nome) })), 'Mês')}` : ''}
+
+  ${n.cots.length ? `<h2>Cotações</h2>
+    <table><thead><tr><th>Status</th><th class="n">Qtd</th><th class="n">%</th><th class="n">Valor frete</th></tr></thead><tbody>
+    ${n.cotStatus.map(x => `<tr><td>${x.s}</td><td class="n">${x.l.length}</td><td class="n">${pctFmt(x.l.length / n.cots.length)}</td><td class="n">${brl(x.l.reduce((a, c) => a + num(c.valor_frete), 0))}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td>Total investido (aprovadas, frete + ad valorem)</td><td class="n">${n.cots.length}</td><td></td><td class="n">${brl(n.investido)}</td></tr></tfoot></table>` : ''}
+
+  ${n.altos.length ? `<h2>CT-es com frete acima de 5% da NF (${n.altos.length})</h2>
+    <table><thead><tr><th>CT-e</th><th>Emissão</th><th>Transportadora</th><th>Rota</th><th>Destinatário</th><th class="n">Frete</th><th class="n">NF-e</th><th class="n">%</th></tr></thead><tbody>
+    ${n.altos.map(c => `<tr><td>${esc(c.numero_cte)}</td><td>${dataBR(c.data_emissao)}</td><td>${esc(c.transportadora || '—')}</td><td>${esc(c.origem || '—')}</td><td>${esc(c.destino || '—')}</td><td class="n">${brl(c.valor_frete)}</td><td class="n">${brl(c.valor_nfe)}</td><td class="n">${pctCel(pctFrete(c))}</td></tr>`).join('')}
+    </tbody></table>` : ''}
+
+  ${ctesOrd.length ? `<h2 class="quebra">Relação de CT-es (${ctesOrd.length})</h2>
+    <table class="rel"><thead><tr><th>CT-e</th><th>Emissão</th><th>NF-e</th><th>Transportadora</th><th>Rota</th><th>Remetente</th><th>Destinatário</th><th>Tipo</th><th class="n">Frete</th><th class="n">NF-e</th><th class="n">%</th><th>Previsão</th><th>Status</th></tr></thead><tbody>
+    ${ctesOrd.map(c => `<tr><td>${esc(c.numero_cte)}</td><td>${dataBR(c.data_emissao)}</td><td>${esc(c.numero_nfe || '—')}</td><td>${esc(c.transportadora || '—')}</td><td>${esc(c.origem || '—')}</td><td>${esc(c.remetente || '—')}</td><td>${esc(c.destino || '—')}</td><td>${esc(c.tipo_saida || '—')}</td><td class="n">${brl(c.valor_frete)}</td><td class="n">${brl(c.valor_nfe)}</td><td class="n">${pctCel(pctFrete(c))}</td><td>${previsaoEntrega(c) ? dataBR(previsaoEntrega(c)) : '—'}</td><td>${esc(c.status_entrega)}${cteVencido(c) && c.status_entrega !== 'Atrasado' ? ' (vencido)' : ''}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="8">Total</td><td class="n">${brl(n.frete)}</td><td class="n">${brl(n.nf)}</td><td class="n">${pctCel(n.pMedio)}</td><td colspan="2"></td></tr></tfoot></table>` : ''}
+
+  <footer>GF Medical · Controle de Fretes · ${esc(FILIAL_LABEL)}</footer>
+  <script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script>
+  </body></html>`);
+  win.document.close();
+};
+
 // ───────────────────────── Exportar ─────────────────────────
 window.exportarExcel = () => {
   const wb = XLSX.utils.book_new();
@@ -1393,9 +1732,9 @@ window.exportarExcel = () => {
     'Prazo Médio CT-e (dias)': r.prazo_cte == null ? null : +r.prazo_cte.toFixed(1), 'Atrasos': r.atrasos, 'Avaliação': r.avaliacao })));
   add('CT-e e NF-e', ctesFiltrados().map(c => ({
     'Nº CT-e': c.numero_cte, 'Data Emissão': dataBR(c.data_emissao), 'Nº NF-e': c.numero_nfe, 'Série NF': c.serie_nf,
-    'Origem': c.origem, 'Destino': c.destino, 'Valor Frete (R$)': c.valor_frete, 'Valor NF-e (R$)': c.valor_nfe,
+    'Origem': c.origem, 'Remetente': c.remetente, 'Destinatário': c.destino, 'Valor Frete (R$)': c.valor_frete, 'Valor NF-e (R$)': c.valor_nfe,
     '% Frete / NF': pctFrete(c) == null ? null : +(pctFrete(c) * 100).toFixed(2), 'Transportadora': c.transportadora,
-    'Prazo Entrega': c.prazo_dias, 'Status Entrega': c.status_entrega, 'Data Entrega': dataBR(c.data_entrega) === '—' ? null : dataBR(c.data_entrega),
+    'Prazo Entrega': c.prazo_dias, 'Previsão Entrega': previsaoEntrega(c) ? dataBR(previsaoEntrega(c)) : null, 'Status Entrega': c.status_entrega, 'Data Entrega': dataBR(c.data_entrega) === '—' ? null : dataBR(c.data_entrega),
     'Tipo de Saída': c.tipo_saida, 'Observações': c.observacoes })));
   XLSX.writeFile(wb, `Controle_Fretes_${FILIAL}_${ui.periodo || 'completo'}_${hojeISO()}.xlsx`);
 };
