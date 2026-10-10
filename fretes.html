@@ -199,6 +199,9 @@ textarea.finput{resize:vertical;min-height:60px}
 .calc-pct.ok{color:var(--ok-c)}.calc-pct.warn{color:var(--warn-c)}.calc-pct.crit{color:var(--crit-c)}
 .calc-veredito{font-size:0.78rem;font-weight:600;margin-top:4px;color:var(--text)}
 .calc-det{font-size:0.7rem;color:var(--text3);margin-top:3px;line-height:1.6}
+.calc-salvar{display:flex;gap:8px;padding:0 14px 14px}
+.calc-salvar .finput{flex:1}
+.calc-hist-op{display:inline-block;margin:1px 6px 1px 0;white-space:nowrap}
 .calc-melhor{font-family:var(--mono);font-size:0.56rem;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--accent);color:white;letter-spacing:0.05em}
 @media(max-width:860px){.calc-grid{grid-template-columns:1fr}}
 .modal.modal-lg{max-width:1200px}
@@ -384,7 +387,15 @@ textarea.finput{resize:vertical;min-height:60px}
           <div class="dcard">
             <div class="dcard-head">📋 Resultado<small id="calc-sub"></small></div>
             <div class="dcard-body" id="calc-resultado"></div>
+            <div class="calc-salvar w-only" id="calc-salvar" style="display:none">
+              <input class="finput" id="calc-obs" placeholder="Observação (opcional): pedido, cliente, NF…" aria-label="Observação do cálculo">
+              <button class="tbtn tbtn-p" onclick="calcSalvarHistorico()">💾 Salvar no histórico</button>
+            </div>
           </div>
+        </div>
+        <div class="dcard" style="margin-top:14px">
+          <div class="dcard-head">🕘 Histórico de cálculos<small id="calc-hist-sub"></small></div>
+          <div class="dcard-body" style="padding:0"><div class="tscroll" id="calc-hist"></div></div>
         </div>
       </section>
 
@@ -478,6 +489,7 @@ const IMPORTA_PARA = FILIAL === 'CBA'
 const supaImport = IMPORTA_PARA ? createClient(IMPORTA_PARA.url, IMPORTA_PARA.key) : supabase;
 const FILIAL_IMPORT = IMPORTA_PARA ? IMPORTA_PARA.filial : FILIAL;
 let ctesDestino = []; // CT-es já gravados no destino da importação (duplicados, formatos, transportadoras)
+let transpDestino = []; // cadastro de transportadoras do destino da importação
 const T = { transp: 'frete_transportadoras', cot: 'frete_cotacoes', cte: 'frete_ctes' };
 
 // Mesmas listas suspensas da planilha original.
@@ -642,8 +654,31 @@ window.cancelarLoginImport = () => {
 };
 async function carregarDestinoImport() {
   if (!IMPORTA_PARA) return;
-  const { data: rows, error } = await supaImport.from(T.cte).select('numero_cte, observacoes, transportadora').eq('filial', FILIAL_IMPORT);
-  if (!error) ctesDestino = rows || [];
+  const [c, t] = await Promise.all([
+    supaImport.from(T.cte).select('numero_cte, observacoes, transportadora').eq('filial', FILIAL_IMPORT),
+    supaImport.from(T.transp).select('nome, cnpj').eq('filial', FILIAL_IMPORT),
+  ]);
+  if (!c.error) ctesDestino = c.data || [];
+  if (!t.error) transpDestino = t.data || [];
+}
+// Cadastra no destino as transportadoras dos CT-es importados que ainda não
+// existem lá (nome, CNPJ, modal e razão social), para aparecerem no cadastro,
+// na calculadora e serem reconhecidas pelo CNPJ nas próximas importações.
+async function cadastrarTransportadorasNovas(itens) {
+  const cadastro = IMPORTA_PARA ? transpDestino : data.transp;
+  const novas = new Map();
+  for (const it of itens) {
+    const nome = it.valores?.transportadora?.trim().toUpperCase();
+    if (!nome || cadastro.some(t => norm(t.nome) === norm(nome)) || novas.has(norm(nome))) continue;
+    const e = it.emit || {};
+    const cnpj = e.cnpj ? `${e.cnpj.slice(0, 2)}.${e.cnpj.slice(2, 5)}.${e.cnpj.slice(5, 8)}/${e.cnpj.slice(8, 12)}-${e.cnpj.slice(12)}` : null;
+    novas.set(norm(nome), { nome, cnpj, modal: e.modal || null, observacoes: e.razao && norm(e.razao) !== norm(nome) ? e.razao : null, filial: FILIAL_IMPORT });
+  }
+  if (!novas.size) return 0;
+  const { error } = await supaImport.from(T.transp).insert([...novas.values()]);
+  if (error) { console.warn('[Fretes] Não cadastrou transportadoras novas:', error.message); return 0; }
+  if (IMPORTA_PARA) await carregarDestinoImport(); else { await carregar('transp'); montarFiltros(); }
+  return novas.size;
 }
 // CT-es considerados para duplicado/formato/transportadora: os daqui + os do destino.
 const ctesConhecidos = () => IMPORTA_PARA ? [...data.cte, ...ctesDestino] : data.cte;
@@ -662,7 +697,7 @@ async function carregar(k) {
 }
 
 async function carregarTudo() {
-  await Promise.all([...Object.keys(T).map(carregar), carregarDestinoImport()]);
+  await Promise.all([...Object.keys(T).map(carregar), carregarDestinoImport(), carregarCalculos()]);
   montarFiltros();
   render();
   // Tempo real: recarrega a tabela inteira a cada mudança (volumes pequenos).
@@ -672,6 +707,9 @@ async function carregarTudo() {
     .on('postgres_changes', { event: '*', schema: 'public', table: T[k] }, async () => {
       await carregar(k); montarFiltros(); render();
     })
+    .subscribe());
+  _channels.push(supabase.channel('fretes-calculos')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'frete_calculos' }, carregarCalculos)
     .subscribe());
 }
 
@@ -1101,7 +1139,7 @@ function proximoNumeroCot() {
 window.abrirModal = (tipo, id = null, prefill = null) => {
   const form = FORMS[tipo];
   const reg = id ? data[tipo].find(r => r.id === id) : null;
-  _modal = { tipo, id, loteIdx: prefill?.loteIdx, importacao: !!prefill };
+  _modal = { tipo, id, loteIdx: prefill?.loteIdx, importacao: !!prefill, emit: prefill?.emit || null };
   $('modal-title').textContent = reg ? (_readOnly ? '👁 ' : '✏️ Editar ') + form.titulo
     : prefill ? '📄 CT-e lido do PDF — confira e salve' + (IMPORTA_PARA ? ` (será gravado em ${IMPORTA_PARA.label})` : '') : '＋ Novo(a) ' + form.titulo;
   const base = { ...(reg || (tipo === 'cot' ? { numero: proximoNumeroCot() } : {})), ...(prefill?.valores || {}) };
@@ -1202,6 +1240,7 @@ window.salvarModal = async () => {
   }
   if (res.error) { toast('Erro ao salvar: ' + msgErroBanco(res.error), 'err'); return; }
   toast(id ? '✔ Alterações salvas' : paraDestino ? `✔ CT-e gravado em ${IMPORTA_PARA.label}` : '✔ Registro criado');
+  if (!id && tipo === 'cte' && _modal.importacao) await cadastrarTransportadorasNovas([{ valores: row, emit: _modal.emit }]);
   if (paraDestino) carregarDestinoImport();
   if (!id && _modal.loteIdx >= 0 && _lote[_modal.loteIdx]) Object.assign(_lote[_modal.loteIdx], { estado: 'importado', valores: row });
   fecharModal();
@@ -1385,6 +1424,14 @@ function nomeTransportadoraCadastrada(emitente) {
   return nomes.find(n => norm(n).split(/[^A-Z0-9]+/).filter(nw => nw.length >= 3 && !PALAVRAS_GENERICAS.test(nw))
     .some(nw => palavras.some(w => nw.startsWith(w) || w.startsWith(nw)))) || null;
 }
+// Transportadora do cadastro com o mesmo CNPJ (raiz de 8 dígitos: vale para
+// qualquer filial da transportadora).
+const soDigitos = v => String(v || '').replace(/\D/g, '');
+function transportadoraPorCnpjCadastro(cnpj) {
+  const raiz = cnpj.slice(0, 8);
+  const t = [...data.transp, ...transpDestino].find(t => soDigitos(t.cnpj).slice(0, 8) === raiz);
+  return t ? t.nome : null;
+}
 // Transportadora já usada antes para o mesmo CNPJ emitente (pela chave salva
 // nas observações) — assim a correção feita uma vez vale para os próximos.
 function transportadoraPorCnpj(cnpj) {
@@ -1491,7 +1538,9 @@ function camposDoCte(doc, nomeArquivo) {
   const tipo = ehGF(remetente) && ehGF(destinatario) ? 'TRANSFERENCIA' : ehGF(destinatario) ? 'COMPRA' : ehGF(remetente) ? 'VENDA' : null;
 
   const emitente = (ch && emitentePorCnpj(texto, ch.cnpj)) || base.coletaTransportadora;
-  const transportadora = (ch && transportadoraPorCnpj(ch.cnpj)) || nomeTransportadoraCadastrada(emitente) || emitente?.toUpperCase() || null;
+  const transportadora = (ch && (transportadoraPorCnpjCadastro(ch.cnpj) || transportadoraPorCnpj(ch.cnpj)))
+    || nomeTransportadoraCadastrada(emitente) || emitente?.toUpperCase() || null;
+  const modalDoc = /\bA[ÉE]REO\b/i.test(texto.slice(0, 3000)) ? 'Aéreo' : /RODOVI[ÁA]RIO/i.test(texto) ? 'Rodoviário' : null;
 
   // Identificadores possíveis do CT-e; o Nº salvo segue o formato da transportadora.
   const awbRaw = (base.cte || '').replace(/[\s\-]/g, '');
@@ -1522,7 +1571,8 @@ function camposDoCte(doc, nomeArquivo) {
   put('observacoes', [inicio && termino && mCod ? `${inicio} → ${termino}` : null,
     chaveCte ? 'Chave CT-e: ' + chaveCte : null].filter(Boolean).join(' · ') || null);
   valores.status_entrega = 'Em trânsito';
-  return { valores, texto, ids: Object.values(ids).filter(Boolean), chave: chaveCte, filiais: filiaisGF(texto) };
+  const emit = ch ? { razao: emitente || null, cnpj: ch.cnpj, modal: modalDoc } : null;
+  return { valores, texto, ids: Object.values(ids).filter(Boolean), chave: chaveCte, filiais: filiaisGF(texto), emit };
 }
 
 // Lê um PDF e devolve um resultado por CT-e encontrado nele.
@@ -1567,7 +1617,7 @@ async function importarPdfCte(file) {
   try {
     const res = await extrairCtes(file);
     if (res.length > 1) { importarLotePdf([file], res); return; } // vários CT-es no mesmo PDF
-    const { valores, texto, ids, chave, filiais } = res[0];
+    const { valores, texto, ids, chave, filiais, emit } = res[0];
     const existe = cteExistente(valores.numero_cte, ids, chave);
     if (existe) {
       if (existe.id && data.cte.includes(existe)) { toast(`CT-e ${existe.numero_cte} já está cadastrado — abrindo o registro.`, 'info'); goView('ctes'); abrirModal('cte', existe.id); }
@@ -1577,7 +1627,7 @@ async function importarPdfCte(file) {
     goView('ctes');
     const aviso = foraDaFilial(filiais)
       ? `<div class="pdf-result" style="background:var(--warn-bg);border-color:var(--warn-bd)">⚠ Este CT-e é de <b>${filiais.map(f => NOME_FILIAL[f]).join(' / ')}</b> e será gravado em <b>${NOME_FILIAL[FILIAL_IMPORT]}</b>. Confira a filial antes de salvar.</div>` : '';
-    abrirModal('cte', null, { valores, resumoHTML: aviso + resumoPdfHTML(file.name, valores, texto) });
+    abrirModal('cte', null, { valores, emit, resumoHTML: aviso + resumoPdfHTML(file.name, valores, texto) });
   } catch (err) {
     console.error('PDF CT-e:', err);
     toast(msgErroPdf(err), 'err');
@@ -1653,7 +1703,7 @@ async function importarLotePdf(files, lidos = null) {
     let novos;
     try {
       const res = lidos || await extrairCtes(file);
-      novos = res.map((r, j) => ({ file, estado: 'lido', valores: r.valores, texto: r.texto, ids: r.ids, chave: r.chave, filiais: r.filiais,
+      novos = res.map((r, j) => ({ file, estado: 'lido', valores: r.valores, texto: r.texto, ids: r.ids, chave: r.chave, filiais: r.filiais, emit: r.emit,
         incluir: !foraDaFilial(r.filiais),
         parte: res.length > 1 ? `${j + 1}/${res.length}` : null }));
     } catch (err) {
@@ -1671,7 +1721,7 @@ window.loteMarcarTodos = on => { _lote.forEach(it => it.incluir = on && !deOutra
 window.loteEditar = i => {
   const it = _lote[i];
   $('modal-lote').classList.remove('open');
-  abrirModal('cte', null, { valores: it.valores, resumoHTML: resumoPdfHTML(it.file.name, it.valores, it.texto || ''), loteIdx: i });
+  abrirModal('cte', null, { valores: it.valores, emit: it.emit, resumoHTML: resumoPdfHTML(it.file.name, it.valores, it.texto || ''), loteIdx: i });
 };
 window.loteAbrirExistente = i => {
   $('modal-lote').classList.remove('open');
@@ -1694,7 +1744,8 @@ window.importarLoteSelecionados = async () => {
   const { error } = await supaImport.from(T.cte).insert(rows);
   if (error) { toast('Erro ao importar: ' + msgErroBanco(error), 'err'); renderLote(); return; }
   itens.forEach(it => it.estado = 'importado');
-  toast(`✔ ${rows.length} CT-e(s) importado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}`);
+  const nTransp = await cadastrarTransportadorasNovas(itens);
+  toast(`✔ ${rows.length} CT-e(s) importado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}${nTransp ? ` · ${nTransp} transportadora(s) nova(s) cadastrada(s)` : ''}`);
   await carregarDestinoImport();
   await carregar('cte'); montarFiltros(); render();
   renderLote();
@@ -1848,6 +1899,14 @@ $('f-import').onchange = async e => {
 // (≤ 3% vale a pena · 3–5% negociar · > 5% não compensa). Compara cada opção
 // com o histórico de CT-es da transportadora e permite salvar como cotação.
 let _calcMontada = false;
+let calculos = [], _calcHistErro = null;
+async function carregarCalculos() {
+  const { data: rows, error } = await supabase.from('frete_calculos').select('*').eq('filial', FILIAL).order('criado_em', { ascending: false }).limit(300);
+  _calcHistErro = error ? (/does not exist|schema cache|Could not find the table/i.test(error.message) || error.code === '42P01' || error.code === 'PGRST205'
+    ? 'O histórico ainda não está ativo nesta filial — rode supabase/migrations/20261013_fretes_calculos.sql no Supabase.' : error.message) : null;
+  calculos = error ? [] : rows;
+  if (ui.view === 'calculadora') renderCalcHistorico();
+}
 // Diferença entre percentuais, em pontos percentuais (4,80% − 3,34% = 1,46 p.p.).
 const pp = v => (v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' p.p.';
 const VEREDITO = {
@@ -1855,15 +1914,35 @@ const VEREDITO = {
   warn: '▲ Avaliar — frete entre 3% e 5%: tente negociar ou compare com outra opção.',
   crit: '■ Não compensa — frete acima de 5% da mercadoria: negocie ou busque outra transportadora.',
 };
+// Lista do cadastro de transportadoras (+ as que já aparecem em CT-es), com a
+// média de % de cada uma; "Outra" troca a lista por um campo de texto.
+function calcSelectTransp(atual = '') {
+  const nomes = nomesTransportadoras();
+  if (!nomes.length) return `<input class="finput" placeholder="Transportadora (nenhuma cadastrada)" aria-label="Transportadora" value="${esc(atual)}" data-k="transportadora">`;
+  const tem = nomes.some(n => norm(n) === norm(atual));
+  if (atual && !tem) return `<input class="finput" placeholder="Transportadora" aria-label="Transportadora" value="${esc(atual)}" data-k="transportadora">`;
+  return `<select class="finput" aria-label="Transportadora" data-k="transportadora" onchange="calcTranspMudou(this)">
+    <option value="">Selecione a transportadora…</option>
+    ${nomes.map(n => { const h = historicoTransp(n); return `<option value="${esc(n)}" ${norm(n) === norm(atual) ? 'selected' : ''}>${esc(n)}${h ? ` — média ${pctFmt(h.pct)}` : ''}</option>`; }).join('')}
+    <option value="__outra">✏️ Outra (digitar)</option>
+  </select>`;
+}
+window.calcTranspMudou = sel => {
+  if (sel.value !== '__outra') return;
+  sel.outerHTML = `<input class="finput" placeholder="Nome da transportadora" aria-label="Transportadora" data-k="transportadora">`;
+  calcAtualizar();
+  document.activeElement?.blur();
+  [...$('calc-opcoes').querySelectorAll('input[data-k="transportadora"]')].pop()?.focus();
+};
 function calcLinhaHTML(o = {}) {
   return `<div class="calc-op">
-    <input class="finput" list="dl-transp" placeholder="Transportadora" aria-label="Transportadora" value="${esc(o.transportadora || '')}" data-k="transportadora">
+    ${calcSelectTransp(o.transportadora || '')}
     <input class="finput" type="number" min="0" step="0.01" placeholder="Frete R$" aria-label="Valor do frete" value="${o.frete ?? ''}" data-k="frete">
     <input class="finput" type="number" min="0" step="1" placeholder="Prazo" aria-label="Prazo em dias" value="${o.prazo ?? ''}" data-k="prazo">
     <button class="item-rm" title="Remover opção" onclick="this.parentElement.remove();calcAtualizar()">✕</button>
   </div>`;
 }
-window.calcAdicionar = () => { $('calc-opcoes').insertAdjacentHTML('beforeend', calcLinhaHTML()); calcAtualizar(); $('calc-opcoes').lastElementChild.querySelector('input').focus(); };
+window.calcAdicionar = () => { $('calc-opcoes').insertAdjacentHTML('beforeend', calcLinhaHTML()); calcAtualizar(); $('calc-opcoes').lastElementChild.querySelector('select,input').focus(); };
 function calcOpcoes() {
   return [...$('calc-opcoes').querySelectorAll('.calc-op')].map(el => {
     const g = k => el.querySelector(`[data-k="${k}"]`).value.trim();
@@ -1883,8 +1962,11 @@ function renderCalc() {
     $('calc-opcoes').innerHTML = calcLinhaHTML() + calcLinhaHTML();
     $('view-calculadora').addEventListener('input', calcAtualizar);
     _calcMontada = true;
+  } else {
+    $('calc-opcoes').querySelectorAll('select[data-k="transportadora"]').forEach(sel => { sel.outerHTML = calcSelectTransp(sel.value); });
   }
   calcAtualizar();
+  renderCalcHistorico();
 }
 window.calcAtualizar = () => {
   const nf = num($('calc-nf').value);
@@ -1899,6 +1981,7 @@ window.calcAtualizar = () => {
     : 'Informe o valor da mercadoria para ver até quanto vale a pena pagar de frete.';
   const validas = ops.map((o, i) => ({ ...o, i })).filter(o => o.frete > 0);
   $('calc-sub').textContent = validas.length ? `${validas.length} opção(ões)` : '';
+  $('calc-salvar').style.display = nf > 0 && validas.length ? 'flex' : 'none';
   if (!(nf > 0) || !validas.length) {
     $('calc-resultado').innerHTML = `<div class="empty-mini">${!(nf > 0) ? 'Informe o valor da mercadoria' : 'Informe o valor do frete de pelo menos uma opção'} para calcular.</div>`;
     return;
@@ -1919,6 +2002,60 @@ window.calcAtualizar = () => {
     </div>`;
   }).join('');
 };
+window.calcSalvarHistorico = async () => {
+  const nf = num($('calc-nf').value);
+  const ops = calcOpcoes().filter(o => o.frete > 0).map(o => ({ transportadora: o.transportadora ? o.transportadora.toUpperCase() : null, frete: o.frete, prazo: o.prazo, pct: o.frete / nf }));
+  if (!(nf > 0) || !ops.length) return;
+  const melhor = ops.reduce((a, b) => (b.frete < a.frete ? b : a));
+  const { error } = await supabase.from('frete_calculos').insert({
+    valor_mercadoria: nf, opcoes: ops, melhor_transportadora: melhor.transportadora, melhor_frete: melhor.frete, melhor_pct: melhor.pct,
+    observacao: $('calc-obs').value.trim() || null, filial: FILIAL, criado_por: _user?.email || null,
+  });
+  if (error) { toast('Erro ao salvar no histórico: ' + (/does not exist|schema cache|Could not find the table/i.test(error.message) ? 'rode supabase/migrations/20261013_fretes_calculos.sql no Supabase.' : error.message), 'err'); return; }
+  $('calc-obs').value = '';
+  toast('✔ Cálculo salvo no histórico');
+  await carregarCalculos();
+};
+window.calcReabrir = id => {
+  const c = calculos.find(x => x.id === id);
+  if (!c) return;
+  $('calc-nf').value = c.valor_mercadoria;
+  $('calc-opcoes').innerHTML = (c.opcoes || []).map(o => calcLinhaHTML(o)).join('') || calcLinhaHTML();
+  $('calc-obs').value = c.observacao || '';
+  calcAtualizar();
+  $('view-calculadora').scrollIntoView({ behavior: 'smooth' });
+  toast('Cálculo reaberto na calculadora', 'info');
+};
+window.calcExcluirHistorico = async id => {
+  if (!confirm('Excluir este cálculo do histórico?')) return;
+  const { error } = await supabase.from('frete_calculos').delete().eq('id', id);
+  if (error) { toast('Erro ao excluir: ' + error.message, 'err'); return; }
+  await carregarCalculos();
+};
+function renderCalcHistorico() {
+  const el = $('calc-hist');
+  if (!el) return;
+  if (_calcHistErro) { el.innerHTML = `<div class="empty-mini">${esc(_calcHistErro)}</div>`; $('calc-hist-sub').textContent = ''; return; }
+  const lista = calculos.filter(c => noPeriodo((c.criado_em || '').slice(0, 10))
+    && (!ui.busca || norm(JSON.stringify(c.opcoes) + ' ' + (c.observacao || '') + ' ' + (c.criado_por || '')).includes(norm(ui.busca))));
+  $('calc-hist-sub').textContent = lista.length ? `${lista.length} cálculo(s)` : '';
+  if (!lista.length) { el.innerHTML = `<div class="empty-mini">${calculos.length ? 'Nenhum cálculo no período/busca selecionados.' : 'Nenhum cálculo salvo ainda — use 💾 Salvar no histórico.'}</div>`; return; }
+  el.innerHTML = `<table><thead><tr><th>Data</th><th>Quem</th><th class="num">Mercadoria</th><th>Opções (frete · % da mercadoria)</th><th>Mais barata</th><th>Observação</th><th></th></tr></thead><tbody>
+    ${lista.map(c => {
+      const dt = new Date(c.criado_em);
+      return `<tr>
+        <td class="td-mono">${dt.toLocaleDateString('pt-BR')} ${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
+        <td class="td-mono">${esc((c.criado_por || '—').split('@')[0])}</td>
+        <td class="num">${brl(c.valor_mercadoria)}</td>
+        <td>${(c.opcoes || []).map(o => `<span class="calc-hist-op">${esc(o.transportadora || '—')}: ${brl(o.frete)} ${pctHTML(o.pct)}</span>`).join('')}</td>
+        <td>${c.melhor_transportadora ? `<b>${esc(c.melhor_transportadora)}</b> ${pctHTML(Number(c.melhor_pct))}` : '—'}</td>
+        <td class="td-trunc" title="${esc(c.observacao)}">${esc(c.observacao || '—')}</td>
+        <td><div class="row-acts"><button class="abtn" title="Reabrir na calculadora" onclick="calcReabrir('${c.id}')">↺</button>
+          <button class="abtn del w-only" title="Excluir do histórico" onclick="calcExcluirHistorico('${c.id}')">🗑</button></div></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
 window.calcSalvarCotacao = async i => {
   const o = calcOpcoes()[i], nf = num($('calc-nf').value);
   if (!o?.transportadora) { toast('Informe a transportadora dessa opção para salvar.', 'err'); return; }
