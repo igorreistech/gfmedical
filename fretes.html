@@ -379,6 +379,19 @@ textarea.finput{resize:vertical;min-height:60px}
   </div>
 </div>
 
+<div id="modal-login-import" class="modal-ov">
+  <div class="modal" style="max-width:380px" role="dialog" aria-modal="true" aria-labelledby="li-title">
+    <div class="mhead"><span class="mtitle" id="li-title">🔐 Entrar em Campo Grande</span><button class="mclose" onclick="cancelarLoginImport()" aria-label="Fechar">✕</button></div>
+    <div class="mbody">
+      <div class="td-mono" style="margin-bottom:12px">Os CT-es importados aqui são gravados na filial de Campo Grande. Entre com seu login de lá.</div>
+      <div class="login-field"><label class="login-label" for="li-email">E-mail</label><input class="login-input" type="email" id="li-email" autocomplete="email"></div>
+      <div class="login-field"><label class="login-label" for="li-senha">Senha</label><input class="login-input" type="password" id="li-senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrarDestinoImport()"></div>
+      <div class="login-err" id="li-err">E-mail ou senha incorretos em Campo Grande.</div>
+    </div>
+    <div class="mfoot"><button class="tbtn tbtn-g" onclick="cancelarLoginImport()">Cancelar</button><button class="tbtn tbtn-p" onclick="entrarDestinoImport()">Entrar</button></div>
+  </div>
+</div>
+
 <datalist id="dl-transp"></datalist>
 <datalist id="dl-tipo"></datalist>
 <datalist id="dl-carga"></datalist>
@@ -412,6 +425,16 @@ window.trocarFilial = code => {
   location.href = u.toString();
 };
 const FILIAL_LABEL = BR.cityLabel;
+// CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
+// que concentra o controle de fretes das duas filiais. Campo Grande é outro
+// projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
+// ou pede a senha na hora de importar.
+const IMPORTA_PARA = FILIAL === 'CBA'
+  ? { filial: 'CGR', label: 'Campo Grande', url: 'https://rqzqetfoxiutabsooqqn.supabase.co', key: 'sb_publishable_P3EggMdsxQUoKnX_pLMaRQ_ZrGEYpIP' }
+  : null;
+const supaImport = IMPORTA_PARA ? createClient(IMPORTA_PARA.url, IMPORTA_PARA.key) : supabase;
+const FILIAL_IMPORT = IMPORTA_PARA ? IMPORTA_PARA.filial : FILIAL;
+let ctesDestino = []; // CT-es já gravados no destino da importação (duplicados, formatos, transportadoras)
 const T = { transp: 'frete_transportadoras', cot: 'frete_cotacoes', cte: 'frete_ctes' };
 
 // Mesmas listas suspensas da planilha original.
@@ -541,9 +564,46 @@ window.doLogin = async () => {
   const password = $('l-senha').value;
   $('l-err').classList.remove('show');
   const { error } = await auth.signInWithPassword({ email, password });
-  if (error) $('l-err').classList.add('show');
+  if (error) { $('l-err').classList.add('show'); return; }
+  if (IMPORTA_PARA) {
+    const r = await supaImport.auth.signInWithPassword({ email, password }).catch(e => ({ error: e }));
+    if (r.error) console.warn(`[Fretes] Não entrou em ${IMPORTA_PARA.label} com a mesma senha:`, r.error.message);
+    else carregarDestinoImport();
+  }
 };
-window.doLogout = () => auth.signOut();
+window.doLogout = () => { if (IMPORTA_PARA) supaImport.auth.signOut().catch(() => {}); return auth.signOut(); };
+
+// Sessão no destino da importação; sem ela, pede e-mail/senha de lá.
+async function garantirSessaoImport() {
+  if (!IMPORTA_PARA) return true;
+  const { data: { session } } = await supaImport.auth.getSession();
+  if (session) return true;
+  $('li-email').value = _user?.email || '';
+  $('li-senha').value = '';
+  $('li-err').classList.remove('show');
+  $('modal-login-import').classList.add('open');
+  setTimeout(() => $('li-senha').focus(), 50);
+  return new Promise(resolve => { _resolverLoginImport = resolve; });
+}
+let _resolverLoginImport = null;
+window.entrarDestinoImport = async () => {
+  const { error } = await supaImport.auth.signInWithPassword({ email: $('li-email').value.trim(), password: $('li-senha').value });
+  if (error) { $('li-err').classList.add('show'); return; }
+  $('modal-login-import').classList.remove('open');
+  await carregarDestinoImport();
+  _resolverLoginImport?.(true); _resolverLoginImport = null;
+};
+window.cancelarLoginImport = () => {
+  $('modal-login-import').classList.remove('open');
+  _resolverLoginImport?.(false); _resolverLoginImport = null;
+};
+async function carregarDestinoImport() {
+  if (!IMPORTA_PARA) return;
+  const { data: rows, error } = await supaImport.from(T.cte).select('numero_cte, observacoes, transportadora').eq('filial', FILIAL_IMPORT);
+  if (!error) ctesDestino = rows || [];
+}
+// CT-es considerados para duplicado/formato/transportadora: os daqui + os do destino.
+const ctesConhecidos = () => IMPORTA_PARA ? [...data.cte, ...ctesDestino] : data.cte;
 
 // ───────────────────────── Dados ─────────────────────────
 async function carregar(k) {
@@ -559,7 +619,7 @@ async function carregar(k) {
 }
 
 async function carregarTudo() {
-  await Promise.all(Object.keys(T).map(carregar));
+  await Promise.all([...Object.keys(T).map(carregar), carregarDestinoImport()]);
   montarFiltros();
   render();
   // Tempo real: recarrega a tabela inteira a cada mudança (volumes pequenos).
@@ -998,9 +1058,9 @@ function proximoNumeroCot() {
 window.abrirModal = (tipo, id = null, prefill = null) => {
   const form = FORMS[tipo];
   const reg = id ? data[tipo].find(r => r.id === id) : null;
-  _modal = { tipo, id, loteIdx: prefill?.loteIdx };
+  _modal = { tipo, id, loteIdx: prefill?.loteIdx, importacao: !!prefill };
   $('modal-title').textContent = reg ? (_readOnly ? '👁 ' : '✏️ Editar ') + form.titulo
-    : prefill ? '📄 CT-e lido do PDF — confira e salve' : '＋ Novo(a) ' + form.titulo;
+    : prefill ? '📄 CT-e lido do PDF — confira e salve' + (IMPORTA_PARA ? ` (será gravado em ${IMPORTA_PARA.label})` : '') : '＋ Novo(a) ' + form.titulo;
   const base = { ...(reg || (tipo === 'cot' ? { numero: proximoNumeroCot() } : {})), ...(prefill?.valores || {}) };
   $('modal-form').innerHTML = (prefill?.resumoHTML || '') + form.campos.map(f => campoHTML(f, base[f.k])).join('');
   if (prefill) Object.keys(prefill.valores).forEach(k => $('fm-' + k)?.classList.add('from-pdf'));
@@ -1082,8 +1142,9 @@ window.salvarModal = async () => {
     const dup = data.transp.find(t => norm(t.nome) === norm(row.nome) && t.id !== id);
     if (dup) { toast('Já existe uma transportadora com esse nome.', 'err'); return; }
   }
+  const paraDestino = !id && tipo === 'cte' && _modal.importacao && !!IMPORTA_PARA;
   if (tipo === 'cte') {
-    const dup = data.cte.find(c => norm(c.numero_cte) === norm(row.numero_cte) && c.id !== id);
+    const dup = (paraDestino ? ctesConhecidos() : data.cte).find(c => norm(c.numero_cte) === norm(row.numero_cte) && c.id !== id);
     if (dup) { toast('Já existe um CT-e com esse número.', 'err'); return; }
     if (row.status_entrega === 'Entregue' && !row.data_entrega) row.data_entrega = hojeISO();
   }
@@ -1091,12 +1152,14 @@ window.salvarModal = async () => {
   let res;
   if (id) res = await supabase.from(T[tipo]).update(row).eq('id', id);
   else {
-    row.filial = FILIAL;
+    if (paraDestino && !(await garantirSessaoImport())) return;
+    row.filial = paraDestino ? FILIAL_IMPORT : FILIAL;
     if (tipo !== 'transp') row.criado_por = _user?.email || null;
-    res = await supabase.from(T[tipo]).insert(row);
+    res = await (paraDestino ? supaImport : supabase).from(T[tipo]).insert(row);
   }
   if (res.error) { toast('Erro ao salvar: ' + msgErroBanco(res.error), 'err'); return; }
-  toast(id ? '✔ Alterações salvas' : '✔ Registro criado');
+  toast(id ? '✔ Alterações salvas' : paraDestino ? `✔ CT-e gravado em ${IMPORTA_PARA.label}` : '✔ Registro criado');
+  if (paraDestino) carregarDestinoImport();
   if (!id && _modal.loteIdx >= 0 && _lote[_modal.loteIdx]) Object.assign(_lote[_modal.loteIdx], { estado: 'importado', valores: row });
   fecharModal();
   await carregar(tipo); montarFiltros(); render();
@@ -1283,7 +1346,7 @@ function nomeTransportadoraCadastrada(emitente) {
 // nas observações) — assim a correção feita uma vez vale para os próximos.
 function transportadoraPorCnpj(cnpj) {
   const raiz = cnpj.slice(0, 8);
-  const c = data.cte.find(c => { const m = /Chave CT-e: (\d{44})/.exec(c.observacoes || ''); return m && m[1].slice(6, 14) === raiz && c.transportadora; });
+  const c = ctesConhecidos().find(c => { const m = /Chave CT-e: (\d{44})/.exec(c.observacoes || ''); return m && m[1].slice(6, 14) === raiz && c.transportadora; });
   return c ? c.transportadora : null;
 }
 // Razão social do emitente: no cabeçalho, a linha "de nome" mais próxima acima
@@ -1322,7 +1385,7 @@ function parteDoTexto(texto, rotulo) {
 // GOLLOG = AWB (11 dígitos), Andorinha/Pantanal = CTRC do SSW ("CGE228165-1"),
 // Carvalima = "série número" ("003 008465128"), outras = número da chave.
 function formatoNumeroCte(transportadora) {
-  const nums = data.cte.filter(c => transportadora && norm(c.transportadora) === norm(transportadora)).map(c => String(c.numero_cte));
+  const nums = ctesConhecidos().filter(c => transportadora && norm(c.transportadora) === norm(transportadora)).map(c => String(c.numero_cte));
   const conta = re => nums.filter(n => re.test(n)).length;
   const fs = [['awb', conta(/^\d{11}$/)], ['ctrc', conta(/^[A-Z]{3}\d{6}-\d$/)], ['serieNum', conta(/^\d{3} \d{9}$/)], ['chave', conta(/^\d{1,9}$/)]]
     .sort((a, b) => b[1] - a[1]);
@@ -1339,7 +1402,7 @@ function filiaisGF(texto) {
 }
 // Campo Grande concentra os CT-es das duas filiais: lá nada é "de outra filial".
 const FILIAL_RECEBE_TODAS = 'CGR';
-const foraDaFilial = filiais => FILIAL !== FILIAL_RECEBE_TODAS && !!filiais?.length && !filiais.includes(FILIAL);
+const foraDaFilial = filiais => FILIAL_IMPORT !== FILIAL_RECEBE_TODAS && !!filiais?.length && !filiais.includes(FILIAL_IMPORT);
 const deOutraFilial = it => foraDaFilial(it.filiais);
 
 // Extrai os campos de um documento (um CT-e) já separado por lerDocsPdf.
@@ -1451,7 +1514,7 @@ function msgErroPdf(err) {
 function cteExistente(numero, ids = [], chave = null) {
   const alvos = new Set([numero, ...ids].filter(Boolean).map(norm));
   if (!alvos.size && !chave) return null;
-  return data.cte.find(c => alvos.has(norm(c.numero_cte)) || (chave && (c.observacoes || '').includes(chave))) || null;
+  return ctesConhecidos().find(c => alvos.has(norm(c.numero_cte)) || (chave && (c.observacoes || '').includes(chave))) || null;
 }
 const existenteDoItem = it => cteExistente(it.valores?.numero_cte, it.ids, it.chave);
 
@@ -1463,10 +1526,14 @@ async function importarPdfCte(file) {
     if (res.length > 1) { importarLotePdf([file], res); return; } // vários CT-es no mesmo PDF
     const { valores, texto, ids, chave, filiais } = res[0];
     const existe = cteExistente(valores.numero_cte, ids, chave);
-    if (existe) { toast(`CT-e ${existe.numero_cte} já está cadastrado — abrindo o registro.`, 'info'); goView('ctes'); abrirModal('cte', existe.id); return; }
+    if (existe) {
+      if (existe.id && data.cte.includes(existe)) { toast(`CT-e ${existe.numero_cte} já está cadastrado — abrindo o registro.`, 'info'); goView('ctes'); abrirModal('cte', existe.id); }
+      else toast(`CT-e ${existe.numero_cte} já está cadastrado em ${IMPORTA_PARA?.label || 'outra filial'}.`, 'info');
+      return;
+    }
     goView('ctes');
     const aviso = foraDaFilial(filiais)
-      ? `<div class="pdf-result" style="background:var(--warn-bg);border-color:var(--warn-bd)">⚠ Este CT-e é de <b>${filiais.map(f => NOME_FILIAL[f]).join(' / ')}</b> e você está em <b>${NOME_FILIAL[FILIAL]}</b>. Confira a filial antes de salvar.</div>` : '';
+      ? `<div class="pdf-result" style="background:var(--warn-bg);border-color:var(--warn-bd)">⚠ Este CT-e é de <b>${filiais.map(f => NOME_FILIAL[f]).join(' / ')}</b> e será gravado em <b>${NOME_FILIAL[FILIAL_IMPORT]}</b>. Confira a filial antes de salvar.</div>` : '';
     abrirModal('cte', null, { valores, resumoHTML: aviso + resumoPdfHTML(file.name, valores, texto) });
   } catch (err) {
     console.error('PDF CT-e:', err);
@@ -1502,7 +1569,7 @@ function renderLote() {
   $('lote-resumo').textContent = lendo ? `Lendo PDFs… ${_lote.length - lendo} CT-e(s) lido(s), faltam ${lendo} arquivo(s)`
     : `${_lote.length} CT-e(s) em ${new Set(_lote.map(it => it.file)).size} PDF(s) · ${sits.filter(s => s === 'ok').length} pronto(s) · ${sits.filter(s => s === 'outra_filial').length} de outra filial · ${sits.filter(s => s === 'incompleto').length} incompleto(s) · ${sits.filter(s => s === 'duplicado').length} já cadastrado(s) · ${sits.filter(s => s === 'erro').length} com erro · ${sits.filter(s => s === 'importado').length} importado(s)`;
   $('btn-lote-importar').disabled = !!lendo || !sel.length;
-  $('btn-lote-importar').textContent = `💾 Importar ${sel.length} selecionado(s)`;
+  $('btn-lote-importar').textContent = `💾 Importar ${sel.length} selecionado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}`;
   const fretes = sel.reduce((s, it) => s + num(it.valores.valor_frete), 0);
   $('lote-total').textContent = sel.length ? `Frete selecionado: ${brl(fretes)}` : '';
   $('tb-lote').innerHTML = `<thead><tr><th></th><th>Situação</th><th>Arquivo</th><th>Nº CT-e</th><th>Emissão</th><th>Transportadora</th><th>Remetente</th><th>Destinatário</th>
@@ -1513,7 +1580,7 @@ function renderLote() {
       const podeMarcar = s === 'ok' || s === 'outra_filial';
       return `<tr>
         <td><input type="checkbox" aria-label="Incluir ${esc(it.file.name)}" ${podeMarcar ? '' : 'disabled'} ${podeMarcar && it.incluir ? 'checked' : ''} onchange="loteMarcar(${i}, this.checked)"></td>
-        <td><span class="badge ${cls}" ${it.erro ? `title="${esc(it.erro)}"` : s === 'outra_filial' ? `title="Este CT-e é de ${it.filiais.map(f => NOME_FILIAL[f]).join(' / ')} — você está em ${NOME_FILIAL[FILIAL]}. Marque só se quiser gravar aqui mesmo."` : ''}>${s === 'outra_filial' ? '⚠ é de ' + it.filiais.map(f => NOME_FILIAL[f]).join('/') : lbl}</span></td>
+        <td><span class="badge ${cls}" ${it.erro ? `title="${esc(it.erro)}"` : s === 'outra_filial' ? `title="Este CT-e é de ${it.filiais.map(f => NOME_FILIAL[f]).join(' / ')} — será gravado em ${NOME_FILIAL[FILIAL_IMPORT]}. Marque só se quiser gravar aqui mesmo."` : ''}>${s === 'outra_filial' ? '⚠ é de ' + it.filiais.map(f => NOME_FILIAL[f]).join('/') : lbl}</span></td>
         <td class="td-trunc td-mono" title="${esc(it.file.name)}">${esc(it.file.name)}${it.parte ? ` <b>(${it.parte})</b>` : ''}</td>
         <td class="td-strong">${esc(v.numero_cte || '—')}</td>
         <td class="td-mono">${dataBR(v.data_emissao)}</td>
@@ -1525,7 +1592,7 @@ function renderLote() {
         <td class="num">${pctHTML(pctFrete(v))}</td>
         <td class="td-mono">${dataBR(v.previsao_entrega)}</td>
         <td><div class="row-acts">${s === 'ok' || s === 'incompleto' || s === 'outra_filial' ? `<button class="abtn" title="Conferir / completar no formulário" onclick="loteEditar(${i})">✏️</button>` : ''}
-          ${s === 'duplicado' && existenteDoItem(it) ? `<button class="abtn" title="Abrir o CT-e já cadastrado" onclick="loteAbrirExistente(${i})">👁</button>` : ''}</div></td>
+          ${s === 'duplicado' && data.cte.includes(existenteDoItem(it)) ? `<button class="abtn" title="Abrir o CT-e já cadastrado" onclick="loteAbrirExistente(${i})">👁</button>` : ''}</div></td>
       </tr>`;
     }).join('')}</tbody>`;
 }
@@ -1533,6 +1600,7 @@ function renderLote() {
 // lidos: resultados já extraídos (quando um único PDF trouxe vários CT-es).
 async function importarLotePdf(files, lidos = null) {
   if (_readOnly) { toast('Seu usuário é somente visualização.', 'err'); return; }
+  $('lote-title').textContent = '📄 Importação de CT-es em lote — confira antes de gravar' + (IMPORTA_PARA ? ` · serão gravados em ${IMPORTA_PARA.label}` : '');
   _lote = files.map(file => ({ file, estado: 'lendo', incluir: true, valores: null }));
   goView('ctes');
   $('modal-lote').classList.add('open');
@@ -1577,12 +1645,14 @@ window.importarLoteSelecionados = async () => {
   const itens = _lote.filter(it => it.incluir && ['ok', 'outra_filial'].includes(situacaoLote(it)));
   if (!itens.length) return;
   const agora = new Date().toISOString();
-  const rows = itens.map(it => ({ ...it.valores, filial: FILIAL, criado_por: _user?.email || null, atualizado_em: agora }));
+  if (!(await garantirSessaoImport())) return;
+  const rows = itens.map(it => ({ ...it.valores, filial: FILIAL_IMPORT, criado_por: _user?.email || null, atualizado_em: agora }));
   $('btn-lote-importar').disabled = true;
-  const { error } = await supabase.from(T.cte).insert(rows);
+  const { error } = await supaImport.from(T.cte).insert(rows);
   if (error) { toast('Erro ao importar: ' + msgErroBanco(error), 'err'); renderLote(); return; }
   itens.forEach(it => it.estado = 'importado');
-  toast(`✔ ${rows.length} CT-e(s) importado(s)`);
+  toast(`✔ ${rows.length} CT-e(s) importado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}`);
+  await carregarDestinoImport();
   await carregar('cte'); montarFiltros(); render();
   renderLote();
 };
