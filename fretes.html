@@ -185,7 +185,8 @@ textarea.finput{resize:vertical;min-height:60px}
 .modal.modal-lg{max-width:1200px}
 .lote-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:0.76rem;color:var(--text2)}
 .lote-acts{margin-left:auto;display:flex;gap:6px}
-#tb-lote td{padding:7px 9px}
+#tb-lote td{padding:7px 8px}
+#tb-lote .td-trunc{max-width:140px}
 #btn-lote-importar:disabled{opacity:0.5;cursor:not-allowed}
 .fpreview{grid-column:span 4;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--radius);background:var(--bg);border:1px dashed var(--border2);font-size:0.74rem;color:var(--text2)}
 
@@ -1133,45 +1134,112 @@ const RE_MOEDA = /(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})(?!\d)/;
 const RE_DATA = /(\d{2})[\/.\-](\d{2})[\/.\-](\d{4}|\d{2})(?!\d)/;
 const moedaNum = s => { const m = RE_MOEDA.exec(s || ''); return m ? Number(m[1].replace(/\./g, '').replace(',', '.')) : null; };
 
-async function lerItensPdf(file) {
+// ── Chave de acesso (44 dígitos): cUF(2) AAMM(4) CNPJ(14) modelo(2) série(3)
+// número(9) tpEmis(1) código(8) DV(1). Modelo 57 = CT-e, 55 = NF-e. O DV (módulo
+// 11) permite achar a chave mesmo no meio de outros números ("NF-E: <chave>000063557")
+// ou formatada com pontos/traços/espaços, sem falso positivo.
+function dvChaveOk(k) {
+  let s = 0, w = 2;
+  for (let i = 42; i >= 0; i--) { s += +k[i] * w; w = w === 9 ? 2 : w + 1; }
+  const r = s % 11;
+  return (r < 2 ? 0 : 11 - r) === +k[43];
+}
+function chavesNoTexto(t, modelo) {
+  const runs = String(t || '').replace(/(\d)[.\-\/ ](?=\d)/g, '$1').match(/\d{44,}/g) || [];
+  const out = [];
+  for (const r of runs) for (let i = 0; i + 44 <= r.length; i++) {
+    const k = r.slice(i, i + 44), uf = +k.slice(0, 2), mes = +k.slice(4, 6);
+    if (k.slice(20, 22) === modelo && uf >= 11 && uf <= 53 && mes >= 1 && mes <= 12 && dvChaveOk(k) && !out.includes(k)) out.push(k);
+  }
+  return out;
+}
+const infoChave = k => ({ chave: k, cnpj: k.slice(6, 20), aamm: k.slice(2, 6), serie: +k.slice(22, 25), numero: +k.slice(25, 34) });
+
+// Monta o texto de um conjunto de itens na ordem de leitura (topo→base,
+// esquerda→direita), igual ao nf-import.js.
+function textoDosItens(its) {
+  const ord = [...its].sort((a, b) => a.p !== b.p ? a.p - b.p : Math.abs(b.y - a.y) > 3 ? b.y - a.y : a.x - b.x);
+  let texto = '', prev = null;
+  ord.forEach(it => {
+    if (prev) texto += it.p !== prev.p || Math.abs(it.y - prev.y) > 3 ? '\n' : (it.x - (prev.x + prev.w) >= 1 ? ' ' : '');
+    texto += it.s;
+    prev = it;
+  });
+  return texto + '\n';
+}
+
+// Lê o PDF e separa em documentos, um por CT-e. Um PDF pode trazer vários CT-es
+// (um por página, ou dois por página no layout SSW) e o mesmo CT-e em duas vias.
+// Dentro da página, cada CT-e é um trecho contínuo na ordem interna do PDF —
+// a posição não serve, porque há PDFs com dois CT-es sobrepostos na mesma metade.
+async function lerDocsPdf(file) {
   await window.NFImport.carregarPdfJs();
   const task = pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
   task.onPassword = cb => cb('');
   const pdf = await task.promise;
-  const itens = [];
-  let texto = '';
+  const docs = []; // { chave, itens }
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent({ includeMarkedContent: false });
     const its = (content.items || []).filter(it => typeof it.str === 'string' && it.str.trim())
       .map(it => ({ s: it.str.replace(/\s+/g, ' ').trim(), x: it.transform[4], y: it.transform[5], w: it.width || 0, p }));
-    // Mesma montagem de texto do nf-import.js: topo→base, esquerda→direita.
-    its.sort((a, b) => Math.abs(b.y - a.y) > 3 ? b.y - a.y : a.x - b.x);
-    let prev = null;
-    its.forEach(it => {
-      if (prev) texto += Math.abs(it.y - prev.y) > 3 ? '\n' : (it.x - (prev.x + prev.w) >= 1 ? ' ' : '');
-      texto += it.s;
-      prev = it;
+    // Primeira posição (na ordem interna) de cada chave de CT-e; a chave pode
+    // vir quebrada em vários itens, então testa uma janela de itens vizinhos.
+    const inicio = new Map();
+    its.forEach((_, i) => {
+      chavesNoTexto(its.slice(i, i + 12).map(x => x.s).join(' '), '57').forEach(k => { if (!inicio.has(k)) inicio.set(k, i); });
     });
-    texto += '\n';
-    itens.push(...its);
+    const chaves = [...inicio.entries()].sort((a, b) => a[1] - b[1]);
+    if (chaves.length <= 1) {
+      const k = chaves[0]?.[0] || null;
+      const atual = docs[docs.length - 1];
+      // Página sem chave nenhuma = continuação do CT-e anterior.
+      if ((!k && atual) || (k && atual && atual.chave === k)) atual.itens.push(...its);
+      else docs.push({ chave: k, itens: its });
+      continue;
+    }
+    // Vários CT-es na página: corta antes do cabeçalho ("AUTORIZAÇÃO", "DACTE"…)
+    // que precede a chave de cada CT-e a partir do segundo.
+    const cortes = [0];
+    for (let j = 1; j < chaves.length; j++) {
+      const ini = chaves[j][1], fimAnterior = chaves[j - 1][1];
+      let c = ini;
+      for (let i = ini - 1; i > fimAnterior; i--) if (/AUTORIZA[ÇC][ÃA]O|^D ?A ?C ?T ?E$|^DACTE$|DOCUMENTO AUXILIAR/i.test(its[i].s)) { c = i; break; }
+      cortes.push(c);
+    }
+    cortes.push(its.length);
+    chaves.forEach(([k], j) => {
+      const trecho = its.slice(cortes[j], cortes[j + 1]);
+      const ja = docs.find(d => d.chave === k);
+      if (ja) ja.itens.push(...trecho); else docs.push({ chave: k, itens: trecho });
+    });
   }
-  return { itens, texto };
+  return docs.map(d => ({ ...d, texto: textoDosItens(d.itens) }));
 }
 
-// Valor na mesma caixa do primeiro rótulo que casar (logo depois do rótulo
-// ou logo abaixo dele, alinhado na coluna).
+// Valor do primeiro rótulo que casar: no mesmo item, logo à direita na mesma
+// linha (layout SSW: "VALOR MERCADORIA (R$) 1.500,00") ou logo abaixo, na coluna
+// (layout em caixas).
 function valorDoRotulo(itens, rotulos, aceitar) {
   for (const re of rotulos) {
     for (const lb of itens.filter(it => re.test(it.s))) {
       const resto = lb.s.replace(re, '').replace(/^[\s:]+/, '');
       if (resto && aceitar(resto) != null) return aceitar(resto);
+      const direita = itens.filter(it => it.p === lb.p && it !== lb && Math.abs(it.y - lb.y) < 2.5
+          && it.x >= lb.x + lb.w - 2 && it.x - (lb.x + lb.w) < 150)
+        .sort((a, b) => a.x - b.x);
+      if (direita.length) {
+        const v = aceitar(direita[0].s.replace(/^\(R\$\)\s*/, ''));
+        if (v != null) return v;
+      }
       const cands = itens.filter(it => it.p === lb.p && it !== lb
-          && it.y < lb.y + 2 && lb.y - it.y < 40
+          && it.y < lb.y - 1 && lb.y - it.y < 40
           && it.x + it.w > lb.x - 25 && it.x < lb.x + Math.max(lb.w, 60) + 25)
-        .map(it => ({ v: aceitar(it.s), d: (lb.y - it.y) + Math.abs(it.x - lb.x) / 8 }))
+        // Prioriza o que está na mesma coluna do rótulo (sobreposição horizontal):
+        // evita pegar o valor da coluna vizinha (ex.: ICMS ao lado do total).
+        .map(it => ({ v: aceitar(it.s), col: Math.min(it.x + it.w, lb.x + lb.w) - Math.max(it.x, lb.x) > 2, d: (lb.y - it.y) + Math.abs(it.x - lb.x) / 8 }))
         .filter(c => c.v != null)
-        .sort((a, b) => a.d - b.d);
+        .sort((a, b) => (b.col - a.col) || a.d - b.d);
       if (cands.length) return cands[0].v;
       // Valor quebrado em vários pedaços (ex.: "Goiania" "-" "GO"): junta a
       // primeira linha abaixo do rótulo, limitada à coluna dele (até o próximo
@@ -1190,16 +1258,17 @@ function valorDoRotulo(itens, rotulos, aceitar) {
 }
 const aceitaMoeda = s => { const v = moedaNum(s); return v != null && v > 0 ? v : null; };
 const aceitaData = s => { const m = RE_DATA.exec(s || ''); return m ? `${m[3].length === 2 ? '20' + m[3] : m[3]}-${m[2]}-${m[1]}` : null; };
-// Município da prestação: "CUIABA - MT", "SAO PAULO/SP"… — texto, não rótulo nem número.
+// Município da prestação: "CUIABA - MT", "SAO PAULO/SP", "3549805 - SAO JOSE DO RIO PRETO - SP"…
 const aceitaMunicipio = s => {
+  s = String(s || '').replace(/^\d{7}\s*-\s*/, '').trim(); // código IBGE na frente
   if (/\d{3}|PRESTA|ORIGEM|DESTINO|IN[ÍI]CIO|T[ÉE]RMINO|MUNIC/i.test(s)) return null;
-  const m = /^([A-ZÀ-Ú][A-ZÀ-Ú' .]{2,40}?)\s*[-\/]\s*([A-Z]{2})$/i.exec(s.trim());
+  const m = /^([A-ZÀ-Ú][A-ZÀ-Ú' .]{2,40}?)\s*[-\/]\s*([A-Z]{2})$/i.exec(s);
   return m ? `${m[1].trim().toUpperCase()}/${m[2].toUpperCase()}` : null;
 };
 
 // O emitente vem com razão social (ex.: "GOL LINHAS AEREAS S/A") e o cadastro
 // usa nome fantasia ("GOLLOG") — tenta casar inteiro e depois por palavra.
-const PALAVRAS_GENERICAS = /^(LTDA|EIRELI|TRANSPORTES?|TRANSPORTADORA|LOGISTICA|EXPRESS|CARGAS?|COMERCIO|SERVICOS?|LINHAS|AEREAS)$/;
+const PALAVRAS_GENERICAS = /^(LTDA|EIRELI|TRANSPORTES?|TRANSPORTADORA|LOGISTICA|EXPRESS|CARGAS?|COMERCIO|SERVICOS?|LINHAS|AEREAS|OPERADOR|EMP|BRASIL)$/;
 function nomeTransportadoraCadastrada(emitente) {
   if (!emitente) return null;
   const e = norm(emitente);
@@ -1207,34 +1276,101 @@ function nomeTransportadoraCadastrada(emitente) {
   const direto = nomes.find(n => e.includes(norm(n)) || norm(n).includes(e));
   if (direto) return direto;
   const palavras = e.split(/[^A-Z0-9]+/).filter(w => w.length >= 3 && !PALAVRAS_GENERICAS.test(w));
-  return nomes.find(n => norm(n).split(/[^A-Z0-9]+/).filter(nw => nw.length >= 3)
+  return nomes.find(n => norm(n).split(/[^A-Z0-9]+/).filter(nw => nw.length >= 3 && !PALAVRAS_GENERICAS.test(nw))
     .some(nw => palavras.some(w => nw.startsWith(w) || w.startsWith(nw)))) || null;
 }
+// Transportadora já usada antes para o mesmo CNPJ emitente (pela chave salva
+// nas observações) — assim a correção feita uma vez vale para os próximos.
+function transportadoraPorCnpj(cnpj) {
+  const raiz = cnpj.slice(0, 8);
+  const c = data.cte.find(c => { const m = /Chave CT-e: (\d{44})/.exec(c.observacoes || ''); return m && m[1].slice(6, 14) === raiz && c.transportadora; });
+  return c ? c.transportadora : null;
+}
+// Razão social do emitente: no cabeçalho, a linha "de nome" mais próxima acima
+// do CNPJ dele (formatado), ignorando endereço, telefone, rótulos do DACTE etc.
+function emitentePorCnpj(texto, cnpj) {
+  const fmt = `${cnpj.slice(0, 2)}.${cnpj.slice(2, 5)}.${cnpj.slice(5, 8)}/${cnpj.slice(8, 12)}-${cnpj.slice(12)}`;
+  const linhas = texto.split('\n');
+  const iC = linhas.findIndex(l => l.includes(fmt));
+  if (iC < 0) return null;
+  for (let i = iC - 1; i >= Math.max(0, iC - 9); i--) {
+    const l = linhas[i].replace(/\s+AUTORIZA[ÇC][ÃA]O.*$/i, '').replace(/\s*(Documento Auxiliar|D A C T E|DACTE).*$/i, '').trim();
+    if (l.split(/\s+/).length < 2 || /^[A-ZÀ-Ú .']+\s*-\s*[A-Z]{2}$/i.test(l) || /CONTROLE DO FISCO|PROTOCOLO|CHAVE DE ACESSO|\d{3}|@|WWW|HTTP|\.COM|\.BR|FONE|CEP|^(RUA|R\.|AV\.?|AVENIDA|ALAMEDA|ROD\.?|RODOVIA|JARDIM|ESTRADA|TRAVESSA)\b|MODELO|S[ÉE]RIE|EMISS|MODAL|CONHECIMENTO|ELETR[ÔO]NICO|^ENDERE|INSC/i.test(l)) continue;
+    if ((l.match(/[A-Za-zÀ-ú]/g) || []).length / l.length < 0.7) continue;
+    return l;
+  }
+  return null;
+}
+// Nome após um rótulo de parte ("REMETENTE", "DESTINATÁRIO"), com ou sem
+// dois-pontos, até o próximo rótulo, "SUFRAMA" ou fim da linha.
+function parteDoTexto(texto, rotulo) {
+  const fim = `(?=\\s+[A-ZÀ-Ú\\/.]{3,25}\\s*:|\\s+DESTINAT[ÁA]RIO\\b|SUFRAMA|\\s*\\n|$)`;
+  const nome = `([A-ZÀ-Ú0-9][A-ZÀ-Ú0-9\\s&.,'\\/\\-]*?)`;
+  const pads = [
+    new RegExp(`${rotulo}\\s*:\\s*${nome}${fim}`, 'i'),               // "REMETENTE: NOME" / "REMETENTE : NOME"
+    new RegExp(`(?:^|\\n)\\s*${rotulo}\\s+(?!:)${nome}${fim}`, 'i'),     // "REMETENTE NOME" no início da linha (SSW)
+    new RegExp(`\\sLTDA\\.?\\s+${rotulo}\\s+${nome}${fim}`, 'i'),         // na mesma linha, depois do remetente
+  ];
+  for (const re of pads) {
+    const m = re.exec(texto);
+    const v = m && m[1].replace(/\s+/g, ' ').trim();
+    if (v && v.length >= 3 && !/^(NOME|ENDERE|CNPJ|C[ÓO]DIGO|CONSULTA|DATA|RECEBEDOR)/i.test(v)) return v;
+  }
+  return null;
+}
+// Formato do Nº do CT-e que já se usa para essa transportadora na planilha:
+// GOLLOG = AWB (11 dígitos), Andorinha/Pantanal = CTRC do SSW ("CGE228165-1"),
+// Carvalima = "série número" ("003 008465128"), outras = número da chave.
+function formatoNumeroCte(transportadora) {
+  const nums = data.cte.filter(c => transportadora && norm(c.transportadora) === norm(transportadora)).map(c => String(c.numero_cte));
+  const conta = re => nums.filter(n => re.test(n)).length;
+  const fs = [['awb', conta(/^\d{11}$/)], ['ctrc', conta(/^[A-Z]{3}\d{6}-\d$/)], ['serieNum', conta(/^\d{3} \d{9}$/)], ['chave', conta(/^\d{1,9}$/)]]
+    .sort((a, b) => b[1] - a[1]);
+  return fs[0][1] ? fs[0][0] : null;
+}
 
-// Lê um PDF de CT-e e devolve os campos do formulário. Não abre tela nenhuma —
-// usado tanto pela importação de um arquivo quanto pela em lote.
-async function extrairCte(file) {
-  const { itens, texto } = await lerItensPdf(file);
-  if (!texto.trim()) throw new Error('SEM_TEXTO');
+// Filiais da GF que aparecem no CT-e (remetente, destinatário, tomador, NF-es),
+// pelo CNPJ: 07.356.800/0001-99 = Campo Grande, /0002-70 = Cuiabá.
+const CNPJ_FILIAIS = { CGR: /07\.?356\.?800\/?0001-?99/, CBA: /07\.?356\.?800\/?0002-?70/ };
+const NOME_FILIAL = { CGR: 'Campo Grande', CBA: 'Cuiabá' };
+function filiaisGF(texto) {
+  const t = String(texto || '').replace(/(\d)[ ](?=\d)/g, '$1');
+  return Object.keys(CNPJ_FILIAIS).filter(f => CNPJ_FILIAIS[f].test(t));
+}
+// Campo Grande concentra os CT-es das duas filiais: lá nada é "de outra filial".
+const FILIAL_RECEBE_TODAS = 'CGR';
+const foraDaFilial = filiais => FILIAL !== FILIAL_RECEBE_TODAS && !!filiais?.length && !filiais.includes(FILIAL);
+const deOutraFilial = it => foraDaFilial(it.filiais);
+
+// Extrai os campos de um documento (um CT-e) já separado por lerDocsPdf.
+function camposDoCte(doc, nomeArquivo) {
+  const { itens, texto } = doc;
   const base = window.NFImport.parsearTextoNF(texto);
+  const chaveCte = doc.chave || chavesNoTexto(texto, '57')[0] || chavesNoTexto(nomeArquivo, '57')[0] || null;
+  const ch = chaveCte ? infoChave(chaveCte) : null;
 
-  // NF-es referenciadas ("DOCUMENTOS ORIGINÁRIOS"): chaves de 44 dígitos de
-  // modelo 55 que não sejam a chave do próprio CT-e. Nº = dígitos 26–34, série = 23–25.
-  const chaves = [...new Set(texto.replace(/(\d{4})[ .](?=\d{4})/g, '$1').match(/(?<!\d)\d{44}(?!\d)/g) || [])]
-    .filter(k => k !== base.coletaChaveAcesso && k.slice(20, 22) === '55');
-  const nfs = chaves.map(k => k.slice(25, 34).replace(/^0+/, ''));
-  const serie = chaves[0] ? String(+chaves[0].slice(22, 25)) : null;
+  // NF-es referenciadas: chaves modelo 55 válidas. Nº = dígitos 26–34, série = 23–25.
+  const chavesNf = chavesNoTexto(texto, '55');
+  const nfs = [...new Set(chavesNf.map(k => String(+k.slice(25, 34))))];
+  const serieNf = chavesNf[0] ? String(+chavesNf[0].slice(22, 25)) : null;
 
-  const valorFrete = valorDoRotulo(itens, [/VALOR TOTAL DA PRESTA[ÇC][ÃA]O/i, /VALOR TOTAL DO SERVI[ÇC]O/i, /VALOR A RECEBER/i, /TOTAL DA PRESTA/i, /VALOR DO FRETE/i], aceitaMoeda)
-    ?? aceitaMoeda((/VALOR TOTAL DA PRESTA[ÇC][ÃA]O[^\n]*\n?([^\n]*)/i.exec(texto) || [])[1]);
-  const valorNf = valorDoRotulo(itens, [/VALOR TOTAL DA (MERCADORIA|CARGA)/i, /VALOR DA (CARGA|MERCADORIA)/i, /VALOR TOTAL DOS PRODUTOS/i, /VLR\.? ?(DA )?(CARGA|MERCADORIA)/i], aceitaMoeda);
-  // Sem fallback para "primeira data do texto": o DACTE aéreo cita a lei
-  // 7.565 "de 19/12/1986" no rodapé, que vinha antes da emissão.
-  const emissao = valorDoRotulo(itens, [/DATA (E HORA )?(DE |DA )?EMISS[ÃA]O/i, /DATA\/HORA EMISS[ÃA]O/i], aceitaData)
-    ?? aceitaData((/EMISS[ÃA]O[\s\S]{0,200}?(\d{2}\/\d{2}\/\d{2,4})/i.exec(texto) || [])[1]);
-  const previsao = valorDoRotulo(itens, [/DATA PREVISTA DE ENTREGA/i, /PREVIS[ÃA]O DE ENTREGA/i, /DATA PREVISTA/i], aceitaData)
-    ?? aceitaData((/PREVIS(?:TA|[ÃA]O)[^\n]{0,40}ENTREGA[\s\S]{0,80}?(\d{2}\/\d{2}\/\d{2,4})/i.exec(texto) || [])[1]);
+  const valorFrete = valorDoRotulo(itens, [/VALOR TOTAL DA PRESTA[ÇC][ÃA]O/i, /VALOR TOTAL DO SERVI[ÇC]O/i, /FRETE TOTAL/i, /VALOR A RECEBER/i, /TOTAL DA PRESTA/i, /VALOR DO FRETE/i], aceitaMoeda)
+    ?? aceitaMoeda((/(?:VALOR TOTAL DA PRESTA[ÇC][ÃA]O|FRETE TOTAL|VALOR A RECEBER)[^\n]*?\n?([^\n]*)/i.exec(texto) || [])[1]);
+  const valorNf = valorDoRotulo(itens, [/VALOR TOTAL DA (MERCADORIA|CARGA)/i, /VALOR (DA )?(CARGA|MERCADORIA)/i, /VALOR TOTAL DOS PRODUTOS/i, /VLR\.? ?(DA )?(CARGA|MERCADORIA)/i], aceitaMoeda)
+    ?? aceitaMoeda((/VALOR (?:TOTAL )?(?:DA )?(?:MERCADORIA|CARGA)\s*(?:\(R\$\))?\s*:?\s*([\d.]+,\d{2})/i.exec(texto) || [])[1]);
+
+  // Emissão: confere com o mês da chave (AAMM). Sem "primeira data do texto":
+  // o DACTE aéreo cita a lei 7.565 "de 19/12/1986" no rodapé.
+  const bateChave = d => !ch || (d && d.slice(2, 4) + d.slice(5, 7) === ch.aamm);
+  let emissao = valorDoRotulo(itens, [/DATA (E HORA )?(DE |DA )?EMISS[ÃA]O/i, /DATA\/HORA EMISS[ÃA]O/i], aceitaData);
+  if (!emissao || !bateChave(emissao)) {
+    const comHora = [...texto.matchAll(/(\d{2}\/\d{2}\/(?:\d{4}|\d{2}))\s+\d{2}:\d{2}/g)].map(m => aceitaData(m[1]));
+    emissao = comHora.find(bateChave) || emissao || comHora[0] || null;
+  }
+  const previsao = valorDoRotulo(itens, [/DATA PREVISTA DE ENTREGA/i, /DATA PREVISTA DA ENTREGA/i, /PREVIS[ÃA]O DE ENTREGA/i, /PREV\.?\s*ENTREGA/i, /DATA PREVISTA/i], aceitaData)
+    ?? aceitaData((/PREV(?:ISTA|IS[ÃA]O|\.)?\s*(?:D[AE]\s*)?ENTREGA[\s\S]{0,60}?(\d{2}\/\d{2}\/\d{2,4})/i.exec(texto) || [])[1]);
   const prazo = emissao && previsao && previsao >= emissao ? diasEntre(emissao, previsao) : null;
+
   const inicio = valorDoRotulo(itens, [/IN[ÍI]CIO DA PRESTA/i, /ORIGEM DA PRESTA/i, /MUNIC[ÍI]PIO DE ORIGEM/i], aceitaMunicipio);
   const termino = valorDoRotulo(itens, [/T[ÉE]RMINO DA PRESTA/i, /DESTINO DA PRESTA/i, /MUNIC[ÍI]PIO DE DESTINO/i], aceitaMunicipio);
   // A planilha usa a rota por código de base/aeroporto ("SPA - CGB"); o DACTE
@@ -1242,24 +1378,32 @@ async function extrairCte(file) {
   const mCod = /OR:\s*\[([A-Z]{3})\]\s*DE:\s*\[([A-Z]{3})\]/.exec(texto)
     || /AEROPORTO\s+DE\s+ORIGEM[^\n]*\n\s*([A-Z]{3})(?:\s+[A-Z]{3})?\s+([A-Z]{3})\s*\n/.exec(texto);
   const rota = mCod ? `${mCod[1]} - ${mCod[2]}` : inicio && termino ? `${inicio} - ${termino}` : inicio;
-  const mDest = /DESTINAT[ÁA]RIO\s*:\s*([A-ZÀ-Ú0-9][A-ZÀ-Ú0-9\s&.,'\/\-]*?)(?=\s+[A-ZÀ-Ú\/]{3,25}\s*:|\s*\n|$)/i.exec(texto);
-  const destinatario = mDest ? mDest[1].trim() : null;
-  // parsearTextoNF cai na transportadora quando não acha "REMETENTE:" — aqui
-  // isso seria errado, então só aceita se veio mesmo do rótulo.
-  const remetente = /REMETENTE\s*:/i.test(texto) && base.coletaFornecedor !== base.coletaTransportadora ? base.coletaFornecedor : null;
 
-  // Tipo de saída sugerido pelas partes (o usuário confere no formulário).
+  const remetente = parteDoTexto(texto, 'REMETENTE');
+  const destinatario = parteDoTexto(texto, 'DESTINAT[ÁA]RIO');
   const ehGF = s => /GF MEDICAL/i.test(s || '');
   const tipo = ehGF(remetente) && ehGF(destinatario) ? 'TRANSFERENCIA' : ehGF(destinatario) ? 'COMPRA' : ehGF(remetente) ? 'VENDA' : null;
 
-  const transportadora = nomeTransportadoraCadastrada(base.coletaTransportadora) || base.coletaTransportadora?.toUpperCase() || null;
+  const emitente = (ch && emitentePorCnpj(texto, ch.cnpj)) || base.coletaTransportadora;
+  const transportadora = (ch && transportadoraPorCnpj(ch.cnpj)) || nomeTransportadoraCadastrada(emitente) || emitente?.toUpperCase() || null;
+
+  // Identificadores possíveis do CT-e; o Nº salvo segue o formato da transportadora.
+  const awbRaw = (base.cte || '').replace(/[\s\-]/g, '');
+  const ids = {
+    awb: /^\d{11}$/.test(awbRaw) ? awbRaw : null,
+    ctrc: (/\b([A-Z]{3}) (\d{6}-\d)\b/.exec(texto) || []).slice(1).join('') || null,
+    serieNum: ch ? `${String(ch.serie).padStart(3, '0')} ${String(ch.numero).padStart(9, '0')}` : null,
+    chave: ch ? String(ch.numero) : null,
+  };
+  const fmt = formatoNumeroCte(transportadora);
+  const numeroCte = (fmt && ids[fmt]) || ids.awb || ids.ctrc || ids.chave || (base.cte ? base.cte.replace(/[\s\-]/g, '') : null);
 
   const valores = {};
   const put = (k, v) => { if (v != null && v !== '') valores[k] = v; };
-  put('numero_cte', base.cte ? base.cte.replace(/[\s\-]/g, '') : null);
+  put('numero_cte', numeroCte);
   put('data_emissao', emissao);
   put('numero_nfe', nfs.join(', ') || base.nfCompra);
-  put('serie_nf', serie);
+  put('serie_nf', serieNf);
   put('origem', rota);
   put('transportadora', transportadora);
   put('remetente', remetente);
@@ -1270,9 +1414,16 @@ async function extrairCte(file) {
   put('prazo_dias', prazo);
   put('previsao_entrega', previsao);
   put('observacoes', [inicio && termino && mCod ? `${inicio} → ${termino}` : null,
-    base.coletaChaveAcesso ? 'Chave CT-e: ' + base.coletaChaveAcesso : null].filter(Boolean).join(' · ') || null);
+    chaveCte ? 'Chave CT-e: ' + chaveCte : null].filter(Boolean).join(' · ') || null);
   valores.status_entrega = 'Em trânsito';
-  return { valores, texto };
+  return { valores, texto, ids: Object.values(ids).filter(Boolean), chave: chaveCte, filiais: filiaisGF(texto) };
+}
+
+// Lê um PDF e devolve um resultado por CT-e encontrado nele.
+async function extrairCtes(file) {
+  const docs = await lerDocsPdf(file);
+  if (!docs.some(d => d.texto.trim())) throw new Error('SEM_TEXTO');
+  return docs.filter(d => d.texto.trim()).map(d => camposDoCte(d, file.name));
 }
 
 const ROTULOS_PDF = { numero_cte: 'Nº CT-e', data_emissao: 'Emissão', numero_nfe: 'NF-e', transportadora: 'Transportadora', origem: 'Rota',
@@ -1295,17 +1446,28 @@ function msgErroPdf(err) {
     : /timeout|falha|load/i.test(msg) ? 'Falha ao carregar o leitor de PDF. Verifique a conexão.'
     : 'Erro ao ler PDF: ' + msg;
 }
-const cteExistente = numero => numero ? data.cte.find(c => norm(c.numero_cte) === norm(numero)) : null;
+// Já cadastrado: mesmo Nº em qualquer formato conhecido (AWB, CTRC, série+número,
+// número da chave) ou a mesma chave de acesso guardada nas observações.
+function cteExistente(numero, ids = [], chave = null) {
+  const alvos = new Set([numero, ...ids].filter(Boolean).map(norm));
+  if (!alvos.size && !chave) return null;
+  return data.cte.find(c => alvos.has(norm(c.numero_cte)) || (chave && (c.observacoes || '').includes(chave))) || null;
+}
+const existenteDoItem = it => cteExistente(it.valores?.numero_cte, it.ids, it.chave);
 
 async function importarPdfCte(file) {
   if (_readOnly) { toast('Seu usuário é somente visualização.', 'err'); return; }
   toast('⏳ Lendo PDF do CT-e…', 'info');
   try {
-    const { valores, texto } = await extrairCte(file);
-    const existe = cteExistente(valores.numero_cte);
-    if (existe) { toast(`CT-e ${valores.numero_cte} já está cadastrado — abrindo o registro.`, 'info'); goView('ctes'); abrirModal('cte', existe.id); return; }
+    const res = await extrairCtes(file);
+    if (res.length > 1) { importarLotePdf([file], res); return; } // vários CT-es no mesmo PDF
+    const { valores, texto, ids, chave, filiais } = res[0];
+    const existe = cteExistente(valores.numero_cte, ids, chave);
+    if (existe) { toast(`CT-e ${existe.numero_cte} já está cadastrado — abrindo o registro.`, 'info'); goView('ctes'); abrirModal('cte', existe.id); return; }
     goView('ctes');
-    abrirModal('cte', null, { valores, resumoHTML: resumoPdfHTML(file.name, valores, texto) });
+    const aviso = foraDaFilial(filiais)
+      ? `<div class="pdf-result" style="background:var(--warn-bg);border-color:var(--warn-bd)">⚠ Este CT-e é de <b>${filiais.map(f => NOME_FILIAL[f]).join(' / ')}</b> e você está em <b>${NOME_FILIAL[FILIAL]}</b>. Confira a filial antes de salvar.</div>` : '';
+    abrirModal('cte', null, { valores, resumoHTML: aviso + resumoPdfHTML(file.name, valores, texto) });
   } catch (err) {
     console.error('PDF CT-e:', err);
     toast(msgErroPdf(err), 'err');
@@ -1319,72 +1481,82 @@ let _lote = [];
 const SITUACAO_LOTE = {
   lendo: ['b-mute', '⏳ lendo…'], ok: ['b-ok', '✔ pronto'], incompleto: ['b-warn', '▲ incompleto'],
   duplicado: ['b-mute', '⧉ já cadastrado'], erro: ['b-crit', '✖ erro'], importado: ['b-info', '✔ importado'],
+  outra_filial: ['b-warn', '⚠ outra filial'],
 };
 function situacaoLote(it) {
   if (it.estado !== 'lido') return it.estado;
   const v = it.valores;
   // Duplicado: já no banco, já importado neste lote ou repetido num PDF anterior da lista.
-  const mesmo = o => o !== it && o.valores?.numero_cte && norm(o.valores.numero_cte) === norm(v.numero_cte);
-  if (cteExistente(v.numero_cte) || _lote.some(o => mesmo(o)
+  const mesmo = o => o !== it && o.valores && ((it.chave && o.chave === it.chave)
+    || (o.valores.numero_cte && norm(o.valores.numero_cte) === norm(v.numero_cte)));
+  if (existenteDoItem(it) || _lote.some(o => mesmo(o)
       && (o.estado === 'importado' || (o.estado === 'lido' && _lote.indexOf(o) < _lote.indexOf(it))))) return 'duplicado';
-  return v.numero_cte && v.transportadora ? 'ok' : 'incompleto';
+  if (!(v.numero_cte && v.transportadora)) return 'incompleto';
+  return deOutraFilial(it) ? 'outra_filial' : 'ok';
 }
 
 function renderLote() {
   const sits = _lote.map(situacaoLote);
   const lendo = sits.filter(s => s === 'lendo').length;
-  const sel = _lote.filter((it, i) => it.incluir && sits[i] === 'ok');
-  $('lote-resumo').textContent = lendo ? `Lendo ${_lote.length - lendo}/${_lote.length} PDF(s)…`
-    : `${_lote.length} PDF(s) · ${sits.filter(s => s === 'ok').length} pronto(s) · ${sits.filter(s => s === 'incompleto').length} incompleto(s) · ${sits.filter(s => s === 'duplicado').length} já cadastrado(s) · ${sits.filter(s => s === 'erro').length} com erro · ${sits.filter(s => s === 'importado').length} importado(s)`;
+  const sel = _lote.filter((it, i) => it.incluir && (sits[i] === 'ok' || sits[i] === 'outra_filial'));
+  $('lote-resumo').textContent = lendo ? `Lendo PDFs… ${_lote.length - lendo} CT-e(s) lido(s), faltam ${lendo} arquivo(s)`
+    : `${_lote.length} CT-e(s) em ${new Set(_lote.map(it => it.file)).size} PDF(s) · ${sits.filter(s => s === 'ok').length} pronto(s) · ${sits.filter(s => s === 'outra_filial').length} de outra filial · ${sits.filter(s => s === 'incompleto').length} incompleto(s) · ${sits.filter(s => s === 'duplicado').length} já cadastrado(s) · ${sits.filter(s => s === 'erro').length} com erro · ${sits.filter(s => s === 'importado').length} importado(s)`;
   $('btn-lote-importar').disabled = !!lendo || !sel.length;
   $('btn-lote-importar').textContent = `💾 Importar ${sel.length} selecionado(s)`;
   const fretes = sel.reduce((s, it) => s + num(it.valores.valor_frete), 0);
   $('lote-total').textContent = sel.length ? `Frete selecionado: ${brl(fretes)}` : '';
-  $('tb-lote').innerHTML = `<thead><tr><th></th><th>Arquivo</th><th>Nº CT-e</th><th>Emissão</th><th>Transportadora</th><th>Remetente</th><th>Destinatário</th>
-    <th class="num">Frete</th><th class="num">Valor NF</th><th class="num">% Frete</th><th>Previsão</th><th>Situação</th><th></th></tr></thead><tbody>
+  $('tb-lote').innerHTML = `<thead><tr><th></th><th>Situação</th><th>Arquivo</th><th>Nº CT-e</th><th>Emissão</th><th>Transportadora</th><th>Remetente</th><th>Destinatário</th>
+    <th class="num">Frete</th><th class="num">Valor NF</th><th class="num">% Frete</th><th>Previsão</th><th></th></tr></thead><tbody>
     ${_lote.map((it, i) => {
       const s = sits[i], v = it.valores || {};
       const [cls, lbl] = SITUACAO_LOTE[s];
-      const podeMarcar = s === 'ok';
+      const podeMarcar = s === 'ok' || s === 'outra_filial';
       return `<tr>
         <td><input type="checkbox" aria-label="Incluir ${esc(it.file.name)}" ${podeMarcar ? '' : 'disabled'} ${podeMarcar && it.incluir ? 'checked' : ''} onchange="loteMarcar(${i}, this.checked)"></td>
-        <td class="td-trunc td-mono" title="${esc(it.file.name)}">${esc(it.file.name)}</td>
+        <td><span class="badge ${cls}" ${it.erro ? `title="${esc(it.erro)}"` : s === 'outra_filial' ? `title="Este CT-e é de ${it.filiais.map(f => NOME_FILIAL[f]).join(' / ')} — você está em ${NOME_FILIAL[FILIAL]}. Marque só se quiser gravar aqui mesmo."` : ''}>${s === 'outra_filial' ? '⚠ é de ' + it.filiais.map(f => NOME_FILIAL[f]).join('/') : lbl}</span></td>
+        <td class="td-trunc td-mono" title="${esc(it.file.name)}">${esc(it.file.name)}${it.parte ? ` <b>(${it.parte})</b>` : ''}</td>
         <td class="td-strong">${esc(v.numero_cte || '—')}</td>
         <td class="td-mono">${dataBR(v.data_emissao)}</td>
-        <td>${esc(v.transportadora || '—')}</td>
+        <td class="td-trunc" title="${esc(v.transportadora)}">${esc(v.transportadora || '—')}</td>
         <td class="td-trunc" title="${esc(v.remetente)}">${esc(v.remetente || '—')}</td>
         <td class="td-trunc" title="${esc(v.destino)}">${esc(v.destino || '—')}</td>
         <td class="num">${v.valor_frete != null ? brl(v.valor_frete) : '—'}</td>
         <td class="num">${v.valor_nfe != null ? brl(v.valor_nfe) : '—'}</td>
         <td class="num">${pctHTML(pctFrete(v))}</td>
         <td class="td-mono">${dataBR(v.previsao_entrega)}</td>
-        <td><span class="badge ${cls}" ${it.erro ? `title="${esc(it.erro)}"` : ''}>${lbl}</span></td>
-        <td><div class="row-acts">${s === 'ok' || s === 'incompleto' ? `<button class="abtn" title="Conferir / completar no formulário" onclick="loteEditar(${i})">✏️</button>` : ''}
-          ${s === 'duplicado' && cteExistente(v.numero_cte) ? `<button class="abtn" title="Abrir o CT-e já cadastrado" onclick="loteAbrirExistente(${i})">👁</button>` : ''}</div></td>
+        <td><div class="row-acts">${s === 'ok' || s === 'incompleto' || s === 'outra_filial' ? `<button class="abtn" title="Conferir / completar no formulário" onclick="loteEditar(${i})">✏️</button>` : ''}
+          ${s === 'duplicado' && existenteDoItem(it) ? `<button class="abtn" title="Abrir o CT-e já cadastrado" onclick="loteAbrirExistente(${i})">👁</button>` : ''}</div></td>
       </tr>`;
     }).join('')}</tbody>`;
 }
 
-async function importarLotePdf(files) {
+// lidos: resultados já extraídos (quando um único PDF trouxe vários CT-es).
+async function importarLotePdf(files, lidos = null) {
   if (_readOnly) { toast('Seu usuário é somente visualização.', 'err'); return; }
   _lote = files.map(file => ({ file, estado: 'lendo', incluir: true, valores: null }));
   goView('ctes');
   $('modal-lote').classList.add('open');
   renderLote();
-  for (const it of _lote) {
+  for (const file of files) {
+    const pos = _lote.findIndex(it => it.file === file && it.estado === 'lendo');
+    let novos;
     try {
-      const r = await extrairCte(it.file);
-      Object.assign(it, { estado: 'lido', valores: r.valores, texto: r.texto });
+      const res = lidos || await extrairCtes(file);
+      novos = res.map((r, j) => ({ file, estado: 'lido', valores: r.valores, texto: r.texto, ids: r.ids, chave: r.chave, filiais: r.filiais,
+        incluir: !foraDaFilial(r.filiais),
+        parte: res.length > 1 ? `${j + 1}/${res.length}` : null }));
     } catch (err) {
-      console.error('PDF CT-e (lote):', it.file.name, err);
-      Object.assign(it, { estado: 'erro', erro: msgErroPdf(err) });
+      console.error('PDF CT-e (lote):', file.name, err);
+      novos = [{ file, estado: 'erro', incluir: false, erro: msgErroPdf(err) }];
     }
+    _lote.splice(pos, 1, ...novos); // um PDF pode virar vários CT-es
     renderLote();
   }
 }
 
 window.loteMarcar = (i, on) => { _lote[i].incluir = on; renderLote(); };
-window.loteMarcarTodos = on => { _lote.forEach(it => it.incluir = on); renderLote(); };
+// "Marcar todos" não inclui os de outra filial — esses só marcando um a um.
+window.loteMarcarTodos = on => { _lote.forEach(it => it.incluir = on && !deOutraFilial(it)); renderLote(); };
 window.loteEditar = i => {
   const it = _lote[i];
   $('modal-lote').classList.remove('open');
@@ -1392,17 +1564,17 @@ window.loteEditar = i => {
 };
 window.loteAbrirExistente = i => {
   $('modal-lote').classList.remove('open');
-  abrirModal('cte', cteExistente(_lote[i].valores.numero_cte).id);
+  abrirModal('cte', existenteDoItem(_lote[i]).id);
   _modal.loteIdx = -1; // ao fechar, volta para a conferência do lote
 };
 window.fecharLote = () => {
-  const pendentes = _lote.filter((it, i) => situacaoLote(it) === 'ok' && it.incluir).length;
+  const pendentes = _lote.filter(it => situacaoLote(it) === 'ok' && it.incluir).length;
   if (pendentes && !confirm(`${pendentes} CT-e(s) lido(s) ainda não foram importados. Fechar mesmo assim?`)) return;
   $('modal-lote').classList.remove('open');
   _lote = [];
 };
 window.importarLoteSelecionados = async () => {
-  const itens = _lote.filter(it => it.incluir && situacaoLote(it) === 'ok');
+  const itens = _lote.filter(it => it.incluir && ['ok', 'outra_filial'].includes(situacaoLote(it)));
   if (!itens.length) return;
   const agora = new Date().toISOString();
   const rows = itens.map(it => ({ ...it.valores, filial: FILIAL, criado_por: _user?.email || null, atualizado_em: agora }));
