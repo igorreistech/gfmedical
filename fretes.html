@@ -663,7 +663,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.20';
+const VERSAO = '2026-10-11.21';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -2135,14 +2135,23 @@ function postarSsw(acao, campos) {
 window.rastrearCte = id => {
   const c = data.cte.find(x => x.id === id);
   if (!c) return;
-  // SSW "pelo remetente": CNPJ de quem emitiu a NF (a GF nas saídas, o fornecedor nas compras) + Nº da(s) NF(s).
+  // SSW "pelo destinatário" (ssw.inf.br/2/rastreamento_dest?pwd=2): CNPJ de quem recebe + Nº da(s) NF(s).
+  // Compras/entradas: a GF é a destinatária → CNPJ da GF. Saídas: CNPJ do cliente (se gravado).
   const nfs = nfsDe(c);
+  const NL = String.fromCharCode(10);
+  const gfDestino = /GF MEDICAL/i.test(c.destino || '') || /COMPRA/i.test(c.tipo_saida || '') || soDigitos(c.destino_cnpj).startsWith('07356800');
+  const cnpjDest = gfDestino ? (soDigitos(c.destino_cnpj).startsWith('07356800') ? soDigitos(c.destino_cnpj) : cnpjGf()) : soDigitos(c.destino_cnpj);
+  if (nfs.length && (cnpjDest.length === 14 || cnpjDest.length === 11)) {
+    postarSsw('resultSSW_dest', { cnpjdest: cnpjDest, NR: nfs.join(NL), chave: '' });
+    toast(`🔍 Rastreando no SSW: NF ${nfs.join(', ')} · destinatário ${fmtDoc(cnpjDest)}`, 'info');
+    return;
+  }
+  // Sem o CNPJ do cliente: SSW "pelo remetente" com o CNPJ da GF (ou de quem emitiu a NF).
   const rem = soDigitos(c.remetente_cnpj);
-  const gfRemetente = /GF MEDICAL/i.test(c.remetente || '') || !/COMPRA/i.test(c.tipo_saida || '');
-  const cnpjEmit = rem.length === 14 ? rem : (gfRemetente ? cnpjGf() : '');
+  const cnpjEmit = rem.length === 14 ? rem : (!gfDestino ? cnpjGf() : '');
   if (nfs.length && cnpjEmit) {
-    postarSsw('resultSSW', { cnpj: cnpjEmit, NR: nfs.join(String.fromCharCode(10)), chave: '' });
-    toast(`🔍 Rastreando no SSW: NF ${nfs.join(', ')} · CNPJ ${fmtDoc(cnpjEmit)}`, 'info');
+    postarSsw('resultSSW', { cnpj: cnpjEmit, NR: nfs.join(NL), chave: '' });
+    toast(`🔍 Rastreando no SSW: NF ${nfs.join(', ')} · remetente ${fmtDoc(cnpjEmit)}`, 'info');
     return;
   }
   const chaveNf = c.chave_nfe || (/Chave NF-e: (\d{44})/.exec(c.observacoes || '') || [])[1];
@@ -2160,9 +2169,7 @@ window.rastrearCte = id => {
     window.open('https://www.cte.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=completa&tipoConteudo=mCK/KoCqru0=', '_blank');
     return;
   }
-  // Compra sem o CNPJ do fornecedor: SSW "pelo destinatário" lista tudo que está vindo para a GF.
-  postarSsw('resultSSW_dest', { cnpjdest: cnpjGf(), senha: '' });
-  toast(`🔍 Sem o CNPJ de quem emitiu a NF — abri no SSW tudo que está vindo para a GF (${fmtDoc(cnpjGf())}); procure a NF ${nfs.join(', ') || c.numero_cte}.`, 'info');
+  toast('Esse CT-e não tem Nº de NF nem chave de acesso — preencha a NF para rastrear no SSW.', 'info');
 };
 
 window.excluirCtesLote = async () => {
