@@ -183,6 +183,14 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.rast-nf{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;background:var(--surface)}
+.rast-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.rast-ev{list-style:none;margin:10px 0 0 6px;padding:0 0 0 14px;border-left:2px solid var(--border2)}
+.rast-ev li{position:relative;display:flex;gap:10px;padding:0 0 10px 6px;font-size:0.76rem;color:var(--text)}
+.rast-ev li::before{content:'';position:absolute;left:-21px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--border2)}
+.rast-ev li:first-child::before{background:var(--ok-c)}
+.rast-dh{font-family:var(--mono);font-size:0.68rem;color:var(--text2);min-width:92px}
+.rast-det{color:var(--text2);font-size:0.7rem;margin-top:2px}
 .calc-rota-grid{grid-template-columns:1fr 110px}
 .calc-rota-grid .fg{grid-column:auto}.calc-rota-grid .fg:last-child{grid-column:1 / -1}
 .tab-conta{margin-top:8px;padding:8px 10px;border-radius:var(--radius);background:var(--surface2, rgba(0,0,0,.03));font-size:0.72rem;color:var(--text2);line-height:1.6}
@@ -579,6 +587,17 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
   </div>
 </div>
 
+<div id="modal-rastreio" class="modal-ov">
+  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="rast-title">
+    <div class="mhead"><span class="mtitle" id="rast-title">🔍 Rastreio</span><button class="mclose" onclick="document.getElementById('modal-rastreio').classList.remove('open')" aria-label="Fechar">✕</button></div>
+    <div class="mbody">
+      <div class="td-mono" id="rast-info" style="margin-bottom:10px"></div>
+      <div id="rast-res"></div>
+    </div>
+    <div class="mfoot"><button class="tbtn tbtn-g" onclick="abrirSswSite()">🔗 Abrir no site do SSW</button><button class="tbtn tbtn-p" id="rast-entregue" style="display:none" onclick="marcarEntreguePeloSsw()"></button></div>
+  </div>
+</div>
+
 <div id="modal-ssw" class="modal-ov">
   <div class="modal" style="max-width:420px" role="dialog" aria-modal="true" aria-labelledby="ssw-title">
     <div class="mhead"><span class="mtitle" id="ssw-title">🔍 Rastreamento no SSW</span><button class="mclose" onclick="document.getElementById('modal-ssw').classList.remove('open')" aria-label="Fechar">✕</button></div>
@@ -674,7 +693,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.23';
+const VERSAO = '2026-10-11.24';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -1141,7 +1160,7 @@ function montarFiltros() {
 }
 
 $('f-periodo').onchange = e => { ui.periodo = e.target.value; render(); };
-$('f-busca').oninput = e => { ui.busca = e.target.value; render(); };
+$('f-busca').oninput = e => { ui.busca = e.target.value; if (ui.busca.trim() && ui.view === 'dashboard') goView('ctes'); else render(); };
 $('f-cte-transp').onchange = e => { ui.cteTransp = e.target.value; render(); };
 $('f-cte-tipo').onchange = e => { ui.cteTipo = e.target.value; render(); };
 $('f-cte-pct').onchange = e => { ui.ctePct = e.target.value; render(); };
@@ -2156,26 +2175,90 @@ function postarSsw(acao, campos) {
   $('ssw-info').textContent = `NF ${campos.NR ? campos.NR.split(String.fromCharCode(10)).join(', ') : '—'} · CNPJ ${fmtDoc(campos.cnpjdest || campos.cnpj || '')}`;
   $('modal-ssw').classList.add('open');
 }
-window.rastrearCte = id => {
+// Rastreio dentro da página: /api/rastreio (função da Vercel) consulta o SSW e devolve
+// situação atual + histórico completo. Tenta pelo remetente e pelo destinatário.
+function tentativasRastreio(c) {
+  const nfs = nfsDe(c);
+  if (!nfs.length) return [];
+  const gfDestino = /GF MEDICAL/i.test(c.destino || '') || /COMPRA/i.test(c.tipo_saida || '') || soDigitos(c.destino_cnpj).startsWith('07356800');
+  const rem = soDigitos(c.remetente_cnpj), dest = soDigitos(c.destino_cnpj);
+  const ok = d => d.length === 14 || d.length === 11;
+  const t = [];
+  if (gfDestino) {
+    t.push({ tipo: 'dest', cnpj: dest.startsWith('07356800') ? dest : cnpjGf() });
+    if (ok(rem)) t.push({ tipo: 'rem', cnpj: rem });
+  } else {
+    t.push({ tipo: 'rem', cnpj: ok(rem) ? rem : cnpjGf() });
+    if (ok(dest)) t.push({ tipo: 'dest', cnpj: dest });
+  }
+  return t.map(x => ({ ...x, nfs }));
+}
+const sswForm = x => x.tipo === 'dest' ? ['resultSSW_dest_nro', { cnpjdest: x.cnpj, NR: x.nfs.join(String.fromCharCode(10)), chave: '' }]
+  : ['resultSSW', { cnpj: x.cnpj, NR: x.nfs.join(String.fromCharCode(10)), chave: '' }];
+let _rastreio = null;
+window.abrirSswSite = () => { if (_rastreio?.tent) postarSsw(...sswForm(_rastreio.tent)); };
+window.marcarEntreguePeloSsw = async () => {
+  const r = _rastreio; if (!r?.entregueEm || _readOnly) return;
+  const { error } = await supabase.from(T.cte).update({ status_entrega: 'Entregue', data_entrega: r.entregueEm, atualizado_em: new Date().toISOString() }).eq('id', r.cte.id);
+  if (error) { toast('Erro ao gravar: ' + msgErroBanco(error), 'err'); return; }
+  registrarLog('entregue (rastreio SSW)', T.cte, r.cte.numero_cte, { data_entrega: r.entregueEm });
+  toast(`✔ CT-e ${r.cte.numero_cte} marcado como entregue em ${dataBR(r.entregueEm)}`);
+  $('modal-rastreio').classList.remove('open');
+  await carregar('cte'); render();
+};
+const naoDisp = t => /n[ãa]o dispon/i.test(t || '');
+const ehEntregue = t => /ENTREGUE/i.test(t || '') && !/N[ÃA]O ENTREGUE/i.test(t || '');
+function rastreioHTML(res) {
+  const linhas = res?.linhas || [];
+  if (!linhas.length) return `<div class="empty-mini">${res?.vazio ? 'O SSW não encontrou essa NF.' : 'Sem informação no SSW.'}</div>`;
+  return linhas.map(l => {
+    const ev = l.eventos && l.eventos.length ? l.eventos : [{ dataHora: l.dataHora, unidade: l.unidade, situacao: l.situacao, detalhe: l.detalhe }];
+    return `<div class="rast-nf">
+      <div class="rast-top"><b>NF ${esc(l.nf.replace(/^\d+\s+/, ''))}</b><span class="badge ${ehEntregue(l.situacao) ? 'b-ok' : naoDisp(l.situacao) ? 'b-warn' : 'b-info'}">${esc(l.situacao || '—')}</span></div>
+      ${l.transportadora ? `<div class="td-mono">🚚 ${esc(l.transportadora)}${l.telefone ? ` · 📞 ${esc(l.telefone)}` : ''}${l.email ? ` · ✉ ${esc(l.email)}` : ''}</div>` : ''}
+      ${naoDisp(l.situacao) && !l.eventos ? '' : `<ol class="rast-ev">${[...ev].reverse().map(e => `<li><span class="rast-dh">${esc(e.dataHora || '')}</span><div><b>${esc(e.situacao || '')}</b>${e.unidade ? ` <span class="td-mono">· ${esc(e.unidade)}</span>` : ''}${e.detalhe ? `<div class="rast-det">${esc(e.detalhe.replace(/\s*·?\s*Mais detalhes$/i, ''))}</div>` : ''}</div></li>`).join('')}</ol>`}
+    </div>`;
+  }).join('');
+}
+window.rastrearCte = async id => {
   const c = data.cte.find(x => x.id === id);
   if (!c) return;
-  // SSW "pelo destinatário" (ssw.inf.br/2/rastreamento_dest?pwd=2): CNPJ de quem recebe + Nº da(s) NF(s).
-  // Compras/entradas: a GF é a destinatária → CNPJ da GF. Saídas: CNPJ do cliente (se gravado).
-  const nfs = nfsDe(c);
-  const NL = String.fromCharCode(10);
-  const gfDestino = /GF MEDICAL/i.test(c.destino || '') || /COMPRA/i.test(c.tipo_saida || '') || soDigitos(c.destino_cnpj).startsWith('07356800');
-  const cnpjDest = gfDestino ? (soDigitos(c.destino_cnpj).startsWith('07356800') ? soDigitos(c.destino_cnpj) : cnpjGf()) : soDigitos(c.destino_cnpj);
-  if (nfs.length && (cnpjDest.length === 14 || cnpjDest.length === 11)) {
-    postarSsw('resultSSW_dest_nro', { cnpjdest: cnpjDest, NR: nfs.join(NL), chave: '' }); // (o botão RASTREAR do SSW envia para _dest_nro)
-    toast(`🔍 Rastreando no SSW: NF ${nfs.join(', ')} · destinatário ${fmtDoc(cnpjDest)}`, 'info');
-    return;
-  }
-  // Sem o CNPJ do cliente: SSW "pelo remetente" com o CNPJ da GF (ou de quem emitiu a NF).
-  const rem = soDigitos(c.remetente_cnpj);
-  const cnpjEmit = rem.length === 14 ? rem : (!gfDestino ? cnpjGf() : '');
-  if (nfs.length && cnpjEmit) {
-    postarSsw('resultSSW', { cnpj: cnpjEmit, NR: nfs.join(NL), chave: '' });
-    toast(`🔍 Rastreando no SSW: NF ${nfs.join(', ')} · remetente ${fmtDoc(cnpjEmit)}`, 'info');
+  const tent = tentativasRastreio(c);
+  if (tent.length) {
+    _rastreio = { cte: c, tent: tent[0] };
+    $('rast-title').textContent = `🔍 Rastreio — CT-e ${c.numero_cte}${c.transportadora ? ' · ' + c.transportadora : ''}`;
+    $('rast-info').textContent = `NF ${tent[0].nfs.join(', ')} · consultando o SSW…`;
+    $('rast-res').innerHTML = '<div class="empty-mini">⏳ Consultando o SSW…</div>';
+    $('rast-entregue').style.display = 'none';
+    $('modal-rastreio').classList.add('open');
+    let res = null, usada = tent[0], erro = '';
+    for (const t of tent) {
+      try {
+        const r = await fetch('api/rastreio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(t) });
+        const j = await r.json().catch(() => null);
+        if (!r.ok || !j?.ok) { erro = j?.erro || `HTTP ${r.status}`; continue; }
+        if (!res || j.linhas.some(l => !naoDisp(l.situacao))) { res = j; usada = t; }
+        if (j.linhas.some(l => !naoDisp(l.situacao))) break;
+      } catch (e) { erro = e.message || String(e); }
+    }
+    if (_rastreio?.cte !== c) return; // abriu outro enquanto consultava
+    _rastreio.tent = usada;
+    $('rast-info').textContent = `NF ${usada.nfs.join(', ')} · consulta pelo ${usada.tipo === 'dest' ? 'destinatário' : 'remetente'} ${fmtDoc(usada.cnpj)}`;
+    if (!res) {
+      $('rast-res').innerHTML = `<div class="empty-mini">Não consegui consultar o SSW por aqui (${esc(erro)}). Use “Abrir no site do SSW”.</div>`;
+      return;
+    }
+    $('rast-res').innerHTML = rastreioHTML(res) + (res.linhas.length && res.linhas.every(l => naoDisp(l.situacao))
+      ? '<div class="td-mono" style="margin-top:8px">“Informação não disponível” = a transportadora não usa o SSW, a NF tem mais de 90 dias ou o CNPJ não é o da NF.</div>' : '');
+    // entregue? oferece marcar no CT-e
+    const ent = res.linhas.flatMap(l => (l.eventos || []).concat([{ situacao: l.situacao, dataHora: l.dataHora }]))
+      .find(e => ehEntregue(e.situacao) && /\d{2}\/\d{2}\/\d{2}/.test(e.dataHora || ''));
+    if (ent && c.status_entrega !== 'Entregue' && !_readOnly) {
+      const [d, m, y] = /(\d{2})\/(\d{2})\/(\d{2,4})/.exec(ent.dataHora).slice(1);
+      _rastreio.entregueEm = `${y.length === 2 ? '20' + y : y}-${m}-${d}`;
+      $('rast-entregue').textContent = `✔ Marcar CT-e como entregue em ${dataBR(_rastreio.entregueEm)}`;
+      $('rast-entregue').style.display = '';
+    }
     return;
   }
   const chaveNf = c.chave_nfe || (/Chave NF-e: (\d{44})/.exec(c.observacoes || '') || [])[1];
