@@ -501,7 +501,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.6';
+const VERSAO = '2026-10-11.7';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -999,11 +999,13 @@ function renderDashboard() {
       </div></div>
     </div>
     <div class="dcard"><div class="dcard-head">⚠️ CT-es com frete acima de 5% da NF<small>${altos.length} no período</small></div><div class="dcard-body" style="padding:0">
-      ${altos.length ? `<div class="tscroll"><table><thead><tr><th>CT-e</th><th>Emissão</th><th>Rota</th><th>Destinatário</th><th>Transportadora</th><th class="num">Frete</th><th class="num">NF-e</th><th class="num">% Frete</th></tr></thead><tbody>
-      ${altos.slice(0, 15).map(c => `<tr class="click" onclick="abrirModal('cte','${c.id}')"><td class="td-strong">${esc(c.numero_cte)}</td><td class="td-mono">${dataBR(c.data_emissao)}</td><td>${esc(c.origem)}</td><td class="td-trunc" title="${esc(c.destino)}">${esc(c.destino)}</td><td>${esc(c.transportadora)}</td><td class="num">${brl(c.valor_frete)}</td><td class="num">${brl(c.valor_nfe)}</td><td class="num">${pctHTML(pctFrete(c))}</td></tr>`).join('')}
+      ${altos.length ? `<div class="tscroll"><table><thead><tr><th>CT-e</th><th>Emissão</th><th>Rota</th><th>Remetente</th><th>Destinatário</th><th>Transportadora (emitente)</th><th class="num">Frete</th><th class="num">NF-e</th><th class="num">% Frete</th></tr></thead><tbody>
+      ${altos.slice(0, 15).map(c => `<tr class="click" onclick="abrirModal('cte','${c.id}')"><td class="td-strong">${esc(c.numero_cte)}</td><td class="td-mono">${dataBR(c.data_emissao)}</td><td class="td-trunc" title="${esc(c.origem)}">${esc(c.origem || '—')}</td>${celParte(c.remetente, c.remetente_cnpj)}${celParte(c.destino, c.destino_cnpj)}${celParte(c.transportadora, cnpjEmitente(c), 'CNPJ do emitente do CT-e')}<td class="num">${brl(c.valor_frete)}</td><td class="num">${brl(c.valor_nfe)}</td><td class="num">${pctHTML(pctFrete(c))}</td></tr>`).join('')}
       </tbody></table></div>` : '<div class="empty-mini">✔ Nenhum CT-e acima de 5% no período</div>'}
     </div></div>`;
 }
+// Célula "nome + CNPJ embaixo" (mesmo formato da tabela de CT-es).
+const celParte = (nome, doc, tituloDoc = '') => `<td class="td-trunc" title="${esc(nome)}">${esc(nome || '—')}${doc ? `<div class="td-doc"${tituloDoc ? ` title="${tituloDoc}"` : ''}>${esc(doc)}</div>` : ''}</td>`;
 window.ui_cotStatus = s => { ui.cotStatus = s; goView('cotacoes'); };
 
 function renderCtes() {
