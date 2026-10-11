@@ -183,6 +183,8 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.calc-rota-grid{grid-template-columns:1fr 110px}
+.calc-rota-grid .fg{grid-column:auto}.calc-rota-grid .fg:last-child{grid-column:1 / -1}
 .tab-conta{margin-top:8px;padding:8px 10px;border-radius:var(--radius);background:var(--surface2, rgba(0,0,0,.03));font-size:0.72rem;color:var(--text2);line-height:1.6}
 .tab-alt{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .sql-passos{margin:0 0 6px 18px;font-size:0.78rem;color:var(--text2);line-height:1.7}
@@ -503,9 +505,12 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
                 <label class="flbl" for="calc-nf">Valor total da mercadoria / NF-e (R$)</label>
                 <input class="finput calc-nf" id="calc-nf" type="number" min="0" step="0.01" placeholder="Ex.: 25000,00">
               </div>
-              <div class="fgrid" style="margin-bottom:12px">
+              <div class="fgrid calc-rota-grid" style="margin-bottom:12px">
+                <div class="fg"><label class="flbl" for="calc-origem">Origem — opcional</label><input class="finput" id="calc-origem" list="dl-orig" autocomplete="off" placeholder="De onde sai"></div>
+                <div class="fg calc-uf"><label class="flbl" for="calc-uf_origem">UF orig.</label><select class="finput" id="calc-uf_origem"></select></div>
+                <div class="fg"><label class="flbl" for="calc-destino">Destino — opcional</label><input class="finput" id="calc-destino" list="dl-dest" autocomplete="off" placeholder="Para onde vai"></div>
+                <div class="fg calc-uf"><label class="flbl" for="calc-uf_destino">UF dest.</label><select class="finput" id="calc-uf_destino"></select></div>
                 <div class="fg"><label class="flbl" for="calc-peso">Peso (kg) — opcional</label><input class="finput" id="calc-peso" type="number" min="0" step="0.1"></div>
-                <div class="fg"><label class="flbl" for="calc-rota">Rota — opcional</label><input class="finput" id="calc-rota" list="dl-rotas" placeholder="Ex.: SJP - CGB"></div>
               </div>
               <div class="flbl" style="margin-bottom:6px">Opções de frete (cotações)</div>
               <div id="calc-opcoes"></div>
@@ -658,7 +663,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.17';
+const VERSAO = '2026-10-11.18';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -2474,18 +2479,7 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
   if (tipo === 'cte') atualizarCotacoesCte(base.numero_cotacao);
   if (tipo === 'fat') listaCtesFatura();
   if (tipo === 'cot') $('fm-transportadora').addEventListener('change', autoContato);
-  if (tipo === 'cot') {
-    const separar = qual => {
-      const el = $('fm-' + qual); let v = el.value.trim();
-      const rota = /^(.+?)\s+-\s+(.+)$/.exec(v);
-      if (qual === 'origem' && rota && !$('fm-destino').value) { v = rota[1]; $('fm-destino').value = rota[2]; separar('destino'); }
-      const m = /^(.+?)\s*\/\s*([A-Za-z]{2})$/.exec(v);
-      if (m && UFS.includes(m[2].toUpperCase())) { v = m[1].trim(); $('fm-uf_' + qual).value = m[2].toUpperCase(); }
-      el.value = v; atualizarPreview();
-    };
-    $('fm-origem').addEventListener('change', () => separar('origem'));
-    $('fm-destino').addEventListener('change', () => separar('destino'));
-  }
+  if (tipo === 'cot') ligarOrigemDestino('fm-', atualizarPreview);
   if (tipo === 'cte') {
     // Previsão segue emissão + prazo até o usuário (ou o PDF) definir outra data.
     let auto = !$('fm-previsao_entrega').value;
@@ -2517,6 +2511,19 @@ document.addEventListener('keydown', e => {
   else if ($('modal-lote').classList.contains('open')) fecharLote();
 });
 
+// Origem/destino: "CAMPO GRANDE/MS" → cidade + UF; rota "A/MS - B/SP" colada na origem → separa nos dois campos.
+function ligarOrigemDestino(pre, depois) {
+  const separar = qual => {
+    const el = $(pre + qual); let v = el.value.trim();
+    const rota = /^(.+?)\s+-\s+(.+)$/.exec(v);
+    if (qual === 'origem' && rota && !$(pre + 'destino').value) { v = rota[1]; $(pre + 'destino').value = rota[2]; separar('destino'); }
+    const m = /^(.+?)\s*\/\s*([A-Za-z]{2})$/.exec(v);
+    if (m && UFS.includes(m[2].toUpperCase())) { v = m[1].trim(); $(pre + 'uf_' + qual).value = m[2].toUpperCase(); }
+    el.value = v; depois?.();
+  };
+  $(pre + 'origem').addEventListener('change', () => separar('origem'));
+  $(pre + 'destino').addEventListener('change', () => separar('destino'));
+}
 function autoContato() {
   const t = data.transp.find(x => norm(x.nome) === norm($('fm-transportadora').value));
   if (!t) return;
@@ -3553,12 +3560,25 @@ function renderCalc() {
   if (!_calcMontada) {
     $('calc-opcoes').innerHTML = calcLinhaHTML() + calcLinhaHTML();
     $('view-calculadora').addEventListener('input', calcAtualizar);
+    const ufs = ['', ...UFS].map(u => `<option value="${u}">${u || '—'}</option>`).join('');
+    $('calc-uf_origem').innerHTML = ufs; $('calc-uf_destino').innerHTML = ufs;
+    $('calc-uf_origem').value = FILIAL === 'CGR' ? 'MS' : 'MT';
+    $('calc-uf_origem').addEventListener('change', calcAtualizar); $('calc-uf_destino').addEventListener('change', calcAtualizar);
+    ligarOrigemDestino('calc-', calcAtualizar);
     _calcMontada = true;
   } else {
-    $('calc-opcoes').querySelectorAll('select[data-k="transportadora"]').forEach(sel => { sel.outerHTML = calcSelectTransp(sel.value); });
+    $('calc-opcoes').querySelectorAll('select[data-k="transportadora"], input[data-k="transportadora"]').forEach(el => {
+      if (el.tagName === 'SELECT' || !el.value) el.outerHTML = calcSelectTransp(el.value);
+    });
   }
   calcAtualizar();
   renderCalcHistorico();
+}
+// Dados da calculadora no formato da cotação (para a tabela combinada e para gerar as cotações).
+function calcDados(nf) {
+  const g = k => $('calc-' + k)?.value.trim() || null;
+  return { origem: g('origem'), uf_origem: g('uf_origem'), destino: g('destino'), uf_destino: g('uf_destino'),
+    peso_kg: num($('calc-peso').value) || null, valor_mercadoria: nf, data_cotacao: hojeISO() };
 }
 window.calcAtualizar = () => {
   const nf = num($('calc-nf').value);
@@ -3584,7 +3604,7 @@ window.calcAtualizar = () => {
   $('calc-resultado').innerHTML = validas.map(o => {
     const p = o.frete / nf, f = faixaPct(p), h = historicoTransp(o.transportadora);
     const mod = modeloFrete(o.transportadora), esp = freteEsperado(mod, nf);
-    const pesoC = num($('calc-peso').value) || null, tbC = precoTabela(o.transportadora, $('calc-rota').value.trim(), pesoC, nf, hojeISO());
+    const tbC = o.transportadora ? tabelaPara('cot', calcDados(nf), o.transportadora) : null;
     const pMin = mod ? mod.baixo / nf : null;
     const alertaMin = mod && faixaPct(pMin) !== 'ok'
       ? `<div class="calc-alerta">⚠ <b>Frete mínimo:</b> os envios mais baratos da ${esc(o.transportadora)} custam por volta de ${brl(mod.baixo)} — para uma NF de ${brl(nf)} isso já dá ${pctFmt(pMin)}. Se der, <b>junte com outra carga</b>: a partir de ~${brl(mod.baixo / 0.03)} de mercadoria o frete fica em 3%.</div>` : '';
@@ -3592,11 +3612,11 @@ window.calcAtualizar = () => {
     return `<div class="calc-card ${f}">
       <div class="calc-card-top"><b>${esc(o.transportadora || 'Opção ' + (o.i + 1))}</b>${validas.length > 1 && o === melhor ? '<span class="calc-melhor">MAIS BARATA</span>' : ''}
         <span class="calc-pct ${f}">${pctFmt(p)}</span></div>
-      <div class="calc-veredito">${VEREDITO[f]}</div>
+      <div class="calc-veredito">${tbC && o.frete > tbC.preco * 1.02 + 1 && f === 'ok' ? '⚠ O % está bom, mas está <b>acima da tabela combinada</b> — negocie antes de fechar.' : VEREDITO[f]}</div>
       <div class="calc-det">Frete ${brl(o.frete)} ÷ mercadoria ${brl(nf)}${o.prazo != null ? ` · prazo ${o.prazo} dia(s)` : ''}
         ${f !== 'ok' ? `<br>Para ficar em 3%, o frete precisaria baixar para ${brl(nf * 0.03)} (−${brl(o.frete - nf * 0.03)}).` : ''}
         ${tbC ? `<br><b>Pela tabela combinada: ${brl(tbC.preco)}</b>${o.frete > tbC.preco * 1.02 + 1 ? ` — cotação <b style="color:var(--crit-c)">${brl(o.frete - tbC.preco)} acima da tabela: questione a transportadora</b>` : ' — de acordo com a tabela'}${tbC.linha.anexo_url ? ` · <a href="${esc(tbC.linha.anexo_url)}" target="_blank" rel="noopener">📎 tabela anexa</a>` : ''}.` : ''}
-        ${pesoC ? `<br>${brl(o.frete / pesoC)}/kg.` : ''}
+        ${num($('calc-peso').value) > 0 ? `<br>${brl(o.frete / num($('calc-peso').value))}/kg.` : ''}
         ${esp ? `<br>Esperado pelo histórico da ${esc(o.transportadora)} para esta NF: ~${brl(esp)}${o.frete > esp * 1.15 ? ` — esta cotação está <b style="color:var(--crit-c)">${brl(o.frete - esp)} acima</b>` : o.frete < esp * 0.85 ? ` — esta cotação está <b style="color:var(--ok-c)">${brl(esp - o.frete)} abaixo</b>` : ' — em linha'}.` : ''}
         ${h ? `<br>Histórico ${esc(o.transportadora)}: ${pctFmt(h.pct)} em ${h.qtd} CT-e(s) — esta cotação está ${Math.abs(dif) < 0.0005 ? 'na média' : dif > 0 ? `<b style="color:var(--crit-c)">${pp(dif)} acima</b> da média` : `<b style="color:var(--ok-c)">${pp(-dif)} abaixo</b> da média`}.` : ''}
         ${validas.length > 1 && o !== melhor ? `<br>${brl(o.frete - melhor.frete)} mais cara que a opção mais barata.` : ''}</div>
@@ -3609,8 +3629,7 @@ window.calcSalvarHistorico = async () => {
   const ops = calcOpcoes().filter(o => o.frete > 0).map(o => ({ transportadora: o.transportadora ? o.transportadora.toUpperCase() : null, frete: o.frete, prazo: o.prazo, pct: o.frete / nf }));
   if (!(nf > 0) || !ops.length) return;
   const melhor = ops.reduce((a, b) => (b.frete < a.frete ? b : a));
-  const peso = num($('calc-peso').value) || null, rotaC = $('calc-rota').value.trim();
-  const acimas = ops.map(o => ({ o, r: o.transportadora ? precoTabela(o.transportadora, rotaC, peso, nf, hojeISO()) : null }))
+  const acimas = ops.map(o => ({ o, r: o.transportadora ? tabelaPara('cot', calcDados(nf), o.transportadora) : null }))
     .filter(x => x.r && x.o.frete > x.r.preco * 1.02 + 1);
   if (acimas.length && !confirm(`⚠ ${acimas.map(x => `${x.o.transportadora}: ${brl(x.o.frete)} × ${brl(x.r.preco)} pela tabela`).join('\n')}\n\nEssas opções estão ACIMA da tabela combinada. Questione a transportadora. Gerar as cotações mesmo assim?`)) return;
   const obs = $('calc-obs').value.trim() || null;
@@ -3625,6 +3644,7 @@ window.calcSalvarHistorico = async () => {
   const cots = comNome.map((o, j) => ({
     numero: 'COT-' + String(base + j).padStart(4, '0'), data_cotacao: hojeISO(), transportadora: o.transportadora,
     valor_frete: o.frete, prazo_dias: o.prazo, valor_mercadoria: nf, calculo_id: calc?.id || null, status: 'Em análise',
+    origem: calcDados(nf).origem, uf_origem: calcDados(nf).uf_origem, destino: calcDados(nf).destino, uf_destino: calcDados(nf).uf_destino, peso_kg: calcDados(nf).peso_kg,
     filial: FILIAL, criado_por: _user?.email || null,
     observacoes: `Calculadora: mercadoria ${brl(nf)} · frete ${pctFmt(o.pct)} (${PCT_FAIXAS[faixaPct(o.pct)].label})${o === melhor ? ' · mais barata' : ''}${obs ? ' · ' + obs : ''}`,
   }));
