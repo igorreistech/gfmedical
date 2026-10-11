@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════
--- Controle de Fretes — TODAS as migrações juntas (20261010 a 20261016).
+-- Controle de Fretes — TODAS as migrações juntas (20261010 a 20261017).
 -- Pode rodar inteiro, quantas vezes quiser, no SQL Editor de CADA projeto
 -- (Cuiabá e Campo Grande): nada que já existe é apagado ou sobrescrito.
 -- ════════════════════════════════════════════════════════════════════════
@@ -332,5 +332,15 @@ begin
     end if;
   end loop;
 end $$;
+
+notify pgrst, 'reload schema';
+
+-- ───────────── 20261017_fretes_tabela_anexo.sql ─────────────
+-- Controle de Fretes: arquivo da tabela enviada pela transportadora (anexo).
+-- Rodar no SQL Editor de CADA projeto Supabase de filial (Cuiabá e Campo Grande).
+
+alter table public.frete_tabelas
+  add column if not exists anexo_url  text,
+  add column if not exists anexo_nome text;
 
 notify pgrst, 'reload schema';

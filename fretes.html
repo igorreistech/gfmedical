@@ -611,7 +611,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.10';
+const VERSAO = '2026-10-11.11';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -684,7 +684,7 @@ function msgErroBanco(error) {
 // Colunas criadas pelas migrações novas. Se a filial ainda não rodou a migração,
 // a gravação tira a coluna que falta e grava o resto (avisando), em vez de falhar.
 const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte', 'remetente_cnpj', 'destino_cnpj',
-  'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe'];
+  'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'anexo_url', 'anexo_nome'];
 async function gravarTolerante(exec, dados) {
   const lista = Array.isArray(dados);
   let arr = [].concat(dados);
@@ -693,7 +693,7 @@ async function gravarTolerante(exec, dados) {
     const res = await exec(lista ? arr : arr[0]);
     const m = res.error && /Could not find the '([^']+)' column/.exec(res.error.message || '');
     if (!m || !COLUNAS_NOVAS.includes(m[1]) || faltando.includes(m[1])) {
-      if (faltando.length && !res.error) toast(`Gravado, mas esta filial ainda não tem a(s) coluna(s) ${faltando.join(', ')} — rode as migrações 20261011 a 20261016 no Supabase desta filial para guardar esses dados.`, 'info');
+      if (faltando.length && !res.error) toast(`Gravado, mas esta filial ainda não tem a(s) coluna(s) ${faltando.join(', ')} — rode o arquivo supabase/migrations/RODAR_TUDO_fretes.sql no Supabase desta filial para guardar esses dados.`, 'info');
       return res;
     }
     faltando.push(m[1]);
@@ -1442,6 +1442,29 @@ window.mensagemAuditoria = t => {
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
 };
 
+// Valor de uma cotação/CT-e × tabela combinada (rota = "origem - destino" ou a rota do CT-e).
+function conferirTabela(tipo, v) {
+  if (!v.transportadora || !num(v.valor_frete)) return null;
+  const nf = tipo === 'cot' ? num(v.valor_mercadoria) : num(v.valor_nfe);
+  const rotas = tipo === 'cot' ? [[v.origem, v.destino].filter(Boolean).join(' - '), v.origem] : [v.origem];
+  const dataRef = tipo === 'cot' ? v.data_cotacao : v.data_emissao;
+  let r = null;
+  for (const rota of rotas) { r = precoTabela(v.transportadora, rota || '', num(v.peso_kg) || null, nf, dataRef); if (r) break; }
+  const temTabela = data.tab.some(t => norm(t.transportadora) === norm(v.transportadora));
+  if (!r) return { semTabela: !temTabela, faltaPeso: temTabela };
+  const valor = tipo === 'cot' ? num(v.valor_frete) + num(v.ad_valorem) : num(v.valor_frete);
+  const dif = valor - r.preco;
+  return { preco: r.preco, linha: r.linha, dif, acima: dif > r.preco * 0.02 + 1, abaixo: dif < -1 };
+}
+function conferenciaTabelaHTML(chk, transportadora) {
+  if (!chk) return '';
+  const link = l => l?.anexo_url ? ` · <a href="${esc(l.anexo_url)}" target="_blank" rel="noopener">📎 ver tabela anexa</a>` : '';
+  if (chk.semTabela) return `<br><span class="td-mono">Sem tabela combinada da ${esc(transportadora)} — cadastre/anexe em 📑 Tabelas de frete para conferir automaticamente.</span>`;
+  if (chk.faltaPeso) return `<br><span class="td-mono">Há tabela da ${esc(transportadora)}, mas faltam dados para calcular (informe o peso e confira a rota).</span>`;
+  if (chk.acima) return `<br><span class="badge b-crit">⚠ ${brl(chk.dif)} acima da tabela</span> <span>pela tabela combinada: <b>${brl(chk.preco)}</b> — questione a transportadora antes de fechar${link(chk.linha)}</span>`;
+  return `<br><span class="badge b-ok">✔ de acordo com a tabela</span> <span>pela tabela: ${brl(chk.preco)}${chk.abaixo ? ` (cotação ${brl(-chk.dif)} abaixo)` : ''}${link(chk.linha)}</span>`;
+}
+
 // ═════════════ Tabela de frete combinada ═════════════
 const precoPorLinha = (t, peso, nf) => Math.max(num(t.frete_minimo), num(t.valor_fixo) + num(t.valor_kg) * num(peso) + num(t.pct_nf) / 100 * num(nf));
 // Linha aplicável: mesma transportadora; rota específica antes da geral; vigente na data;
@@ -1463,11 +1486,12 @@ function precoTabela(transportadora, rota, peso, nf, dataRef) {
 function renderTabelas() {
   const lista = [...data.tab].sort((a, b) => (a.transportadora || '').localeCompare(b.transportadora || '') || (a.rota || '').localeCompare(b.rota || ''));
   $('cnt-tab').textContent = lista.length;
-  $('tb-tab').innerHTML = lista.length ? `<thead><tr><th>Transportadora</th><th>Rota</th><th class="num">Até kg</th><th class="num">Fixo</th><th class="num">R$/kg</th><th class="num">% NF</th><th class="num">Mínimo</th><th>Desde</th><th></th></tr></thead><tbody>
+  $('tb-tab').innerHTML = lista.length ? `<thead><tr><th>Transportadora</th><th>Rota</th><th class="num">Até kg</th><th class="num">Fixo</th><th class="num">R$/kg</th><th class="num">% NF</th><th class="num">Mínimo</th><th>Desde</th><th>Tabela anexa</th><th></th></tr></thead><tbody>
     ${lista.map(t => `<tr class="click" onclick="abrirModal('tab','${t.id}')"><td class="td-strong">${esc(t.transportadora)}</td><td>${esc(t.rota || 'todas')}</td>
       <td class="num">${t.peso_ate != null ? num(t.peso_ate).toLocaleString('pt-BR') : '—'}</td><td class="num">${t.valor_fixo != null ? brl(t.valor_fixo) : '—'}</td>
       <td class="num">${t.valor_kg != null ? brl(t.valor_kg) : '—'}</td><td class="num">${t.pct_nf != null ? num(t.pct_nf).toLocaleString('pt-BR') + '%' : '—'}</td>
       <td class="num">${t.frete_minimo != null ? brl(t.frete_minimo) : '—'}</td><td class="td-mono">${dataBR(t.vigencia_inicio)}</td>
+      <td>${t.anexo_url ? `<a href="${esc(t.anexo_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(t.anexo_nome || '')}">📎 ${esc((t.anexo_nome || 'abrir').slice(0, 24))}</a>` : '<span class="td-mono">—</span>'}</td>
       <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('tab','${t.id}')">🗑</button></div></td></tr>`).join('')}</tbody>`
     : `<tbody><tr><td><div class="empty-page">📑 Nenhuma tabela cadastrada.<br><br>Cadastre a tabela combinada com cada transportadora (<b>＋ Nova tabela</b>):<br>a auditoria passa a conferir cada CT-e contra o valor contratado e a calculadora já mostra o preço.</div></td></tr></tbody>`;
   ['sim-rota', 'sim-peso', 'sim-nf'].forEach(id => { $(id).oninput = simular; });
@@ -1981,6 +2005,7 @@ const FORMS = {
     { k: 'pct_nf', l: '% sobre a NF (ad valorem/GRIS)', t: 'dec', s: 1 },
     { k: 'frete_minimo', l: 'Frete mínimo (R$)', t: 'money', s: 1 },
     { k: 'vigencia_inicio', l: 'Vigente desde', t: 'date', s: 1 },
+    { k: 'anexo', l: 'Tabela enviada pela transportadora (PDF, planilha ou imagem)', anexo: true, s: 4 },
     { preview: 'tab' },
     { k: 'observacoes', l: 'Observações', t: 'textarea', s: 4 },
   ]},
@@ -2051,6 +2076,11 @@ function campoHTML(f, val) {
   const lbl = `<label class="flbl" for="${id}">${f.l}${f.req ? ' <span class="req">*</span>' : ''}</label>`;
   let inp;
   if (f.selTransp) inp = selectTranspHTML(id, v, f.req);
+  else if (f.anexo) {
+    const reg = _modal.id ? data[_modal.tipo]?.find(r => r.id === _modal.id) : null;
+    inp = `<input class="finput" type="file" id="${id}" accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,image/*">`
+      + (reg?.anexo_url ? `<div class="td-mono" style="margin-top:4px">📎 Atual: <a href="${esc(reg.anexo_url)}" target="_blank" rel="noopener">${esc(reg.anexo_nome || 'abrir tabela')}</a> — escolha outro arquivo para substituir</div>` : '');
+  }
   else if (f.selCtes) inp = `<div class="fat-ctes" id="${id}" data-sel="${esc(JSON.stringify(Array.isArray(val) ? val : []))}"></div>`;
   else if (f.selCot) inp = `<select class="finput" id="${id}" onchange="atualizarPreview()">${cotacoesOptionsHTML(v)}</select>`;
   else if (f.o) {
@@ -2149,6 +2179,7 @@ function atualizarPreview() {
     const cot = data.cot.find(c => c.numero && c.numero === $('fm-numero_cotacao')?.value);
     const conf = cot ? conferenciaCot({ valor_frete: v('valor_frete') }, cot) : null;
     if (conf) el.innerHTML += `<br>${conferenciaHTML(conf)}`;
+    el.innerHTML += conferenciaTabelaHTML(conferirTabela('cte', lerFormParcial()), $('fm-transportadora')?.value);
   } else {
     // Vale a pena fechar? custo total (frete + ad valorem) ÷ valor da mercadoria
     const total = v('valor_frete') + v('ad_valorem');
@@ -2157,9 +2188,20 @@ function atualizarPreview() {
     el.innerHTML = `<span class="flabel">Custo total</span> <b>${brl(total)}</b>${peso > 0 ? ` <span class="td-mono">· ${brl(total / peso)}/kg</span>` : ''}
       <span class="flabel" style="margin-left:10px">% s/ mercadoria</span> ${pctHTML(p)}
       ${p != null ? `<br><span>${VEREDITO[faixaPct(p)]}${faixaPct(p) !== 'ok' ? ` Para ficar em 3%: até ${brl(merc * 0.03)}.` : ''}</span>` : '<span class="td-mono">informe o valor da mercadoria e o frete para saber se vale a pena fechar</span>'}`;
+    el.innerHTML += conferenciaTabelaHTML(conferirTabela('cot', lerFormParcial()), $('fm-transportadora')?.value);
   }
 }
 
+// Valores atuais do formulário (para a prévia), sem validar nem tratar anexos.
+function lerFormParcial() {
+  const v = {};
+  for (const f of FORMS[_modal.tipo]?.campos || []) {
+    if (f.preview || f.selCtes || f.anexo) continue;
+    const el = $('fm-' + f.k); if (!el) continue;
+    v[f.k] = (f.t === 'money' || f.t === 'dec') ? (el.value === '' ? null : Number(el.value)) : el.value.trim() || null;
+  }
+  return v;
+}
 window.atualizarPreview = atualizarPreview; // usado pelos onchange do formulário (lista de CT-es da fatura, cotação)
 
 function lerForm(tipo) {
@@ -2167,6 +2209,7 @@ function lerForm(tipo) {
   for (const f of FORMS[tipo].campos) {
     if (f.preview) continue;
     if (f.selCtes) { out[f.k] = [...$('fm-' + f.k).querySelectorAll('input:checked')].map(i => i.value); continue; }
+    if (f.anexo) continue; // enviado ao salvar (salvarModal)
     let v = $('fm-' + f.k).value.trim();
     if (f.upper) v = v.toUpperCase();
     if (f.t === 'money' || f.t === 'dec') v = v === '' ? null : Number(v);
@@ -2182,6 +2225,23 @@ window.salvarModal = async () => {
   const form = $('modal-form');
   if (!form.reportValidity()) return;
   const row = lerForm(tipo);
+  // Cotação/CT-e acima da tabela combinada: pergunta antes de gravar.
+  if (tipo === 'cot' || tipo === 'cte') {
+    const chk = conferirTabela(tipo, row);
+    if (chk && chk.acima && !confirm(`⚠ O valor está ${brl(chk.dif)} ACIMA da tabela combinada da ${row.transportadora} (${brl(chk.preco)} pela tabela).\n\nConfira com a tabela anexa${chk.linha.anexo_url ? '' : ' (não há arquivo anexado)'} antes de fechar. Salvar mesmo assim?`)) return;
+  }
+  // Tabela de frete: envia o arquivo anexo (bucket do Supabase, mesmo das Fichas OPME).
+  if (tipo === 'tab') {
+    const arq = $('fm-anexo')?.files?.[0];
+    if (arq) {
+      const caminho = `opme/fretes-tabelas/${FILIAL}/${Date.now()}_${arq.name.replace(/[^\w.\-]+/g, '_')}`;
+      const up = await supabase.storage.from('opme').upload(caminho, arq, { upsert: true });
+      if (up.error) { toast('Não foi possível enviar o arquivo da tabela: ' + up.error.message, 'err'); return; }
+      const sig = await supabase.storage.from('opme').createSignedUrl(caminho, 60 * 60 * 24 * 365 * 10);
+      if (sig.error) { toast('Arquivo enviado, mas sem link: ' + sig.error.message, 'err'); return; }
+      row.anexo_url = sig.data.signedUrl; row.anexo_nome = arq.name;
+    }
+  }
   if (tipo === 'transp') {
     const dup = data.transp.find(t => norm(t.nome) === norm(row.nome) && t.id !== id);
     if (dup) { toast('Já existe uma transportadora com esse nome.', 'err'); return; }
@@ -3149,7 +3209,7 @@ window.calcAtualizar = () => {
       <div class="calc-veredito">${VEREDITO[f]}</div>
       <div class="calc-det">Frete ${brl(o.frete)} ÷ mercadoria ${brl(nf)}${o.prazo != null ? ` · prazo ${o.prazo} dia(s)` : ''}
         ${f !== 'ok' ? `<br>Para ficar em 3%, o frete precisaria baixar para ${brl(nf * 0.03)} (−${brl(o.frete - nf * 0.03)}).` : ''}
-        ${tbC ? `<br><b>Pela tabela combinada: ${brl(tbC.preco)}</b>${o.frete > tbC.preco * 1.02 + 1 ? ` — cotação <b style="color:var(--crit-c)">${brl(o.frete - tbC.preco)} acima da tabela</b>` : ' — dentro da tabela'}.` : ''}
+        ${tbC ? `<br><b>Pela tabela combinada: ${brl(tbC.preco)}</b>${o.frete > tbC.preco * 1.02 + 1 ? ` — cotação <b style="color:var(--crit-c)">${brl(o.frete - tbC.preco)} acima da tabela: questione a transportadora</b>` : ' — de acordo com a tabela'}${tbC.linha.anexo_url ? ` · <a href="${esc(tbC.linha.anexo_url)}" target="_blank" rel="noopener">📎 tabela anexa</a>` : ''}.` : ''}
         ${pesoC ? `<br>${brl(o.frete / pesoC)}/kg.` : ''}
         ${esp ? `<br>Esperado pelo histórico da ${esc(o.transportadora)} para esta NF: ~${brl(esp)}${o.frete > esp * 1.15 ? ` — esta cotação está <b style="color:var(--crit-c)">${brl(o.frete - esp)} acima</b>` : o.frete < esp * 0.85 ? ` — esta cotação está <b style="color:var(--ok-c)">${brl(esp - o.frete)} abaixo</b>` : ' — em linha'}.` : ''}
         ${h ? `<br>Histórico ${esc(o.transportadora)}: ${pctFmt(h.pct)} em ${h.qtd} CT-e(s) — esta cotação está ${Math.abs(dif) < 0.0005 ? 'na média' : dif > 0 ? `<b style="color:var(--crit-c)">${pp(dif)} acima</b> da média` : `<b style="color:var(--ok-c)">${pp(-dif)} abaixo</b> da média`}.` : ''}
@@ -3163,6 +3223,10 @@ window.calcSalvarHistorico = async () => {
   const ops = calcOpcoes().filter(o => o.frete > 0).map(o => ({ transportadora: o.transportadora ? o.transportadora.toUpperCase() : null, frete: o.frete, prazo: o.prazo, pct: o.frete / nf }));
   if (!(nf > 0) || !ops.length) return;
   const melhor = ops.reduce((a, b) => (b.frete < a.frete ? b : a));
+  const peso = num($('calc-peso').value) || null, rotaC = $('calc-rota').value.trim();
+  const acimas = ops.map(o => ({ o, r: o.transportadora ? precoTabela(o.transportadora, rotaC, peso, nf, hojeISO()) : null }))
+    .filter(x => x.r && x.o.frete > x.r.preco * 1.02 + 1);
+  if (acimas.length && !confirm(`⚠ ${acimas.map(x => `${x.o.transportadora}: ${brl(x.o.frete)} × ${brl(x.r.preco)} pela tabela`).join('\n')}\n\nEssas opções estão ACIMA da tabela combinada. Questione a transportadora. Gerar as cotações mesmo assim?`)) return;
   const obs = $('calc-obs').value.trim() || null;
   const { data: calc, error } = await supabase.from('frete_calculos').insert({
     valor_mercadoria: nf, opcoes: ops, melhor_transportadora: melhor.transportadora, melhor_frete: melhor.frete, melhor_pct: melhor.pct,
