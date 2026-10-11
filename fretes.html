@@ -501,7 +501,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.5';
+const VERSAO = '2026-10-11.6';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -518,7 +518,9 @@ const T = { transp: 'frete_transportadoras', cot: 'frete_cotacoes', cte: 'frete_
 // Mesmas listas suspensas da planilha original.
 const STATUS_COT = ['Aprovado', 'Reprovado', 'Em análise', 'Aguardando'];
 const STATUS_CTE = ['Entregue', 'Em trânsito', 'Pendente', 'Atrasado'];
-const TIPOS_SAIDA = ['COMPRA', 'VENDA', 'TRANSFERENCIA', 'REMESSA PARA CONSERTO', 'SAIDA DE MATERIAL PARA CIRURGIA', 'REMESSA EM COMODATO', 'REMESSA EM CONSIGNAÇÃO', 'DEVOLUÇÃO DE COMPRA'];
+// Em ordem alfabética nas listas.
+const TIPOS_SAIDA = ['COMPRA', 'VENDA', 'TRANSFERENCIA', 'REMESSA PARA CONSERTO', 'SAIDA DE MATERIAL PARA CIRURGIA', 'REMESSA EM COMODATO', 'REMESSA EM CONSIGNAÇÃO', 'DEVOLUÇÃO DE COMPRA']
+  .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 const MODAIS = ['Rodoviário', 'Aéreo', 'Rodoviário e Aéreo'];
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const BADGE_STATUS = {
@@ -858,7 +860,7 @@ function montarFiltros() {
   $('f-cot-transp').innerHTML = opts(ui.cotTransp, 'Transportadora: todas');
   $('dl-transp').innerHTML = nomes.map(n => `<option value="${esc(n)}">`).join('');
 
-  const tipos = [...new Set([...TIPOS_SAIDA, ...data.cte.map(c => c.tipo_saida).filter(Boolean).map(t => t.trim().toUpperCase())])];
+  const tipos = [...new Set([...TIPOS_SAIDA, ...data.cte.map(c => c.tipo_saida).filter(Boolean).map(t => t.trim().toUpperCase())])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   $('f-cte-tipo').innerHTML = '<option value="">Tipo de saída: todos</option>' +
     tipos.map(t => `<option ${norm(t) === norm(ui.cteTipo) ? 'selected' : ''}>${esc(t)}</option>`).join('');
   $('dl-tipo').innerHTML = tipos.map(t => `<option value="${esc(t)}">`).join('');
