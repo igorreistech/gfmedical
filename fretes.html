@@ -494,14 +494,16 @@ document.getElementById('sidebar-filial-sel').value = BRANCH;
 window.trocarFilial = code => {
   if (code === BRANCH) return;
   try { localStorage.setItem('gf_fretes_branch', code); } catch (e) {}
+  // Sempre muda o endereço (?filial=…): trocar só o localStorage e "navegar" para a
+  // mesma URL com #hash não recarrega a página — os dados continuavam os da outra filial.
   const u = new URL(location.href);
-  u.searchParams.delete('filial');
-  location.href = u.toString();
+  u.searchParams.set('filial', code);
+  if (u.href === location.href) location.reload(); else location.href = u.href;
 };
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.7';
+const VERSAO = '2026-10-11.8';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -2410,7 +2412,7 @@ window.calcSalvarHistorico = async () => {
   const base = +(/(\d+)\s*$/.exec(proximoNumeroCot()) || [0, 1])[1];
   const cots = comNome.map((o, j) => ({
     numero: 'COT-' + String(base + j).padStart(4, '0'), data_cotacao: hojeISO(), transportadora: o.transportadora,
-    valor_frete: o.frete, prazo_dias: o.prazo, valor_mercadoria: nf, calculo_id: calc.id, status: 'Em análise',
+    valor_frete: o.frete, prazo_dias: o.prazo, valor_mercadoria: nf, calculo_id: calc?.id || null, status: 'Em análise',
     filial: FILIAL, criado_por: _user?.email || null,
     observacoes: `Calculadora: mercadoria ${brl(nf)} · frete ${pctFmt(o.pct)} (${PCT_FAIXAS[faixaPct(o.pct)].label})${o === melhor ? ' · mais barata' : ''}${obs ? ' · ' + obs : ''}`,
   }));
