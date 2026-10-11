@@ -579,6 +579,17 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
   </div>
 </div>
 
+<div id="modal-ssw" class="modal-ov">
+  <div class="modal" style="max-width:420px" role="dialog" aria-modal="true" aria-labelledby="ssw-title">
+    <div class="mhead"><span class="mtitle" id="ssw-title">🔍 Rastreamento no SSW</span><button class="mclose" onclick="document.getElementById('modal-ssw').classList.remove('open')" aria-label="Fechar">✕</button></div>
+    <div class="mbody">
+      <div class="td-mono" id="ssw-info" style="margin-bottom:10px"></div>
+      <div class="td-mono" style="margin-bottom:12px">O navegador bloqueou a aba automática. Clique no botão para abrir o rastreio (para não precisar disso, libere pop-ups deste site no ícone da barra de endereço).</div>
+      <div id="ssw-form"></div>
+    </div>
+  </div>
+</div>
+
 <div id="modal-sql" class="modal-ov">
   <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="sql-title">
     <div class="mhead"><span class="mtitle" id="sql-title">📋 SQL de atualização do banco</span><button class="mclose" onclick="document.getElementById('modal-sql').classList.remove('open')" aria-label="Fechar">✕</button></div>
@@ -663,7 +674,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.22';
+const VERSAO = '2026-10-11.23';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -2126,11 +2137,24 @@ function cnpjGf() {
     .forEach(d => cont.set(d, (cont.get(d) || 0) + 1)));
   return [...cont.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '07356800000199';
 }
+// Abre a consulta do SSW numa aba nova (o SSW não deixa ser mostrado dentro de outro site).
+// Abre a aba primeiro (no clique) e envia o formulário para ela; se o navegador bloquear,
+// mostra um botão "Abrir rastreio no SSW" — clique direto em botão de formulário nunca é bloqueado.
 function postarSsw(acao, campos) {
+  const nome = 'ssw_' + Date.now();
   const f = document.createElement('form');
-  f.method = 'POST'; f.action = 'https://ssw.inf.br/2/' + acao; f.target = '_blank';
+  f.method = 'POST'; f.action = 'https://ssw.inf.br/2/' + acao; f.target = nome; f.rel = 'noopener';
   Object.entries(campos).forEach(([k, v]) => { const i = document.createElement('textarea'); i.name = k; i.value = v; i.style.display = 'none'; f.appendChild(i); });
-  document.body.appendChild(f); f.submit(); f.remove();
+  let w = null;
+  try { w = window.open('about:blank', nome); } catch (e) {}
+  if (w && !w.closed) { document.body.appendChild(f); f.submit(); f.remove(); return; }
+  // bloqueado: formulário visível na janelinha, com botão de envio nativo
+  f.target = '_blank';
+  f.innerHTML += `<button type="submit" class="tbtn tbtn-p" style="width:100%;padding:14px;font-size:0.9rem">🔍 Abrir rastreio no SSW</button>`;
+  f.onsubmit = () => setTimeout(() => $('modal-ssw').classList.remove('open'), 300);
+  $('ssw-form').innerHTML = ''; $('ssw-form').appendChild(f);
+  $('ssw-info').textContent = `NF ${campos.NR ? campos.NR.split(String.fromCharCode(10)).join(', ') : '—'} · CNPJ ${fmtDoc(campos.cnpjdest || campos.cnpj || '')}`;
+  $('modal-ssw').classList.add('open');
 }
 window.rastrearCte = id => {
   const c = data.cte.find(x => x.id === id);
