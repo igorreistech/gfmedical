@@ -210,7 +210,7 @@ textarea.finput{resize:vertical;min-height:60px}
 #tb-lote td{padding:7px 8px}
 #tb-lote .td-trunc{max-width:140px}
 #btn-lote-importar:disabled{opacity:0.5;cursor:not-allowed}
-.fpreview{grid-column:span 4;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--radius);background:var(--bg);border:1px dashed var(--border2);font-size:0.74rem;color:var(--text2)}
+.fpreview{grid-column:span 4;display:flex;align-items:center;flex-wrap:wrap;gap:8px;line-height:1.6;padding:9px 12px;border-radius:var(--radius);background:var(--bg);border:1px dashed var(--border2);font-size:0.74rem;color:var(--text2)}
 
 .toasts{position:fixed;bottom:18px;right:18px;z-index:400;display:flex;flex-direction:column;gap:6px}
 .toast{padding:9px 14px;color:white;border-radius:var(--radius);font-size:0.75rem;font-weight:500;box-shadow:var(--shadow-md);animation:tIn 0.2s ease;min-width:210px;max-width:360px}
@@ -302,6 +302,7 @@ textarea.finput{resize:vertical;min-height:60px}
 
   <main class="main">
     <div class="topbar">
+      <button class="tbtn tbtn-g" id="btn-voltar" onclick="voltar()" title="Voltar">⬅ Voltar</button>
       <div class="page-title" id="page-title">Dashboard</div>
       <select class="tsel" id="f-periodo" title="Período"></select>
       <div class="sbox"><span>🔍</span><input id="f-busca" placeholder="Buscar CT-e, NF, destino…"></div>
@@ -389,7 +390,7 @@ textarea.finput{resize:vertical;min-height:60px}
             <div class="dcard-body" id="calc-resultado"></div>
             <div class="calc-salvar w-only" id="calc-salvar" style="display:none">
               <input class="finput" id="calc-obs" placeholder="Observação (opcional): pedido, cliente, NF…" aria-label="Observação do cálculo">
-              <button class="tbtn tbtn-p" onclick="calcSalvarHistorico()">💾 Salvar no histórico</button>
+              <button class="tbtn tbtn-p" onclick="calcSalvarHistorico()" title="Salva o cálculo e gera uma cotação para cada opção">💾 Salvar no histórico + gerar cotações</button>
             </div>
           </div>
         </div>
@@ -427,7 +428,8 @@ textarea.finput{resize:vertical;min-height:60px}
     <div class="mbody">
       <div class="lote-bar"><span id="lote-resumo"></span><span class="lote-acts"><button class="fchip" onclick="loteMarcarTodos(true)">Marcar todos</button><button class="fchip" onclick="loteMarcarTodos(false)">Desmarcar</button></span></div>
       <div class="tscroll"><table id="tb-lote"></table></div>
-      <div class="td-mono" style="margin-top:10px">Incompletos (sem Nº do CT-e ou transportadora) ficam fora — clique em ✏️ para completar no formulário. CT-es já cadastrados são ignorados.</div>
+      <div class="td-mono" style="margin-top:10px">Incompletos (sem Nº do CT-e ou transportadora) ficam fora — clique em ✏️ para completar no formulário. CT-es já cadastrados são ignorados.<br>
+        Cotação: ✔ = valor do CT-e igual ao da cotação · ⚠ = diferente (mostra a diferença). Ao importar, a cotação recebe o Nº do CT-e e fica Aprovada; para trocar a cotação, use ✏️.</div>
     </div>
     <div class="mfoot"><span class="td-mono" id="lote-total" style="margin-right:auto"></span><button class="tbtn tbtn-g" onclick="fecharLote()">Fechar</button><button class="tbtn tbtn-p" id="btn-lote-importar" onclick="importarLoteSelecionados()">💾 Importar</button></div>
   </div>
@@ -533,14 +535,34 @@ const pctFmt = v => v == null ? '—' : (v * 100).toLocaleString('pt-BR', { mini
 const dataBR = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';
 const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const mesLabel = ym => { const [y, m] = ym.split('-'); return MESES[+m - 1] + '/' + y.slice(2); };
-const hojeISO = () => new Date().toISOString().slice(0, 10);
+// Data local (não UTC): depois das 20h em MT o toISOString já daria o dia seguinte.
+const hojeISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
 
 // Coluna nova ainda não criada no banco (PostgREST PGRST204) → diz qual migração rodar.
 function msgErroBanco(error) {
   if (error?.code === 'PGRST204' || /column .* (does not exist|schema cache)/i.test(error?.message || ''))
-    return 'o banco desta filial está sem as colunas novas — rode supabase/migrations/20261011_fretes_remetente_previsao.sql no Supabase.';
+    return 'o banco desta filial está sem colunas novas — rode no SQL Editor do Supabase desta filial os arquivos supabase/migrations/20261011_fretes_remetente_previsao.sql e 20261014_fretes_cotacao_cte.sql.';
   return error?.message || String(error);
+}
+
+// Colunas criadas pelas migrações novas. Se a filial ainda não rodou a migração,
+// a gravação tira a coluna que falta e grava o resto (avisando), em vez de falhar.
+const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte'];
+async function gravarTolerante(exec, dados) {
+  const lista = Array.isArray(dados);
+  let arr = [].concat(dados);
+  const faltando = [];
+  for (let t = 0; t <= COLUNAS_NOVAS.length; t++) {
+    const res = await exec(lista ? arr : arr[0]);
+    const m = res.error && /Could not find the '([^']+)' column/.exec(res.error.message || '');
+    if (!m || !COLUNAS_NOVAS.includes(m[1]) || faltando.includes(m[1])) {
+      if (faltando.length && !res.error) toast(`Gravado, mas esta filial ainda não tem a(s) coluna(s) ${faltando.join(', ')} — rode as migrações 20261011 e 20261014 no Supabase desta filial para guardar esses dados.`, 'info');
+      return res;
+    }
+    faltando.push(m[1]);
+    arr = arr.map(r => { const c = { ...r }; delete c[m[1]]; return c; });
+  }
 }
 
 function toast(msg, tipo = 'ok') {
@@ -798,8 +820,14 @@ $('f-cte-pct').onchange = e => { ui.ctePct = e.target.value; render(); };
 $('f-cot-transp').onchange = e => { ui.cotTransp = e.target.value; render(); };
 
 const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete' };
-function goView(v) {
+// Cada tela entra no histórico do navegador: o "voltar" do celular/navegador e o
+// botão ⬅ Voltar levam de volta ao início do Controle de Fretes (Dashboard); no
+// Dashboard, o Voltar leva ao Monitor Cirúrgico.
+function goView(v, empilhar = true) {
+  if (empilhar && v !== ui.view) { try { history.pushState({ view: v }, '', '#' + v); } catch (e) {} }
   ui.view = v;
+  $('btn-voltar').textContent = v === 'dashboard' ? '⬅ Monitor' : '⬅ Início';
+  $('btn-voltar').title = v === 'dashboard' ? 'Voltar ao Monitor Cirúrgico' : 'Voltar ao início do Controle de Fretes';
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === v));
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === 'view-' + v));
   $('page-title').textContent = TITULOS[v];
@@ -808,6 +836,14 @@ function goView(v) {
   render();
 }
 window.goView = goView;
+window.voltar = () => {
+  if (ui.view === 'dashboard') { location.href = 'index.html'; return; }
+  goView('dashboard');
+};
+window.addEventListener('popstate', e => {
+  if ($('modal').classList.contains('open')) fecharModal();
+  goView(e.state?.view && TITULOS[e.state.view] ? e.state.view : 'dashboard', false);
+});
 document.querySelectorAll('[data-view]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); goView(el.dataset.view); }));
 window.atalhoStatus = s => { ui.cteStatus = s; goView('ctes'); };
 
@@ -949,9 +985,67 @@ function renderCtes() {
   <tfoot><tr><td colspan="8">Total (${lista.length})</td><td class="num">${brl(frete)}</td><td class="num">${brl(nf)}</td><td class="num">${pctHTML(nf > 0 ? frete / nf : null)}</td><td colspan="5"></td></tr></tfoot>`;
 }
 
+// Custo da cotação = frete + ad valorem; % sobre o valor da mercadoria.
+const custoCot = c => num(c.valor_frete) + num(c.ad_valorem);
+const pctCot = c => num(c.valor_mercadoria) > 0 && custoCot(c) > 0 ? custoCot(c) / num(c.valor_mercadoria) : null;
+// Cotações em aberto da transportadora (sem CT-e, não reprovadas), de 60 dias antes
+// até 7 dias depois da emissão (às vezes a cotação é registrada depois).
+function cotacoesCandidatas(transportadora, emissao, excluir = []) {
+  if (!transportadora) return [];
+  return data.cot.filter(c => c.numero && norm(c.transportadora) === norm(transportadora) && c.status !== 'Reprovado' && !c.numero_cte
+      && !excluir.includes(c.numero)
+      && (!emissao || !c.data_cotacao || (diasEntre(c.data_cotacao, emissao) <= 60 && diasEntre(emissao, c.data_cotacao) <= 7)))
+    .sort((a, b) => (b.data_cotacao || '').localeCompare(a.data_cotacao || ''));
+}
+// A mais provável: aprovada primeiro, depois valor da mercadoria mais perto da NF, depois a mais recente.
+function melhorCotacao(v, excluir = []) {
+  const cs = cotacoesCandidatas(v.transportadora, v.data_emissao, excluir);
+  const nf = num(v.valor_nfe);
+  const dist = c => nf > 0 && num(c.valor_mercadoria) > 0 ? Math.abs(num(c.valor_mercadoria) - nf) / nf : 1;
+  return cs.sort((a, b) => ((b.status === 'Aprovado') - (a.status === 'Aprovado')) || dist(a) - dist(b)
+    || (b.data_cotacao || '').localeCompare(a.data_cotacao || ''))[0] || null;
+}
+function conferenciaCot(v, c) {
+  if (!c) return null;
+  const dif = num(v.valor_frete) - custoCot(c);
+  return { c, dif, ok: Math.abs(dif) < 0.01 };
+}
+function conferenciaHTML(conf, curto = false) {
+  if (!conf) return curto ? '<span class="td-mono">sem cotação</span>' : '';
+  const { c, dif, ok } = conf;
+  if (ok) return `<span class="badge b-ok" title="Valor do CT-e igual ao da cotação">✔ ${esc(c.numero)} confere</span>${curto ? '' : ` <span class="td-mono">cotação ${brl(custoCot(c))}</span>`}`;
+  return `<span class="badge ${dif > 0 ? 'b-crit' : 'b-warn'}" title="Cotação ${esc(c.numero)}: ${brl(custoCot(c))}">⚠ ${esc(c.numero)}: ${dif > 0 ? '+' : '−'}${brl(Math.abs(dif))}</span>`
+    + (curto ? '' : ` <span>CT-e ${brl(custoCot(c) + dif)} ≠ cotação ${brl(custoCot(c))} — ${dif > 0 ? 'cobrado a mais' : 'cobrado a menos'}</span>`);
+}
+function cotacoesOptionsHTML(atual) {
+  const transp = $('fm-transportadora')?.value, em = $('fm-data_emissao')?.value;
+  const cs = cotacoesCandidatas(transp, em);
+  const atualCot = atual && data.cot.find(c => c.numero === atual);
+  if (atualCot && !cs.includes(atualCot)) cs.unshift(atualCot);
+  return `<option value="">${cs.length ? 'Sem cotação vinculada' : transp ? 'Nenhuma cotação em aberto dessa transportadora' : 'Escolha a transportadora'}</option>`
+    + cs.map(c => `<option value="${esc(c.numero)}" ${c.numero === atual ? 'selected' : ''}>${esc(c.numero)} · ${dataBR(c.data_cotacao)} · ${brl(custoCot(c))}${pctCot(c) != null ? ' · ' + pctFmt(pctCot(c)) : ''} · ${esc(c.status)}</option>`).join('');
+}
+function atualizarCotacoesCte(atual) {
+  const sel = $('fm-numero_cotacao');
+  if (!sel) return;
+  sel.innerHTML = cotacoesOptionsHTML(atual ?? sel.value);
+  atualizarPreview();
+}
+// Ao gravar um CT-e com cotação: a cotação recebe o Nº do CT-e e fica Aprovada.
+async function vincularCotacoes(pares) {
+  const agora = new Date().toISOString();
+  for (const { numeroCotacao, numeroCte } of pares) {
+    const c = data.cot.find(x => x.numero === numeroCotacao);
+    if (!c || c.numero_cte === numeroCte) continue;
+    const { error } = await gravarTolerante(r => supabase.from(T.cot).update(r).eq('id', c.id), { numero_cte: numeroCte, status: 'Aprovado', atualizado_em: agora });
+    if (error) console.warn('[Fretes] Não vinculou a cotação', numeroCotacao, error.message);
+  }
+  if (pares.length) await carregar('cot');
+}
+
 function renderCot() {
   chips('chips-status-cot', STATUS_COT, ui.cotStatus, v => ui.cotStatus = v);
-  const lista = ordenar(cotFiltradas(), 'cot', (r, k) => /valor|prazo|peso|volume|ad_/.test(k) ? (r[k] == null ? null : num(r[k])) : r[k]);
+  const lista = ordenar(cotFiltradas(), 'cot', (r, k) => k === 'pct' ? pctCot(r) : /valor|prazo|peso|volume|ad_/.test(k) ? (r[k] == null ? null : num(r[k])) : r[k]);
   $('cnt-cot').textContent = lista.length;
   if (!lista.length) {
     $('tb-cot').innerHTML = `<tbody><tr><td><div class="empty-page">${data.cot.length ? 'Nenhuma cotação com esses filtros' : '💬 Nenhuma cotação registrada ainda.<br><br>Clique em <b>＋ Nova cotação</b> para registrar.'}</div></td></tr></tbody>`;
@@ -962,7 +1056,7 @@ function renderCot() {
     ${th('cot', 'numero', 'Nº')}${th('cot', 'data_cotacao', 'Data')}${th('cot', 'validade', 'Validade')}
     ${th('cot', 'origem', 'Origem')}${th('cot', 'destino', 'Destino')}${th('cot', 'transportadora', 'Transportadora')}
     ${th('cot', 'peso_kg', 'Peso', 'num')}${th('cot', 'volume_m3', 'Vol. m³', 'num')}${th('cot', 'tipo_carga', 'Carga')}
-    ${th('cot', 'prazo_dias', 'Prazo', 'num')}${th('cot', 'valor_frete', 'Frete', 'num')}${th('cot', 'ad_valorem', 'Ad valorem', 'num')}${th('cot', 'status', 'Status')}<th></th>
+    ${th('cot', 'prazo_dias', 'Prazo', 'num')}${th('cot', 'valor_frete', 'Frete', 'num')}${th('cot', 'ad_valorem', 'Ad valorem', 'num')}${th('cot', 'pct', '% s/ merc.', 'num')}${th('cot', 'status', 'Status')}${th('cot', 'numero_cte', 'CT-e')}<th></th>
   </tr></thead><tbody>
   ${lista.map(c => {
     const vencida = c.validade && c.validade < hoje && (c.status === 'Aguardando' || c.status === 'Em análise');
@@ -979,7 +1073,9 @@ function renderCot() {
     <td class="num">${c.prazo_dias != null ? c.prazo_dias + 'd' : '—'}</td>
     <td class="num">${brl(c.valor_frete)}</td>
     <td class="num">${c.ad_valorem != null ? brl(c.ad_valorem) : '—'}</td>
+    <td class="num">${pctHTML(pctCot(c))}</td>
     <td>${badge(c.status)}</td>
+    <td class="td-mono">${c.numero_cte ? esc(c.numero_cte) : '—'}</td>
     <td><div class="row-acts w-only">
       ${c.status !== 'Aprovado' ? `<button class="abtn" title="Aprovar" onclick="event.stopPropagation();mudarStatusCot('${c.id}','Aprovado')">✔</button>` : ''}
       <button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('cot','${c.id}')">🗑</button></div></td>
@@ -1068,7 +1164,7 @@ const FORMS = {
     { k: 'numero_nfe', l: 'Nº NF-e', s: 1 },
     { k: 'serie_nf', l: 'Série NF', s: 1 },
     { k: 'origem', l: 'Origem / Rota', ph: 'Ex.: SPA - CGB' },
-    { k: 'transportadora', l: 'Transportadora', dl: 'dl-transp', req: true },
+    { k: 'transportadora', l: 'Transportadora', dl: 'dl-transp', req: true, selTransp: true },
     { k: 'remetente', l: 'Remetente' },
     { k: 'destino', l: 'Destinatário' },
     { k: 'tipo_saida', l: 'Tipo de saída', dl: 'dl-tipo', upper: true },
@@ -1078,6 +1174,7 @@ const FORMS = {
     { k: 'previsao_entrega', l: 'Previsão entrega', t: 'date', s: 1 },
     { k: 'status_entrega', l: 'Status entrega', o: STATUS_CTE, s: 1, def: 'Pendente' },
     { k: 'data_entrega', l: 'Data entrega', t: 'date', s: 1 },
+    { k: 'numero_cotacao', l: 'Cotação (conferir valor do CT-e)', s: 4, selCot: true },
     { preview: 'cte' },
     { k: 'observacoes', l: 'Observações', t: 'textarea', s: 4 },
   ]},
@@ -1086,7 +1183,7 @@ const FORMS = {
     { k: 'data_cotacao', l: 'Data cotação', t: 'date', s: 1, def: () => hojeISO() },
     { k: 'validade', l: 'Validade', t: 'date', s: 1 },
     { k: 'status', l: 'Status', o: STATUS_COT, s: 1, def: 'Aguardando' },
-    { k: 'transportadora', l: 'Transportadora', dl: 'dl-transp', req: true },
+    { k: 'transportadora', l: 'Transportadora', dl: 'dl-transp', req: true, selTransp: true },
     { k: 'contato', l: 'Contato', s: 1 },
     { k: 'telefone', l: 'Telefone', s: 1 },
     { k: 'origem', l: 'Origem', s: 1 },
@@ -1096,9 +1193,11 @@ const FORMS = {
     { k: 'peso_kg', l: 'Peso (kg)', t: 'dec', s: 1 },
     { k: 'volume_m3', l: 'Volume (m³)', t: 'dec', s: 1 },
     { k: 'tipo_carga', l: 'Tipo carga', dl: 'dl-carga' },
+    { k: 'valor_mercadoria', l: 'Valor mercadoria / NF (R$)', t: 'money', s: 1 },
     { k: 'valor_frete', l: 'Valor frete (R$)', t: 'money', s: 1 },
     { k: 'ad_valorem', l: 'Ad valorem (R$)', t: 'money', s: 1 },
     { k: 'prazo_dias', l: 'Prazo (dias)', t: 'int', s: 1 },
+    { k: 'numero_cte', l: 'CT-e vinculado', ph: 'preenchido ao importar o CT-e' },
     { preview: 'cot' },
     { k: 'observacoes', l: 'Observações', t: 'textarea', s: 4 },
   ]},
@@ -1114,6 +1213,25 @@ const FORMS = {
   ]},
 };
 
+// Transportadora: lista do cadastro (+ as que aparecem em CT-es) e "Outra".
+function selectTranspHTML(id, atual, req) {
+  const nomes = nomesTransportadoras();
+  const input = `<input class="finput" id="${id}" ${req ? 'required' : ''} list="dl-transp" placeholder="Transportadora" value="${esc(atual)}">`;
+  if (!nomes.length || (atual && !nomes.some(n => norm(n) === norm(atual)))) return input;
+  return `<select class="finput" id="${id}" ${req ? 'required' : ''} onchange="formTranspMudou(this)">
+    <option value="">Selecione a transportadora…</option>
+    ${nomes.map(n => `<option value="${esc(n)}" ${norm(n) === norm(atual) ? 'selected' : ''}>${esc(n)}</option>`).join('')}
+    <option value="__outra">✏️ Outra (digitar)</option></select>`;
+}
+window.formTranspMudou = sel => {
+  if (sel.value === '__outra') {
+    const id = sel.id;
+    sel.outerHTML = `<input class="finput" id="${id}" required list="dl-transp" placeholder="Nome da transportadora">`;
+    $(id).focus();
+  }
+  if (_modal.tipo === 'cte') atualizarCotacoesCte();
+  if (_modal.tipo === 'cot') autoContato();
+};
 function campoHTML(f, val) {
   if (f.preview) return `<div class="fpreview" id="fpreview"></div>`;
   const id = 'fm-' + f.k;
@@ -1121,7 +1239,9 @@ function campoHTML(f, val) {
   const cls = 'fg' + (f.s === 1 ? ' s1' : f.s === 4 ? ' s4' : '');
   const lbl = `<label class="flbl" for="${id}">${f.l}${f.req ? ' <span class="req">*</span>' : ''}</label>`;
   let inp;
-  if (f.o) inp = `<select class="finput" id="${id}">${f.o.map((o, i) => `<option value="${esc(o)}" ${String(o) === String(v) ? 'selected' : ''}>${esc(f.ol ? f.ol[i] : (o || '—'))}</option>`).join('')}</select>`;
+  if (f.selTransp) inp = selectTranspHTML(id, v, f.req);
+  else if (f.selCot) inp = `<select class="finput" id="${id}" onchange="atualizarPreview()">${cotacoesOptionsHTML(v)}</select>`;
+  else if (f.o) inp = `<select class="finput" id="${id}">${f.o.map((o, i) => `<option value="${esc(o)}" ${String(o) === String(v) ? 'selected' : ''}>${esc(f.ol ? f.ol[i] : (o || '—'))}</option>`).join('')}</select>`;
   else if (f.t === 'textarea') inp = `<textarea class="finput" id="${id}">${esc(v)}</textarea>`;
   else {
     const type = f.t === 'date' ? 'date' : f.t === 'email' ? 'email' : (f.t === 'money' || f.t === 'int' || f.t === 'dec') ? 'number' : 'text';
@@ -1148,6 +1268,7 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
   $('btn-excluir').style.display = reg ? '' : 'none';
   $('modal').classList.add('open');
   $('modal-form').oninput = atualizarPreview;
+  if (tipo === 'cte') atualizarCotacoesCte(base.numero_cotacao);
   if (tipo === 'cot') $('fm-transportadora').addEventListener('change', autoContato);
   if (tipo === 'cte') {
     // Previsão segue emissão + prazo até o usuário (ou o PDF) definir outra data.
@@ -1157,6 +1278,7 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
       if (auto && em && pz !== '') $('fm-previsao_entrega').value = previsaoEntrega({ data_emissao: em, prazo_dias: +pz });
     };
     $('fm-data_emissao').addEventListener('change', recalc);
+    $('fm-data_emissao').addEventListener('change', () => atualizarCotacoesCte());
     $('fm-prazo_dias').addEventListener('input', recalc);
     $('fm-previsao_entrega').addEventListener('change', () => {
       auto = !$('fm-previsao_entrega').value;
@@ -1193,10 +1315,17 @@ function atualizarPreview() {
   if (_modal.tipo === 'cte') {
     const p = v('valor_nfe') > 0 ? v('valor_frete') / v('valor_nfe') : null;
     el.innerHTML = `<span class="flabel">% Frete / NF</span> ${pctHTML(p)} ${p != null ? '<span>' + PCT_FAIXAS[faixaPct(p)].label + '</span>' : '<span class="td-mono">informe frete e valor da NF</span>'}`;
+    const cot = data.cot.find(c => c.numero && c.numero === $('fm-numero_cotacao')?.value);
+    const conf = cot ? conferenciaCot({ valor_frete: v('valor_frete') }, cot) : null;
+    if (conf) el.innerHTML += `<br>${conferenciaHTML(conf)}`;
   } else {
+    // Vale a pena fechar? custo total (frete + ad valorem) ÷ valor da mercadoria
     const total = v('valor_frete') + v('ad_valorem');
-    const peso = v('peso_kg');
-    el.innerHTML = `<span class="flabel">Custo total</span> <b>${brl(total)}</b>${peso > 0 ? ` <span class="td-mono">· ${brl(total / peso)}/kg</span>` : ''}`;
+    const peso = v('peso_kg'), merc = v('valor_mercadoria');
+    const p = merc > 0 && total > 0 ? total / merc : null;
+    el.innerHTML = `<span class="flabel">Custo total</span> <b>${brl(total)}</b>${peso > 0 ? ` <span class="td-mono">· ${brl(total / peso)}/kg</span>` : ''}
+      <span class="flabel" style="margin-left:10px">% s/ mercadoria</span> ${pctHTML(p)}
+      ${p != null ? `<br><span>${VEREDITO[faixaPct(p)]}${faixaPct(p) !== 'ok' ? ` Para ficar em 3%: até ${brl(merc * 0.03)}.` : ''}</span>` : '<span class="td-mono">informe o valor da mercadoria e o frete para saber se vale a pena fechar</span>'}`;
   }
 }
 
@@ -1231,16 +1360,17 @@ window.salvarModal = async () => {
   }
   row.atualizado_em = new Date().toISOString();
   let res;
-  if (id) res = await supabase.from(T[tipo]).update(row).eq('id', id);
+  if (id) res = await gravarTolerante(r => supabase.from(T[tipo]).update(r).eq('id', id), row);
   else {
     if (paraDestino && !(await garantirSessaoImport())) return;
     row.filial = paraDestino ? FILIAL_IMPORT : FILIAL;
     if (tipo !== 'transp') row.criado_por = _user?.email || null;
-    res = await (paraDestino ? supaImport : supabase).from(T[tipo]).insert(row);
+    res = await gravarTolerante(r => (paraDestino ? supaImport : supabase).from(T[tipo]).insert(r), row);
   }
   if (res.error) { toast('Erro ao salvar: ' + msgErroBanco(res.error), 'err'); return; }
   toast(id ? '✔ Alterações salvas' : paraDestino ? `✔ CT-e gravado em ${IMPORTA_PARA.label}` : '✔ Registro criado');
   if (!id && tipo === 'cte' && _modal.importacao) await cadastrarTransportadorasNovas([{ valores: row, emit: _modal.emit }]);
+  if (tipo === 'cte' && row.numero_cotacao) await vincularCotacoes([{ numeroCotacao: row.numero_cotacao, numeroCte: row.numero_cte }]);
   if (paraDestino) carregarDestinoImport();
   if (!id && _modal.loteIdx >= 0 && _lote[_modal.loteIdx]) Object.assign(_lote[_modal.loteIdx], { estado: 'importado', valores: row });
   fecharModal();
@@ -1618,6 +1748,8 @@ async function importarPdfCte(file) {
     const res = await extrairCtes(file);
     if (res.length > 1) { importarLotePdf([file], res); return; } // vários CT-es no mesmo PDF
     const { valores, texto, ids, chave, filiais, emit } = res[0];
+    const cot = melhorCotacao(valores);
+    if (cot) valores.numero_cotacao = cot.numero;
     const existe = cteExistente(valores.numero_cte, ids, chave);
     if (existe) {
       if (existe.id && data.cte.includes(existe)) { toast(`CT-e ${existe.numero_cte} já está cadastrado — abrindo o registro.`, 'info'); goView('ctes'); abrirModal('cte', existe.id); }
@@ -1665,7 +1797,7 @@ function renderLote() {
   $('btn-lote-importar').textContent = `💾 Importar ${sel.length} selecionado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}`;
   const fretes = sel.reduce((s, it) => s + num(it.valores.valor_frete), 0);
   $('lote-total').textContent = sel.length ? `Frete selecionado: ${brl(fretes)}` : '';
-  $('tb-lote').innerHTML = `<thead><tr><th></th><th>Situação</th><th>Arquivo</th><th>Nº CT-e</th><th>Emissão</th><th>Transportadora</th><th>Remetente</th><th>Destinatário</th>
+  $('tb-lote').innerHTML = `<thead><tr><th></th><th>Situação</th><th>Cotação</th><th>Arquivo</th><th>Nº CT-e</th><th>Emissão</th><th>Transportadora</th><th>Remetente</th><th>Destinatário</th>
     <th class="num">Frete</th><th class="num">Valor NF</th><th class="num">% Frete</th><th>Previsão</th><th></th></tr></thead><tbody>
     ${_lote.map((it, i) => {
       const s = sits[i], v = it.valores || {};
@@ -1674,6 +1806,7 @@ function renderLote() {
       return `<tr>
         <td><input type="checkbox" aria-label="Incluir ${esc(it.file.name)}" ${podeMarcar ? '' : 'disabled'} ${podeMarcar && it.incluir ? 'checked' : ''} onchange="loteMarcar(${i}, this.checked)"></td>
         <td><span class="badge ${cls}" ${it.erro ? `title="${esc(it.erro)}"` : s === 'outra_filial' ? `title="Este CT-e é de ${it.filiais.map(f => NOME_FILIAL[f]).join(' / ')} — será gravado em ${NOME_FILIAL[FILIAL_IMPORT]}. Marque só se quiser gravar aqui mesmo."` : ''}>${s === 'outra_filial' ? '⚠ é de ' + it.filiais.map(f => NOME_FILIAL[f]).join('/') : lbl}</span></td>
+        <td>${it.estado === 'lido' || it.estado === 'importado' ? conferenciaHTML(conferenciaCot(v, data.cot.find(c => c.numero && c.numero === v.numero_cotacao)), true) : ''}</td>
         <td class="td-trunc td-mono" title="${esc(it.file.name)}">${esc(it.file.name)}${it.parte ? ` <b>(${it.parte})</b>` : ''}</td>
         <td class="td-strong">${esc(v.numero_cte || '—')}</td>
         <td class="td-mono">${dataBR(v.data_emissao)}</td>
@@ -1711,10 +1844,21 @@ async function importarLotePdf(files, lidos = null) {
       novos = [{ file, estado: 'erro', incluir: false, erro: msgErroPdf(err) }];
     }
     _lote.splice(pos, 1, ...novos); // um PDF pode virar vários CT-es
+    atribuirCotacoesLote();
     renderLote();
   }
 }
 
+// Cada CT-e do lote fica com a cotação mais provável, sem usar a mesma duas vezes.
+function atribuirCotacoesLote() {
+  const usadas = [];
+  _lote.forEach(it => {
+    if (it.estado !== 'lido' || !it.valores) return;
+    const c = melhorCotacao(it.valores, usadas);
+    it.valores.numero_cotacao = c ? c.numero : undefined;
+    if (!c) delete it.valores.numero_cotacao; else usadas.push(c.numero);
+  });
+}
 window.loteMarcar = (i, on) => { _lote[i].incluir = on; renderLote(); };
 // "Marcar todos" não inclui os de outra filial — esses só marcando um a um.
 window.loteMarcarTodos = on => { _lote.forEach(it => it.incluir = on && !deOutraFilial(it)); renderLote(); };
@@ -1741,9 +1885,10 @@ window.importarLoteSelecionados = async () => {
   if (!(await garantirSessaoImport())) return;
   const rows = itens.map(it => ({ ...it.valores, filial: FILIAL_IMPORT, criado_por: _user?.email || null, atualizado_em: agora }));
   $('btn-lote-importar').disabled = true;
-  const { error } = await supaImport.from(T.cte).insert(rows);
+  const { error } = await gravarTolerante(r => supaImport.from(T.cte).insert(r), rows);
   if (error) { toast('Erro ao importar: ' + msgErroBanco(error), 'err'); renderLote(); return; }
   itens.forEach(it => it.estado = 'importado');
+  await vincularCotacoes(itens.filter(it => it.valores.numero_cotacao).map(it => ({ numeroCotacao: it.valores.numero_cotacao, numeroCte: it.valores.numero_cte })));
   const nTransp = await cadastrarTransportadorasNovas(itens);
   toast(`✔ ${rows.length} CT-e(s) importado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}${nTransp ? ` · ${nTransp} transportadora(s) nova(s) cadastrada(s)` : ''}`);
   await carregarDestinoImport();
@@ -1998,7 +2143,6 @@ window.calcAtualizar = () => {
         ${f !== 'ok' ? `<br>Para ficar em 3%, o frete precisaria baixar para ${brl(nf * 0.03)} (−${brl(o.frete - nf * 0.03)}).` : ''}
         ${h ? `<br>Histórico ${esc(o.transportadora)}: ${pctFmt(h.pct)} em ${h.qtd} CT-e(s) — esta cotação está ${Math.abs(dif) < 0.0005 ? 'na média' : dif > 0 ? `<b style="color:var(--crit-c)">${pp(dif)} acima</b> da média` : `<b style="color:var(--ok-c)">${pp(-dif)} abaixo</b> da média`}.` : ''}
         ${validas.length > 1 && o !== melhor ? `<br>${brl(o.frete - melhor.frete)} mais cara que a opção mais barata.` : ''}</div>
-      <div class="row-acts w-only" style="justify-content:flex-start;margin-top:7px"><button class="fchip" onclick="calcSalvarCotacao(${o.i})">💬 Salvar como cotação</button></div>
     </div>`;
   }).join('');
 };
@@ -2007,14 +2151,31 @@ window.calcSalvarHistorico = async () => {
   const ops = calcOpcoes().filter(o => o.frete > 0).map(o => ({ transportadora: o.transportadora ? o.transportadora.toUpperCase() : null, frete: o.frete, prazo: o.prazo, pct: o.frete / nf }));
   if (!(nf > 0) || !ops.length) return;
   const melhor = ops.reduce((a, b) => (b.frete < a.frete ? b : a));
-  const { error } = await supabase.from('frete_calculos').insert({
+  const obs = $('calc-obs').value.trim() || null;
+  const { data: calc, error } = await supabase.from('frete_calculos').insert({
     valor_mercadoria: nf, opcoes: ops, melhor_transportadora: melhor.transportadora, melhor_frete: melhor.frete, melhor_pct: melhor.pct,
-    observacao: $('calc-obs').value.trim() || null, filial: FILIAL, criado_por: _user?.email || null,
-  });
+    observacao: obs, filial: FILIAL, criado_por: _user?.email || null,
+  }).select('id').single();
   if (error) { toast('Erro ao salvar no histórico: ' + (/does not exist|schema cache|Could not find the table/i.test(error.message) ? 'rode supabase/migrations/20261013_fretes_calculos.sql no Supabase.' : error.message), 'err'); return; }
+  // Cada opção com transportadora vira uma cotação "Em análise" ligada ao cálculo.
+  const comNome = ops.filter(o => o.transportadora);
+  const base = +(/(\d+)\s*$/.exec(proximoNumeroCot()) || [0, 1])[1];
+  const cots = comNome.map((o, j) => ({
+    numero: 'COT-' + String(base + j).padStart(4, '0'), data_cotacao: hojeISO(), transportadora: o.transportadora,
+    valor_frete: o.frete, prazo_dias: o.prazo, valor_mercadoria: nf, calculo_id: calc.id, status: 'Em análise',
+    filial: FILIAL, criado_por: _user?.email || null,
+    observacoes: `Calculadora: mercadoria ${brl(nf)} · frete ${pctFmt(o.pct)} (${PCT_FAIXAS[faixaPct(o.pct)].label})${o === melhor ? ' · mais barata' : ''}${obs ? ' · ' + obs : ''}`,
+  }));
+  let msgCot = '';
+  if (cots.length) {
+    const r = await gravarTolerante(x => supabase.from(T.cot).insert(x), cots);
+    msgCot = r.error ? ` — mas as cotações não foram geradas: ${msgErroBanco(r.error)}` : ` · ${cots.length} cotação(ões) gerada(s): ${cots.map(c => c.numero).join(', ')}`;
+  }
+  if (ops.length > comNome.length) msgCot += ` · ${ops.length - comNome.length} opção(ões) sem transportadora não viraram cotação`;
   $('calc-obs').value = '';
-  toast('✔ Cálculo salvo no histórico');
-  await carregarCalculos();
+  toast('✔ Cálculo salvo no histórico' + msgCot, msgCot.includes('não foram') ? 'err' : 'ok');
+  await Promise.all([carregarCalculos(), carregar('cot')]);
+  montarFiltros(); renderCalcHistorico();
 };
 window.calcReabrir = id => {
   const c = calculos.find(x => x.id === id);
@@ -2040,8 +2201,9 @@ function renderCalcHistorico() {
     && (!ui.busca || norm(JSON.stringify(c.opcoes) + ' ' + (c.observacao || '') + ' ' + (c.criado_por || '')).includes(norm(ui.busca))));
   $('calc-hist-sub').textContent = lista.length ? `${lista.length} cálculo(s)` : '';
   if (!lista.length) { el.innerHTML = `<div class="empty-mini">${calculos.length ? 'Nenhum cálculo no período/busca selecionados.' : 'Nenhum cálculo salvo ainda — use 💾 Salvar no histórico.'}</div>`; return; }
-  el.innerHTML = `<table><thead><tr><th>Data</th><th>Quem</th><th class="num">Mercadoria</th><th>Opções (frete · % da mercadoria)</th><th>Mais barata</th><th>Observação</th><th></th></tr></thead><tbody>
+  el.innerHTML = `<table><thead><tr><th>Data</th><th>Quem</th><th class="num">Mercadoria</th><th>Opções (frete · % da mercadoria)</th><th>Mais barata</th><th>Cotações geradas</th><th>Observação</th><th></th></tr></thead><tbody>
     ${lista.map(c => {
+      const geradas = data.cot.filter(x => x.calculo_id === c.id);
       const dt = new Date(c.criado_em);
       return `<tr>
         <td class="td-mono">${dt.toLocaleDateString('pt-BR')} ${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
@@ -2049,6 +2211,7 @@ function renderCalcHistorico() {
         <td class="num">${brl(c.valor_mercadoria)}</td>
         <td>${(c.opcoes || []).map(o => `<span class="calc-hist-op">${esc(o.transportadora || '—')}: ${brl(o.frete)} ${pctHTML(o.pct)}</span>`).join('')}</td>
         <td>${c.melhor_transportadora ? `<b>${esc(c.melhor_transportadora)}</b> ${pctHTML(Number(c.melhor_pct))}` : '—'}</td>
+        <td>${geradas.length ? geradas.map(x => `<span class="calc-hist-op">${esc(x.numero)} ${badge(x.status)}${x.numero_cte ? ` <span class="td-mono">CT-e ${esc(x.numero_cte)}</span>` : ''}</span>`).join('') : '<span class="td-mono">—</span>'}</td>
         <td class="td-trunc" title="${esc(c.observacao)}">${esc(c.observacao || '—')}</td>
         <td><div class="row-acts"><button class="abtn" title="Reabrir na calculadora" onclick="calcReabrir('${c.id}')">↺</button>
           <button class="abtn del w-only" title="Excluir do histórico" onclick="calcExcluirHistorico('${c.id}')">🗑</button></div></td>
@@ -2254,7 +2417,12 @@ window.exportarExcel = () => {
 // ───────────────────────── Início ─────────────────────────
 let _viewInicial = 'dashboard';
 try { _viewInicial = localStorage.getItem('_fretesView') || 'dashboard'; } catch (e) {}
-goView(TITULOS[_viewInicial] ? _viewInicial : 'dashboard');
+{
+  const daUrl = location.hash.slice(1);
+  const ini = TITULOS[daUrl] ? daUrl : TITULOS[_viewInicial] ? _viewInicial : 'dashboard';
+  try { history.replaceState({ view: ini }, '', '#' + ini); } catch (e) {}
+  goView(ini, false);
+}
 </script>
 </body>
 </html>
