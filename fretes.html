@@ -406,6 +406,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <option value="crit">&gt; 5% (revisar)</option>
           </select>
           <button class="fchip w-only" id="btn-dups" onclick="abrirDuplicados()" title="CT-es lançados mais de uma vez">🧹 Revisar duplicados</button>
+          <button class="fchip w-only" id="btn-rastreio-lote" onclick="atualizarStatusPeloRastreio(true)" title="Consulta no SSW os CT-es não entregues e atualiza o status">📡 Atualizar pelo rastreio</button>
         </div>
         <div class="twrap">
           <div class="thead-bar">
@@ -693,7 +694,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.24';
+const VERSAO = '2026-10-11.25';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -1015,6 +1016,7 @@ async function carregarTudo() {
   montarFiltros();
   render();
   setTimeout(avisoDiario, 1500);
+  setTimeout(() => atualizarStatusPeloRastreio(false), 5000);
   // Tempo real: recarrega a tabela inteira a cada mudança (volumes pequenos).
   _channels.forEach(ch => supabase.removeChannel(ch));
   _channels = Object.keys(T).map(k => supabase
@@ -2220,6 +2222,72 @@ function rastreioHTML(res) {
     </div>`;
   }).join('');
 }
+// ── Status automático pelo rastreio do SSW ──
+// CT-es não entregues (até 90 dias, prazo do SSW) consultados em lote, agrupados por consulta
+// (remetente/destinatário + CNPJ, até 100 NFs cada). ENTREGUE → Entregue com a data do SSW;
+// qualquer movimento com o CT-e Pendente → Em trânsito. Roda sozinho ao abrir (no máximo a cada 2 h).
+const dataSsw = dh => { const m = /(\d{2})\/(\d{2})\/(\d{2,4})/.exec(dh || ''); return m ? `${m[3].length === 2 ? '20' + m[3] : m[3]}-${m[2]}-${m[1]}` : null; };
+const nfDaLinha = l => (String(l.nf || '').trim().split(/\s+/).pop() || '').replace(/^0+/, '');
+let _rastreandoLote = false;
+window.atualizarStatusPeloRastreio = async (manual = false) => {
+  if (_rastreandoLote) return;
+  if (_readOnly) { if (manual) toast('Seu usuário é só de visualização — não pode alterar status.', 'err'); return; }
+  const chaveTs = 'gf_fretes_rastreio_' + FILIAL;
+  if (!manual) { try { if (Date.now() - +(localStorage.getItem(chaveTs) || 0) < 2 * 3600e3) return; } catch (e) {} }
+  const cands = data.cte.filter(c => c.status_entrega !== 'Entregue' && nfsDe(c).length && (!c.data_emissao || diasEntre(c.data_emissao, hojeISO()) <= 90));
+  if (!cands.length) { if (manual) toast('Nenhum CT-e em aberto (últimos 90 dias) para consultar.', 'info'); return; }
+  _rastreandoLote = true;
+  const btn = $('btn-rastreio-lote'); const txt = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = `📡 Consultando ${cands.length} CT-e(s)…`; }
+  const achados = new Map(); // id → linha do SSW
+  try {
+    for (let passo = 0; passo < 2; passo++) {
+      const grupos = new Map();
+      cands.filter(c => !achados.has(c.id)).forEach(c => {
+        const t = tentativasRastreio(c)[passo]; if (!t) return;
+        const k = t.tipo + '|' + t.cnpj;
+        if (!grupos.has(k)) grupos.set(k, { tipo: t.tipo, cnpj: t.cnpj, ctes: [] });
+        grupos.get(k).ctes.push(c);
+      });
+      for (const g of grupos.values()) {
+        const nfs = [...new Set(g.ctes.flatMap(nfsDe))];
+        for (let i = 0; i < nfs.length; i += 100) {
+          try {
+            const r = await fetch('api/rastreio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tipo: g.tipo, cnpj: g.cnpj, nfs: nfs.slice(i, i + 100), detalhes: false }) });
+            const j = await r.json().catch(() => null);
+            if (!r.ok || !j?.ok) continue;
+            j.linhas.filter(l => !naoDisp(l.situacao)).forEach(l => {
+              const n = nfDaLinha(l);
+              g.ctes.filter(c => !achados.has(c.id) && nfsDe(c).includes(n)).forEach(c => achados.set(c.id, l));
+            });
+          } catch (e) { /* sem rede / sem a função (servidor local): ignora */ }
+        }
+      }
+    }
+    const mudar = [];
+    achados.forEach((l, id) => {
+      const c = data.cte.find(x => x.id === id);
+      if (ehEntregue(l.situacao)) mudar.push({ c, upd: { status_entrega: 'Entregue', data_entrega: dataSsw(l.dataHora) || hojeISO() }, l });
+      else if (c.status_entrega === 'Pendente') mudar.push({ c, upd: { status_entrega: 'Em trânsito' }, l });
+    });
+    const agora = new Date().toISOString();
+    const res = await Promise.all(mudar.map(m => supabase.from(T.cte).update({ ...m.upd, atualizado_em: agora }).eq('id', m.c.id)));
+    const ok = mudar.filter((m, i) => !res[i].error);
+    try { localStorage.setItem(chaveTs, String(Date.now())); } catch (e) {}
+    if (ok.length) {
+      registrarLog('status pelo rastreio SSW', T.cte, `${ok.length} CT-e(s)`, { alterados: ok.map(m => `${m.c.numero_cte}: ${m.c.status_entrega} → ${m.upd.status_entrega}${m.upd.data_entrega ? ' em ' + m.upd.data_entrega : ''}`) });
+      const ent = ok.filter(m => m.upd.status_entrega === 'Entregue').length;
+      toast(`📡 Rastreio SSW: ${ent ? `${ent} CT-e(s) marcados como entregues` : ''}${ent && ok.length - ent ? ' · ' : ''}${ok.length - ent ? `${ok.length - ent} em trânsito` : ''}`);
+      await carregar('cte'); montarFiltros(); render();
+    } else if (manual) {
+      toast(`📡 Consultei ${cands.length} CT-e(s) no SSW: nenhuma mudança de status${achados.size ? '' : ' (as transportadoras desses CT-es não aparecem no SSW)'}.`, 'info');
+    }
+  } finally {
+    _rastreandoLote = false;
+    if (btn) { btn.disabled = false; btn.textContent = txt; }
+  }
+};
 window.rastrearCte = async id => {
   const c = data.cte.find(x => x.id === id);
   if (!c) return;

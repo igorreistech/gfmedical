@@ -2,7 +2,7 @@
 // O SSW não deixa ser aberto dentro de outro site (X-Frame-Options) nem lido pelo navegador
 // (sem CORS), então esta função da Vercel faz a consulta e devolve as linhas em JSON.
 //
-// POST /api/rastreio  { tipo: 'dest' | 'rem', cnpj: '07356800000199', nfs: ['929351', ...] }
+// POST /api/rastreio  { tipo: 'dest' | 'rem', cnpj: '07356800000199', nfs: ['929351', ...], detalhes?: false }
 //   dest = "pelo destinatário" (ssw.inf.br/2/rastreamento_dest?pwd=2) — cnpj de quem recebe
 //   rem  = "pelo remetente"    (ssw.inf.br/2/rastreamento)            — cnpj de quem emitiu a NF
 // Resposta: { ok, linhas: [{ nf, pedido, unidade, dataHora, situacao, detalhe, link }], vazio }
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, erro: 'use POST' });
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
-  const { tipo, cnpj, nfs } = body || {};
+  const { tipo, cnpj, nfs, detalhes = true } = body || {};
   const acao = ACOES[tipo];
   const doc = String(cnpj || '').replace(/\D/g, '');
   const lista = (Array.isArray(nfs) ? nfs : []).map(n => String(n).replace(/\D/g, '')).filter(n => n && n.length <= 12).slice(0, 100);
@@ -64,7 +64,8 @@ export default async function handler(req, res) {
     const html = await r.text();
     const out = lerResultado(html);
     // histórico completo de cada NF (até 10), pelo link "Mais detalhes"
-    await Promise.all(out.linhas.slice(0, 10).map(async l => {
+    // (detalhes: false = só a situação atual — usado na atualização em lote dos status)
+    if (detalhes) await Promise.all(out.linhas.slice(0, 10).map(async l => {
       if (!l.link || !/ssw\.inf\.br\/2\/ssw_SSWDetalhado/i.test(l.link)) return;
       try {
         const d = await fetch(l.link, { signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'Mozilla/5.0 (Controle de Fretes GF Medical)' } });
