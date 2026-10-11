@@ -183,6 +183,11 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.fat-ctes{max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px;background:var(--bg);display:flex;flex-direction:column;gap:3px}
+.fat-cte{font-size:0.74rem;color:var(--text2);display:flex;align-items:center;gap:6px}
+.fat-ctes-acts{display:flex;gap:6px;margin-bottom:4px}
+.unif-grupo{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;background:var(--surface)}
+.unif-grupo label{display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:0.76rem}
 .aud-explica{padding:10px 15px;font-size:0.72rem;color:var(--text2);border-bottom:1px solid var(--border);line-height:1.6}
 .aud-transp{display:flex;flex-wrap:wrap;gap:6px;padding:10px 15px;border-bottom:1px solid var(--border)}
 .aud-achado{font-size:0.7rem;line-height:1.5}
@@ -306,6 +311,9 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <a class="nav-item" data-view="comparativo" href="#"><span class="nav-icon">⚖️</span> Comparativo</a>
       <a class="nav-item" data-view="transportadoras" href="#"><span class="nav-icon">🚚</span> Transportadoras<span class="nbadge" id="nb-transp">0</span></a>
       <a class="nav-item" data-view="calculadora" href="#"><span class="nav-icon">🧮</span> Calculadora de frete</a>
+      <a class="nav-item" data-view="tabelas" href="#"><span class="nav-icon">📑</span> Tabelas de frete</a>
+      <a class="nav-item" data-view="faturas" href="#"><span class="nav-icon">💳</span> Faturas<span class="nbadge" id="nb-fat">0</span></a>
+      <a class="nav-item" data-view="cirurgias" href="#"><span class="nav-icon">🏥</span> Frete por cirurgia</a>
       <a class="nav-item" data-view="auditoria" href="#"><span class="nav-icon">🔎</span> Auditoria de fretes<span class="nbadge crit" id="nb-aud">0</span></a>
       <div class="sdiv"></div>
       <div class="slabel">Atenção</div>
@@ -331,9 +339,10 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <div class="page-title" id="page-title">Dashboard</div>
       <select class="tsel" id="f-periodo" title="Período"></select>
       <div class="sbox"><span>🔍</span><input id="f-busca" placeholder="Buscar CT-e, NF, destino…"></div>
-      <label class="tbtn tbtn-p w-only" title="Selecione um PDF (abre o formulário preenchido) ou vários de uma vez (importação em lote). Também dá para arrastar os PDFs na tela.">📄 PDF(s) do CT-e<input type="file" id="f-pdf-cte" accept="application/pdf,.pdf" multiple hidden></label>
+      <label class="tbtn tbtn-p w-only" title="Selecione um PDF (abre o formulário preenchido) ou vários de uma vez (importação em lote). Também dá para arrastar os PDFs na tela.">📄 PDF/XML do CT-e<input type="file" id="f-pdf-cte" accept="application/pdf,.pdf,.xml,text/xml,application/xml" multiple hidden></label>
       <label class="tbtn tbtn-g w-only" title="Importar a planilha Controle_Cotacao_Frete (.xlsx)">📥 Importar<input type="file" id="f-import" accept=".xlsx,.xls" hidden></label>
       <button class="tbtn tbtn-g" onclick="enviarWhatsApp()" title="Resumo dos números do período para enviar no WhatsApp">📲 WhatsApp</button>
+      <button class="tbtn tbtn-g" onclick="enviarResumoDia()" title="Resumo do dia (vencidos, auditoria, meta e faturas) para o WhatsApp">🔔 Resumo do dia</button>
       <button class="tbtn tbtn-g" onclick="gerarPdf()" title="Relatório do período para salvar em PDF ou imprimir">🖨 PDF</button>
       <button class="tbtn tbtn-g" onclick="exportarExcel()">📤 Exportar</button>
       <button class="tbtn tbtn-p w-only" id="btn-novo" onclick="novoRegistro()">＋ Novo</button>
@@ -345,6 +354,9 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <div class="vtab" data-view="comparativo">⚖️ Comparativo</div>
       <div class="vtab" data-view="transportadoras">🚚 Transp.</div>
       <div class="vtab" data-view="calculadora">🧮 Calculadora</div>
+      <div class="vtab" data-view="tabelas">📑 Tabelas</div>
+      <div class="vtab" data-view="faturas">💳 Faturas</div>
+      <div class="vtab" data-view="cirurgias">🏥 Cirurgias</div>
       <div class="vtab" data-view="auditoria">🔎 Auditoria</div>
     </div>
 
@@ -404,13 +416,60 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
         </div>
       </section>
 
+      <section class="view" id="view-tabelas">
+        <div class="calc-grid">
+          <div class="twrap">
+            <div class="thead-bar"><span class="thead-title">📑 Tabelas de frete combinadas</span><span class="tcount" id="cnt-tab">0</span>
+              <span class="td-mono" style="margin-left:auto">frete = máx(mínimo; fixo + R$/kg × peso + % × NF)</span></div>
+            <div class="tscroll"><table id="tb-tab"></table></div>
+          </div>
+          <div class="dcard">
+            <div class="dcard-head">🧮 Simulador — quanto cada uma cobraria pela tabela</div>
+            <div class="dcard-body">
+              <div class="fgrid">
+                <div class="fg s4"><label class="flbl" for="sim-rota">Rota</label><input class="finput" id="sim-rota" list="dl-rotas" placeholder="Ex.: SJP - CGB (em branco = só tabelas gerais)"></div>
+                <div class="fg"><label class="flbl" for="sim-peso">Peso (kg)</label><input class="finput" id="sim-peso" type="number" min="0" step="0.1"></div>
+                <div class="fg"><label class="flbl" for="sim-nf">Valor da NF (R$)</label><input class="finput" id="sim-nf" type="number" min="0" step="0.01"></div>
+              </div>
+              <div id="sim-res" style="margin-top:12px"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-faturas">
+        <div class="twrap">
+          <div class="thead-bar"><span class="thead-title">💳 Faturas das transportadoras — conferência com os CT-es</span><span class="tcount" id="cnt-fat">0</span>
+            <span class="td-mono" style="margin-left:auto" id="fat-resumo"></span></div>
+          <div class="aud-explica" id="fat-sem"></div>
+          <div class="tscroll"><table id="tb-fat"></table></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-cirurgias">
+        <div class="aud-explica" style="border:none;padding:0 0 10px">Liga cada CT-e ao procedimento do Monitor Cirúrgico pela <b>NF</b>: quanto de frete cada cirurgia, hospital e convênio custou.</div>
+        <div class="dash-grid">
+          <div class="dcard"><div class="dcard-head">🏥 Por hospital</div><div class="dcard-body" style="padding:0"><div class="tscroll" id="cir-hosp"></div></div></div>
+          <div class="dcard"><div class="dcard-head">💼 Por convênio</div><div class="dcard-body" style="padding:0"><div class="tscroll" id="cir-conv"></div></div></div>
+        </div>
+        <div class="twrap">
+          <div class="thead-bar"><span class="thead-title">Procedimentos com frete</span><span class="tcount" id="cnt-cir">0</span><span class="td-mono" style="margin-left:auto" id="cir-resumo"></span></div>
+          <div class="tscroll"><table id="tb-cir"></table></div>
+        </div>
+      </section>
+
       <section class="view" id="view-auditoria">
         <div class="twrap">
           <div class="thead-bar"><span class="thead-title">🔎 Auditoria de fretes — divergências para conferir/contestar</span><span class="tcount" id="cnt-aud">0</span>
             <span class="td-mono" style="margin-left:auto" id="aud-total"></span></div>
-          <div class="aud-explica">Confere cada CT-e do período contra: <b>a cotação vinculada</b> (valor diferente), <b>o que a mesma transportadora costuma cobrar nessa rota</b> (% bem acima do usual), <b>o esperado pelo histórico dela</b> (parte fixa + % da NF) e <b>NF cobrada em mais de um CT-e</b>. "A contestar" é a diferença estimada.</div>
+          <div class="aud-explica">Confere cada CT-e do período contra: <b>a tabela combinada</b>, <b>a cotação vinculada</b> (valor diferente), <b>o que a mesma transportadora costuma cobrar nessa rota</b> (% bem acima do usual), <b>o esperado pelo histórico dela</b> (parte fixa + % da NF) e <b>NF cobrada em mais de um CT-e</b>. "A contestar" é a diferença estimada.</div>
           <div id="aud-transp" class="aud-transp"></div>
           <div class="tscroll"><table id="tb-aud"></table></div>
+        </div>
+        <div class="twrap" style="margin-top:14px">
+          <div class="thead-bar"><span class="thead-title">🕘 Registro de alterações</span><span class="tcount" id="cnt-log">0</span>
+            <span class="td-mono" style="margin-left:auto">quem incluiu, editou, importou ou excluiu — últimos 300</span></div>
+          <div class="tscroll"><table id="tb-log"></table></div>
         </div>
       </section>
 
@@ -422,6 +481,10 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
               <div class="fg s4" style="margin-bottom:12px">
                 <label class="flbl" for="calc-nf">Valor total da mercadoria / NF-e (R$)</label>
                 <input class="finput calc-nf" id="calc-nf" type="number" min="0" step="0.01" placeholder="Ex.: 25000,00">
+              </div>
+              <div class="fgrid" style="margin-bottom:12px">
+                <div class="fg"><label class="flbl" for="calc-peso">Peso (kg) — opcional</label><input class="finput" id="calc-peso" type="number" min="0" step="0.1"></div>
+                <div class="fg"><label class="flbl" for="calc-rota">Rota — opcional</label><input class="finput" id="calc-rota" list="dl-rotas" placeholder="Ex.: SJP - CGB"></div>
               </div>
               <div class="flbl" style="margin-bottom:6px">Opções de frete (cotações)</div>
               <div id="calc-opcoes"></div>
@@ -446,7 +509,8 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 
       <section class="view" id="view-transportadoras">
         <div class="twrap">
-          <div class="thead-bar"><span class="thead-title">Cadastro de transportadoras</span><span class="tcount" id="cnt-transp">0</span></div>
+          <div class="thead-bar"><span class="thead-title">Cadastro de transportadoras</span><span class="tcount" id="cnt-transp">0</span>
+            <button class="tbtn tbtn-g w-only" style="margin-left:auto" onclick="abrirUnificar()">🔗 Unificar nomes repetidos</button></div>
           <div class="tscroll"><table id="tb-transp"></table></div>
         </div>
       </section>
@@ -479,6 +543,20 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
   </div>
 </div>
 
+<div id="modal-unif" class="modal-ov">
+  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="unif-title">
+    <div class="mhead"><span class="mtitle" id="unif-title">🔗 Unificar transportadoras com nomes repetidos</span><button class="mclose" onclick="fecharUnificar()" aria-label="Fechar">✕</button></div>
+    <div class="mbody">
+      <div class="td-mono" style="margin-bottom:10px">A mesma empresa com nomes diferentes divide os números. Escolha o nome que fica: os CT-es, cotações, tabelas e faturas com os outros nomes passam para ele, e os cadastros repetidos são juntados num só.</div>
+      <div id="unif-grupos"></div>
+      <div class="dcard" style="margin-top:12px"><div class="dcard-head">Unificar manualmente</div><div class="dcard-body">
+        <div class="fgrid"><div class="fg"><label class="flbl" for="unif-de">Nome a substituir</label><select class="finput" id="unif-de"></select></div>
+        <div class="fg"><label class="flbl" for="unif-para">Passa a ser</label><input class="finput" id="unif-para" list="dl-transp" placeholder="Nome que fica"></div></div>
+        <button class="tbtn tbtn-p" style="margin-top:10px" onclick="unificarManual()">🔗 Unificar</button></div></div>
+    </div>
+  </div>
+</div>
+
 <div id="modal-login-import" class="modal-ov">
   <div class="modal" style="max-width:380px" role="dialog" aria-modal="true" aria-labelledby="li-title">
     <div class="mhead"><span class="mtitle" id="li-title">🔐 Entrar em Campo Grande</span><button class="mclose" onclick="cancelarLoginImport()" aria-label="Fechar">✕</button></div>
@@ -493,11 +571,12 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 </div>
 
 <datalist id="dl-transp"></datalist>
+<datalist id="dl-rotas"></datalist>
 <datalist id="dl-tipo"></datalist>
 <datalist id="dl-carga"></datalist>
 <div class="toasts" id="toasts"></div>
 <div class="nova-versao" id="nova-versao">🔄 Nova versão do Controle de Fretes disponível. <button class="tbtn tbtn-p" onclick="location.reload()">Recarregar</button></div>
-<div class="drop-ov" id="drop-ov">📄 Solte o(s) PDF(s) do CT-e para importar</div>
+<div class="drop-ov" id="drop-ov">📄 Solte o(s) PDF(s) ou XML(s) do CT-e para importar</div>
 
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
@@ -532,7 +611,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.9';
+const VERSAO = '2026-10-11.10';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -544,7 +623,9 @@ const supaImport = IMPORTA_PARA ? createClient(IMPORTA_PARA.url, IMPORTA_PARA.ke
 const FILIAL_IMPORT = IMPORTA_PARA ? IMPORTA_PARA.filial : FILIAL;
 let ctesDestino = []; // CT-es já gravados no destino da importação (duplicados, formatos, transportadoras)
 let transpDestino = []; // cadastro de transportadoras do destino da importação
-const T = { transp: 'frete_transportadoras', cot: 'frete_cotacoes', cte: 'frete_ctes' };
+const T = { transp: 'frete_transportadoras', cot: 'frete_cotacoes', cte: 'frete_ctes', tab: 'frete_tabelas', fat: 'frete_faturas' };
+// Criadas pela migração 20261016: se ainda não existirem, a página segue sem elas (aviso no topo).
+const OPCIONAIS = new Set(['tab', 'fat']);
 
 // Mesmas listas suspensas da planilha original.
 const STATUS_COT = ['Aprovado', 'Reprovado', 'Em análise', 'Aguardando'];
@@ -569,14 +650,14 @@ const PCT_FAIXAS = {
   crit: { cls: 'b-crit', icon: '■', label: '> 5% revisar' },
 };
 
-const data = { transp: [], cot: [], cte: [] };
+const data = { transp: [], cot: [], cte: [], tab: [], fat: [] };
 const ui = {
   view: 'dashboard', periodo: '', busca: '',
   cteStatus: '', cteTransp: '', cteTipo: '', ctePct: '', cteVencidos: false, cteSel: new Set(),
   cotStatus: '', cotTransp: '',
   sort: { ctes: ['data_emissao', -1], cot: ['data_cotacao', -1], comp: ['frete_total', -1], transp: ['nome', 1] },
 };
-let _user = null, _readOnly = false, _channels = [];
+let _user = null, _readOnly = false, _role = null, _channels = [];
 let _modal = { tipo: null, id: null };
 
 // ───────────────────────── Utilidades ─────────────────────────
@@ -602,7 +683,8 @@ function msgErroBanco(error) {
 
 // Colunas criadas pelas migrações novas. Se a filial ainda não rodou a migração,
 // a gravação tira a coluna que falta e grava o resto (avisando), em vez de falhar.
-const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte', 'remetente_cnpj', 'destino_cnpj'];
+const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte', 'remetente_cnpj', 'destino_cnpj',
+  'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe'];
 async function gravarTolerante(exec, dados) {
   const lista = Array.isArray(dados);
   let arr = [].concat(dados);
@@ -611,7 +693,7 @@ async function gravarTolerante(exec, dados) {
     const res = await exec(lista ? arr : arr[0]);
     const m = res.error && /Could not find the '([^']+)' column/.exec(res.error.message || '');
     if (!m || !COLUNAS_NOVAS.includes(m[1]) || faltando.includes(m[1])) {
-      if (faltando.length && !res.error) toast(`Gravado, mas esta filial ainda não tem a(s) coluna(s) ${faltando.join(', ')} — rode as migrações 20261011, 20261014 e 20261015 no Supabase desta filial para guardar esses dados.`, 'info');
+      if (faltando.length && !res.error) toast(`Gravado, mas esta filial ainda não tem a(s) coluna(s) ${faltando.join(', ')} — rode as migrações 20261011 a 20261016 no Supabase desta filial para guardar esses dados.`, 'info');
       return res;
     }
     faltando.push(m[1]);
@@ -678,6 +760,7 @@ auth.onAuthStateChange((_event, session) => {
     // Escrita de papel "visualizacao" já é barrada no banco (RLS); aqui só
     // esconde os botões para não gerar erro confuso.
     supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => {
+      _role = p?.role || null;
       _readOnly = p?.role === 'visualizacao';
       document.body.classList.toggle('readonly', _readOnly);
     });
@@ -774,8 +857,23 @@ async function cadastrarTransportadorasNovas(itens) {
 const ctesConhecidos = () => IMPORTA_PARA ? [...data.cte, ...ctesDestino] : data.cte;
 
 // ───────────────────────── Dados ─────────────────────────
+// Registro de alterações (tabela frete_log, só inclusão). Falha em silêncio se
+// a migração 20261016 ainda não rodou.
+function registrarLog(acao, tabela, registro, detalhes = null, cli = supabase, filial = FILIAL) {
+  cli.from('frete_log').insert({ acao, tabela, registro: registro == null ? null : String(registro), detalhes, usuario: _user?.email || null, filial })
+    .then(() => {}, () => {});
+}
+// Meta de % de frete compartilhada (frete_config); sem a tabela, fica no navegador.
+let _metaBanco = null, _configOk = false;
+async function carregarConfig() {
+  const { data: rows, error } = await supabase.from('frete_config').select('*').eq('filial', FILIAL);
+  _configOk = !error;
+  _metaBanco = !error && rows?.[0]?.meta_pct > 0 ? Number(rows[0].meta_pct) : null;
+}
+
 async function carregar(k) {
   const { data: rows, error } = await supabase.from(T[k]).select('*').eq('filial', FILIAL);
+  if (error && OPCIONAIS.has(k)) { data[k] = []; return; }
   if (error) {
     console.error(T[k], error);
     if (error.code === '42P01' || /does not exist|schema cache/i.test(error.message))
@@ -795,19 +893,23 @@ async function verificarBanco() {
     if (c.error) faltas.push('colunas novas dos CT-es (CNPJs, previsão, cotação)');
     const h = await cli.from('frete_calculos').select('id').limit(1);
     if (h.error) faltas.push('histórico da calculadora');
+    const n = await cli.from(T.cte).select('peso_kg, ocorrencia, chave_nfe').limit(1);
+    const tb = await cli.from('frete_tabelas').select('id').limit(1);
+    if (n.error || tb.error) faltas.push('peso/ocorrências, tabela de frete, faturas e registro de alterações');
     return faltas.length ? `<b>${label}</b>: falta ${faltas.join(' e ')}` : null;
   };
   const avisos = (await Promise.all([checar(supabase, NOME_FILIAL[FILIAL]), IMPORTA_PARA ? checar(supaImport, IMPORTA_PARA.label + ' (onde os CT-es importados são gravados)') : null])).filter(Boolean);
   $('aviso-banco').innerHTML = avisos.length ? `⚠ O banco ainda não foi atualizado — ${avisos.join(' · ')}. Enquanto isso, esses dados lidos do PDF não são gravados.
-    Rode no <b>SQL Editor do Supabase</b> dessa filial os arquivos <code>supabase/migrations/20261011</code> a <code>20261015</code> e depois importe os PDFs de novo (eles só completam o que faltar, sem duplicar).` : '';
+    Rode no <b>SQL Editor do Supabase</b> dessa filial os arquivos <code>supabase/migrations/20261011</code> a <code>20261016</code> e depois importe os PDFs de novo (eles só completam o que faltar, sem duplicar).` : '';
   $('aviso-banco').classList.toggle('show', !!avisos.length);
 }
 
 async function carregarTudo() {
   verificarBanco();
-  await Promise.all([...Object.keys(T).map(carregar), carregarDestinoImport(), carregarCalculos()]);
+  await Promise.all([...Object.keys(T).map(carregar), carregarDestinoImport(), carregarCalculos(), carregarConfig()]);
   montarFiltros();
   render();
+  setTimeout(avisoDiario, 1500);
   // Tempo real: recarrega a tabela inteira a cada mudança (volumes pequenos).
   _channels.forEach(ch => supabase.removeChannel(ch));
   _channels = Object.keys(T).map(k => supabase
@@ -890,6 +992,7 @@ function montarFiltros() {
   $('f-cte-transp').innerHTML = opts(ui.cteTransp, 'Transportadora: todas');
   $('f-cot-transp').innerHTML = opts(ui.cotTransp, 'Transportadora: todas');
   $('dl-transp').innerHTML = nomes.map(n => `<option value="${esc(n)}">`).join('');
+  $('dl-rotas').innerHTML = [...new Set(data.cte.map(c => (c.origem || '').trim()).filter(Boolean))].sort().map(r => `<option value="${esc(r)}">`).join('');
 
   const tipos = [...new Set([...TIPOS_SAIDA, ...data.cte.map(c => c.tipo_saida).filter(Boolean).map(t => t.trim().toUpperCase())])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   $('f-cte-tipo').innerHTML = '<option value="">Tipo de saída: todos</option>' +
@@ -906,7 +1009,7 @@ $('f-cte-tipo').onchange = e => { ui.cteTipo = e.target.value; render(); };
 $('f-cte-pct').onchange = e => { ui.ctePct = e.target.value; render(); };
 $('f-cot-transp').onchange = e => { ui.cotTransp = e.target.value; render(); };
 
-const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete', auditoria: 'Auditoria de fretes' };
+const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete', auditoria: 'Auditoria de fretes', tabelas: 'Tabelas de frete', faturas: 'Faturas das transportadoras', cirurgias: 'Frete por cirurgia' };
 // Cada tela entra no histórico do navegador: o "voltar" do celular/navegador e o
 // botão ⬅ Voltar levam de volta ao início do Controle de Fretes (Dashboard); no
 // Dashboard, o Voltar leva ao Monitor Cirúrgico.
@@ -918,7 +1021,7 @@ function goView(v, empilhar = true) {
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === v));
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === 'view-' + v));
   $('page-title').textContent = TITULOS[v];
-  $('btn-novo').textContent = { ctes: '＋ Novo CT-e', cotacoes: '＋ Nova cotação', transportadoras: '＋ Nova transportadora' }[v] || '＋ Novo CT-e';
+  $('btn-novo').textContent = { ctes: '＋ Novo CT-e', cotacoes: '＋ Nova cotação', transportadoras: '＋ Nova transportadora', tabelas: '＋ Nova tabela', faturas: '＋ Nova fatura' }[v] || '＋ Novo CT-e';
   try { localStorage.setItem('_fretesView', v); } catch (e) {}
   render();
 }
@@ -952,8 +1055,9 @@ function render() {
   $('nb-transp').textContent = data.transp.length;
   $('nb-atr').textContent = ctesTodos.filter(c => c.status_entrega === 'Atrasado' || cteVencido(c)).length;
   $('nb-aud').textContent = auditoria(data.cte).length;
+  $('nb-fat').textContent = data.fat.filter(f => { const st = situacaoFatura(f); return st.vencida || st.vencendo; }).length;
   $('nb-pend').textContent = ctesTodos.filter(c => c.status_entrega === 'Pendente' || c.status_entrega === 'Em trânsito').length;
-  ({ dashboard: renderDashboard, ctes: renderCtes, cotacoes: renderCot, comparativo: renderComparativo, transportadoras: renderTransp, calculadora: renderCalc, auditoria: renderAuditoria })[ui.view]();
+  ({ dashboard: renderDashboard, ctes: renderCtes, cotacoes: renderCot, comparativo: renderComparativo, transportadoras: renderTransp, calculadora: renderCalc, auditoria: renderAuditoria, tabelas: renderTabelas, faturas: renderFaturas, cirurgias: renderCirurgias })[ui.view]();
 }
 
 function agrupar(lista, chaveFn) {
@@ -1002,7 +1106,7 @@ function dashMetaEConsolidacao(ctesPeriodo) {
   return `<div class="dash-col">
     <div class="dcard"><div class="dcard-head">🎯 % frete/NF por mês × meta
       <span class="meta-edit">meta <input type="number" min="0.1" step="0.1" value="${(meta * 100).toFixed(1)}" aria-label="Meta de % de frete" onchange="definirMeta(this.value)">%</span></div>
-      <div class="dcard-body">${graf}<div class="td-mono" style="margin-top:8px">${meses.length ? (acima ? `▲ ${acima} de ${meses.length} mês(es) acima da meta` : '✔ todos os meses dentro da meta') : ''} · meta salva neste navegador</div></div></div>
+      <div class="dcard-body">${graf}<div class="td-mono" style="margin-top:8px">${meses.length ? (acima ? `▲ ${acima} de ${meses.length} mês(es) acima da meta` : '✔ todos os meses dentro da meta') : ''} · ${_configOk ? 'meta compartilhada por toda a filial' : 'meta salva neste navegador'}</div></div></div>
     <div class="dcard"><div class="dcard-head">📦 Oportunidades de consolidação<small>${ops.length ? `economia estimada ${brl(econ)}` : 'período'}</small></div>
       <div class="dcard-body" style="padding:0">${cons}
       <div class="td-mono" style="padding:8px 14px">Mesmo remetente, mesma transportadora, mesma semana. "Junto" estima pelo histórico da transportadora (parte fixa + % da NF somada) — a parte fixa é paga de novo a cada envio separado.</div></div></div>
@@ -1103,14 +1207,14 @@ function renderCtes() {
     <td class="td-trunc" title="${esc(c.destino)}">${esc(c.destino || '—')}${c.destino_cnpj ? `<div class="td-doc">${esc(c.destino_cnpj)}</div>` : ''}</td>
     <td class="td-trunc" title="${esc(c.transportadora)}">${esc(c.transportadora || '—')}${cnpjEmitente(c) ? `<div class="td-doc" title="CNPJ do emitente do CT-e">${cnpjEmitente(c)}</div>` : ''}</td>
     <td class="td-mono">${esc(c.tipo_saida || '—')}</td>
-    <td class="num">${brl(c.valor_frete)}</td>
+    <td class="num">${brl(c.valor_frete)}${num(c.peso_kg) > 0 ? `<div class="td-doc" title="${num(c.peso_kg).toLocaleString('pt-BR')} kg">${brl(num(c.valor_frete) / num(c.peso_kg))}/kg</div>` : ''}</td>
     <td class="num">${brl(c.valor_nfe)}</td>
     <td class="num">${pctHTML(pctFrete(c))}</td>
     <td class="num">${c.prazo_dias != null ? c.prazo_dias + 'd' : '—'}</td>
     <td class="td-mono" ${c.previsao_entrega ? 'title="Previsão do CT-e"' : previsaoEntrega(c) ? 'title="Calculada: emissão + prazo"' : ''}>${previsaoEntrega(c) ? dataBR(previsaoEntrega(c)) + (c.previsao_entrega ? '' : '*') : '—'}</td>
-    <td>${badge(c.status_entrega)}${cteVencido(c) && c.status_entrega !== 'Atrasado' ? '<span class="tag-venc" title="A previsão de entrega já passou">⏰ VENCIDO</span>' : ''}</td>
+    <td>${badge(c.status_entrega)}${cteVencido(c) && c.status_entrega !== 'Atrasado' ? '<span class="tag-venc" title="A previsão de entrega já passou">⏰ VENCIDO</span>' : ''}${c.ocorrencia ? `<div class="tag-venc" title="${esc(c.ocorrencia_obs || '')}">⚠ ${esc(c.ocorrencia)}${num(c.ocorrencia_custo) ? ' ' + brl(c.ocorrencia_custo) : ''}</div>` : ''}</td>
     <td class="td-mono">${dataBR(c.data_entrega)}</td>
-    <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('cte','${c.id}')">🗑</button></div></td>
+    <td><div class="row-acts"><button class="abtn" title="Rastrear" onclick="event.stopPropagation();rastrearCte('${c.id}')">🔍</button><button class="abtn del w-only" title="Excluir" onclick="event.stopPropagation();excluir('cte','${c.id}')">🗑</button></div></td>
   </tr>`).join('')}</tbody>
   <tfoot><tr><td colspan="9">Total (${lista.length})</td><td class="num">${brl(frete)}</td><td class="num">${brl(nf)}</td><td class="num">${pctHTML(nf > 0 ? frete / nf : null)}</td><td colspan="5"></td></tr></tfoot>`;
 }
@@ -1224,8 +1328,20 @@ function semanaISO(iso) {
 }
 // Meta de % de frete sobre a NF (por filial, guardada neste navegador).
 const chaveMeta = () => 'fretes_meta_' + FILIAL;
-function metaPct() { try { const v = parseFloat(localStorage.getItem(chaveMeta())); return v > 0 ? v / 100 : 0.025; } catch (e) { return 0.025; } }
-window.definirMeta = v => { const n = parseFloat(String(v).replace(',', '.')); if (n > 0 && n < 100) { try { localStorage.setItem(chaveMeta(), String(n)); } catch (e) {} render(); } };
+function metaPct() {
+  if (_metaBanco) return _metaBanco;
+  try { const v = parseFloat(localStorage.getItem(chaveMeta())); return v > 0 ? v / 100 : 0.025; } catch (e) { return 0.025; }
+}
+window.definirMeta = async v => {
+  const n = parseFloat(String(v).replace(',', '.'));
+  if (!(n > 0 && n < 100)) return;
+  try { localStorage.setItem(chaveMeta(), String(n)); } catch (e) {}
+  if (_configOk) {
+    const { error } = await supabase.from('frete_config').upsert({ filial: FILIAL, meta_pct: n / 100, atualizado_em: new Date().toISOString() });
+    if (!error) { _metaBanco = n / 100; registrarLog('meta', 'frete_config', FILIAL, { meta_pct: n }); }
+  }
+  render();
+};
 
 // Consolidação: CT-es do mesmo remetente pela mesma transportadora na mesma semana
 // que poderiam ter ido juntos. Juntos ≈ fixo + taxa × (soma das NFs).
@@ -1256,6 +1372,9 @@ function auditoria(ctes) {
   for (const c of ctes) {
     const achados = []; let contestar = 0;
     const p = pctFrete(c), fr = num(c.valor_frete);
+    // 0) acima da tabela combinada
+    const tb = precoTabela(c.transportadora, c.origem, c.peso_kg, c.valor_nfe, c.data_emissao);
+    if (tb && fr > tb.preco * 1.02 + 1) { achados.push({ nivel: 'crit', txt: `Acima da tabela combinada: ${brl(fr)} × ${brl(tb.preco)} pela tabela${tb.linha.rota ? ' da rota' : ''}` }); contestar = Math.max(contestar, fr - tb.preco); }
     // 1) cotação vinculada com valor diferente
     const cot = c.numero_cotacao && data.cot.find(x => x.numero === c.numero_cotacao);
     if (cot) { const conf = conferenciaCot(c, cot); if (conf && !conf.ok) { achados.push({ nivel: conf.dif > 0 ? 'crit' : 'warn', txt: `Cotação ${cot.numero}: cobrado ${conf.dif > 0 ? 'a mais' : 'a menos'} ${brl(Math.abs(conf.dif))} (cotado ${brl(custoCot(cot))})` }); if (conf.dif > 0) contestar = Math.max(contestar, conf.dif); } }
@@ -1288,6 +1407,7 @@ function auditoria(ctes) {
 }
 
 function renderAuditoria() {
+  renderLog();
   const itens = auditoria(ctesFiltrados({ ignorarFiltrosTabela: true }));
   $('cnt-aud').textContent = itens.length;
   const total = itens.reduce((a, x) => a + x.contestar, 0);
@@ -1322,6 +1442,246 @@ window.mensagemAuditoria = t => {
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
 };
 
+// ═════════════ Tabela de frete combinada ═════════════
+const precoPorLinha = (t, peso, nf) => Math.max(num(t.frete_minimo), num(t.valor_fixo) + num(t.valor_kg) * num(peso) + num(t.pct_nf) / 100 * num(nf));
+// Linha aplicável: mesma transportadora; rota específica antes da geral; vigente na data;
+// menor faixa de peso que comporta o peso. Precisa do peso se a tabela cobra por kg.
+function linhaTabela(transportadora, rota, peso, dataRef) {
+  const cands = data.tab.filter(t => norm(t.transportadora) === norm(transportadora)
+    && (!t.rota || norm(t.rota) === norm(rota))
+    && (!t.vigencia_inicio || !dataRef || t.vigencia_inicio <= dataRef)
+    && (t.peso_ate == null || peso == null || num(peso) <= num(t.peso_ate)));
+  if (!cands.length) return null;
+  return cands.sort((a, b) => (!!b.rota - !!a.rota) || (b.vigencia_inicio || '').localeCompare(a.vigencia_inicio || '')
+    || (a.peso_ate == null) - (b.peso_ate == null) || num(a.peso_ate) - num(b.peso_ate))[0];
+}
+function precoTabela(transportadora, rota, peso, nf, dataRef) {
+  const t = linhaTabela(transportadora, rota, peso, dataRef);
+  if (!t || (num(t.valor_kg) > 0 && !(num(peso) > 0))) return null;
+  return { preco: precoPorLinha(t, peso, nf), linha: t };
+}
+function renderTabelas() {
+  const lista = [...data.tab].sort((a, b) => (a.transportadora || '').localeCompare(b.transportadora || '') || (a.rota || '').localeCompare(b.rota || ''));
+  $('cnt-tab').textContent = lista.length;
+  $('tb-tab').innerHTML = lista.length ? `<thead><tr><th>Transportadora</th><th>Rota</th><th class="num">Até kg</th><th class="num">Fixo</th><th class="num">R$/kg</th><th class="num">% NF</th><th class="num">Mínimo</th><th>Desde</th><th></th></tr></thead><tbody>
+    ${lista.map(t => `<tr class="click" onclick="abrirModal('tab','${t.id}')"><td class="td-strong">${esc(t.transportadora)}</td><td>${esc(t.rota || 'todas')}</td>
+      <td class="num">${t.peso_ate != null ? num(t.peso_ate).toLocaleString('pt-BR') : '—'}</td><td class="num">${t.valor_fixo != null ? brl(t.valor_fixo) : '—'}</td>
+      <td class="num">${t.valor_kg != null ? brl(t.valor_kg) : '—'}</td><td class="num">${t.pct_nf != null ? num(t.pct_nf).toLocaleString('pt-BR') + '%' : '—'}</td>
+      <td class="num">${t.frete_minimo != null ? brl(t.frete_minimo) : '—'}</td><td class="td-mono">${dataBR(t.vigencia_inicio)}</td>
+      <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('tab','${t.id}')">🗑</button></div></td></tr>`).join('')}</tbody>`
+    : `<tbody><tr><td><div class="empty-page">📑 Nenhuma tabela cadastrada.<br><br>Cadastre a tabela combinada com cada transportadora (<b>＋ Nova tabela</b>):<br>a auditoria passa a conferir cada CT-e contra o valor contratado e a calculadora já mostra o preço.</div></td></tr></tbody>`;
+  ['sim-rota', 'sim-peso', 'sim-nf'].forEach(id => { $(id).oninput = simular; });
+  simular();
+}
+function simular() {
+  const rota = $('sim-rota').value.trim(), peso = num($('sim-peso').value), nf = num($('sim-nf').value);
+  const transps = [...new Set(data.tab.map(t => t.transportadora))];
+  if (!transps.length) { $('sim-res').innerHTML = '<div class="empty-mini">Cadastre tabelas para simular.</div>'; return; }
+  const res = transps.map(t => ({ t, r: precoTabela(t, rota, peso || null, nf, hojeISO()) })).filter(x => x.r).sort((a, b) => a.r.preco - b.r.preco);
+  $('sim-res').innerHTML = res.length ? `<table><thead><tr><th>Transportadora</th><th class="num">Frete pela tabela</th><th class="num">% NF</th><th class="num">R$/kg</th></tr></thead><tbody>
+    ${res.map((x, i) => `<tr><td>${i === 0 ? '<span class="calc-melhor">MAIS BARATA</span> ' : ''}${esc(x.t)}${x.r.linha.rota ? '' : ' <span class="td-mono">(tabela geral)</span>'}</td><td class="num"><b>${brl(x.r.preco)}</b></td>
+      <td class="num">${nf > 0 ? pctHTML(x.r.preco / nf) : '—'}</td><td class="num">${peso > 0 ? brl(x.r.preco / peso) : '—'}</td></tr>`).join('')}</tbody></table>`
+    : '<div class="empty-mini">Nenhuma tabela atende (confira a rota e informe o peso, se a tabela cobra por kg).</div>';
+}
+
+// ═════════════ Faturas ═════════════
+function situacaoFatura(f) {
+  const soma = data.cte.filter(c => (f.ctes || []).includes(c.numero_cte)).reduce((a, c) => a + num(c.valor_frete), 0);
+  const dif = num(f.valor) - soma;
+  const dias = f.vencimento ? diasEntre(hojeISO(), f.vencimento) : null;
+  return { soma, dif, confere: Math.abs(dif) < 0.01, dias, vencida: f.status !== 'Paga' && dias != null && dias < 0, vencendo: f.status !== 'Paga' && dias != null && dias >= 0 && dias <= 5 };
+}
+function renderFaturas() {
+  const lista = [...data.fat].sort((a, b) => (a.status === 'Paga') - (b.status === 'Paga') || (a.vencimento || '9').localeCompare(b.vencimento || '9'));
+  $('cnt-fat').textContent = lista.length;
+  const abertas = lista.filter(f => f.status !== 'Paga');
+  $('fat-resumo').textContent = abertas.length ? `Em aberto: ${brl(abertas.reduce((a, f) => a + num(f.valor), 0))} em ${abertas.length} fatura(s)` : '';
+  const faturados = new Set(data.fat.flatMap(f => f.ctes || []));
+  const sem = data.cte.filter(c => !faturados.has(c.numero_cte) && c.data_emissao && diasEntre(c.data_emissao, hojeISO()) > 30);
+  const semPorT = new Map(); sem.forEach(c => semPorT.set(c.transportadora, (semPorT.get(c.transportadora) || 0) + 1));
+  $('fat-sem').innerHTML = sem.length ? `ℹ ${sem.length} CT-e(s) com mais de 30 dias ainda sem fatura lançada: ${[...semPorT].map(([t, n]) => `${esc(t)} (${n})`).join(', ')}.` : '✔ Todos os CT-es com mais de 30 dias já estão em alguma fatura.';
+  $('tb-fat').innerHTML = lista.length ? `<thead><tr><th>Transportadora</th><th>Nº</th><th>Emissão</th><th>Vencimento</th><th class="num">Cobrado</th><th class="num">CT-es</th><th class="num">Soma dos CT-es</th><th>Conferência</th><th>Situação</th><th></th></tr></thead><tbody>
+    ${lista.map(f => { const st = situacaoFatura(f); return `<tr class="click" onclick="abrirModal('fat','${f.id}')">
+      <td class="td-strong">${esc(f.transportadora)}</td><td class="td-mono">${esc(f.numero || '—')}</td><td class="td-mono">${dataBR(f.emissao)}</td>
+      <td class="td-mono">${dataBR(f.vencimento)}${st.vencida ? '<span class="tag-venc">VENCIDA</span>' : st.vencendo ? `<span class="tag-venc" style="color:var(--warn-c)">em ${st.dias}d</span>` : ''}</td>
+      <td class="num">${brl(f.valor)}</td><td class="num">${(f.ctes || []).length}</td><td class="num">${brl(st.soma)}</td>
+      <td>${!num(f.valor) ? '—' : st.confere ? '<span class="badge b-ok">✔ confere</span>' : `<span class="badge ${st.dif > 0 ? 'b-crit' : 'b-warn'}">⚠ ${st.dif > 0 ? '+' : '−'}${brl(Math.abs(st.dif))}</span>`}</td>
+      <td>${badge(f.status === 'Paga' ? 'Aprovado' : f.status === 'Contestada' ? 'Reprovado' : 'Aguardando').replace(/Aprovado|Reprovado|Aguardando/, esc(f.status))}</td>
+      <td><div class="row-acts w-only">${f.status !== 'Paga' ? `<button class="abtn" title="Marcar como paga" onclick="event.stopPropagation();marcarFaturaPaga('${f.id}')">✔</button>` : ''}<button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('fat','${f.id}')">🗑</button></div></td></tr>`; }).join('')}</tbody>`
+    : '<tbody><tr><td><div class="empty-page">💳 Nenhuma fatura lançada.<br><br>Lance a fatura/boleto de cada transportadora (<b>＋ Nova fatura</b>) e marque os CT-es cobrados:<br>a página confere se a soma bate e avisa os vencimentos.</div></td></tr></tbody>';
+}
+window.marcarFaturaPaga = async id => {
+  const { error } = await supabase.from(T.fat).update({ status: 'Paga', atualizado_em: new Date().toISOString() }).eq('id', id);
+  if (error) { toast('Erro: ' + msgErroBanco(error), 'err'); return; }
+  registrarLog('fatura paga', T.fat, data.fat.find(f => f.id === id)?.numero || id);
+  toast('✔ Fatura marcada como paga'); await carregar('fat'); render();
+};
+
+// ═════════════ Frete por cirurgia (procedimentos do Monitor) ═════════════
+let _procs = null, _procsErro = null;
+async function carregarProcedimentos() {
+  const { data: rows, error } = await supabase.from('procedimentos').select('id, data, paciente, hospital, medico, convenio, nf, valor, status, procedimento, vendedor');
+  _procsErro = error ? error.message : null;
+  _procs = error ? [] : rows;
+}
+function renderCirurgias() {
+  if (_procs === null) { $('tb-cir').innerHTML = '<tbody><tr><td><div class="empty-mini">Carregando procedimentos do Monitor…</div></td></tr></tbody>'; carregarProcedimentos().then(() => { if (ui.view === 'cirurgias') renderCirurgias(); }); return; }
+  if (_procsErro) { $('tb-cir').innerHTML = `<tbody><tr><td><div class="empty-mini">Não foi possível ler os procedimentos do Monitor: ${esc(_procsErro)}</div></td></tr></tbody>`; return; }
+  const ctes = ctesFiltrados({ ignorarFiltrosTabela: true });
+  const porNf = new Map();
+  ctes.forEach(c => nfsDe(c).forEach(n => { if (!porNf.has(n)) porNf.set(n, []); porNf.get(n).push(c); }));
+  const linhas = _procs.map(p => {
+    const nfs = String(p.nf || '').split(/[^0-9]+/).filter(Boolean).map(n => n.replace(/^0+/, ''));
+    const cs = [...new Set(nfs.flatMap(n => porNf.get(n) || []))];
+    return cs.length ? { p, cs, frete: cs.reduce((a, c) => a + num(c.valor_frete), 0) } : null;
+  }).filter(Boolean).filter(l => casaBusca({ ...l.p, ctes: l.cs.map(c => c.numero_cte).join(' ') }, ['paciente', 'hospital', 'convenio', 'medico', 'nf', 'ctes']))
+    .sort((a, b) => (b.p.data || '').localeCompare(a.p.data || ''));
+  const total = linhas.reduce((a, l) => a + l.frete, 0), valorT = linhas.reduce((a, l) => a + num(l.p.valor), 0);
+  $('cnt-cir').textContent = linhas.length;
+  $('cir-resumo').textContent = linhas.length ? `Frete ${brl(total)} sobre ${brl(valorT)} em procedimentos (${pctFmt(valorT > 0 ? total / valorT : null)})` : '';
+  const agrega = campo => {
+    const m = new Map();
+    linhas.forEach(l => { const k = l.p[campo] || '—'; const g = m.get(k) || { n: 0, f: 0, v: 0 }; g.n++; g.f += l.frete; g.v += num(l.p.valor); m.set(k, g); });
+    const arr = [...m].sort((a, b) => b[1].f - a[1].f).slice(0, 12);
+    return arr.length ? `<table><thead><tr><th>${campo === 'hospital' ? 'Hospital' : 'Convênio'}</th><th class="num">Proced.</th><th class="num">Frete</th><th class="num">% do valor</th></tr></thead><tbody>
+      ${arr.map(([k, g]) => `<tr><td class="td-trunc" title="${esc(k)}">${esc(k)}</td><td class="num">${g.n}</td><td class="num">${brl(g.f)}</td><td class="num">${g.v > 0 ? pctHTML(g.f / g.v) : '—'}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty-mini">—</div>';
+  };
+  $('cir-hosp').innerHTML = agrega('hospital');
+  $('cir-conv').innerHTML = agrega('convenio');
+  $('tb-cir').innerHTML = linhas.length ? `<thead><tr><th>Data</th><th>Paciente</th><th>Hospital</th><th>Convênio</th><th>Médico</th><th>NF</th><th>CT-e(s)</th><th class="num">Valor</th><th class="num">Frete</th><th class="num">% frete</th></tr></thead><tbody>
+    ${linhas.slice(0, 500).map(l => `<tr><td class="td-mono">${dataBR(l.p.data)}</td><td class="td-trunc">${esc(l.p.paciente || '—')}</td><td class="td-trunc">${esc(l.p.hospital || '—')}</td>
+      <td class="td-trunc">${esc(l.p.convenio || '—')}</td><td class="td-trunc">${esc(l.p.medico || '—')}</td><td class="td-mono">${esc(l.p.nf || '—')}</td>
+      <td class="td-mono">${l.cs.map(c => esc(c.numero_cte)).join(', ')}</td><td class="num">${l.p.valor != null ? brl(l.p.valor) : '—'}</td><td class="num">${brl(l.frete)}</td>
+      <td class="num">${num(l.p.valor) > 0 ? pctHTML(l.frete / num(l.p.valor)) : '—'}</td></tr>`).join('')}</tbody>`
+    : '<tbody><tr><td><div class="empty-page">Nenhum CT-e do período com NF igual à de um procedimento do Monitor.<br>A ligação é pelo número da NF (campo NF do procedimento × NF-e do CT-e).</div></td></tr></tbody>';
+}
+
+// ═════════════ Unificar transportadoras ═════════════
+function gruposRepetidos() {
+  const nomes = nomesTransportadoras();
+  const contar = n => data.cte.filter(c => norm(c.transportadora) === norm(n)).length + data.cot.filter(c => norm(c.transportadora) === norm(n)).length;
+  const raizDe = n => {
+    const t = data.transp.find(x => norm(x.nome) === norm(n) && x.cnpj);
+    if (t) return soDigitos(t.cnpj).slice(0, 8);
+    const c = data.cte.find(x => norm(x.transportadora) === norm(n) && /Chave CT-e: \d{44}/.test(x.observacoes || ''));
+    return c ? /Chave CT-e: (\d{44})/.exec(c.observacoes)[1].slice(6, 14) : null;
+  };
+  const palavra = n => norm(n).split(/[^A-Z0-9]+/).find(w => w.length >= 3 && !PALAVRAS_GENERICAS.test(w)) || norm(n);
+  const grupos = new Map();
+  nomes.forEach(n => {
+    const k = raizDe(n) ? 'cnpj:' + raizDe(n) : 'nome:' + palavra(n);
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(n);
+  });
+  // junta grupo por nome com grupo por CNPJ que tenha a mesma palavra principal
+  const porCnpj = [...grupos].filter(([k]) => k.startsWith('cnpj:'));
+  [...grupos].filter(([k]) => k.startsWith('nome:')).forEach(([k, ns]) => {
+    const alvo = porCnpj.find(([, cs]) => cs.some(c => palavra(c) === k.slice(5)));
+    if (alvo) { alvo[1].push(...ns); grupos.delete(k); }
+  });
+  return [...grupos.values()].filter(g => g.length > 1).map(g => {
+    const cad = g.filter(n => data.transp.some(t => norm(t.nome) === norm(n)));
+    // fica o nome mais usado (entre os cadastrados, se houver); empate → o mais curto
+    const sugerido = (cad.length ? cad : g).slice().sort((a, b) => contar(b) - contar(a) || a.length - b.length)[0];
+    return { nomes: g.map(n => ({ n, qtd: contar(n) })), sugerido };
+  });
+}
+window.fecharUnificar = () => document.getElementById('modal-unif').classList.remove('open');
+window.abrirUnificar = () => {
+  const gs = gruposRepetidos();
+  $('unif-grupos').innerHTML = gs.length ? gs.map((g, i) => `<div class="unif-grupo" data-i="${i}">
+      <div style="margin-bottom:6px">${g.nomes.map(x => `<label><input type="checkbox" checked value="${esc(x.n)}"> ${esc(x.n)} <span class="td-mono">(${x.qtd})</span></label>`).join('')}</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="flbl">Fica como</span>
+        <input class="finput" style="width:auto;flex:1;min-width:200px" list="dl-transp" value="${esc(g.sugerido)}">
+        <button class="tbtn tbtn-p" onclick="unificarGrupo(this)">🔗 Unificar este grupo</button></div></div>`).join('')
+    : '<div class="empty-mini">✔ Nenhum nome repetido encontrado automaticamente (por CNPJ ou nome). Use a unificação manual abaixo, se precisar.</div>';
+  $('unif-de').innerHTML = nomesTransportadoras().map(n => `<option>${esc(n)}</option>`).join('');
+  $('modal-unif').classList.add('open');
+};
+window.unificarGrupo = btn => {
+  const box = btn.closest('.unif-grupo');
+  const nomes = [...box.querySelectorAll('input[type=checkbox]:checked')].map(i => i.value);
+  const alvo = box.querySelector('input.finput').value.trim().toUpperCase();
+  unificar(nomes, alvo);
+};
+window.unificarManual = () => unificar([$('unif-de').value], $('unif-para').value.trim().toUpperCase());
+async function unificar(nomes, alvo) {
+  nomes = nomes.filter(Boolean);
+  if (!alvo || !nomes.length || (nomes.length === 1 && norm(nomes[0]) === norm(alvo))) { toast('Escolha os nomes e o nome que fica.', 'err'); return; }
+  const trocar = nomes.filter(n => n !== alvo);
+  if (!confirm(`Unificar ${trocar.map(n => `"${n}"`).join(', ')} em "${alvo}"?\n\nCT-es, cotações, tabelas e faturas com esses nomes passam para "${alvo}".`)) return;
+  const agora = new Date().toISOString();
+  for (const k of ['cte', 'cot', 'tab', 'fat']) {
+    if (!trocar.length) break;
+    const r = await supabase.from(T[k]).update({ transportadora: alvo, atualizado_em: agora }).eq('filial', FILIAL).in('transportadora', trocar);
+    if (r.error && !OPCIONAIS.has(k)) { toast('Erro ao unificar: ' + msgErroBanco(r.error), 'err'); return; }
+  }
+  // cadastros: fica um só (o do nome escolhido, ou o primeiro renomeado), com os campos completados
+  const cads = data.transp.filter(t => nomes.some(n => norm(n) === norm(t.nome)) || norm(t.nome) === norm(alvo));
+  if (cads.length) {
+    const fica = cads.find(t => norm(t.nome) === norm(alvo)) || cads[0];
+    const junto = { nome: alvo };
+    for (const c of cads) for (const k of ['cnpj', 'contato', 'telefone', 'email', 'modal', 'avaliacao', 'observacoes']) if (junto[k] == null && (fica[k] ?? c[k]) != null) junto[k] = fica[k] ?? c[k];
+    await supabase.from(T.transp).update({ ...junto, atualizado_em: agora }).eq('id', fica.id);
+    const apagar = cads.filter(c => c.id !== fica.id).map(c => c.id);
+    if (apagar.length) await supabase.from(T.transp).delete().in('id', apagar);
+  }
+  registrarLog('unificar transportadoras', T.transp, alvo, { de: trocar });
+  toast(`✔ Unificado em ${alvo}`);
+  await Promise.all(['cte', 'cot', 'tab', 'fat', 'transp'].map(carregar)); montarFiltros(); render();
+  abrirUnificar();
+}
+
+// ═════════════ Registro de alterações (painel da Auditoria) ═════════════
+async function renderLog() {
+  const { data: rows, error } = await supabase.from('frete_log').select('*').eq('filial', FILIAL).order('em', { ascending: false }).limit(300);
+  if (error) { $('tb-log').innerHTML = '<tbody><tr><td><div class="empty-mini">O registro de alterações começa a funcionar depois de rodar a migração 20261016 no Supabase.</div></td></tr></tbody>'; $('cnt-log').textContent = '0'; return; }
+  $('cnt-log').textContent = rows.length;
+  $('tb-log').innerHTML = rows.length ? `<thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Registro</th><th>Detalhes</th></tr></thead><tbody>
+    ${rows.map(l => { const d = new Date(l.em); const det = l.detalhes ? Object.entries(l.detalhes).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.slice(0, 8).join(', ') + (v.length > 8 ? '…' : '') : v}`).join(' · ') : '';
+      return `<tr><td class="td-mono">${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td><td class="td-mono">${esc((l.usuario || '—').split('@')[0])}</td>
+        <td>${esc(l.acao)}</td><td class="td-mono">${esc(l.registro || '—')}</td><td class="td-trunc" style="max-width:420px" title="${esc(det)}">${esc(det)}</td></tr>`; }).join('')}</tbody>`
+    : '<tbody><tr><td><div class="empty-mini">Nenhuma alteração registrada ainda.</div></td></tr></tbody>';
+}
+
+// ═════════════ Resumo do dia ═════════════
+function resumoDoDia() {
+  const vencidos = data.cte.filter(c => c.status_entrega !== 'Entregue' && (c.status_entrega === 'Atrasado' || cteVencido(c)));
+  const aud = auditoria(data.cte.filter(c => c.data_emissao && diasEntre(c.data_emissao, hojeISO()) <= 60));
+  const mes = hojeISO().slice(0, 7);
+  const doMes = data.cte.filter(c => (c.data_emissao || '').startsWith(mes) && num(c.valor_nfe) > 0);
+  const pMes = doMes.length ? doMes.reduce((a, c) => a + num(c.valor_frete), 0) / doMes.reduce((a, c) => a + num(c.valor_nfe), 0) : null;
+  const fatVenc = data.fat.filter(f => { const st = situacaoFatura(f); return st.vencida || st.vencendo; });
+  return { vencidos, aud, pMes, fatVenc, meta: metaPct() };
+}
+window.enviarResumoDia = () => {
+  const r = resumoDoDia();
+  const L = [`*Resumo do frete — GF Medical ${FILIAL_LABEL}* (${dataBR(hojeISO())})`, ''];
+  L.push(`Entregas vencidas/atrasadas: ${r.vencidos.length}`);
+  r.vencidos.slice(0, 8).forEach(c => L.push(`- ${c.numero_cte} · ${c.transportadora || '—'} · previsão ${dataBR(previsaoEntrega(c))}`));
+  L.push('', `Auditoria (últimos 60 dias): ${r.aud.length} CT-e(s) · a contestar ~${brl(r.aud.reduce((a, x) => a + x.contestar, 0))}`);
+  L.push('', `% frete/NF no mês: ${pctFmt(r.pMes)} · meta ${pctFmt(r.meta)}${r.pMes != null ? (r.pMes <= r.meta ? ' (dentro)' : ' (acima)') : ''}`);
+  if (r.fatVenc.length) { L.push('', `Faturas vencidas ou vencendo em até 5 dias: ${r.fatVenc.length}`); r.fatVenc.forEach(f => L.push(`- ${f.transportadora} ${f.numero || ''} · ${brl(f.valor)} · vence ${dataBR(f.vencimento)}`)); }
+  const texto = L.join('\n');
+  navigator.clipboard?.writeText(texto).catch(() => {});
+  window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
+};
+// Uma vez por dia, ao abrir a página: aviso com o resumo (e notificação do navegador, se liberada).
+function avisoDiario() {
+  const chave = 'fretes_aviso_' + FILIAL;
+  let ultimo = null; try { ultimo = localStorage.getItem(chave); } catch (e) {}
+  if (ultimo === hojeISO()) return;
+  try { localStorage.setItem(chave, hojeISO()); } catch (e) {}
+  const r = resumoDoDia();
+  const partes = [r.vencidos.length ? `${r.vencidos.length} entrega(s) vencida(s)` : null, r.aud.length ? `${r.aud.length} CT-e(s) na auditoria` : null,
+    r.fatVenc.length ? `${r.fatVenc.length} fatura(s) vencendo` : null, r.pMes != null && r.pMes > r.meta ? `frete do mês acima da meta (${pctFmt(r.pMes)})` : null].filter(Boolean);
+  if (!partes.length) return;
+  const msg = '🔔 Hoje no frete: ' + partes.join(' · ');
+  toast(msg, 'info');
+  if ('Notification' in window && Notification.permission === 'granted') new Notification('Controle de Fretes', { body: msg.replace('🔔 ', '') });
+}
+
 // ── Status em lote: seleciona CT-es (ou todos os vencidos da tela) e troca o status de uma vez.
 let _listaCtesTela = [];
 function renderLoteStatus(lista) {
@@ -1337,7 +1697,7 @@ function renderLoteStatus(lista) {
        <span id="ls-data-wrap">data de entrega <input class="finput" type="date" id="ls-data" value="${hojeISO()}"></span>
        <button class="tbtn tbtn-p" onclick="aplicarStatusLote()">✔ Aplicar</button>
        <button class="tbtn tbtn-g" onclick="selCteTodos(false)">Limpar seleção</button>
-       <button class="tbtn tbtn-d" style="margin-right:0" onclick="excluirCtesLote()">🗑 Excluir selecionados</button>
+       ${_role === 'admin' ? `<button class="tbtn tbtn-d" style="margin-right:0" onclick="excluirCtesLote()">🗑 Excluir selecionados</button>` : ''}
        ${n < _listaCtesTela.length ? `<button class="fchip" onclick="selCteTodos(true)">Selecionar todos os ${_listaCtesTela.length} da lista</button>` : ''}
        ${vencidos.length && vencidos.some(c => !ui.cteSel.has(c.id)) ? `<button class="fchip" onclick="selecionarVencidos()">⏰ Selecionar os ${vencidos.length} vencidos</button>` : ''}`
     : `⏰ <b>${vencidos.length} CT-e(s) vencido(s)</b> nesta lista (não entregues com a previsão já passada).
@@ -1353,7 +1713,31 @@ window.selecionarVencidos = () => {
 };
 // Exclusão em lote: confirmação digitada (não tem volta). Cotações que apontavam para
 // esses CT-es perdem só o vínculo (numero_cte) e continuam cadastradas.
+// Rastreio: SSW pela chave da NF-e (atende a maioria das transportadoras rodoviárias,
+// mesmo do Monitor); sem ela, copia a chave do CT-e e abre a consulta da SEFAZ.
+window.rastrearCte = id => {
+  const c = data.cte.find(x => x.id === id);
+  if (!c) return;
+  const chaveNf = c.chave_nfe || (/Chave NF-e: (\d{44})/.exec(c.observacoes || '') || [])[1];
+  if (chaveNf) {
+    const f = document.createElement('form');
+    f.method = 'POST'; f.action = 'https://ssw.inf.br/2/rastreamento_danfe'; f.target = '_blank';
+    const i = document.createElement('input'); i.type = 'hidden'; i.name = 'danfe'; i.value = chaveNf;
+    f.appendChild(i); document.body.appendChild(f); f.submit(); f.remove();
+    return;
+  }
+  const chaveCte = (/Chave CT-e: (\d{44})/.exec(c.observacoes || '') || [])[1];
+  if (chaveCte) {
+    navigator.clipboard?.writeText(chaveCte).catch(() => {});
+    toast('Chave do CT-e copiada — cole na consulta da SEFAZ que abriu.', 'info');
+    window.open('https://www.cte.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=completa&tipoConteudo=mCK/KoCqru0=', '_blank');
+    return;
+  }
+  toast('Esse CT-e não tem chave de acesso gravada — importe o PDF/XML de novo para habilitar o rastreio.', 'info');
+};
+
 window.excluirCtesLote = async () => {
+  if (_role !== 'admin') { toast('Só administradores podem excluir CT-es em lote.', 'err'); return; }
   const ids = [...ui.cteSel];
   if (!ids.length) return;
   const sel = data.cte.filter(c => ids.includes(c.id));
@@ -1364,6 +1748,7 @@ Digite EXCLUIR para confirmar:`);
   if (resp.trim().toUpperCase() !== 'EXCLUIR') { toast('Exclusão cancelada — era preciso digitar EXCLUIR.', 'info'); return; }
   const { error } = await supabase.from(T.cte).delete().in('id', ids);
   if (error) { toast('Erro ao excluir: ' + msgErroBanco(error), 'err'); return; }
+  registrarLog('excluir em lote', T.cte, `${ids.length} CT-e(s)`, { ctes: sel.map(c => c.numero_cte) });
   const nums = new Set(sel.map(c => c.numero_cte));
   const cots = data.cot.filter(c => c.numero_cte && nums.has(c.numero_cte));
   if (cots.length) await gravarTolerante(r => supabase.from(T.cot).update(r).in('id', cots.map(c => c.id)), { numero_cte: null, atualizado_em: new Date().toISOString() });
@@ -1381,6 +1766,7 @@ window.aplicarStatusLote = async () => {
   // Entregue grava a data de entrega; os outros status limpam a data (não foi entregue).
   const { error } = await supabase.from(T.cte).update({ status_entrega: status, data_entrega: dataEnt, atualizado_em: new Date().toISOString() }).in('id', ids);
   if (error) { toast('Erro ao atualizar: ' + msgErroBanco(error), 'err'); return; }
+  registrarLog('status em lote', T.cte, `${ids.length} CT-e(s)`, { status, data_entrega: dataEnt, ctes: data.cte.filter(c => ids.includes(c.id)).map(c => c.numero_cte) });
   toast(`✔ ${ids.length} CT-e(s) atualizado(s) para ${status}`);
   ui.cteSel.clear();
   await carregar('cte'); render();
@@ -1451,6 +1837,8 @@ function comparativo() {
       prazo_cte: prazosCte.length ? prazosCte.reduce((a, b) => a + num(b), 0) / prazosCte.length : null,
       atrasos: es.filter(c => c.status_entrega === 'Atrasado' || cteVencido(c)).length,
       ...(() => { const pt = pontualidade(es); return { pont: pt.pct, pont_med: pt.medidos, pont_ok: pt.noPrazo, atraso_medio: pt.atrasoMedio }; })(),
+      ...(() => { const cp = es.filter(c => num(c.peso_kg) > 0); const kg = cp.reduce((a, c) => a + num(c.peso_kg), 0);
+        const oc = es.filter(c => c.ocorrencia); return { rkg: kg > 0 ? cp.reduce((a, c) => a + num(c.valor_frete), 0) / kg : null, ocorr: oc.length, ocorr_custo: oc.reduce((a, c) => a + num(c.ocorrencia_custo), 0) }; })(),
     };
   }).filter(r => r.qtd_cot || r.qtd_cte || r.id);
 }
@@ -1466,7 +1854,7 @@ function renderComparativo() {
     ${th('comp', 'qtd_cot', 'Cotações', 'num')}${th('comp', 'qtd_aprov', 'Aprov.', 'num')}${th('comp', 'taxa', 'Taxa aprov.', 'num')}
     ${th('comp', 'menor', 'Menor frete', 'num')}${th('comp', 'maior', 'Maior frete', 'num')}${th('comp', 'medio', 'Frete médio', 'num')}${th('comp', 'prazo_cot', 'Prazo cot.', 'num')}
     ${th('comp', 'qtd_cte', 'CT-es', 'num')}${th('comp', 'frete_total', 'Frete pago', 'num')}${th('comp', 'pct', '% Frete/NF', 'num')}${th('comp', 'prazo_cte', 'Prazo CT-e', 'num')}${th('comp', 'atrasos', 'Atrasos', 'num')}
-    ${th('comp', 'pont', 'No prazo', 'num')}${th('comp', 'atraso_medio', 'Atraso médio', 'num')}
+    ${th('comp', 'pont', 'No prazo', 'num')}${th('comp', 'atraso_medio', 'Atraso médio', 'num')}${th('comp', 'rkg', 'R$/kg', 'num')}${th('comp', 'ocorr', 'Ocorrências', 'num')}
     ${th('comp', 'avaliacao', 'Avaliação')}
   </tr></thead><tbody>
   ${lista.map(r => `<tr class="${r.id ? 'click' : ''}" ${r.id ? `onclick="abrirModal('transp','${r.id}')"` : `title="Não cadastrada — clique em Transportadoras para cadastrar"`}>
@@ -1478,6 +1866,8 @@ function renderComparativo() {
     <td class="num">${r.atrasos ? `<span class="badge b-crit">⏰ ${r.atrasos}</span>` : '0'}</td>
     <td class="num" title="${r.pont_med ? `${r.pont_ok} de ${r.pont_med} entregas com data de entrega` : 'sem entregas com data de entrega registrada'}">${r.pont == null ? '—' : `<span class="pct ${r.pont >= 0.9 ? 'b-ok' : r.pont >= 0.7 ? 'b-warn' : 'b-crit'}">${r.pont >= 0.9 ? '●' : r.pont >= 0.7 ? '▲' : '■'} ${pctFmt(r.pont)}</span>`}</td>
     <td class="num">${r.atraso_medio == null ? '—' : d1(r.atraso_medio)}</td>
+    <td class="num">${r.rkg == null ? '—' : brl(r.rkg)}</td>
+    <td class="num">${r.ocorr ? `<span class="badge b-warn" title="custo ${brl(r.ocorr_custo)}">⚠ ${r.ocorr}</span>` : '0'}</td>
     <td>${stars(r.avaliacao)}</td>
   </tr>`).join('')}</tbody>`;
   renderRotas();
@@ -1490,20 +1880,22 @@ function renderRotas() {
   $('cnt-rotas').textContent = lista.length;
   if (!lista.length) { $('tb-rotas').innerHTML = '<tbody><tr><td><div class="empty-mini">Sem rotas com 2 ou mais CT-es no período</div></td></tr></tbody>'; return; }
   const d1 = v => v == null ? '—' : v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'd';
-  $('tb-rotas').innerHTML = `<thead><tr><th>Rota / transportadora</th><th class="num">CT-es</th><th class="num">Frete médio</th><th class="num">% Frete/NF</th><th class="num">Prazo médio</th><th class="num">No prazo</th><th></th></tr></thead><tbody>
+  $('tb-rotas').innerHTML = `<thead><tr><th>Rota / transportadora</th><th class="num">CT-es</th><th class="num">Frete médio</th><th class="num">% Frete/NF</th><th class="num">R$/kg</th><th class="num">Prazo médio</th><th class="num">No prazo</th><th></th></tr></thead><tbody>
     ${lista.map(r => {
       const porT = new Map();
       r.ctes.forEach(c => { const k = norm(c.transportadora); if (!porT.has(k)) porT.set(k, { nome: c.transportadora, cs: [] }); porT.get(k).cs.push(c); });
       const linhas = [...porT.values()].map(t => {
         const fr = t.cs.reduce((a, c) => a + num(c.valor_frete), 0), nf = t.cs.reduce((a, c) => a + num(c.valor_nfe), 0);
         const pz = t.cs.map(c => c.prazo_dias).filter(v => v != null);
-        return { ...t, n: t.cs.length, medio: fr / t.cs.length, pct: nf > 0 ? fr / nf : null, prazo: pz.length ? pz.reduce((a, b) => a + num(b), 0) / pz.length : null, pont: pontualidade(t.cs).pct };
+        const cp = t.cs.filter(c => num(c.peso_kg) > 0), kg = cp.reduce((a, c) => a + num(c.peso_kg), 0);
+        return { ...t, n: t.cs.length, medio: fr / t.cs.length, pct: nf > 0 ? fr / nf : null, prazo: pz.length ? pz.reduce((a, b) => a + num(b), 0) / pz.length : null, pont: pontualidade(t.cs).pct,
+          rkg: kg > 0 ? cp.reduce((a, c) => a + num(c.valor_frete), 0) / kg : null };
       }).sort((a, b) => (a.pct ?? 9) - (b.pct ?? 9));
       const varias = linhas.length > 1;
       const barata = varias ? linhas[0] : null;
       const rapida = varias ? linhas.filter(l => l.prazo != null).sort((a, b) => a.prazo - b.prazo)[0] : null;
-      return `<tr class="rota-head"><td colspan="7">🛣️ ${esc(r.rota)} <span class="td-mono" style="font-weight:400">· ${r.ctes.length} CT-e(s) · ${linhas.length} transportadora(s)</span></td></tr>`
-        + linhas.map(l => `<tr><td style="padding-left:26px">${esc(l.nome)}</td><td class="num">${l.n}</td><td class="num">${brl(l.medio)}</td><td class="num">${pctHTML(l.pct)}</td><td class="num">${d1(l.prazo)}</td><td class="num">${l.pont == null ? '—' : pctFmt(l.pont)}</td>
+      return `<tr class="rota-head"><td colspan="8">🛣️ ${esc(r.rota)} <span class="td-mono" style="font-weight:400">· ${r.ctes.length} CT-e(s) · ${linhas.length} transportadora(s)</span></td></tr>`
+        + linhas.map(l => `<tr><td style="padding-left:26px">${esc(l.nome)}</td><td class="num">${l.n}</td><td class="num">${brl(l.medio)}</td><td class="num">${pctHTML(l.pct)}</td><td class="num">${l.rkg == null ? '—' : brl(l.rkg)}</td><td class="num">${d1(l.prazo)}</td><td class="num">${l.pont == null ? '—' : pctFmt(l.pont)}</td>
           <td>${l === barata ? '<span class="badge b-ok">💲 mais barata</span> ' : ''}${l === rapida ? '<span class="badge b-info">⚡ mais rápida</span>' : ''}</td></tr>`).join('');
     }).join('')}</tbody>`;
 }
@@ -1549,6 +1941,10 @@ const FORMS = {
     { k: 'previsao_entrega', l: 'Previsão entrega', t: 'date', s: 1 },
     { k: 'status_entrega', l: 'Status entrega', o: STATUS_CTE, s: 1, def: 'Pendente' },
     { k: 'data_entrega', l: 'Data entrega', t: 'date', s: 1 },
+    { k: 'peso_kg', l: 'Peso (kg)', t: 'dec', s: 1 },
+    { k: 'ocorrencia', l: 'Ocorrência', o: ['', 'Avaria', 'Extravio', 'Reentrega', 'Devolução', 'Atraso grave', 'Outro'], ol: ['Nenhuma', 'Avaria', 'Extravio', 'Reentrega', 'Devolução', 'Atraso grave', 'Outro'], s: 1 },
+    { k: 'ocorrencia_custo', l: 'Custo da ocorrência (R$)', t: 'money', s: 1 },
+    { k: 'ocorrencia_obs', l: 'Detalhe da ocorrência', s: 1 },
     { k: 'numero_cotacao', l: 'Cotação (conferir valor do CT-e)', s: 4, selCot: true },
     { preview: 'cte' },
     { k: 'observacoes', l: 'Observações', t: 'textarea', s: 4 },
@@ -1574,6 +1970,29 @@ const FORMS = {
     { k: 'prazo_dias', l: 'Prazo (dias)', t: 'int', s: 1 },
     { k: 'numero_cte', l: 'CT-e vinculado', ph: 'preenchido ao importar o CT-e' },
     { preview: 'cot' },
+    { k: 'observacoes', l: 'Observações', t: 'textarea', s: 4 },
+  ]},
+  tab: { titulo: 'Tabela de frete', campos: [
+    { k: 'transportadora', l: 'Transportadora', req: true, selTransp: true },
+    { k: 'rota', l: 'Rota (em branco = todas)', dl: 'dl-rotas', ph: 'Ex.: SJP - CGB' },
+    { k: 'peso_ate', l: 'Faixa: peso até (kg)', t: 'dec', s: 1, ph: 'sem limite' },
+    { k: 'valor_fixo', l: 'Taxa fixa por CT-e (R$)', t: 'money', s: 1 },
+    { k: 'valor_kg', l: 'R$ por kg', t: 'dec', s: 1 },
+    { k: 'pct_nf', l: '% sobre a NF (ad valorem/GRIS)', t: 'dec', s: 1 },
+    { k: 'frete_minimo', l: 'Frete mínimo (R$)', t: 'money', s: 1 },
+    { k: 'vigencia_inicio', l: 'Vigente desde', t: 'date', s: 1 },
+    { preview: 'tab' },
+    { k: 'observacoes', l: 'Observações', t: 'textarea', s: 4 },
+  ]},
+  fat: { titulo: 'Fatura', campos: [
+    { k: 'transportadora', l: 'Transportadora', req: true, selTransp: true },
+    { k: 'numero', l: 'Nº da fatura', s: 1 },
+    { k: 'status', l: 'Situação', o: ['Aberta', 'Paga', 'Contestada'], s: 1, def: 'Aberta' },
+    { k: 'emissao', l: 'Emissão', t: 'date', s: 1 },
+    { k: 'vencimento', l: 'Vencimento', t: 'date', s: 1 },
+    { k: 'valor', l: 'Valor cobrado (R$)', t: 'money', s: 1 },
+    { k: 'ctes', l: 'CT-es cobrados nesta fatura', selCtes: true, s: 4 },
+    { preview: 'fat' },
     { k: 'observacoes', l: 'Observações', t: 'textarea', s: 4 },
   ]},
   transp: { titulo: 'Transportadora', campos: [
@@ -1606,7 +2025,24 @@ window.formTranspMudou = sel => {
   }
   if (_modal.tipo === 'cte') atualizarCotacoesCte();
   if (_modal.tipo === 'cot') autoContato();
+  if (_modal.tipo === 'fat') listaCtesFatura();
 };
+// Fatura: CT-es da transportadora escolhida que ainda não estão em outra fatura.
+function listaCtesFatura() {
+  const box = $('fm-ctes');
+  if (!box) return;
+  const marcados = new Set([...box.querySelectorAll('input:checked')].map(i => i.value).concat(JSON.parse(box.dataset.sel || '[]')));
+  box.dataset.sel = '[]';
+  const transp = $('fm-transportadora')?.value;
+  const emOutras = new Set(data.fat.filter(f => f.id !== _modal.id).flatMap(f => f.ctes || []));
+  const cs = data.cte.filter(c => transp && norm(c.transportadora) === norm(transp) && (!emOutras.has(c.numero_cte) || marcados.has(c.numero_cte)))
+    .sort((a, b) => (b.data_emissao || '').localeCompare(a.data_emissao || ''));
+  box.innerHTML = cs.length ? `<div class="fat-ctes-acts"><button type="button" class="fchip" onclick="marcarCtesFatura(true)">Marcar todos</button><button type="button" class="fchip" onclick="marcarCtesFatura(false)">Desmarcar</button></div>`
+    + cs.map(c => `<label class="fat-cte"><input type="checkbox" value="${esc(c.numero_cte)}" ${marcados.has(c.numero_cte) ? 'checked' : ''} onchange="atualizarPreview()"> <b>${esc(c.numero_cte)}</b> <span class="td-mono">${dataBR(c.data_emissao)}</span> ${brl(c.valor_frete)}</label>`).join('')
+    : `<div class="td-mono">${transp ? 'Nenhum CT-e dessa transportadora fora de outra fatura.' : 'Escolha a transportadora.'}</div>`;
+  atualizarPreview();
+}
+window.marcarCtesFatura = on => { $('fm-ctes').querySelectorAll('input').forEach(i => i.checked = on); atualizarPreview(); };
 function campoHTML(f, val) {
   if (f.preview) return `<div class="fpreview" id="fpreview"></div>`;
   const id = 'fm-' + f.k;
@@ -1615,6 +2051,7 @@ function campoHTML(f, val) {
   const lbl = `<label class="flbl" for="${id}">${f.l}${f.req ? ' <span class="req">*</span>' : ''}</label>`;
   let inp;
   if (f.selTransp) inp = selectTranspHTML(id, v, f.req);
+  else if (f.selCtes) inp = `<div class="fat-ctes" id="${id}" data-sel="${esc(JSON.stringify(Array.isArray(val) ? val : []))}"></div>`;
   else if (f.selCot) inp = `<select class="finput" id="${id}" onchange="atualizarPreview()">${cotacoesOptionsHTML(v)}</select>`;
   else if (f.o) {
     // Valor antigo que não está nas opções (ex.: "VENDA" vindo da planilha) continua
@@ -1649,6 +2086,7 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
   $('modal').classList.add('open');
   $('modal-form').oninput = atualizarPreview;
   if (tipo === 'cte') atualizarCotacoesCte(base.numero_cotacao);
+  if (tipo === 'fat') listaCtesFatura();
   if (tipo === 'cot') $('fm-transportadora').addEventListener('change', autoContato);
   if (tipo === 'cte') {
     // Previsão segue emissão + prazo até o usuário (ou o PDF) definir outra data.
@@ -1692,6 +2130,19 @@ function atualizarPreview() {
   const el = $('fpreview');
   if (!el) return;
   const v = k => num($('fm-' + k)?.value);
+  if (_modal.tipo === 'tab') {
+    const ex = precoPorLinha({ valor_fixo: v('valor_fixo'), valor_kg: v('valor_kg'), pct_nf: v('pct_nf'), frete_minimo: v('frete_minimo') }, 50, 10000);
+    el.innerHTML = `<span class="flabel">Exemplo</span> 50 kg e NF de R$ 10.000 → <b>${brl(ex)}</b> (${pctFmt(ex / 10000)} da NF)`;
+    return;
+  }
+  if (_modal.tipo === 'fat') {
+    const sel = [...($('fm-ctes')?.querySelectorAll('input:checked') || [])].map(i => i.value);
+    const soma = data.cte.filter(c => sel.includes(c.numero_cte)).reduce((a, c) => a + num(c.valor_frete), 0);
+    const dif = v('valor') - soma;
+    el.innerHTML = `<span class="flabel">Conferência</span> ${sel.length} CT-e(s) somam <b>${brl(soma)}</b> · fatura ${brl(v('valor'))} →
+      ${!v('valor') ? '<span class="td-mono">informe o valor cobrado</span>' : Math.abs(dif) < 0.01 ? '<span class="badge b-ok">✔ confere</span>' : `<span class="badge ${dif > 0 ? 'b-crit' : 'b-warn'}">⚠ ${dif > 0 ? 'cobrado a mais' : 'cobrado a menos'} ${brl(Math.abs(dif))}</span>`}`;
+    return;
+  }
   if (_modal.tipo === 'cte') {
     const p = v('valor_nfe') > 0 ? v('valor_frete') / v('valor_nfe') : null;
     el.innerHTML = `<span class="flabel">% Frete / NF</span> ${pctHTML(p)} ${p != null ? '<span>' + PCT_FAIXAS[faixaPct(p)].label + '</span>' : '<span class="td-mono">informe frete e valor da NF</span>'}`;
@@ -1709,10 +2160,13 @@ function atualizarPreview() {
   }
 }
 
+window.atualizarPreview = atualizarPreview; // usado pelos onchange do formulário (lista de CT-es da fatura, cotação)
+
 function lerForm(tipo) {
   const out = {};
   for (const f of FORMS[tipo].campos) {
     if (f.preview) continue;
+    if (f.selCtes) { out[f.k] = [...$('fm-' + f.k).querySelectorAll('input:checked')].map(i => i.value); continue; }
     let v = $('fm-' + f.k).value.trim();
     if (f.upper) v = v.toUpperCase();
     if (f.t === 'money' || f.t === 'dec') v = v === '' ? null : Number(v);
@@ -1748,6 +2202,8 @@ window.salvarModal = async () => {
     res = await gravarTolerante(r => (paraDestino ? supaImport : supabase).from(T[tipo]).insert(r), row);
   }
   if (res.error) { toast('Erro ao salvar: ' + msgErroBanco(res.error), 'err'); return; }
+  registrarLog(id ? 'editar' : (_modal.importacao ? 'importar PDF/XML' : 'criar'), T[tipo], row.numero_cte || row.numero || row.nome || id,
+    { campos: Object.keys(row).filter(k => k !== 'atualizado_em') }, paraDestino ? supaImport : supabase, paraDestino ? FILIAL_IMPORT : FILIAL);
   toast(id ? '✔ Alterações salvas' : paraDestino ? `✔ CT-e gravado em ${IMPORTA_PARA.label}` : '✔ Registro criado');
   if (!id && tipo === 'cte' && _modal.importacao) await cadastrarTransportadorasNovas([{ valores: row, emit: _modal.emit }]);
   if (tipo === 'cte' && row.numero_cotacao) await vincularCotacoes([{ numeroCotacao: row.numero_cotacao, numeroCte: row.numero_cte }]);
@@ -1763,6 +2219,7 @@ window.excluir = async (tipo, id) => {
   if (!confirm(`Excluir ${FORMS[tipo].titulo} "${nome}"? Essa ação não pode ser desfeita.`)) return;
   const { error } = await supabase.from(T[tipo]).delete().eq('id', id);
   if (error) { toast('Erro ao excluir: ' + error.message, 'err'); return; }
+  registrarLog('excluir', T[tipo], nome, r ? { valor_frete: r.valor_frete, transportadora: r.transportadora } : null);
   toast('🗑 Excluído', 'info');
   if (_modal.id === id) fecharModal();
   await carregar(tipo); montarFiltros(); render();
@@ -1776,7 +2233,7 @@ window.mudarStatusCot = async (id, status) => {
   await carregar('cot'); render();
 };
 
-window.novoRegistro = () => abrirModal({ cotacoes: 'cot', transportadoras: 'transp' }[ui.view] || 'cte');
+window.novoRegistro = () => abrirModal({ cotacoes: 'cot', transportadoras: 'transp', tabelas: 'tab', faturas: 'fat' }[ui.view] || 'cte');
 
 // ───────────────────────── Importar PDF do CT-e (DACTE) ─────────────────────────
 // Usa o mesmo leitor do Monitor Cirúrgico (nf-import.js: PDF.js + parsearTextoNF
@@ -2114,6 +2571,11 @@ function camposDoCte(doc, nomeArquivo) {
   put('valor_nfe', valorNf);
   put('prazo_dias', prazo);
   put('previsao_entrega', previsao);
+  // Peso taxado/cálculo (base do frete) — o que faz sentido para R$/kg.
+  const aceitaPeso = s => { const m = /(\d[\d.,]*)/.exec(String(s || '')); if (!m) return null; const t = m[1];
+    const v = t.includes(',') ? Number(t.replace(/\./g, '').replace(',', '.')) : Number(t); return v > 0 && v < 100000 ? v : null; };
+  put('peso_kg', valorDoRotulo(itens, [/PESO TAXADO/i, /PESO AFERIDO\/TAXADO/i, /PESO C[ÁA]LCULO/i, /PESO BASE C[ÁA]LCULO/i, /PESO AFERIDO/i, /PESO BRUTO/i, /PESO REAL/i], aceitaPeso));
+  put('chave_nfe', chavesNf[0] || null);
   put('observacoes', [inicio && termino && mCod ? `${inicio} → ${termino}` : null,
     chaveCte ? 'Chave CT-e: ' + chaveCte : null].filter(Boolean).join(' · ') || null);
   valores.status_entrega = 'Em trânsito';
@@ -2126,7 +2588,66 @@ function camposDoCte(doc, nomeArquivo) {
 }
 
 // Lê um PDF e devolve um resultado por CT-e encontrado nele.
+// XML do CT-e (cteProc/CTe): dados exatos, sem depender da leitura do PDF.
+function camposDoXml(xmlTexto, nomeArquivo) {
+  const doc = new DOMParser().parseFromString(xmlTexto, 'application/xml');
+  const g = (el, tag) => el ? el.getElementsByTagName(tag)[0] || null : null;
+  const t = (el, tag) => g(el, tag)?.textContent?.trim() || null;
+  const inf = g(doc, 'infCte');
+  if (!inf) throw new Error('XML não é de CT-e');
+  const ide = g(inf, 'ide'), emit = g(inf, 'emit'), rem = g(inf, 'rem'), dest = g(inf, 'dest');
+  const chave = (inf.getAttribute('Id') || '').replace(/^CTe/, '') || null;
+  const ch = chave && chave.length === 44 ? infoChave(chave) : null;
+  const docParte = el => fmtDoc(t(el, 'CNPJ')) || (t(el, 'CPF') ? t(el, 'CPF').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : null);
+  const chavesNf = [...inf.getElementsByTagName('infNFe')].map(n => t(n, 'chave')).filter(Boolean);
+  const nfs = [...new Set(chavesNf.map(k => String(+k.slice(25, 34))))];
+  const qs = [...inf.getElementsByTagName('infQ')].map(q => ({ un: t(q, 'cUnid'), med: t(q, 'tpMed') || '', q: Number(t(q, 'qCarga')) }));
+  const pesoQ = qs.find(q => q.un === '01' && /TAXAD|CALC|BASE/i.test(q.med)) || qs.find(q => q.un === '01' && /BRUT|REAL|AFERID/i.test(q.med)) || qs.find(q => q.un === '01');
+  const xObs = t(inf, 'xObs') || '';
+  const mCod = /OR:\s*\[([A-Z]{3})\]\s*DE:\s*\[([A-Z]{3})\]/.exec(xObs);
+  const ini = t(ide, 'xMunIni') && `${t(ide, 'xMunIni').toUpperCase()}/${t(ide, 'UFIni')}`, fim = t(ide, 'xMunFim') && `${t(ide, 'xMunFim').toUpperCase()}/${t(ide, 'UFFim')}`;
+  const emissao = (t(ide, 'dhEmi') || '').slice(0, 10) || null;
+  const previsao = (t(inf, 'dProg') || t(inf, 'dPrevAereo') || t(inf, 'dIniPer') || '').slice(0, 10) || null;
+  const remN = t(rem, 'xNome'), destN = t(dest, 'xNome');
+  const ehGF = x => /GF MEDICAL/i.test(x || '');
+  const tipo = ehGF(remN) && ehGF(destN) ? 'TRANSFERENCIA' : ehGF(destN) ? 'COMPRA'
+    : ehGF(remN) && /REPARO|MANUTEN|CONSERTO|CONCERTO|ASSIST[ÊE]NCIA T[ÉE]CNICA/i.test(destN || '') ? 'REMESSA PARA CONSERTO' : null;
+  const emitente = t(emit, 'xNome');
+  const transportadora = (ch && (transportadoraPorCnpjCadastro(ch.cnpj) || transportadoraPorCnpj(ch.cnpj)))
+    || nomeTransportadoraCadastrada(t(emit, 'xFant') || emitente) || (t(emit, 'xFant') || emitente || '').toUpperCase() || null;
+  const awb = (t(inf, 'nOCA') || '').replace(/\D/g, '');
+  const ids = { awb: awb.length === 11 ? awb : null, ctrc: null,
+    serieNum: ch ? `${String(ch.serie).padStart(3, '0')} ${String(ch.numero).padStart(9, '0')}` : null, chave: ch ? String(ch.numero) : t(ide, 'nCT') };
+  const fmt = formatoNumeroCte(transportadora);
+  const valores = {};
+  const put = (k, v) => { if (v != null && v !== '' && !(typeof v === 'number' && isNaN(v))) valores[k] = v; };
+  put('numero_cte', (fmt && ids[fmt]) || ids.awb || ids.chave);
+  put('data_emissao', emissao);
+  put('numero_nfe', nfs.join(', ') || null);
+  put('serie_nf', chavesNf[0] ? String(+chavesNf[0].slice(22, 25)) : null);
+  put('origem', mCod ? `${mCod[1]} - ${mCod[2]}` : ini && fim ? `${ini} - ${fim}` : ini);
+  put('transportadora', transportadora);
+  put('remetente', remN); put('remetente_cnpj', docParte(rem));
+  put('destino', destN); put('destino_cnpj', docParte(dest));
+  put('tipo_saida', tipo);
+  put('valor_frete', Number(t(inf, 'vTPrest')));
+  put('valor_nfe', Number(t(inf, 'vCarga')));
+  put('peso_kg', pesoQ ? pesoQ.q : null);
+  put('previsao_entrega', previsao);
+  put('prazo_dias', emissao && previsao && previsao >= emissao ? diasEntre(emissao, previsao) : null);
+  put('chave_nfe', chavesNf[0] || null);
+  put('observacoes', [mCod && ini && fim ? `${ini} → ${fim}` : null, chave ? 'Chave CT-e: ' + chave : null].filter(Boolean).join(' · ') || null);
+  valores.status_entrega = 'Em trânsito';
+  const fone = t(g(emit, 'enderEmit'), 'fone');
+  const textoPartes = [docParte(rem), docParte(dest), ...chavesNf].join(' ');
+  return { valores, texto: `XML do CT-e ${nomeArquivo}`, ids: Object.values(ids).filter(Boolean), chave, filiais: filiaisGF(textoPartes),
+    emit: ch ? { razao: emitente, cnpj: ch.cnpj, modal: t(ide, 'modal') === '02' ? 'Aéreo' : t(ide, 'modal') === '01' ? 'Rodoviário' : null,
+      telefone: fone ? fone.replace(/^(\d{2})(\d{4,5})(\d{4})$/, '($1) $2-$3') : null, email: (t(emit, 'email') || '').toLowerCase() || null } : null };
+}
+const ehXml = f => /\.xml$/i.test(f.name) || /xml/i.test(f.type || '');
+
 async function extrairCtes(file) {
+  if (ehXml(file)) return [camposDoXml(await file.text(), file.name)];
   const docs = await lerDocsPdf(file);
   if (!docs.some(d => d.texto.trim())) throw new Error('SEM_TEXTO');
   return docs.filter(d => d.texto.trim()).map(d => camposDoCte(d, file.name));
@@ -2363,6 +2884,7 @@ window.importarLoteSelecionados = async () => {
   const { error } = await gravarTolerante(r => supaImport.from(T.cte).insert(r), rows);
   if (error) { toast('Erro ao importar: ' + msgErroBanco(error), 'err'); renderLote(); return; }
   itens.forEach(it => it.estado = 'importado');
+  registrarLog('importar lote', T.cte, `${rows.length} CT-e(s)`, { ctes: rows.map(r => r.numero_cte) }, supaImport, FILIAL_IMPORT);
   await vincularCotacoes(itens.filter(it => it.valores.numero_cotacao).map(it => ({ numeroCotacao: it.valores.numero_cotacao, numeroCte: it.valores.numero_cte })));
   const nTransp = await cadastrarTransportadorasNovas(itens);
   toast(`✔ ${rows.length} CT-e(s) importado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}${nCompletos ? ` · ${nCompletos} já cadastrado(s) completado(s)` : ''}${nTransp ? ` · ${nTransp} transportadora(s) nova(s) cadastrada(s)` : ''}`);
@@ -2376,8 +2898,8 @@ window.importarLoteSelecionados = async () => {
 };
 
 function abrirPdfs(files) {
-  const pdfs = [...files].filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
-  if (!pdfs.length) { toast('Selecione arquivo(s) PDF do CT-e.', 'err'); return; }
+  const pdfs = [...files].filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf' || ehXml(f));
+  if (!pdfs.length) { toast('Selecione arquivo(s) PDF ou XML do CT-e.', 'err'); return; }
   if (pdfs.length === 1) importarPdfCte(pdfs[0]); else importarLotePdf(pdfs);
 }
 $('f-pdf-cte').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) abrirPdfs(fs); };
@@ -2616,6 +3138,7 @@ window.calcAtualizar = () => {
   $('calc-resultado').innerHTML = validas.map(o => {
     const p = o.frete / nf, f = faixaPct(p), h = historicoTransp(o.transportadora);
     const mod = modeloFrete(o.transportadora), esp = freteEsperado(mod, nf);
+    const pesoC = num($('calc-peso').value) || null, tbC = precoTabela(o.transportadora, $('calc-rota').value.trim(), pesoC, nf, hojeISO());
     const pMin = mod ? mod.baixo / nf : null;
     const alertaMin = mod && faixaPct(pMin) !== 'ok'
       ? `<div class="calc-alerta">⚠ <b>Frete mínimo:</b> os envios mais baratos da ${esc(o.transportadora)} custam por volta de ${brl(mod.baixo)} — para uma NF de ${brl(nf)} isso já dá ${pctFmt(pMin)}. Se der, <b>junte com outra carga</b>: a partir de ~${brl(mod.baixo / 0.03)} de mercadoria o frete fica em 3%.</div>` : '';
@@ -2626,6 +3149,8 @@ window.calcAtualizar = () => {
       <div class="calc-veredito">${VEREDITO[f]}</div>
       <div class="calc-det">Frete ${brl(o.frete)} ÷ mercadoria ${brl(nf)}${o.prazo != null ? ` · prazo ${o.prazo} dia(s)` : ''}
         ${f !== 'ok' ? `<br>Para ficar em 3%, o frete precisaria baixar para ${brl(nf * 0.03)} (−${brl(o.frete - nf * 0.03)}).` : ''}
+        ${tbC ? `<br><b>Pela tabela combinada: ${brl(tbC.preco)}</b>${o.frete > tbC.preco * 1.02 + 1 ? ` — cotação <b style="color:var(--crit-c)">${brl(o.frete - tbC.preco)} acima da tabela</b>` : ' — dentro da tabela'}.` : ''}
+        ${pesoC ? `<br>${brl(o.frete / pesoC)}/kg.` : ''}
         ${esp ? `<br>Esperado pelo histórico da ${esc(o.transportadora)} para esta NF: ~${brl(esp)}${o.frete > esp * 1.15 ? ` — esta cotação está <b style="color:var(--crit-c)">${brl(o.frete - esp)} acima</b>` : o.frete < esp * 0.85 ? ` — esta cotação está <b style="color:var(--ok-c)">${brl(esp - o.frete)} abaixo</b>` : ' — em linha'}.` : ''}
         ${h ? `<br>Histórico ${esc(o.transportadora)}: ${pctFmt(h.pct)} em ${h.qtd} CT-e(s) — esta cotação está ${Math.abs(dif) < 0.0005 ? 'na média' : dif > 0 ? `<b style="color:var(--crit-c)">${pp(dif)} acima</b> da média` : `<b style="color:var(--ok-c)">${pp(-dif)} abaixo</b> da média`}.` : ''}
         ${validas.length > 1 && o !== melhor ? `<br>${brl(o.frete - melhor.frete)} mais cara que a opção mais barata.` : ''}</div>
