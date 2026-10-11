@@ -464,7 +464,9 @@ const BRANCHES = {
 };
 const BRANCH = window._fretesBranch;
 const BR = BRANCHES[BRANCH];
-const supabase = createClient(BR.url, BR.key);
+// Mesma sessão salva do Monitor e das Fichas OPME (storageKey sb-<filial>-auth):
+// quem entrou no Monitor não precisa logar de novo aqui.
+const supabase = createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 
 const FILIAL = BRANCH.toUpperCase();
@@ -488,7 +490,7 @@ const FILIAL_LABEL = BR.cityLabel;
 const IMPORTA_PARA = FILIAL === 'CBA'
   ? { filial: 'CGR', label: 'Campo Grande', url: 'https://rqzqetfoxiutabsooqqn.supabase.co', key: 'sb_publishable_P3EggMdsxQUoKnX_pLMaRQ_ZrGEYpIP' }
   : null;
-const supaImport = IMPORTA_PARA ? createClient(IMPORTA_PARA.url, IMPORTA_PARA.key) : supabase;
+const supaImport = IMPORTA_PARA ? createClient(IMPORTA_PARA.url, IMPORTA_PARA.key, { auth: { storageKey: 'sb-cgr-auth' } }) : supabase;
 const FILIAL_IMPORT = IMPORTA_PARA ? IMPORTA_PARA.filial : FILIAL;
 let ctesDestino = []; // CT-es já gravados no destino da importação (duplicados, formatos, transportadoras)
 let transpDestino = []; // cadastro de transportadoras do destino da importação

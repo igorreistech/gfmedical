@@ -267,6 +267,9 @@
 
       function mostrarResumoInicial() {
         if (window._resumoInicialMostrado) return;
+        // Enquanto a tela de login ou a de escolha (Monitor / Fichas OPME / Fretes)
+        // está aberta, o resumo espera — e só aparece quando a pessoa chega ao Monitor.
+        if (_telaDeEntradaAberta()) { window._resumoPendente = true; return; }
         window._resumoInicialMostrado = true;
         const procs = window.procedimentos || [];
         const total = procs.length;
@@ -383,6 +386,46 @@
         window.doLogin();
       };
 
+      // ─── Depois do login: escolher Monitor, Fichas OPME ou Controle de Fretes ───
+      // As três páginas usam a mesma sessão salva (storageKey sb-<filial>-auth). O
+      // Controle de Fretes abre na filial do Monitor; em Cuiabá, entra também em
+      // Campo Grande com a mesma senha, porque os CT-es importados lá são gravados
+      // em Campo Grande. A senha só fica na memória até a escolha.
+      let _credsDestino = null;
+      function _telaDeEntradaAberta() {
+        const lo = document.getElementById('loginOverlay'), de = document.getElementById('destinoOverlay');
+        return (lo && !lo.classList.contains('hidden')) || (de && !de.classList.contains('hidden'));
+      }
+      // Resumo que ficou esperando: mostra assim que login e escolha saírem da frente.
+      window.addEventListener('DOMContentLoaded', () => {
+        const lo = document.getElementById('loginOverlay');
+        if (!lo) return;
+        new MutationObserver(() => {
+          if (window._resumoPendente && !_telaDeEntradaAberta()) { window._resumoPendente = false; mostrarResumoInicial(); }
+        }).observe(lo, { attributes: true, attributeFilter: ['class'] });
+      });
+      window._abrirEscolhaDestino = function(email, pass) {
+        _credsDestino = { email, pass };
+        document.getElementById('destinoOverlay').classList.remove('hidden');
+      };
+      window._irPara = async function(destino) {
+        const creds = _credsDestino;
+        _credsDestino = null;
+        if (destino === 'monitor') {
+          document.getElementById('destinoOverlay').classList.add('hidden');
+          if (window._resumoPendente) { window._resumoPendente = false; mostrarResumoInicial(); }
+          return;
+        }
+        if (destino === 'opme') { location.href = 'fichas-opme.html'; return; }
+        if (creds && ACTIVE_BRANCH_CODE === 'cba' && !IS_CONSOLIDADO) {
+          const btn = document.getElementById('destinoFretesBtn');
+          btn.disabled = true; btn.textContent = 'Abrindo…';
+          const cg = supabaseCgr || _criarClienteFilial('cgr');
+          await Promise.race([cg.auth.signInWithPassword({ email: creds.email, password: creds.pass }).catch(() => {}), new Promise(r => setTimeout(r, 6000))]);
+        }
+        location.href = 'fretes.html?filial=' + ACTIVE_BRANCH_CODE;
+      };
+
       window.doLogin = async function() {
         const email = document.getElementById('loginUser').value.trim();
         const pass  = document.getElementById('loginPass').value;
@@ -412,6 +455,7 @@
               console.warn('[Consolidado] Não autenticou em Cuiabá:', e2.message);
             }
           }
+          if (email.toLowerCase() !== DEMO_USER.email) window._abrirEscolhaDestino(email, pass);
         } catch(e) {
           let msg = 'E-mail ou senha incorretos.';
           if (e.message?.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
@@ -4785,6 +4829,20 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
             <button type="button" class="login-btn branch-btn" onclick="window._escolherFilial('cgr')">Campo Grande</button>
             <button type="button" class="login-btn branch-btn" onclick="window._escolherFilial('cba')">Cuiabá</button>
             <button type="button" class="login-btn branch-btn" onclick="window._escolherFilial('consolidado')" style="background:linear-gradient(135deg,#6366f1,#818cf8);">Consolidado (as duas juntas)</button>
+        </div>
+    </div>
+</div>
+
+<!-- ESCOLHA DE DESTINO (depois do login) -->
+<div class="login-overlay hidden" id="destinoOverlay" style="z-index:10000">
+    <div class="login-box">
+        <img class="login-logo-img" src="logo.jpg" alt="GF Medical">
+        <div class="login-logo">⬡ GF Medical</div>
+        <div class="login-sub">Para onde você quer ir?</div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px;">
+            <button type="button" class="login-btn" onclick="window._irPara('monitor')">🏥 Monitor Cirúrgico</button>
+            <button type="button" class="login-btn" onclick="window._irPara('opme')" style="background:linear-gradient(135deg,#d4920a,#f59e0b);">📋 Fichas OPME</button>
+            <button type="button" class="login-btn" id="destinoFretesBtn" onclick="window._irPara('fretes')" style="background:linear-gradient(135deg,#1f7f9c,#2a9fbf);">🚚 Controle de Fretes</button>
         </div>
     </div>
 </div>
