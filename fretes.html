@@ -183,6 +183,8 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.tab-conta{margin-top:8px;padding:8px 10px;border-radius:var(--radius);background:var(--surface2, rgba(0,0,0,.03));font-size:0.72rem;color:var(--text2);line-height:1.6}
+.tab-alt{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .sql-passos{margin:0 0 6px 18px;font-size:0.78rem;color:var(--text2);line-height:1.7}
 .dup-grupo{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;background:var(--surface)}
 .dup-grupo table td{padding:6px 8px}
@@ -656,7 +658,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.15';
+const VERSAO = '2026-10-11.16';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -1512,28 +1514,96 @@ window.mensagemAuditoria = t => {
 };
 
 // Valor de uma cotação/CT-e × tabela combinada (rota = "origem - destino" ou a rota do CT-e).
-function conferirTabela(tipo, v) {
-  if (!v.transportadora || !num(v.valor_frete)) return null;
+// Preço pela tabela de uma transportadora para os dados da cotação/CT-e (tenta "origem/UF - destino/UF" e depois só a origem).
+function tabelaPara(tipo, v, transportadora = v.transportadora) {
+  if (!transportadora) return null;
   const nf = tipo === 'cot' ? num(v.valor_mercadoria) : num(v.valor_nfe);
   const comUf = (cid, uf) => cid ? cid + (uf ? '/' + uf : '') : (uf || '');
   const rotas = tipo === 'cot' ? [[comUf(v.origem, v.uf_origem), comUf(v.destino, v.uf_destino)].filter(Boolean).join(' - '), v.origem] : [v.origem];
   const dataRef = tipo === 'cot' ? v.data_cotacao : v.data_emissao;
-  let r = null;
-  for (const rota of rotas) { r = precoTabela(v.transportadora, rota || '', num(v.peso_kg) || null, nf, dataRef); if (r) break; }
+  for (const rota of rotas) { const r = precoTabela(transportadora, rota || '', num(v.peso_kg) || null, nf, dataRef); if (r) return { ...r, peso: num(v.peso_kg), nf }; }
+  return null;
+}
+function conferirTabela(tipo, v) {
+  if (!v.transportadora) return null;
+  const r = tabelaPara(tipo, v);
   const temTabela = data.tab.some(t => norm(t.transportadora) === norm(v.transportadora));
   if (!r) return { semTabela: !temTabela, faltaPeso: temTabela };
+  if (!num(v.valor_frete)) return { ...r, semValor: true };
   const valor = tipo === 'cot' ? num(v.valor_frete) + num(v.ad_valorem) : num(v.valor_frete);
   const dif = valor - r.preco;
-  return { preco: r.preco, linha: r.linha, dif, acima: dif > r.preco * 0.02 + 1, abaixo: dif < -1 };
+  return { ...r, valor, dif, acima: dif > r.preco * 0.02 + 1, abaixo: dif < -1 };
 }
-function conferenciaTabelaHTML(chk, transportadora) {
+// "fixo R$ 14,00 + 5 kg × R$ 0,41 + 1,5% × NF R$ 10.400,00 (mínimo R$ 26,50 no frete peso)"
+function contaTabela(t, peso, nf) {
+  const p = [];
+  if (num(t.valor_fixo)) p.push(`fixo ${brl(t.valor_fixo)}`);
+  if (num(t.valor_kg)) p.push(`${num(peso).toLocaleString('pt-BR')} kg × ${brl(t.valor_kg)}`);
+  if (num(t.pct_nf)) p.push(`${num(t.pct_nf).toLocaleString('pt-BR')}% × NF ${brl(nf)}`);
+  let txt = p.join(' + ') || 'sem valores';
+  if (num(t.frete_minimo)) {
+    const pesoVal = num(t.valor_kg) * num(peso);
+    const aplicou = t.minimo_base === 'peso' ? num(t.frete_minimo) > pesoVal
+      : num(t.frete_minimo) > num(t.valor_fixo) + pesoVal + num(t.pct_nf) / 100 * num(nf);
+    txt += ` · mínimo ${brl(t.frete_minimo)}${t.minimo_base === 'peso' ? ' no frete peso' : ''}${aplicou ? ' <b>(aplicado)</b>' : ''}`;
+  }
+  return txt;
+}
+function descLinhaTabela(t) {
+  return [t.rota ? `rota ${t.rota}` : 'todas as rotas', t.peso_ate != null ? `até ${num(t.peso_ate).toLocaleString('pt-BR')} kg` : '',
+    t.nf_ate != null ? `NF até ${brl(t.nf_ate)}` : '', t.vigencia_inicio ? `desde ${dataBR(t.vigencia_inicio)}` : ''].filter(Boolean).join(' · ');
+}
+let _altTabela = [], _chkCot = null;
+function conferenciaTabelaHTML(chk, transportadora, { cot = false, v = null } = {}) {
+  _chkCot = cot ? chk : null;
   if (!chk) return '';
   const link = l => l?.anexo_url ? ` · <a href="${esc(l.anexo_url)}" target="_blank" rel="noopener">📎 ver tabela anexa</a>` : '';
-  if (chk.semTabela) return `<br><span class="td-mono">Sem tabela combinada da ${esc(transportadora)} — cadastre/anexe em 📑 Tabelas de frete para conferir automaticamente.</span>`;
-  if (chk.faltaPeso) return `<br><span class="td-mono">Há tabela da ${esc(transportadora)}, mas faltam dados para calcular (informe o peso e confira a rota).</span>`;
-  if (chk.acima) return `<br><span class="badge b-crit">⚠ ${brl(chk.dif)} acima da tabela</span> <span>pela tabela combinada: <b>${brl(chk.preco)}</b> — questione a transportadora antes de fechar${link(chk.linha)}</span>`;
-  return `<br><span class="badge b-ok">✔ de acordo com a tabela</span> <span>pela tabela: ${brl(chk.preco)}${chk.abaixo ? ` (cotação ${brl(-chk.dif)} abaixo)` : ''}${link(chk.linha)}</span>`;
+  // outras transportadoras com tabela para a mesma rota/peso/NF (só na cotação)
+  let alt = '';
+  if (cot && v) {
+    const nomes = [...new Set(data.tab.map(t => t.transportadora).filter(n => n && norm(n) !== norm(transportadora)))];
+    _altTabela = nomes.map(n => ({ nome: n, r: tabelaPara('cot', v, n) })).filter(x => x.r).sort((a, b) => a.r.preco - b.r.preco).slice(0, 4);
+    const ref = chk.preco ?? (chk.valor || num(v.valor_frete) + num(v.ad_valorem)) ?? 0;
+    if (_altTabela.length) alt = `<div class="tab-alt"><span class="flabel">Outras tabelas p/ esta carga</span> ${_altTabela.map((x, i) =>
+      `<button type="button" class="fchip${ref && x.r.preco < ref - 1 ? ' on' : ''}" title="${esc(descLinhaTabela(x.r.linha))}" onclick="trocarPelaTabela(${i})">${esc(x.nome.split(' ').slice(0, 2).join(' '))} ${brl(x.r.preco)}</button>`).join('')}</div>`;
+  }
+  if (chk.semTabela) return `<br><span class="td-mono">Sem tabela combinada da ${esc(transportadora)} — cadastre/anexe em 📑 Tabelas de frete para conferir automaticamente.</span>${alt}`;
+  if (chk.faltaPeso) return `<br><span class="td-mono">Há tabela da ${esc(transportadora)}, mas faltam dados para calcular (informe o peso e a mercadoria, e confira origem/destino com UF).</span>${alt}`;
+  const conta = `<div class="tab-conta">📑 <b>${esc(transportadora)}</b> · ${esc(descLinhaTabela(chk.linha))}<br>${contaTabela(chk.linha, chk.peso, chk.nf)} = <b>${brl(chk.preco)}</b>${link(chk.linha)}</div>`;
+  const usar = cot && Math.abs((num(v?.valor_frete) || 0) - chk.preco) > 0.005 ? ` <button type="button" class="fchip" onclick="usarValorTabela()">↩ Usar ${brl(chk.preco)} da tabela</button>` : '';
+  if (chk.semValor) return `<br><span class="badge b-ok">📑 pela tabela: ${brl(chk.preco)}</span>${usar}${conta}${alt}`;
+  if (chk.acima) return `<br><span class="badge b-crit">⚠ ${brl(chk.dif)} acima da tabela</span> <span>pela tabela combinada: <b>${brl(chk.preco)}</b> — questione a transportadora antes de fechar</span>${usar}${cot ? ' <button type="button" class="fchip" onclick="questionarTabela()">💬 Questionar no WhatsApp</button>' : ''}${conta}${alt}`;
+  return `<br><span class="badge b-ok">✔ de acordo com a tabela</span> <span>pela tabela: ${brl(chk.preco)}${chk.abaixo ? ` (cotação ${brl(-chk.dif)} abaixo)` : ''}</span>${conta}${alt}`;
 }
+window.usarValorTabela = () => {
+  if (!_chkCot?.preco) return;
+  $('fm-valor_frete').value = _chkCot.preco.toFixed(2);
+  if ($('fm-ad_valorem')) $('fm-ad_valorem').value = '';
+  atualizarPreview();
+};
+window.trocarPelaTabela = i => {
+  const x = _altTabela[i]; if (!x) return;
+  const sel = $('fm-transportadora');
+  if (![...sel.options].some(o => o.value === x.nome)) sel.add(new Option(x.nome, x.nome));
+  sel.value = x.nome;
+  $('fm-contato').value = ''; $('fm-telefone').value = ''; autoContato();
+  $('fm-valor_frete').value = x.r.preco.toFixed(2);
+  if ($('fm-ad_valorem')) $('fm-ad_valorem').value = '';
+  atualizarPreview();
+  toast(`Trocado para ${x.nome} — valor pela tabela ${brl(x.r.preco)}. Confirme a cotação com eles.`, 'info');
+};
+window.questionarTabela = () => {
+  const c = _chkCot; if (!c?.preco) return;
+  const f = k => $('fm-' + k)?.value?.trim() || '';
+  const conta = contaTabela(c.linha, c.peso, c.nf).replace(/<[^>]+>/g, '');
+  const texto = [`Olá${f('contato') ? ' ' + f('contato') : ''}, tudo bem? Aqui é da GF Medical.`,
+    `Sobre a cotação ${[f('origem'), f('destino')].filter(Boolean).join(' → ')}${c.peso ? `, ${num(c.peso).toLocaleString('pt-BR')} kg` : ''}${c.nf ? `, mercadoria ${brl(c.nf)}` : ''}:`,
+    `vocês cotaram ${brl(c.valor)}, mas pela tabela combinada (${descLinhaTabela(c.linha)}) dá ${brl(c.preco)}:`,
+    `${conta} = ${brl(c.preco)}.`, `Diferença de ${brl(c.dif)}. Podem revisar, por favor?`].join('\n');
+  const tel = f('telefone').replace(/\D/g, '');
+  navigator.clipboard?.writeText(texto).catch(() => {});
+  window.open(tel.length >= 10 ? `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(texto)}` : 'https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
+};
 
 // ═════════════ Tabela de frete combinada ═════════════
 // frete = fixo + R$/kg × peso + % × NF, com o mínimo valendo para o total ou só para o frete peso.
@@ -2418,10 +2488,14 @@ function atualizarPreview() {
     const total = v('valor_frete') + v('ad_valorem');
     const peso = v('peso_kg'), merc = v('valor_mercadoria');
     const p = merc > 0 && total > 0 ? total / merc : null;
+    const vf = lerFormParcial(), chk = conferirTabela('cot', vf);
+    const veredito = chk?.acima && faixaPct(p) === 'ok'
+      ? `⚠ O % sobre a mercadoria está bom, mas o valor está <b>acima da tabela combinada</b> — negocie antes de fechar.`
+      : VEREDITO[faixaPct(p)] + (faixaPct(p) !== 'ok' ? ` Para ficar em 3%: até ${brl(merc * 0.03)}.` : '');
     el.innerHTML = `<span class="flabel">Custo total</span> <b>${brl(total)}</b>${peso > 0 ? ` <span class="td-mono">· ${brl(total / peso)}/kg</span>` : ''}
       <span class="flabel" style="margin-left:10px">% s/ mercadoria</span> ${pctHTML(p)}
-      ${p != null ? `<br><span>${VEREDITO[faixaPct(p)]}${faixaPct(p) !== 'ok' ? ` Para ficar em 3%: até ${brl(merc * 0.03)}.` : ''}</span>` : '<span class="td-mono">informe o valor da mercadoria e o frete para saber se vale a pena fechar</span>'}`;
-    el.innerHTML += conferenciaTabelaHTML(conferirTabela('cot', lerFormParcial()), $('fm-transportadora')?.value);
+      ${p != null ? `<br><span>${veredito}</span>` : '<span class="td-mono">informe o valor da mercadoria e o frete para saber se vale a pena fechar</span>'}`;
+    el.innerHTML += conferenciaTabelaHTML(chk, $('fm-transportadora')?.value, { cot: true, v: vf });
   }
 }
 
