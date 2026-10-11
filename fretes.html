@@ -501,7 +501,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.3';
+const VERSAO = '2026-10-11.4';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -699,7 +699,7 @@ async function carregarDestinoImport() {
   if (!IMPORTA_PARA) return;
   const [c, t] = await Promise.all([
     supaImport.from(T.cte).select('*').eq('filial', FILIAL_IMPORT),
-    supaImport.from(T.transp).select('nome, cnpj').eq('filial', FILIAL_IMPORT),
+    supaImport.from(T.transp).select('*').eq('filial', FILIAL_IMPORT),
   ]);
   if (!c.error) ctesDestino = c.data || [];
   if (!t.error) transpDestino = t.data || [];
@@ -709,17 +709,31 @@ async function carregarDestinoImport() {
 // na calculadora e serem reconhecidas pelo CNPJ nas próximas importações.
 async function cadastrarTransportadorasNovas(itens) {
   const cadastro = IMPORTA_PARA ? transpDestino : data.transp;
-  const novas = new Map();
+  const novas = new Map(), completar = new Map();
   for (const it of itens) {
     const nome = it.valores?.transportadora?.trim().toUpperCase();
-    if (!nome || cadastro.some(t => norm(t.nome) === norm(nome)) || novas.has(norm(nome))) continue;
+    if (!nome) continue;
     const e = it.emit || {};
-    const cnpj = e.cnpj ? `${e.cnpj.slice(0, 2)}.${e.cnpj.slice(2, 5)}.${e.cnpj.slice(5, 8)}/${e.cnpj.slice(8, 12)}-${e.cnpj.slice(12)}` : null;
-    novas.set(norm(nome), { nome, cnpj, modal: e.modal || null, observacoes: e.razao && norm(e.razao) !== norm(nome) ? e.razao : null, filial: FILIAL_IMPORT });
+    const dados = {
+      cnpj: e.cnpj ? fmtDoc(e.cnpj) : null, telefone: e.telefone || null, email: e.email || null, modal: e.modal || null,
+      observacoes: e.razao && norm(e.razao) !== norm(nome) ? e.razao : null,
+    };
+    const existe = cadastro.find(t => norm(t.nome) === norm(nome));
+    if (!existe) { if (!novas.has(norm(nome))) novas.set(norm(nome), { nome, ...dados, filial: FILIAL_IMPORT }); continue; }
+    // Já cadastrada: preenche só o que estiver em branco (não sobrescreve o que foi digitado).
+    const faltam = {};
+    for (const k of Object.keys(dados)) if (dados[k] && !existe[k] && !(completar.get(existe.id) || {})[k]) faltam[k] = dados[k];
+    if (Object.keys(faltam).length && existe.id) completar.set(existe.id, { ...(completar.get(existe.id) || {}), ...faltam });
   }
-  if (!novas.size) return 0;
-  const { error } = await supaImport.from(T.transp).insert([...novas.values()]);
-  if (error) { console.warn('[Fretes] Não cadastrou transportadoras novas:', error.message); return 0; }
+  if (!novas.size && !completar.size) return 0;
+  if (novas.size) {
+    const { error } = await supaImport.from(T.transp).insert([...novas.values()]);
+    if (error) console.warn('[Fretes] Não cadastrou transportadoras novas:', error.message);
+  }
+  for (const [id, campos] of completar) {
+    const { error } = await supaImport.from(T.transp).update({ ...campos, atualizado_em: new Date().toISOString() }).eq('id', id);
+    if (error) console.warn('[Fretes] Não completou o cadastro da transportadora:', error.message);
+  }
   if (IMPORTA_PARA) await carregarDestinoImport(); else { await carregar('transp'); montarFiltros(); }
   return novas.size;
 }
@@ -1118,6 +1132,8 @@ function renderLoteStatus(lista) {
        <span id="ls-data-wrap">data de entrega <input class="finput" type="date" id="ls-data" value="${hojeISO()}"></span>
        <button class="tbtn tbtn-p" onclick="aplicarStatusLote()">✔ Aplicar</button>
        <button class="tbtn tbtn-g" onclick="selCteTodos(false)">Limpar seleção</button>
+       <button class="tbtn tbtn-d" style="margin-right:0" onclick="excluirCtesLote()">🗑 Excluir selecionados</button>
+       ${n < _listaCtesTela.length ? `<button class="fchip" onclick="selCteTodos(true)">Selecionar todos os ${_listaCtesTela.length} da lista</button>` : ''}
        ${vencidos.length && vencidos.some(c => !ui.cteSel.has(c.id)) ? `<button class="fchip" onclick="selecionarVencidos()">⏰ Selecionar os ${vencidos.length} vencidos</button>` : ''}`
     : `⏰ <b>${vencidos.length} CT-e(s) vencido(s)</b> nesta lista (não entregues com a previsão já passada).
        <button class="fchip" onclick="selecionarVencidos()">Selecionar os vencidos para atualizar o status</button>`;
@@ -1130,6 +1146,27 @@ window.selecionarVencidos = () => {
   _listaCtesTela.filter(c => c.status_entrega !== 'Entregue' && (c.status_entrega === 'Atrasado' || cteVencido(c))).forEach(c => ui.cteSel.add(c.id));
   render();
 };
+// Exclusão em lote: confirmação digitada (não tem volta). Cotações que apontavam para
+// esses CT-es perdem só o vínculo (numero_cte) e continuam cadastradas.
+window.excluirCtesLote = async () => {
+  const ids = [...ui.cteSel];
+  if (!ids.length) return;
+  const sel = data.cte.filter(c => ids.includes(c.id));
+  const resp = prompt(`Excluir ${ids.length} CT-e(s) de ${NOME_FILIAL[FILIAL]}? Essa ação não pode ser desfeita.
+
+Digite EXCLUIR para confirmar:`);
+  if (resp == null) return;
+  if (resp.trim().toUpperCase() !== 'EXCLUIR') { toast('Exclusão cancelada — era preciso digitar EXCLUIR.', 'info'); return; }
+  const { error } = await supabase.from(T.cte).delete().in('id', ids);
+  if (error) { toast('Erro ao excluir: ' + msgErroBanco(error), 'err'); return; }
+  const nums = new Set(sel.map(c => c.numero_cte));
+  const cots = data.cot.filter(c => c.numero_cte && nums.has(c.numero_cte));
+  if (cots.length) await gravarTolerante(r => supabase.from(T.cot).update(r).in('id', cots.map(c => c.id)), { numero_cte: null, atualizado_em: new Date().toISOString() });
+  toast(`🗑 ${ids.length} CT-e(s) excluído(s)${cots.length ? ` · ${cots.length} cotação(ões) desvinculada(s)` : ''}`, 'info');
+  ui.cteSel.clear();
+  await Promise.all([carregar('cte'), carregar('cot')]); montarFiltros(); render();
+};
+
 window.aplicarStatusLote = async () => {
   const ids = [...ui.cteSel];
   const status = $('ls-status').value;
@@ -1845,7 +1882,11 @@ function camposDoCte(doc, nomeArquivo) {
   put('observacoes', [inicio && termino && mCod ? `${inicio} → ${termino}` : null,
     chaveCte ? 'Chave CT-e: ' + chaveCte : null].filter(Boolean).join(' · ') || null);
   valores.status_entrega = 'Em trânsito';
-  const emit = ch ? { razao: emitente || null, cnpj: ch.cnpj, modal: modalDoc } : null;
+  const cab = texto.slice(0, Math.max(0, texto.search(/(^|\n)\s*REMETENTE\b|REMETENTE\s*:/i)) || 2500);
+  const mFone = /FONE(?:\/FAX)?\s*:?\s*(\(?\d{2}\)?\s?\d{4,5}-?\d{4})/i.exec(cab);
+  const mEmail = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/.exec(cab);
+  const emit = ch ? { razao: emitente || null, cnpj: ch.cnpj, modal: modalDoc,
+    telefone: mFone ? mFone[1].replace(/^\(?(\d{2})\)?\s?/, '($1) ') : null, email: mEmail ? mEmail[0].toLowerCase() : null } : null;
   return { valores, texto, ids: Object.values(ids).filter(Boolean), chave: chaveCte, filiais: filiaisGF(texto), emit };
 }
 
