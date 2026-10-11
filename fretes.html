@@ -150,6 +150,7 @@ td.num{font-family:var(--mono);font-size:0.72rem;white-space:nowrap}
 .td-strong{font-family:var(--display);font-weight:600;color:var(--text);white-space:nowrap}
 .td-mono{font-family:var(--mono);font-size:0.67rem;color:var(--text3);white-space:nowrap}
 .td-trunc{max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.td-doc{font-family:var(--mono);font-size:0.62rem;color:var(--text3);margin-top:1px}
 .row-acts{display:flex;gap:3px;justify-content:flex-end}
 .abtn{width:25px;height:25px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text3);font-size:0.72rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.12s}
 .abtn:hover{border-color:var(--accent);color:var(--accent)}
@@ -550,7 +551,7 @@ function msgErroBanco(error) {
 
 // Colunas criadas pelas migrações novas. Se a filial ainda não rodou a migração,
 // a gravação tira a coluna que falta e grava o resto (avisando), em vez de falhar.
-const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte'];
+const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte', 'remetente_cnpj', 'destino_cnpj'];
 async function gravarTolerante(exec, dados) {
   const lista = Array.isArray(dados);
   let arr = [].concat(dados);
@@ -559,7 +560,7 @@ async function gravarTolerante(exec, dados) {
     const res = await exec(lista ? arr : arr[0]);
     const m = res.error && /Could not find the '([^']+)' column/.exec(res.error.message || '');
     if (!m || !COLUNAS_NOVAS.includes(m[1]) || faltando.includes(m[1])) {
-      if (faltando.length && !res.error) toast(`Gravado, mas esta filial ainda não tem a(s) coluna(s) ${faltando.join(', ')} — rode as migrações 20261011 e 20261014 no Supabase desta filial para guardar esses dados.`, 'info');
+      if (faltando.length && !res.error) toast(`Gravado, mas esta filial ainda não tem a(s) coluna(s) ${faltando.join(', ')} — rode as migrações 20261011, 20261014 e 20261015 no Supabase desta filial para guardar esses dados.`, 'info');
       return res;
     }
     faltando.push(m[1]);
@@ -753,7 +754,7 @@ function casaBusca(obj, campos) {
 
 function ctesFiltrados({ ignorarFiltrosTabela = false } = {}) {
   return data.cte.filter(c => noPeriodo(c.data_emissao)
-    && casaBusca(c, ['numero_cte', 'numero_nfe', 'origem', 'remetente', 'destino', 'transportadora', 'tipo_saida', 'observacoes'])
+    && casaBusca(c, ['numero_cte', 'numero_nfe', 'origem', 'remetente', 'remetente_cnpj', 'destino', 'destino_cnpj', 'transportadora', 'tipo_saida', 'observacoes'])
     && (ignorarFiltrosTabela || (
       (!ui.cteStatus || c.status_entrega === ui.cteStatus)
       && (!ui.cteTransp || norm(c.transportadora) === norm(ui.cteTransp))
@@ -971,8 +972,8 @@ function renderCtes() {
     <td class="td-mono">${dataBR(c.data_emissao)}</td>
     <td class="td-mono">${esc(c.numero_nfe || '—')}${c.serie_nf ? ' / ' + esc(c.serie_nf) : ''}</td>
     <td class="td-trunc" title="${esc(c.origem)}">${esc(c.origem || '—')}</td>
-    <td class="td-trunc" title="${esc(c.remetente)}">${esc(c.remetente || '—')}</td>
-    <td class="td-trunc" title="${esc(c.destino)}">${esc(c.destino || '—')}</td>
+    <td class="td-trunc" title="${esc(c.remetente)}">${esc(c.remetente || '—')}${c.remetente_cnpj ? `<div class="td-doc">${esc(c.remetente_cnpj)}</div>` : ''}</td>
+    <td class="td-trunc" title="${esc(c.destino)}">${esc(c.destino || '—')}${c.destino_cnpj ? `<div class="td-doc">${esc(c.destino_cnpj)}</div>` : ''}</td>
     <td>${esc(c.transportadora || '—')}</td>
     <td class="td-mono">${esc(c.tipo_saida || '—')}</td>
     <td class="num">${brl(c.valor_frete)}</td>
@@ -1169,6 +1170,8 @@ const FORMS = {
     { k: 'transportadora', l: 'Transportadora', dl: 'dl-transp', req: true, selTransp: true },
     { k: 'remetente', l: 'Remetente' },
     { k: 'destino', l: 'Destinatário' },
+    { k: 'remetente_cnpj', l: 'CNPJ/CPF remetente', ph: '00.000.000/0000-00' },
+    { k: 'destino_cnpj', l: 'CNPJ/CPF destinatário', ph: '00.000.000/0000-00' },
     { k: 'tipo_saida', l: 'Tipo de saída', dl: 'dl-tipo', upper: true },
     { k: 'valor_frete', l: 'Valor frete (R$)', t: 'money', s: 1 },
     { k: 'valor_nfe', l: 'Valor NF-e (R$)', t: 'money', s: 1 },
@@ -1588,7 +1591,8 @@ function emitentePorCnpj(texto, cnpj) {
 }
 // Nome após um rótulo de parte ("REMETENTE", "DESTINATÁRIO"), com ou sem
 // dois-pontos, até o próximo rótulo, "SUFRAMA" ou fim da linha.
-function parteDoTexto(texto, rotulo) {
+function parteDoTexto(texto, rotulo) { return parteComPosicao(texto, rotulo)?.nome || null; }
+function parteComPosicao(texto, rotulo) {
   const fim = `(?=\\s+[A-ZÀ-Ú\\/.]{3,25}\\s*:|\\s+DESTINAT[ÁA]RIO\\b|SUFRAMA|\\s*\\n|$)`;
   const nome = `([A-ZÀ-Ú0-9][A-ZÀ-Ú0-9\\s&.,'\\/\\-]*?)`;
   const pads = [
@@ -1599,9 +1603,32 @@ function parteDoTexto(texto, rotulo) {
   for (const re of pads) {
     const m = re.exec(texto);
     const v = m && m[1].replace(/\s+/g, ' ').trim();
-    if (v && v.length >= 3 && !/^(NOME|ENDERE|CNPJ|C[ÓO]DIGO|CONSULTA|DATA|RECEBEDOR)/i.test(v)) return v;
+    if (v && v.length >= 3 && !/^(NOME|ENDERE|CNPJ|C[ÓO]DIGO|CONSULTA|DATA|RECEBEDOR)/i.test(v)) return { nome: v, pos: m.index + m[0].indexOf(m[1]) };
   }
   return null;
+}
+// CNPJ/CPF do remetente e do destinatário. Dois layouts:
+// • lado a lado (REMETENTE e DESTINATÁRIO na mesma linha): a primeira linha de
+//   CNPJs depois deles traz os dois — o da esquerda é do remetente;
+// • empilhado (SSW): o CNPJ de cada um é o primeiro que aparece depois do nome.
+// (sem dígito/ponto/barra/traço colado: a chave de acesso formatada
+// "11.2605.76.080.738/0010-69-57-…" traz o CNPJ do emitente dentro dela)
+// Também o CNPJ sem pontuação logo após o rótulo ("CNPJ / CPF: 07356800000199", GOLLOG).
+const RE_DOC = /(?<![\d.\/-])(?:\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2})(?![\d\/-])|(?<=CNPJ(?:\s*\/\s*CPF)?\s*:?\s*)\d{14}(?!\d)/g;
+const fmtDoc = d => /^\d{14}$/.test(d || '') ? `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}` : d;
+function cnpjsDasPartes(texto, rem, dest) {
+  const docsDepois = (pos, ate = texto.length) => [...texto.slice(pos, ate).matchAll(RE_DOC)].map(m => m[0]);
+  if (!rem && !dest) return {};
+  if (rem && dest && dest.pos > rem.pos && !texto.slice(rem.pos, dest.pos).includes('\n')) {
+    const linhas = texto.slice(dest.pos).split('\n').slice(1, 8);
+    const l = linhas.find(x => (x.match(RE_DOC) || []).length >= 2) || linhas.find(x => (x.match(RE_DOC) || []).length);
+    const ds = (l && l.match(RE_DOC)) || [];
+    return { rem: fmtDoc(ds[0]) || null, dest: fmtDoc(ds[1]) || null };
+  }
+  return {
+    rem: rem ? fmtDoc(docsDepois(rem.pos, dest && dest.pos > rem.pos ? dest.pos : undefined)[0]) || null : null,
+    dest: dest ? fmtDoc(docsDepois(dest.pos)[0]) || null : null,
+  };
 }
 // Formato do Nº do CT-e que já se usa para essa transportadora na planilha:
 // GOLLOG = AWB (11 dígitos), Andorinha/Pantanal = CTRC do SSW ("CGE228165-1"),
@@ -1664,8 +1691,9 @@ function camposDoCte(doc, nomeArquivo) {
     || /AEROPORTO\s+DE\s+ORIGEM[^\n]*\n\s*([A-Z]{3})(?:\s+[A-Z]{3})?\s+([A-Z]{3})\s*\n/.exec(texto);
   const rota = mCod ? `${mCod[1]} - ${mCod[2]}` : inicio && termino ? `${inicio} - ${termino}` : inicio;
 
-  const remetente = parteDoTexto(texto, 'REMETENTE');
-  const destinatario = parteDoTexto(texto, 'DESTINAT[ÁA]RIO');
+  const remP = parteComPosicao(texto, 'REMETENTE'), destP = parteComPosicao(texto, 'DESTINAT[ÁA]RIO');
+  const remetente = remP?.nome || null, destinatario = destP?.nome || null;
+  const docsPartes = cnpjsDasPartes(texto, remP, destP);
   const ehGF = s => /GF MEDICAL/i.test(s || '');
   const tipo = ehGF(remetente) && ehGF(destinatario) ? 'TRANSFERENCIA' : ehGF(destinatario) ? 'COMPRA' : ehGF(remetente) ? 'VENDA' : null;
 
@@ -1694,7 +1722,9 @@ function camposDoCte(doc, nomeArquivo) {
   put('origem', rota);
   put('transportadora', transportadora);
   put('remetente', remetente);
+  put('remetente_cnpj', docsPartes.rem);
   put('destino', destinatario);
+  put('destino_cnpj', docsPartes.dest);
   put('tipo_saida', tipo);
   put('valor_frete', valorFrete);
   put('valor_nfe', valorNf);
@@ -1715,7 +1745,7 @@ async function extrairCtes(file) {
 }
 
 const ROTULOS_PDF = { numero_cte: 'Nº CT-e', data_emissao: 'Emissão', numero_nfe: 'NF-e', transportadora: 'Transportadora', origem: 'Rota',
-  remetente: 'Remetente', destino: 'Destinatário', valor_frete: 'Valor frete', valor_nfe: 'Valor NF/carga', previsao_entrega: 'Previsão entrega', tipo_saida: 'Tipo de saída' };
+  remetente: 'Remetente', remetente_cnpj: 'CNPJ remetente', destino: 'Destinatário', destino_cnpj: 'CNPJ destinatário', valor_frete: 'Valor frete', valor_nfe: 'Valor NF/carga', previsao_entrega: 'Previsão entrega', tipo_saida: 'Tipo de saída' };
 function resumoPdfHTML(nome, valores, texto) {
   const fmt = (k, v) => /valor/.test(k) ? brl(v) : /data|previsao/.test(k) ? dataBR(v) : v;
   const achados = Object.keys(ROTULOS_PDF).filter(k => valores[k] != null);
@@ -1813,8 +1843,8 @@ function renderLote() {
         <td class="td-strong">${esc(v.numero_cte || '—')}</td>
         <td class="td-mono">${dataBR(v.data_emissao)}</td>
         <td class="td-trunc" title="${esc(v.transportadora)}">${esc(v.transportadora || '—')}</td>
-        <td class="td-trunc" title="${esc(v.remetente)}">${esc(v.remetente || '—')}</td>
-        <td class="td-trunc" title="${esc(v.destino)}">${esc(v.destino || '—')}</td>
+        <td class="td-trunc" title="${esc(v.remetente)}">${esc(v.remetente || '—')}${v.remetente_cnpj ? `<div class="td-doc">${esc(v.remetente_cnpj)}</div>` : ''}</td>
+        <td class="td-trunc" title="${esc(v.destino)}">${esc(v.destino || '—')}${v.destino_cnpj ? `<div class="td-doc">${esc(v.destino_cnpj)}</div>` : ''}</td>
         <td class="num">${v.valor_frete != null ? brl(v.valor_frete) : '—'}</td>
         <td class="num">${v.valor_nfe != null ? brl(v.valor_nfe) : '—'}</td>
         <td class="num">${pctHTML(pctFrete(v))}</td>
@@ -1895,7 +1925,11 @@ window.importarLoteSelecionados = async () => {
   toast(`✔ ${rows.length} CT-e(s) importado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}${nTransp ? ` · ${nTransp} transportadora(s) nova(s) cadastrada(s)` : ''}`);
   await carregarDestinoImport();
   await carregar('cte'); montarFiltros(); render();
-  renderLote();
+  // Importou: a janela some. Avisa se ficou algo de fora (incompleto, outra filial…).
+  const foraDoLote = _lote.filter(it => !['importado', 'duplicado'].includes(situacaoLote(it))).length;
+  $('modal-lote').classList.remove('open');
+  _lote = [];
+  if (foraDoLote) toast(`${foraDoLote} CT-e(s) do lote não foram importados (incompletos, com erro ou desmarcados) — importe esses PDFs de novo se precisar.`, 'info');
 };
 
 function abrirPdfs(files) {
@@ -2409,7 +2443,7 @@ window.exportarExcel = () => {
     'Prazo Médio CT-e (dias)': r.prazo_cte == null ? null : +r.prazo_cte.toFixed(1), 'Atrasos': r.atrasos, 'Avaliação': r.avaliacao })));
   add('CT-e e NF-e', ctesFiltrados().map(c => ({
     'Nº CT-e': c.numero_cte, 'Data Emissão': dataBR(c.data_emissao), 'Nº NF-e': c.numero_nfe, 'Série NF': c.serie_nf,
-    'Origem': c.origem, 'Remetente': c.remetente, 'Destinatário': c.destino, 'Valor Frete (R$)': c.valor_frete, 'Valor NF-e (R$)': c.valor_nfe,
+    'Origem': c.origem, 'Remetente': c.remetente, 'CNPJ Remetente': c.remetente_cnpj, 'Destinatário': c.destino, 'CNPJ Destinatário': c.destino_cnpj, 'Valor Frete (R$)': c.valor_frete, 'Valor NF-e (R$)': c.valor_nfe,
     '% Frete / NF': pctFrete(c) == null ? null : +(pctFrete(c) * 100).toFixed(2), 'Transportadora': c.transportadora,
     'Prazo Entrega': c.prazo_dias, 'Previsão Entrega': previsaoEntrega(c) ? dataBR(previsaoEntrega(c)) : null, 'Status Entrega': c.status_entrega, 'Data Entrega': dataBR(c.data_entrega) === '—' ? null : dataBR(c.data_entrega),
     'Tipo de Saída': c.tipo_saida, 'Observações': c.observacoes })));
