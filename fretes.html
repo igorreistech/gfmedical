@@ -618,7 +618,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 </div>
 
 <datalist id="dl-transp"></datalist>
-<datalist id="dl-rotas"></datalist>
+<datalist id="dl-rotas"></datalist><datalist id="dl-orig"></datalist><datalist id="dl-dest"></datalist>
 <datalist id="dl-tipo"></datalist>
 <datalist id="dl-carga"></datalist>
 <div class="toasts" id="toasts"></div>
@@ -658,7 +658,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.16';
+const VERSAO = '2026-10-11.17';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -950,6 +950,7 @@ async function carregar(k) {
     return;
   }
   data[k] = rows;
+  if (['transp', 'cte', 'cot', 'fat', 'tab'].includes(k)) canonizarTransportadoras();
 }
 
 // Banco da filial sem as colunas/tabela das migrações novas: aviso fixo dizendo o que rodar
@@ -992,9 +993,54 @@ async function carregarTudo() {
     .subscribe());
 }
 
+// Um nome só por transportadora: a razão social que vem no CT-e ("AZUL LINHAS AEREAS
+// BRASILEIRAS SA") e cadastros repetidos (mesmo CNPJ, ou nome = razão social de outro)
+// viram o nome curto do cadastro ("AZUL EXPRESS"). Vale na memória (listas, filtros,
+// comparativo, tabelas); ao salvar um registro editado, já grava o nome curto.
+let _canonTransp = new Map();
+function montarCanonTransp() {
+  const cad = data.transp.filter(t => t.nome);
+  const pai = new Map(cad.map(t => [t.id, t.id]));
+  const raiz = x => { while (pai.get(x) !== x) x = pai.get(x); return x; };
+  const juntar = (a, b) => { const ra = raiz(a), rb = raiz(b); if (ra !== rb) pai.set(rb, ra); };
+  const porCnpj = new Map(), porNome = new Map();
+  cad.forEach(t => {
+    const r = soDigitos(t.cnpj).slice(0, 8);
+    if (r.length === 8) { if (porCnpj.has(r)) juntar(porCnpj.get(r), t.id); else porCnpj.set(r, t.id); }
+    porNome.set(norm(t.nome), t.id);
+  });
+  // "nome" de um cadastro = razão social (observações) de outro → mesma transportadora
+  const razao = t => norm((t.observacoes || '').split('\n')[0]);
+  const mesmoNome = (a, b) => a && b && (a === b || (Math.min(a.length, b.length) >= 12 && (a.startsWith(b) || b.startsWith(a))));
+  cad.forEach(t => cad.forEach(o => { if (o !== t && razao(o) && mesmoNome(norm(t.nome), razao(o))) juntar(o.id, t.id); }));
+  const grupos = new Map();
+  cad.forEach(t => { const r = raiz(t.id); if (!grupos.has(r)) grupos.set(r, []); grupos.get(r).push(t); });
+  const m = new Map();
+  grupos.forEach(g => {
+    const curto = [...g].sort((a, b) => a.nome.length - b.nome.length)[0].nome.trim();
+    g.forEach(t => { m.set(norm(t.nome), curto); if (razao(t)) m.set(razao(t), curto); });
+  });
+  // nomes de CT-es/cotações que não estão no cadastro: razão social parecida ou CNPJ da chave do CT-e
+  const razoes = [...m.entries()];
+  [...data.cte, ...data.cot, ...data.fat, ...data.tab].forEach(c => {
+    const n = norm(c.transportadora);
+    if (!n || m.has(n)) return;
+    const hit = razoes.find(([k]) => mesmoNome(n, k));
+    if (hit) { m.set(n, hit[1]); return; }
+    const ch = (/Chave CT-e: (\d{44})/.exec(c.observacoes || '') || [])[1];
+    const id = ch && porCnpj.get(ch.slice(6, 14));
+    if (id) { const nome = cad.find(t => t.id === id).nome; m.set(n, m.get(norm(nome)) || nome); }
+  });
+  _canonTransp = m;
+}
+const canonTransp = n => (n && _canonTransp.get(norm(n))) || n;
+function canonizarTransportadoras() {
+  montarCanonTransp();
+  ['cte', 'cot', 'fat', 'tab'].forEach(k => (data[k] || []).forEach(r => { const c = canonTransp(r.transportadora); if (c && c !== r.transportadora) r.transportadora = c; }));
+}
 function nomesTransportadoras() {
   const set = new Map();
-  [...data.transp.map(t => t.nome), ...data.cot.map(c => c.transportadora), ...data.cte.map(c => c.transportadora)]
+  [...data.transp.map(t => canonTransp(t.nome)), ...data.cot.map(c => c.transportadora), ...data.cte.map(c => c.transportadora)]
     .filter(Boolean).forEach(n => { const k = norm(n); if (!set.has(k)) set.set(k, n.trim()); });
   return [...set.values()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 }
@@ -1062,6 +1108,13 @@ function montarFiltros() {
   $('f-cot-transp').innerHTML = opts(ui.cotTransp, 'Transportadora: todas');
   $('dl-transp').innerHTML = nomes.map(n => `<option value="${esc(n)}">`).join('');
   $('dl-rotas').innerHTML = [...new Set(data.cte.map(c => (c.origem || '').trim()).filter(Boolean))].sort().map(r => `<option value="${esc(r)}">`).join('');
+  // Cotação: origens e destinos separados (a rota "A - B" do CT-e vira A nas origens e B nos destinos)
+  const ehLugar = x => /\/[A-Z]{2}$/i.test(x) || /^[A-Z]{3}$/.test(x); // "CIDADE/UF" ou sigla "CGB" (não nome de empresa)
+  const partes = r => (r || '').split(/\s+-\s+/).map(x => x.trim()).map(x => ehLugar(x) ? x : null);
+  const comUf = (cid, uf) => cid && uf && !/\/[A-Z]{2}$/.test(cid) ? `${cid}/${uf}` : cid;
+  const lista = arr => [...new Set(arr.filter(x => x && x.length > 1).map(x => x.toUpperCase()))].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(x => `<option value="${esc(x)}">`).join('');
+  $('dl-orig').innerHTML = lista([...data.cot.map(c => comUf(c.origem, c.uf_origem)), ...data.cte.map(c => partes(c.origem)[0])]);
+  $('dl-dest').innerHTML = lista([...data.cot.map(c => comUf(c.destino, c.uf_destino)), ...data.cte.map(c => partes(c.origem)[1])]);
 
   const tipos = [...new Set([...TIPOS_SAIDA, ...data.cte.map(c => c.tipo_saida).filter(Boolean).map(t => t.trim().toUpperCase())])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   $('f-cte-tipo').innerHTML = '<option value="">Tipo de saída: todos</option>' +
@@ -2282,9 +2335,9 @@ const FORMS = {
     { k: 'transportadora', l: 'Transportadora', dl: 'dl-transp', req: true, selTransp: true },
     { k: 'contato', l: 'Contato', s: 1 },
     { k: 'telefone', l: 'Telefone', s: 1 },
-    { k: 'origem', l: 'Origem', s: 1 },
+    { k: 'origem', l: 'Origem (cidade)', s: 1, dl: 'dl-orig', ph: 'De onde sai' },
     { k: 'uf_origem', l: 'UF orig.', o: ['', ...UFS], s: 1, def: 'MT' },
-    { k: 'destino', l: 'Destino', s: 1 },
+    { k: 'destino', l: 'Destino (cidade / cliente)', s: 1, dl: 'dl-dest', ph: 'Para onde vai' },
     { k: 'uf_destino', l: 'UF dest.', o: ['', ...UFS], s: 1 },
     { k: 'peso_kg', l: 'Peso (kg)', t: 'dec', s: 1 },
     { k: 'volume_m3', l: 'Volume (m³)', t: 'dec', s: 1 },
@@ -2396,7 +2449,7 @@ function campoHTML(f, val) {
   else {
     const type = f.t === 'date' ? 'date' : f.t === 'email' ? 'email' : (f.t === 'money' || f.t === 'int' || f.t === 'dec') ? 'number' : 'text';
     const step = f.t === 'money' ? '0.01' : f.t === 'int' ? '1' : f.t === 'dec' ? '0.001' : '';
-    inp = `<input class="finput" id="${id}" type="${type}" ${step ? `step="${step}" min="0"` : ''} ${f.dl ? `list="${f.dl}"` : ''} ${f.req ? 'required' : ''} placeholder="${esc(f.ph || '')}" value="${esc(v)}">`;
+    inp = `<input class="finput" id="${id}" type="${type}" ${step ? `step="${step}" min="0"` : ''} ${f.dl ? `list="${f.dl}" autocomplete="off"` : ''} ${f.req ? 'required' : ''} placeholder="${esc(f.ph || '')}" value="${esc(v)}">`;
   }
   return `<div class="${cls}">${lbl}${inp}</div>`;
 }
@@ -2421,6 +2474,18 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
   if (tipo === 'cte') atualizarCotacoesCte(base.numero_cotacao);
   if (tipo === 'fat') listaCtesFatura();
   if (tipo === 'cot') $('fm-transportadora').addEventListener('change', autoContato);
+  if (tipo === 'cot') {
+    const separar = qual => {
+      const el = $('fm-' + qual); let v = el.value.trim();
+      const rota = /^(.+?)\s+-\s+(.+)$/.exec(v);
+      if (qual === 'origem' && rota && !$('fm-destino').value) { v = rota[1]; $('fm-destino').value = rota[2]; separar('destino'); }
+      const m = /^(.+?)\s*\/\s*([A-Za-z]{2})$/.exec(v);
+      if (m && UFS.includes(m[2].toUpperCase())) { v = m[1].trim(); $('fm-uf_' + qual).value = m[2].toUpperCase(); }
+      el.value = v; atualizarPreview();
+    };
+    $('fm-origem').addEventListener('change', () => separar('origem'));
+    $('fm-destino').addEventListener('change', () => separar('destino'));
+  }
   if (tipo === 'cte') {
     // Previsão segue emissão + prazo até o usuário (ou o PDF) definir outra data.
     let auto = !$('fm-previsao_entrega').value;
