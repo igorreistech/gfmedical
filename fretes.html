@@ -500,7 +500,7 @@ const T = { transp: 'frete_transportadoras', cot: 'frete_cotacoes', cte: 'frete_
 // Mesmas listas suspensas da planilha original.
 const STATUS_COT = ['Aprovado', 'Reprovado', 'Em análise', 'Aguardando'];
 const STATUS_CTE = ['Entregue', 'Em trânsito', 'Pendente', 'Atrasado'];
-const TIPOS_SAIDA = ['COMPRA', 'VENDA', 'TRANSFERENCIA', 'CONSIGNADO', 'REPARO E CONCERTO', 'DEVOLUÇÃO'];
+const TIPOS_SAIDA = ['COMPRA', 'TRANSFERENCIA', 'REMESSA PARA CONSERTO', 'SAIDA DE MATERIAL PARA CIRURGIA', 'REMESSA EM COMODATO', 'REMESSA EM CONSIGNAÇÃO'];
 const MODAIS = ['Rodoviário', 'Aéreo', 'Rodoviário e Aéreo'];
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const BADGE_STATUS = {
@@ -680,7 +680,7 @@ window.cancelarLoginImport = () => {
 async function carregarDestinoImport() {
   if (!IMPORTA_PARA) return;
   const [c, t] = await Promise.all([
-    supaImport.from(T.cte).select('numero_cte, observacoes, transportadora').eq('filial', FILIAL_IMPORT),
+    supaImport.from(T.cte).select('*').eq('filial', FILIAL_IMPORT),
     supaImport.from(T.transp).select('nome, cnpj').eq('filial', FILIAL_IMPORT),
   ]);
   if (!c.error) ctesDestino = c.data || [];
@@ -974,7 +974,7 @@ function renderCtes() {
     <td class="td-trunc" title="${esc(c.origem)}">${esc(c.origem || '—')}</td>
     <td class="td-trunc" title="${esc(c.remetente)}">${esc(c.remetente || '—')}${c.remetente_cnpj ? `<div class="td-doc">${esc(c.remetente_cnpj)}</div>` : ''}</td>
     <td class="td-trunc" title="${esc(c.destino)}">${esc(c.destino || '—')}${c.destino_cnpj ? `<div class="td-doc">${esc(c.destino_cnpj)}</div>` : ''}</td>
-    <td>${esc(c.transportadora || '—')}</td>
+    <td class="td-trunc" title="${esc(c.transportadora)}">${esc(c.transportadora || '—')}${cnpjEmitente(c) ? `<div class="td-doc" title="CNPJ do emitente do CT-e">${cnpjEmitente(c)}</div>` : ''}</td>
     <td class="td-mono">${esc(c.tipo_saida || '—')}</td>
     <td class="num">${brl(c.valor_frete)}</td>
     <td class="num">${brl(c.valor_nfe)}</td>
@@ -986,6 +986,15 @@ function renderCtes() {
     <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('cte','${c.id}')">🗑</button></div></td>
   </tr>`).join('')}</tbody>
   <tfoot><tr><td colspan="8">Total (${lista.length})</td><td class="num">${brl(frete)}</td><td class="num">${brl(nf)}</td><td class="num">${pctHTML(nf > 0 ? frete / nf : null)}</td><td colspan="5"></td></tr></tfoot>`;
+}
+
+// CNPJ do emitente do CT-e (a transportadora): da chave de acesso guardada nas
+// observações; sem ela, o CNPJ do cadastro da transportadora.
+function cnpjEmitente(c) {
+  const m = /Chave CT-e: (\d{44})/.exec(c.observacoes || '');
+  if (m) return fmtDoc(m[1].slice(6, 20));
+  const t = data.transp.find(t => norm(t.nome) === norm(c.transportadora));
+  return t?.cnpj || null;
 }
 
 // Custo da cotação = frete + ad valorem; % sobre o valor da mercadoria.
@@ -1172,7 +1181,7 @@ const FORMS = {
     { k: 'destino', l: 'Destinatário' },
     { k: 'remetente_cnpj', l: 'CNPJ/CPF remetente', ph: '00.000.000/0000-00' },
     { k: 'destino_cnpj', l: 'CNPJ/CPF destinatário', ph: '00.000.000/0000-00' },
-    { k: 'tipo_saida', l: 'Tipo de saída', dl: 'dl-tipo', upper: true },
+    { k: 'tipo_saida', l: 'Tipo de saída', o: ['', ...TIPOS_SAIDA], ol: ['Selecione…', ...TIPOS_SAIDA] },
     { k: 'valor_frete', l: 'Valor frete (R$)', t: 'money', s: 1 },
     { k: 'valor_nfe', l: 'Valor NF-e (R$)', t: 'money', s: 1 },
     { k: 'prazo_dias', l: 'Prazo (dias)', t: 'int', s: 1 },
@@ -1246,7 +1255,12 @@ function campoHTML(f, val) {
   let inp;
   if (f.selTransp) inp = selectTranspHTML(id, v, f.req);
   else if (f.selCot) inp = `<select class="finput" id="${id}" onchange="atualizarPreview()">${cotacoesOptionsHTML(v)}</select>`;
-  else if (f.o) inp = `<select class="finput" id="${id}">${f.o.map((o, i) => `<option value="${esc(o)}" ${String(o) === String(v) ? 'selected' : ''}>${esc(f.ol ? f.ol[i] : (o || '—'))}</option>`).join('')}</select>`;
+  else if (f.o) {
+    // Valor antigo que não está nas opções (ex.: "VENDA" vindo da planilha) continua
+    // na lista, para não ser apagado ao salvar.
+    const extra = v !== '' && v != null && !f.o.map(String).includes(String(v));
+    inp = `<select class="finput" id="${id}">${extra ? `<option value="${esc(v)}" selected>${esc(v)}</option>` : ''}${f.o.map((o, i) => `<option value="${esc(o)}" ${String(o) === String(v) ? 'selected' : ''}>${esc(f.ol ? f.ol[i] : (o || '—'))}</option>`).join('')}</select>`;
+  }
   else if (f.t === 'textarea') inp = `<textarea class="finput" id="${id}">${esc(v)}</textarea>`;
   else {
     const type = f.t === 'date' ? 'date' : f.t === 'email' ? 'email' : (f.t === 'money' || f.t === 'int' || f.t === 'dec') ? 'number' : 'text';
@@ -1264,7 +1278,7 @@ function proximoNumeroCot() {
 window.abrirModal = (tipo, id = null, prefill = null) => {
   const form = FORMS[tipo];
   const reg = id ? data[tipo].find(r => r.id === id) : null;
-  _modal = { tipo, id, loteIdx: prefill?.loteIdx, importacao: !!prefill, emit: prefill?.emit || null };
+  _modal = { tipo, id, loteIdx: prefill?.loteIdx, importacao: !!prefill && !id, emit: prefill?.emit || null };
   $('modal-title').textContent = reg ? (_readOnly ? '👁 ' : '✏️ Editar ') + form.titulo
     : prefill ? '📄 CT-e lido do PDF — confira e salve' + (IMPORTA_PARA ? ` (será gravado em ${IMPORTA_PARA.label})` : '') : '＋ Novo(a) ' + form.titulo;
   const base = { ...(reg || (tipo === 'cot' ? { numero: proximoNumeroCot() } : {})), ...(prefill?.valores || {}) };
@@ -1359,8 +1373,8 @@ window.salvarModal = async () => {
   }
   const paraDestino = !id && tipo === 'cte' && _modal.importacao && !!IMPORTA_PARA;
   if (tipo === 'cte') {
-    const dup = (paraDestino ? ctesConhecidos() : data.cte).find(c => norm(c.numero_cte) === norm(row.numero_cte) && c.id !== id);
-    if (dup) { toast('Já existe um CT-e com esse número.', 'err'); return; }
+    const dup = (paraDestino ? ctesConhecidos() : data.cte).find(c => c.id !== id && (idCte(c.numero_cte) === idCte(row.numero_cte) || mesmoLancamento(c, row)));
+    if (dup) { toast(`Esse CT-e já está lançado (${dup.numero_cte}${dup.data_emissao ? ', emissão ' + dataBR(dup.data_emissao) : ''}) — não foi duplicado.`, 'err'); return; }
     if (row.status_entrega === 'Entregue' && !row.data_entrega) row.data_entrega = hojeISO();
   }
   row.atualizado_em = new Date().toISOString();
@@ -1636,7 +1650,7 @@ function cnpjsDasPartes(texto, rem, dest) {
 function formatoNumeroCte(transportadora) {
   const nums = ctesConhecidos().filter(c => transportadora && norm(c.transportadora) === norm(transportadora)).map(c => String(c.numero_cte));
   const conta = re => nums.filter(n => re.test(n)).length;
-  const fs = [['awb', conta(/^\d{11}$/)], ['ctrc', conta(/^[A-Z]{3}\d{6}-\d$/)], ['serieNum', conta(/^\d{3} \d{9}$/)], ['chave', conta(/^\d{1,9}$/)]]
+  const fs = [['awb', conta(/^\d{3}[\s-]?\d{4}\s?\d{4}$/)], ['ctrc', conta(/^[A-Z]{3}\s?\d{6}-?\d$/)], ['serieNum', conta(/^\d{3} \d{9}$/)], ['chave', conta(/^\d{1,9}$/)]]
     .sort((a, b) => b[1] - a[1]);
   return fs[0][1] ? fs[0][0] : null;
 }
@@ -1695,7 +1709,9 @@ function camposDoCte(doc, nomeArquivo) {
   const remetente = remP?.nome || null, destinatario = destP?.nome || null;
   const docsPartes = cnpjsDasPartes(texto, remP, destP);
   const ehGF = s => /GF MEDICAL/i.test(s || '');
-  const tipo = ehGF(remetente) && ehGF(destinatario) ? 'TRANSFERENCIA' : ehGF(destinatario) ? 'COMPRA' : ehGF(remetente) ? 'VENDA' : null;
+  // Saídas da GF para fora: só sugere quando dá para saber (conserto); o resto a pessoa escolhe.
+  const tipo = ehGF(remetente) && ehGF(destinatario) ? 'TRANSFERENCIA' : ehGF(destinatario) ? 'COMPRA'
+    : ehGF(remetente) && /REPARO|MANUTEN|CONSERTO|CONCERTO|ASSIST[ÊE]NCIA T[ÉE]CNICA/i.test(destinatario || '') ? 'REMESSA PARA CONSERTO' : null;
 
   const emitente = (ch && emitentePorCnpj(texto, ch.cnpj)) || base.coletaTransportadora;
   const transportadora = (ch && (transportadoraPorCnpjCadastro(ch.cnpj) || transportadoraPorCnpj(ch.cnpj)))
@@ -1766,12 +1782,39 @@ function msgErroPdf(err) {
 }
 // Já cadastrado: mesmo Nº em qualquer formato conhecido (AWB, CTRC, série+número,
 // número da chave) ou a mesma chave de acesso guardada nas observações.
-function cteExistente(numero, ids = [], chave = null) {
-  const alvos = new Set([numero, ...ids].filter(Boolean).map(norm));
-  if (!alvos.size && !chave) return null;
-  return ctesConhecidos().find(c => alvos.has(norm(c.numero_cte)) || (chave && (c.observacoes || '').includes(chave))) || null;
+// Nº comparável: só letras e dígitos, sem zeros à esquerda ("CGE 234396-7" = "CGE234396-7",
+// "003 008465128" = "3008465128").
+const idCte = x => String(x ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+const nfsDe = c => String(c.numero_nfe || '').split(/[^0-9]+/).filter(Boolean).map(n => n.replace(/^0+/, ''));
+// Mesmo lançamento sem Nº coincidente: mesma transportadora, NF, emissão e valor do frete.
+function mesmoLancamento(c, v) {
+  if (!v || !v.transportadora || !v.data_emissao || v.valor_frete == null) return false;
+  const nfs = nfsDe(v);
+  return nfs.length && norm(c.transportadora) === norm(v.transportadora) && c.data_emissao === v.data_emissao
+    && Math.abs(num(c.valor_frete) - num(v.valor_frete)) < 0.01 && nfsDe(c).some(n => nfs.includes(n));
 }
-const existenteDoItem = it => cteExistente(it.valores?.numero_cte, it.ids, it.chave);
+function cteExistente(numero, ids = [], chave = null, valores = null) {
+  const alvos = new Set([numero, ...ids].map(idCte).filter(Boolean));
+  if (!alvos.size && !chave && !valores) return null;
+  return ctesConhecidos().find(c => alvos.has(idCte(c.numero_cte)) || (chave && (c.observacoes || '').includes(chave))
+    || mesmoLancamento(c, valores)) || null;
+}
+const existenteDoItem = it => cteExistente(it.valores?.numero_cte, it.ids, it.chave, it.valores);
+// Campos que a reimportação do PDF pode preencher num CT-e já cadastrado (só os vazios).
+const CAMPOS_COMPLETAVEIS = ['remetente', 'remetente_cnpj', 'destino', 'destino_cnpj', 'previsao_entrega', 'prazo_dias',
+  'numero_nfe', 'serie_nf', 'valor_nfe', 'data_emissao', 'origem', 'tipo_saida'];
+function faltantesDe(existe, valores) {
+  const out = {};
+  for (const k of CAMPOS_COMPLETAVEIS) if ((existe[k] == null || existe[k] === '') && valores[k] != null && valores[k] !== '') out[k] = valores[k];
+  const chave = /Chave CT-e: (\d{44})/.exec(valores.observacoes || '');
+  if (chave && !(existe.observacoes || '').includes(chave[1])) out.observacoes = [existe.observacoes, 'Chave CT-e: ' + chave[1]].filter(Boolean).join(' · ');
+  return out;
+}
+// Grava só os campos faltantes no CT-e existente (aqui ou no destino da importação).
+async function completarCte(existe, faltam) {
+  const cliente = data.cte.includes(existe) ? supabase : supaImport;
+  return gravarTolerante(r => cliente.from(T.cte).update(r).eq('id', existe.id), { ...faltam, atualizado_em: new Date().toISOString() });
+}
 
 async function importarPdfCte(file) {
   if (_readOnly) { toast('Seu usuário é somente visualização.', 'err'); return; }
@@ -1782,10 +1825,21 @@ async function importarPdfCte(file) {
     const { valores, texto, ids, chave, filiais, emit } = res[0];
     const cot = melhorCotacao(valores);
     if (cot) valores.numero_cotacao = cot.numero;
-    const existe = cteExistente(valores.numero_cte, ids, chave);
+    const existe = cteExistente(valores.numero_cte, ids, chave, valores);
     if (existe) {
-      if (existe.id && data.cte.includes(existe)) { toast(`CT-e ${existe.numero_cte} já está cadastrado — abrindo o registro.`, 'info'); goView('ctes'); abrirModal('cte', existe.id); }
-      else toast(`CT-e ${existe.numero_cte} já está cadastrado em ${IMPORTA_PARA?.label || 'outra filial'}.`, 'info');
+      const faltam = faltantesDe(existe, valores);
+      if (existe.id && data.cte.includes(existe)) {
+        goView('ctes');
+        if (Object.keys(faltam).length) {
+          toast(`CT-e ${existe.numero_cte} já cadastrado — os campos em azul vieram do PDF e estavam vazios. Confira e salve.`, 'info');
+          abrirModal('cte', existe.id, { valores: faltam, emit, resumoHTML: resumoPdfHTML(file.name, valores, texto) });
+        } else { toast(`CT-e ${existe.numero_cte} já está cadastrado e completo — abrindo o registro.`, 'info'); abrirModal('cte', existe.id); }
+      } else if (existe.id && Object.keys(faltam).length) {
+        if (!(await garantirSessaoImport())) return;
+        const r = await completarCte(existe, faltam);
+        toast(r.error ? 'Erro ao completar: ' + msgErroBanco(r.error) : `✔ CT-e ${existe.numero_cte} (${IMPORTA_PARA?.label}) completado: ${Object.keys(faltam).length} campo(s)`, r.error ? 'err' : 'ok');
+        carregarDestinoImport();
+      } else toast(`CT-e ${existe.numero_cte} já está cadastrado em ${IMPORTA_PARA?.label || 'outra filial'}.`, 'info');
       return;
     }
     goView('ctes');
@@ -1806,6 +1860,7 @@ const SITUACAO_LOTE = {
   lendo: ['b-mute', '⏳ lendo…'], ok: ['b-ok', '✔ pronto'], incompleto: ['b-warn', '▲ incompleto'],
   duplicado: ['b-mute', '⧉ já cadastrado'], erro: ['b-crit', '✖ erro'], importado: ['b-info', '✔ importado'],
   outra_filial: ['b-warn', '⚠ outra filial'],
+  completar: ['b-info', '↻ completar dados'], completado: ['b-info', '✔ dados completados'],
 };
 function situacaoLote(it) {
   if (it.estado !== 'lido') return it.estado;
@@ -1813,7 +1868,9 @@ function situacaoLote(it) {
   // Duplicado: já no banco, já importado neste lote ou repetido num PDF anterior da lista.
   const mesmo = o => o !== it && o.valores && ((it.chave && o.chave === it.chave)
     || (o.valores.numero_cte && norm(o.valores.numero_cte) === norm(v.numero_cte)));
-  if (existenteDoItem(it) || _lote.some(o => mesmo(o)
+  const ex = existenteDoItem(it);
+  if (ex && ex.id && Object.keys(faltantesDe(ex, v)).length) return 'completar';
+  if (ex || _lote.some(o => mesmo(o)
       && (o.estado === 'importado' || (o.estado === 'lido' && _lote.indexOf(o) < _lote.indexOf(it))))) return 'duplicado';
   if (!(v.numero_cte && v.transportadora)) return 'incompleto';
   return deOutraFilial(it) ? 'outra_filial' : 'ok';
@@ -1822,9 +1879,9 @@ function situacaoLote(it) {
 function renderLote() {
   const sits = _lote.map(situacaoLote);
   const lendo = sits.filter(s => s === 'lendo').length;
-  const sel = _lote.filter((it, i) => it.incluir && (sits[i] === 'ok' || sits[i] === 'outra_filial'));
+  const sel = _lote.filter((it, i) => it.incluir && ['ok', 'outra_filial', 'completar'].includes(sits[i]));
   $('lote-resumo').textContent = lendo ? `Lendo PDFs… ${_lote.length - lendo} CT-e(s) lido(s), faltam ${lendo} arquivo(s)`
-    : `${_lote.length} CT-e(s) em ${new Set(_lote.map(it => it.file)).size} PDF(s) · ${sits.filter(s => s === 'ok').length} pronto(s) · ${sits.filter(s => s === 'outra_filial').length} de outra filial · ${sits.filter(s => s === 'incompleto').length} incompleto(s) · ${sits.filter(s => s === 'duplicado').length} já cadastrado(s) · ${sits.filter(s => s === 'erro').length} com erro · ${sits.filter(s => s === 'importado').length} importado(s)`;
+    : `${_lote.length} CT-e(s) em ${new Set(_lote.map(it => it.file)).size} PDF(s) · ${sits.filter(s => s === 'ok').length} pronto(s) · ${sits.filter(s => s === 'completar').length} já cadastrado(s) para completar · ${sits.filter(s => s === 'outra_filial').length} de outra filial · ${sits.filter(s => s === 'incompleto').length} incompleto(s) · ${sits.filter(s => s === 'duplicado').length} já cadastrado(s) · ${sits.filter(s => s === 'erro').length} com erro · ${sits.filter(s => s === 'importado').length} importado(s)`;
   $('btn-lote-importar').disabled = !!lendo || !sel.length;
   $('btn-lote-importar').textContent = `💾 Importar ${sel.length} selecionado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}`;
   const fretes = sel.reduce((s, it) => s + num(it.valores.valor_frete), 0);
@@ -1834,10 +1891,10 @@ function renderLote() {
     ${_lote.map((it, i) => {
       const s = sits[i], v = it.valores || {};
       const [cls, lbl] = SITUACAO_LOTE[s];
-      const podeMarcar = s === 'ok' || s === 'outra_filial';
+      const podeMarcar = ['ok', 'outra_filial', 'completar'].includes(s);
       return `<tr>
         <td><input type="checkbox" aria-label="Incluir ${esc(it.file.name)}" ${podeMarcar ? '' : 'disabled'} ${podeMarcar && it.incluir ? 'checked' : ''} onchange="loteMarcar(${i}, this.checked)"></td>
-        <td><span class="badge ${cls}" ${it.erro ? `title="${esc(it.erro)}"` : s === 'outra_filial' ? `title="Este CT-e é de ${it.filiais.map(f => NOME_FILIAL[f]).join(' / ')} — será gravado em ${NOME_FILIAL[FILIAL_IMPORT]}. Marque só se quiser gravar aqui mesmo."` : ''}>${s === 'outra_filial' ? '⚠ é de ' + it.filiais.map(f => NOME_FILIAL[f]).join('/') : lbl}</span></td>
+        <td><span class="badge ${cls}" ${it.erro ? `title="${esc(it.erro)}"` : s === 'outra_filial' ? `title="Este CT-e é de ${it.filiais.map(f => NOME_FILIAL[f]).join(' / ')} — será gravado em ${NOME_FILIAL[FILIAL_IMPORT]}. Marque só se quiser gravar aqui mesmo."` : ''}>${s === 'outra_filial' ? '⚠ é de ' + it.filiais.map(f => NOME_FILIAL[f]).join('/') : s === 'completar' ? `↻ completar ${Object.keys(faltantesDe(existenteDoItem(it), v)).length} campo(s)` : lbl}</span></td>
         <td>${it.estado === 'lido' || it.estado === 'importado' ? conferenciaHTML(conferenciaCot(v, data.cot.find(c => c.numero && c.numero === v.numero_cotacao)), true) : ''}</td>
         <td class="td-trunc td-mono" title="${esc(it.file.name)}">${esc(it.file.name)}${it.parte ? ` <b>(${it.parte})</b>` : ''}</td>
         <td class="td-strong">${esc(v.numero_cte || '—')}</td>
@@ -1911,10 +1968,24 @@ window.fecharLote = () => {
   _lote = [];
 };
 window.importarLoteSelecionados = async () => {
+  const completar = _lote.filter(it => it.incluir && situacaoLote(it) === 'completar');
   const itens = _lote.filter(it => it.incluir && ['ok', 'outra_filial'].includes(situacaoLote(it)));
-  if (!itens.length) return;
+  if (!itens.length && !completar.length) return;
   const agora = new Date().toISOString();
   if (!(await garantirSessaoImport())) return;
+  // CT-es já cadastrados: preenche só o que faltava
+  let nCompletos = 0;
+  for (const it of completar) {
+    const ex = existenteDoItem(it);
+    const r = await completarCte(ex, faltantesDe(ex, it.valores));
+    if (r.error) toast(`Erro ao completar ${ex.numero_cte}: ${msgErroBanco(r.error)}`, 'err'); else { it.estado = 'completado'; nCompletos++; }
+  }
+  if (!itens.length) {
+    toast(`✔ ${nCompletos} CT-e(s) já cadastrado(s) completado(s)`);
+    await Promise.all([carregar('cte'), carregarDestinoImport()]); montarFiltros(); render();
+    $('modal-lote').classList.remove('open'); _lote = [];
+    return;
+  }
   const rows = itens.map(it => ({ ...it.valores, filial: FILIAL_IMPORT, criado_por: _user?.email || null, atualizado_em: agora }));
   $('btn-lote-importar').disabled = true;
   const { error } = await gravarTolerante(r => supaImport.from(T.cte).insert(r), rows);
@@ -1922,11 +1993,11 @@ window.importarLoteSelecionados = async () => {
   itens.forEach(it => it.estado = 'importado');
   await vincularCotacoes(itens.filter(it => it.valores.numero_cotacao).map(it => ({ numeroCotacao: it.valores.numero_cotacao, numeroCte: it.valores.numero_cte })));
   const nTransp = await cadastrarTransportadorasNovas(itens);
-  toast(`✔ ${rows.length} CT-e(s) importado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}${nTransp ? ` · ${nTransp} transportadora(s) nova(s) cadastrada(s)` : ''}`);
+  toast(`✔ ${rows.length} CT-e(s) importado(s)${IMPORTA_PARA ? ' em ' + IMPORTA_PARA.label : ''}${nCompletos ? ` · ${nCompletos} já cadastrado(s) completado(s)` : ''}${nTransp ? ` · ${nTransp} transportadora(s) nova(s) cadastrada(s)` : ''}`);
   await carregarDestinoImport();
   await carregar('cte'); montarFiltros(); render();
   // Importou: a janela some. Avisa se ficou algo de fora (incompleto, outra filial…).
-  const foraDoLote = _lote.filter(it => !['importado', 'duplicado'].includes(situacaoLote(it))).length;
+  const foraDoLote = _lote.filter(it => !['importado', 'duplicado', 'completado'].includes(situacaoLote(it))).length;
   $('modal-lote').classList.remove('open');
   _lote = [];
   if (foraDoLote) toast(`${foraDoLote} CT-e(s) do lote não foram importados (incompletos, com erro ou desmarcados) — importe esses PDFs de novo se precisar.`, 'info');
