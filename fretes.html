@@ -183,6 +183,18 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.sql-passos{margin:0 0 6px 18px;font-size:0.78rem;color:var(--text2);line-height:1.7}
+.dup-grupo{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;background:var(--surface)}
+.dup-grupo table td{padding:6px 8px}
+.cte-cards{display:flex;flex-direction:column;gap:8px;padding:10px}
+.cte-card{border:1px solid var(--border);border-left:4px solid var(--border2);border-radius:var(--radius);padding:10px 12px;background:var(--surface);cursor:pointer}
+.cte-card.ok{border-left-color:var(--ok-c)}.cte-card.warn{border-left-color:var(--warn-c)}.cte-card.crit{border-left-color:var(--crit-c)}
+.cte-card-top{display:flex;align-items:center;gap:8px}
+.cte-card-top b{font-family:var(--display);font-size:0.88rem;color:var(--text)}
+.cte-card-top input{width:20px;height:20px}
+.cte-card-val{margin-left:auto;font-family:var(--display);font-weight:700;color:var(--text)}
+.cte-card-lin{font-size:0.72rem;color:var(--text2);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+@media(max-width:680px){.mfoot .tbtn{padding:10px 14px;font-size:0.82rem}.abtn{width:34px;height:34px}}
 .fat-ctes{max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px;background:var(--bg);display:flex;flex-direction:column;gap:3px}
 .fat-cte{font-size:0.74rem;color:var(--text2);display:flex;align-items:center;gap:6px}
 .fat-ctes-acts{display:flex;gap:6px;margin-bottom:4px}
@@ -315,7 +327,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <a class="nav-item" data-view="calculadora" href="#"><span class="nav-icon">🧮</span> Calculadora de frete</a>
       <a class="nav-item" data-view="tabelas" href="#"><span class="nav-icon">📑</span> Tabelas de frete</a>
       <a class="nav-item" data-view="faturas" href="#"><span class="nav-icon">💳</span> Faturas<span class="nbadge" id="nb-fat">0</span></a>
-      <a class="nav-item" data-view="cirurgias" href="#"><span class="nav-icon">🏥</span> Frete por cirurgia</a>
+      <a class="nav-item" data-view="cirurgias" href="#"><span class="nav-icon">🏥</span> Cirurgia / vendedor / cliente</a>
       <a class="nav-item" data-view="auditoria" href="#"><span class="nav-icon">🔎</span> Auditoria de fretes<span class="nbadge crit" id="nb-aud">0</span></a>
       <div class="sdiv"></div>
       <div class="slabel">Atenção</div>
@@ -347,6 +359,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <button class="tbtn tbtn-g" onclick="enviarResumoDia()" title="Resumo do dia (vencidos, auditoria, meta e faturas) para o WhatsApp">🔔 Resumo do dia</button>
       <button class="tbtn tbtn-g" onclick="gerarPdf()" title="Relatório do período para salvar em PDF ou imprimir">🖨 PDF</button>
       <button class="tbtn tbtn-g" onclick="exportarExcel()">📤 Exportar</button>
+      <button class="tbtn tbtn-g" onclick="backupCompleto()" title="Baixa tudo (CT-es, cotações, transportadoras, tabelas, faturas, cálculos e registro) em Excel, sem filtros">💾 Backup</button>
       <button class="tbtn tbtn-p w-only" id="btn-novo" onclick="novoRegistro()">＋ Novo</button>
     </div>
     <div class="vtabs" id="vtabs">
@@ -380,6 +393,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <option value="warn">3% – 5% (atenção)</option>
             <option value="crit">&gt; 5% (revisar)</option>
           </select>
+          <button class="fchip w-only" id="btn-dups" onclick="abrirDuplicados()" title="CT-es lançados mais de uma vez">🧹 Revisar duplicados</button>
         </div>
         <div class="twrap">
           <div class="thead-bar">
@@ -442,7 +456,8 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <section class="view" id="view-faturas">
         <div class="twrap">
           <div class="thead-bar"><span class="thead-title">💳 Faturas das transportadoras — conferência com os CT-es</span><span class="tcount" id="cnt-fat">0</span>
-            <span class="td-mono" style="margin-left:auto" id="fat-resumo"></span></div>
+            <span class="td-mono" style="margin-left:auto" id="fat-resumo"></span>
+            <label class="tbtn tbtn-p w-only" title="Lê a fatura em PDF da transportadora e monta o lançamento com os CT-es dela">📄 Importar fatura (PDF)<input type="file" id="f-pdf-fat" accept="application/pdf,.pdf" hidden></label></div>
           <div class="aud-explica" id="fat-sem"></div>
           <div class="tscroll"><table id="tb-fat"></table></div>
         </div>
@@ -453,6 +468,8 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
         <div class="dash-grid">
           <div class="dcard"><div class="dcard-head">🏥 Por hospital</div><div class="dcard-body" style="padding:0"><div class="tscroll" id="cir-hosp"></div></div></div>
           <div class="dcard"><div class="dcard-head">💼 Por convênio</div><div class="dcard-body" style="padding:0"><div class="tscroll" id="cir-conv"></div></div></div>
+          <div class="dcard"><div class="dcard-head">🧑‍💼 Por vendedor <small>procedimentos do Monitor</small></div><div class="dcard-body" style="padding:0"><div class="tscroll" id="cir-vend"></div></div></div>
+          <div class="dcard"><div class="dcard-head">🏢 Por cliente <small>saídas: venda, cirurgia, consignação, comodato</small></div><div class="dcard-body" style="padding:0"><div class="tscroll" id="cir-cli"></div></div></div>
         </div>
         <div class="twrap">
           <div class="thead-bar"><span class="thead-title">Procedimentos com frete</span><span class="tcount" id="cnt-cir">0</span><span class="td-mono" style="margin-left:auto" id="cir-resumo"></span></div>
@@ -545,6 +562,32 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
   </div>
 </div>
 
+<div id="modal-dups" class="modal-ov">
+  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="dups-title">
+    <div class="mhead"><span class="mtitle" id="dups-title">🧹 CT-es lançados mais de uma vez</span><button class="mclose" onclick="document.getElementById('modal-dups').classList.remove('open')" aria-label="Fechar">✕</button></div>
+    <div class="mbody">
+      <div class="td-mono" style="margin-bottom:10px">Grupos com a mesma chave de acesso, o mesmo Nº de CT-e, ou a mesma transportadora + NF + emissão + frete. Marque qual fica (já vem marcado o mais completo) e apague os outros. Só administradores apagam.</div>
+      <div id="dups-lista"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-sql" class="modal-ov">
+  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="sql-title">
+    <div class="mhead"><span class="mtitle" id="sql-title">📋 SQL de atualização do banco</span><button class="mclose" onclick="document.getElementById('modal-sql').classList.remove('open')" aria-label="Fechar">✕</button></div>
+    <div class="mbody">
+      <ol class="sql-passos">
+        <li>Clique em <b>Copiar SQL</b> (ou selecione o texto abaixo e copie).</li>
+        <li>Clique em <b>Abrir SQL Editor</b> — abre o projeto certo desta filial no Supabase.</li>
+        <li>Cole (Ctrl+V) e clique em <b>Run</b>. Pode rodar mais de uma vez sem problema.</li>
+      </ol>
+      <div id="sql-alvos"></div>
+      <textarea id="sql-texto" class="finput" readonly style="height:240px;font-family:var(--mono);font-size:0.62rem;margin-top:8px"></textarea>
+    </div>
+    <div class="mfoot"><a class="tbtn tbtn-g" id="sql-abrir" target="_blank" rel="noopener">🔗 Abrir SQL Editor</a><button class="tbtn tbtn-p" onclick="copiarSql()">📋 Copiar SQL</button></div>
+  </div>
+</div>
+
 <div id="modal-unif" class="modal-ov">
   <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="unif-title">
     <div class="mhead"><span class="mtitle" id="unif-title">🔗 Unificar transportadoras com nomes repetidos</span><button class="mclose" onclick="fecharUnificar()" aria-label="Fechar">✕</button></div>
@@ -613,7 +656,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.14';
+const VERSAO = '2026-10-11.15';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -923,7 +966,7 @@ async function verificarBanco() {
   };
   const avisos = (await Promise.all([checar(supabase, NOME_FILIAL[FILIAL]), IMPORTA_PARA ? checar(supaImport, IMPORTA_PARA.label + ' (onde os CT-es importados são gravados)') : null])).filter(Boolean);
   $('aviso-banco').innerHTML = avisos.length ? `⚠ O banco ainda não foi atualizado — ${avisos.join(' · ')}. Enquanto isso, esses dados lidos do PDF não são gravados.
-    Rode no <b>SQL Editor do Supabase</b> dessa filial os arquivos <code>supabase/migrations/20261011</code> a <code>20261016</code> e depois importe os PDFs de novo (eles só completam o que faltar, sem duplicar).` : '';
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="tbtn tbtn-p" onclick="mostrarSqlAtualizacao()">📋 Ver e copiar o SQL de atualização</button></div>` : '';
   $('aviso-banco').classList.toggle('show', !!avisos.length);
 }
 
@@ -1033,7 +1076,7 @@ $('f-cte-tipo').onchange = e => { ui.cteTipo = e.target.value; render(); };
 $('f-cte-pct').onchange = e => { ui.ctePct = e.target.value; render(); };
 $('f-cot-transp').onchange = e => { ui.cotTransp = e.target.value; render(); };
 
-const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete', auditoria: 'Auditoria de fretes', tabelas: 'Tabelas de frete', faturas: 'Faturas das transportadoras', cirurgias: 'Frete por cirurgia' };
+const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete', auditoria: 'Auditoria de fretes', tabelas: 'Tabelas de frete', faturas: 'Faturas das transportadoras', cirurgias: 'Frete por cirurgia, vendedor e cliente' };
 // Cada tela entra no histórico do navegador: o "voltar" do celular/navegador e o
 // botão ⬅ Voltar levam de volta ao início do Controle de Fretes (Dashboard); no
 // Dashboard, o Voltar leva ao Monitor Cirúrgico.
@@ -1079,6 +1122,7 @@ function render() {
   $('nb-transp').textContent = data.transp.length;
   $('nb-atr').textContent = ctesTodos.filter(c => c.status_entrega === 'Atrasado' || cteVencido(c)).length;
   $('nb-aud').textContent = auditoria(data.cte).length;
+  { const nd = gruposDuplicados().length; $('btn-dups').textContent = nd ? `🧹 Revisar duplicados (${nd})` : '🧹 Revisar duplicados'; $('btn-dups').classList.toggle('on', nd > 0); }
   $('nb-fat').textContent = data.fat.filter(f => { const st = situacaoFatura(f); return st.vencida || st.vencendo; }).length;
   $('nb-pend').textContent = ctesTodos.filter(c => c.status_entrega === 'Pendente' || c.status_entrega === 'Em trânsito').length;
   ({ dashboard: renderDashboard, ctes: renderCtes, cotacoes: renderCot, comparativo: renderComparativo, transportadoras: renderTransp, calculadora: renderCalc, auditoria: renderAuditoria, tabelas: renderTabelas, faturas: renderFaturas, cirurgias: renderCirurgias })[ui.view]();
@@ -1214,6 +1258,7 @@ function renderCtes() {
   ui.cteSel.forEach(id => { if (!idsVisiveis.includes(id)) ui.cteSel.delete(id); }); // seleção só do que está na tela
   renderLoteStatus(lista);
   const todosSel = lista.length && lista.every(c => ui.cteSel.has(c.id));
+  if (ehCelular()) { $('tb-ctes').innerHTML = cartoesCtes(lista); return; }
   $('tb-ctes').innerHTML = `<thead><tr>
     <th class="sel w-only"><input type="checkbox" aria-label="Selecionar todos" ${todosSel ? 'checked' : ''} onclick="event.stopPropagation();selCteTodos(this.checked)"></th>
     ${th('ctes', 'numero_cte', 'Nº CT-e')}${th('ctes', 'data_emissao', 'Emissão')}${th('ctes', 'numero_nfe', 'NF-e / Série')}
@@ -1593,7 +1638,18 @@ async function carregarProcedimentos() {
   _procsErro = error ? error.message : null;
   _procs = error ? [] : rows;
 }
+function renderClientes() {
+  // Clientes = destinatários das saídas (não compras/transferências), com o CNPJ.
+  const saidas = ctesFiltrados({ ignorarFiltrosTabela: true }).filter(c => c.destino && !/COMPRA|TRANSFER|DEVOLU/i.test(c.tipo_saida || '') && !/GF MEDICAL/i.test(c.destino));
+  const m = new Map();
+  saidas.forEach(c => { const k = c.destino_cnpj || norm(c.destino); const g = m.get(k) || { nome: c.destino, cnpj: c.destino_cnpj, n: 0, f: 0, nf: 0 }; g.n++; g.f += num(c.valor_frete); g.nf += num(c.valor_nfe); m.set(k, g); });
+  const arr = [...m.values()].sort((a, b) => b.f - a.f).slice(0, 15);
+  $('cir-cli').innerHTML = arr.length ? `<table><thead><tr><th>Cliente</th><th class="num">CT-es</th><th class="num">Frete</th><th class="num">% NF</th></tr></thead><tbody>
+    ${arr.map(g => `<tr><td class="td-trunc" title="${esc(g.nome)}">${esc(g.nome)}${g.cnpj ? `<div class="td-doc">${esc(g.cnpj)}</div>` : ''}</td><td class="num">${g.n}</td><td class="num">${brl(g.f)}</td><td class="num">${g.nf > 0 ? pctHTML(g.f / g.nf) : '—'}</td></tr>`).join('')}</tbody></table>`
+    : '<div class="empty-mini">Sem CT-es de saída para clientes no período</div>';
+}
 function renderCirurgias() {
+  renderClientes();
   if (_procs === null) { $('tb-cir').innerHTML = '<tbody><tr><td><div class="empty-mini">Carregando procedimentos do Monitor…</div></td></tr></tbody>'; carregarProcedimentos().then(() => { if (ui.view === 'cirurgias') renderCirurgias(); }); return; }
   if (_procsErro) { $('tb-cir').innerHTML = `<tbody><tr><td><div class="empty-mini">Não foi possível ler os procedimentos do Monitor: ${esc(_procsErro)}</div></td></tr></tbody>`; return; }
   const ctes = ctesFiltrados({ ignorarFiltrosTabela: true });
@@ -1612,12 +1668,13 @@ function renderCirurgias() {
     const m = new Map();
     linhas.forEach(l => { const k = l.p[campo] || '—'; const g = m.get(k) || { n: 0, f: 0, v: 0 }; g.n++; g.f += l.frete; g.v += num(l.p.valor); m.set(k, g); });
     const arr = [...m].sort((a, b) => b[1].f - a[1].f).slice(0, 12);
-    return arr.length ? `<table><thead><tr><th>${campo === 'hospital' ? 'Hospital' : 'Convênio'}</th><th class="num">Proced.</th><th class="num">Frete</th><th class="num">% do valor</th></tr></thead><tbody>
+    return arr.length ? `<table><thead><tr><th>${{ hospital: 'Hospital', convenio: 'Convênio', vendedor: 'Vendedor' }[campo]}</th><th class="num">Proced.</th><th class="num">Frete</th><th class="num">% do valor</th></tr></thead><tbody>
       ${arr.map(([k, g]) => `<tr><td class="td-trunc" title="${esc(k)}">${esc(k)}</td><td class="num">${g.n}</td><td class="num">${brl(g.f)}</td><td class="num">${g.v > 0 ? pctHTML(g.f / g.v) : '—'}</td></tr>`).join('')}</tbody></table>`
       : '<div class="empty-mini">—</div>';
   };
   $('cir-hosp').innerHTML = agrega('hospital');
   $('cir-conv').innerHTML = agrega('convenio');
+  $('cir-vend').innerHTML = agrega('vendedor');
   $('tb-cir').innerHTML = linhas.length ? `<thead><tr><th>Data</th><th>Paciente</th><th>Hospital</th><th>Convênio</th><th>Médico</th><th>NF</th><th>CT-e(s)</th><th class="num">Valor</th><th class="num">Frete</th><th class="num">% frete</th></tr></thead><tbody>
     ${linhas.slice(0, 500).map(l => `<tr><td class="td-mono">${dataBR(l.p.data)}</td><td class="td-trunc">${esc(l.p.paciente || '—')}</td><td class="td-trunc">${esc(l.p.hospital || '—')}</td>
       <td class="td-trunc">${esc(l.p.convenio || '—')}</td><td class="td-trunc">${esc(l.p.medico || '—')}</td><td class="td-mono">${esc(l.p.nf || '—')}</td>
@@ -1750,6 +1807,135 @@ function avisoDiario() {
   toast(msg, 'info');
   if ('Notification' in window && Notification.permission === 'granted') new Notification('Controle de Fretes', { body: msg.replace('🔔 ', '') });
 }
+
+// ═════════════ 2) Celular: CT-es em cartões ═════════════
+const ehCelular = () => window.matchMedia('(max-width: 680px)').matches;
+let _eraCelular = ehCelular();
+window.addEventListener('resize', () => { const c = ehCelular(); if (c !== _eraCelular) { _eraCelular = c; if (ui.view === 'ctes') render(); } });
+function cartoesCtes(lista) {
+  return `<tbody><tr><td style="padding:0"><div class="cte-cards">${lista.map(c => {
+    const p = pctFrete(c), f = faixaPct(p) || '';
+    return `<div class="cte-card ${f}" onclick="abrirModal('cte','${c.id}')">
+      <div class="cte-card-top"><input type="checkbox" class="w-only" aria-label="Selecionar ${esc(c.numero_cte)}" ${ui.cteSel.has(c.id) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="selCte('${c.id}', this.checked)">
+        <b>${esc(c.numero_cte)}</b><span class="td-mono">${dataBR(c.data_emissao)}</span><span class="cte-card-val">${brl(c.valor_frete)}</span></div>
+      <div class="cte-card-lin">🚚 ${esc(c.transportadora || '—')} · ${pctHTML(p)}${num(c.peso_kg) > 0 ? ` · ${brl(num(c.valor_frete) / num(c.peso_kg))}/kg` : ''}</div>
+      <div class="cte-card-lin">${esc((c.remetente || '—').slice(0, 26))} → ${esc((c.destino || '—').slice(0, 26))}</div>
+      <div class="cte-card-lin">${badge(c.status_entrega)}${cteVencido(c) && c.status_entrega !== 'Atrasado' ? '<span class="tag-venc">⏰ VENCIDO</span>' : ''} ${previsaoEntrega(c) ? `<span class="td-mono">prev. ${dataBR(previsaoEntrega(c))}</span>` : ''}
+        <button class="abtn" style="margin-left:auto" title="Rastrear" onclick="event.stopPropagation();rastrearCte('${c.id}')">🔍</button></div>
+    </div>`; }).join('')}</div></td></tr></tbody>`;
+}
+
+// ═════════════ 1) Revisar duplicados ═════════════
+function gruposDuplicados() {
+  const chaveDe = c => (/Chave CT-e: (\d{44})/.exec(c.observacoes || '') || [])[1] || null;
+  const pai = new Map(); const raiz = x => { while (pai.get(x) !== x) x = pai.get(x); return x; };
+  data.cte.forEach(c => pai.set(c.id, c.id));
+  const juntar = (a, b) => { const ra = raiz(a), rb = raiz(b); if (ra !== rb) pai.set(rb, ra); };
+  const por = new Map();
+  data.cte.forEach(c => {
+    const ks = [chaveDe(c) && 'ch:' + chaveDe(c), idCte(c.numero_cte) && 'n:' + idCte(c.numero_cte)];
+    if (c.transportadora && c.data_emissao && num(c.valor_frete) > 0) nfsDe(c).forEach(n => ks.push(`l:${norm(c.transportadora)}|${n}|${c.data_emissao}|${num(c.valor_frete).toFixed(2)}`));
+    ks.filter(Boolean).forEach(k => { if (por.has(k)) juntar(por.get(k), c.id); else por.set(k, c.id); });
+  });
+  const grupos = new Map();
+  data.cte.forEach(c => { const r = raiz(c.id); if (!grupos.has(r)) grupos.set(r, []); grupos.get(r).push(c); });
+  const preenchidos = c => Object.values(c).filter(v => v != null && v !== '').length;
+  return [...grupos.values()].filter(g => g.length > 1).map(g => g.sort((a, b) => preenchidos(b) - preenchidos(a) || (a.criado_em || '').localeCompare(b.criado_em || '')));
+}
+window.abrirDuplicados = () => {
+  const gs = gruposDuplicados();
+  const admin = _role === 'admin';
+  $('dups-lista').innerHTML = gs.length ? gs.map((g, i) => `<div class="dup-grupo" data-g="${i}">
+      <table><thead><tr><th>Fica</th><th>Nº CT-e</th><th>Emissão</th><th>Transportadora</th><th>NF</th><th class="num">Frete</th><th>Lançado em</th><th class="num">Campos</th></tr></thead><tbody>
+      ${g.map((c, j) => `<tr><td><input type="radio" name="dup-${i}" value="${c.id}" ${j === 0 ? 'checked' : ''} aria-label="Manter ${esc(c.numero_cte)}"></td><td class="td-strong">${esc(c.numero_cte)}</td><td class="td-mono">${dataBR(c.data_emissao)}</td>
+        <td>${esc(c.transportadora || '—')}</td><td class="td-mono">${esc(c.numero_nfe || '—')}</td><td class="num">${brl(c.valor_frete)}</td><td class="td-mono">${c.criado_em ? new Date(c.criado_em).toLocaleDateString('pt-BR') : '—'}</td>
+        <td class="num">${Object.values(c).filter(v => v != null && v !== '').length}</td></tr>`).join('')}</tbody></table>
+      ${admin ? `<button class="tbtn tbtn-d" style="margin-top:8px" onclick="apagarDuplicados(${i})">🗑 Apagar os outros ${g.length - 1}</button>` : '<div class="td-mono" style="margin-top:6px">Peça a um administrador para apagar os repetidos.</div>'}
+    </div>`).join('') : '<div class="empty-mini">✔ Nenhum CT-e duplicado encontrado.</div>';
+  $('modal-dups').classList.add('open');
+};
+window.apagarDuplicados = async i => {
+  if (_role !== 'admin') return;
+  const g = gruposDuplicados()[i]; if (!g) return;
+  const fica = document.querySelector(`input[name="dup-${i}"]:checked`)?.value;
+  const apagar = g.filter(c => c.id !== fica);
+  if (!fica || !apagar.length || !confirm(`Apagar ${apagar.length} CT-e(s) repetido(s) (${apagar.map(c => c.numero_cte).join(', ')}) e manter ${g.find(c => c.id === fica).numero_cte}?`)) return;
+  const { error } = await supabase.from(T.cte).delete().in('id', apagar.map(c => c.id));
+  if (error) { toast('Erro ao apagar: ' + msgErroBanco(error), 'err'); return; }
+  registrarLog('apagar duplicados', T.cte, g.find(c => c.id === fica).numero_cte, { apagados: apagar.map(c => c.numero_cte) });
+  toast(`🗑 ${apagar.length} repetido(s) apagado(s)`, 'info');
+  await carregar('cte'); montarFiltros(); render(); abrirDuplicados();
+};
+
+// ═════════════ 3) Importar fatura (PDF) ═════════════
+async function importarFaturaPdf(file) {
+  toast('⏳ Lendo a fatura…', 'info');
+  try {
+    const docs = await lerDocsPdf(file);
+    const texto = docs.map(d => d.texto).join('\n');
+    if (!texto.trim()) { toast('A fatura não tem texto (imagem escaneada) — lance manualmente.', 'err'); return; }
+    // transportadora: pelo CNPJ (cadastro) ou pelo nome no cabeçalho
+    const cnpjs = [...texto.replace(/(\d)[.\/-](?=\d)/g, '$1').matchAll(/(?<!\d)(\d{14})(?!\d)/g)].map(m => m[1]).filter(c => !c.startsWith('07356800'));
+    let transportadora = cnpjs.map(c => transportadoraPorCnpjCadastro(c) || transportadoraPorCnpj(c)).find(Boolean) || null;
+    if (!transportadora) transportadora = nomeTransportadoraCadastrada(texto.split('\n').find(l => l.trim().length > 5) || '') || null;
+    const datas = [...texto.matchAll(/(\d{2}\/\d{2}\/\d{4})/g)].map(m => aceitaData(m[1]));
+    const mCab = /(\d{3,12})\s+R\$\s*([\d.]+,\d{2})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})/.exec(texto);
+    const numero = mCab ? mCab[1].replace(/^0+/, '') : ((/FATURA[^\d\n]{0,20}(\d{3,12})/i.exec(texto) || [])[1] || '').replace(/^0+/, '') || null;
+    const mTotal = /TOTAL\s*:?\s*R?\$?\s*([\d.]+,\d{2})/i.exec(texto);
+    const valor = mTotal ? moedaNum(mTotal[1]) : mCab ? moedaNum(mCab[2]) : null;
+    const emissao = mCab ? aceitaData(mCab[3]) : datas[0] || null, vencimento = mCab ? aceitaData(mCab[4]) : datas[1] || null;
+    // linhas de CT-e: "1931  06/08/2026  DESTINATÁRIO  R$ 191,85" (ou CTRC SSW "CGE 234944-2")
+    const linhas = [...texto.matchAll(/(?:^|\n)\s*([A-Z]{3}\s?\d{6}-?\d|\d{1,12})\s+(\d{2}\/\d{2}\/\d{2,4})[^\n]*?R?\$?\s*([\d.]+,\d{2})\s*(?=\n|$)/g)]
+      .map(m => ({ num: m[1], valor: moedaNum(m[3]) })).filter(l => l.num !== numero);
+    const achar = n => data.cte.find(c => (!transportadora || norm(c.transportadora) === norm(transportadora) || true)
+      && (idCte(c.numero_cte) === idCte(n) || (/Chave CT-e: (\d{44})/.exec(c.observacoes || '') || [])[1]?.slice(25, 34).replace(/^0+/, '') === idCte(n)));
+    const casados = linhas.map(l => ({ ...l, cte: achar(l.num) }));
+    const ctes = casados.filter(x => x.cte).map(x => x.cte.numero_cte);
+    const faltam = casados.filter(x => !x.cte);
+    const difs = casados.filter(x => x.cte && Math.abs(num(x.cte.valor_frete) - x.valor) > 0.01);
+    if (!transportadora && casados.find(x => x.cte)) transportadora = casados.find(x => x.cte).cte.transportadora;
+    const cabecalho = (texto.split('\n').find(l => l.trim().length > 5) || '').trim();
+    if (!transportadora && cabecalho && !/FATURA|DUPLICATA/i.test(cabecalho)) transportadora = cabecalho.slice(0, 80);
+    const resumo = `<div class="pdf-result"><b>📄 ${esc(file.name)}</b> — fatura ${esc(numero || '?')} · ${esc(transportadora || 'transportadora não identificada')} · ${valor != null ? brl(valor) : 'valor ?'}<br>
+      <span class="ok">✔ ${ctes.length} de ${linhas.length} CT-e(s) da fatura encontrados no sistema</span>
+      ${faltam.length ? `<br><span class="miss">– Não lançados no sistema: ${faltam.map(x => `${esc(x.num)} (${brl(x.valor)})`).join(', ')} — importe esses CT-es antes de conferir</span>` : ''}
+      ${difs.length ? `<br><span class="miss">⚠ Valor na fatura diferente do CT-e: ${difs.map(x => `${esc(x.num)}: fatura ${brl(x.valor)} × CT-e ${brl(x.cte.valor_frete)}`).join('; ')}</span>` : ''}</div>`;
+    goView('faturas');
+    abrirModal('fat', null, { valores: { transportadora, numero, emissao, vencimento, valor, ctes, status: 'Aberta', observacoes: `Importada de ${file.name}` }, resumoHTML: resumo });
+  } catch (err) { console.error(err); toast('Erro ao ler a fatura: ' + (err.message || err), 'err'); }
+}
+
+// ═════════════ 7) SQL de atualização ═════════════
+window.mostrarSqlAtualizacao = async () => {
+  const arquivo = FILIAL === 'CGR' ? 'RODAR_CAMPO_GRANDE.sql' : 'RODAR_TUDO_fretes.sql';
+  let sql = '';
+  try { const r = await fetch('supabase/migrations/' + arquivo + '?v=' + VERSAO, { cache: 'no-store' }); if (r.ok) sql = await r.text(); } catch (e) {}
+  if (!sql) sql = `-- Não consegui buscar o arquivo ${arquivo} pelo site. Abra supabase/migrations/${arquivo} no projeto e copie o conteúdo.`;
+  const ref = u => (/https:\/\/([a-z0-9]+)\.supabase\.co/.exec(u || '') || [])[1];
+  const refLocal = ref(supabase.supabaseUrl || supabase.rest?.url);
+  $('sql-texto').value = sql;
+  $('sql-abrir').href = refLocal ? `https://supabase.com/dashboard/project/${refLocal}/sql/new` : 'https://supabase.com/dashboard';
+  $('sql-alvos').innerHTML = `<div class="td-mono">Projeto desta filial (${NOME_FILIAL[FILIAL]}): <b>${esc(refLocal || '?')}</b>${IMPORTA_PARA ? ` · os CT-es importados vão para ${IMPORTA_PARA.label} — rode lá também o arquivo RODAR_CAMPO_GRANDE.sql (<a href="https://supabase.com/dashboard/project/${ref(IMPORTA_PARA.url)}/sql/new" target="_blank" rel="noopener">abrir SQL Editor de ${IMPORTA_PARA.label}</a>)` : ''}</div>`;
+  $('modal-sql').classList.add('open');
+};
+window.copiarSql = async () => {
+  const t = $('sql-texto');
+  try { await navigator.clipboard.writeText(t.value); toast('✔ SQL copiado — cole no SQL Editor e clique em Run'); }
+  catch (e) { t.focus(); t.select(); document.execCommand('copy'); toast('SQL selecionado — use Ctrl+C se não copiou', 'info'); }
+};
+
+// ═════════════ 8) Backup completo ═════════════
+window.backupCompleto = async () => {
+  const wb = XLSX.utils.book_new();
+  const add = (nome, linhas) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhas.length ? linhas.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : v && typeof v === 'object' ? JSON.stringify(v) : v]))) : [{}]), nome);
+  add('CT-es', data.cte); add('Cotações', data.cot); add('Transportadoras', data.transp);
+  add('Tabelas de frete', data.tab); add('Faturas', data.fat); add('Cálculos', calculos || []);
+  const log = await supabase.from('frete_log').select('*').eq('filial', FILIAL).order('em', { ascending: false }).limit(5000);
+  if (!log.error) add('Registro de alterações', log.data);
+  XLSX.writeFile(wb, `Backup_Fretes_${FILIAL}_${hojeISO()}.xlsx`);
+  registrarLog('backup', 'todas', `${data.cte.length} CT-es`);
+  toast('💾 Backup baixado (todas as abas, sem filtros)');
+};
 
 // ── Status em lote: seleciona CT-es (ou todos os vencidos da tela) e troca o status de uma vez.
 let _listaCtesTela = [];
@@ -3022,6 +3208,7 @@ function abrirPdfs(files) {
   if (!pdfs.length) { toast('Selecione arquivo(s) PDF ou XML do CT-e.', 'err'); return; }
   if (pdfs.length === 1) importarPdfCte(pdfs[0]); else importarLotePdf(pdfs);
 }
+$('f-pdf-fat').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importarFaturaPdf(f); };
 $('f-pdf-cte').onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) abrirPdfs(fs); };
 
 // Arrastar um ou vários PDFs em qualquer lugar da tela.
