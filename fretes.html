@@ -663,7 +663,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.21';
+const VERSAO = '2026-10-11.22';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -2142,7 +2142,7 @@ window.rastrearCte = id => {
   const gfDestino = /GF MEDICAL/i.test(c.destino || '') || /COMPRA/i.test(c.tipo_saida || '') || soDigitos(c.destino_cnpj).startsWith('07356800');
   const cnpjDest = gfDestino ? (soDigitos(c.destino_cnpj).startsWith('07356800') ? soDigitos(c.destino_cnpj) : cnpjGf()) : soDigitos(c.destino_cnpj);
   if (nfs.length && (cnpjDest.length === 14 || cnpjDest.length === 11)) {
-    postarSsw('resultSSW_dest', { cnpjdest: cnpjDest, NR: nfs.join(NL), chave: '' });
+    postarSsw('resultSSW_dest_nro', { cnpjdest: cnpjDest, NR: nfs.join(NL), chave: '' }); // (o botão RASTREAR do SSW envia para _dest_nro)
     toast(`🔍 Rastreando no SSW: NF ${nfs.join(', ')} · destinatário ${fmtDoc(cnpjDest)}`, 'info');
     return;
   }
