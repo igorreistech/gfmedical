@@ -611,7 +611,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.11';
+const VERSAO = '2026-10-11.12';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -684,7 +684,7 @@ function msgErroBanco(error) {
 // Colunas criadas pelas migrações novas. Se a filial ainda não rodou a migração,
 // a gravação tira a coluna que falta e grava o resto (avisando), em vez de falhar.
 const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte', 'remetente_cnpj', 'destino_cnpj',
-  'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'anexo_url', 'anexo_nome'];
+  'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base'];
 async function gravarTolerante(exec, dados) {
   const lista = Array.isArray(dados);
   let arr = [].concat(dados);
@@ -1446,7 +1446,8 @@ window.mensagemAuditoria = t => {
 function conferirTabela(tipo, v) {
   if (!v.transportadora || !num(v.valor_frete)) return null;
   const nf = tipo === 'cot' ? num(v.valor_mercadoria) : num(v.valor_nfe);
-  const rotas = tipo === 'cot' ? [[v.origem, v.destino].filter(Boolean).join(' - '), v.origem] : [v.origem];
+  const comUf = (cid, uf) => cid ? cid + (uf ? '/' + uf : '') : (uf || '');
+  const rotas = tipo === 'cot' ? [[comUf(v.origem, v.uf_origem), comUf(v.destino, v.uf_destino)].filter(Boolean).join(' - '), v.origem] : [v.origem];
   const dataRef = tipo === 'cot' ? v.data_cotacao : v.data_emissao;
   let r = null;
   for (const rota of rotas) { r = precoTabela(v.transportadora, rota || '', num(v.peso_kg) || null, nf, dataRef); if (r) break; }
@@ -1466,31 +1467,51 @@ function conferenciaTabelaHTML(chk, transportadora) {
 }
 
 // ═════════════ Tabela de frete combinada ═════════════
-const precoPorLinha = (t, peso, nf) => Math.max(num(t.frete_minimo), num(t.valor_fixo) + num(t.valor_kg) * num(peso) + num(t.pct_nf) / 100 * num(nf));
+// frete = fixo + R$/kg × peso + % × NF, com o mínimo valendo para o total ou só para o frete peso.
+const precoPorLinha = (t, peso, nf) => t.minimo_base === 'peso'
+  ? num(t.valor_fixo) + Math.max(num(t.frete_minimo), num(t.valor_kg) * num(peso)) + num(t.pct_nf) / 100 * num(nf)
+  : Math.max(num(t.frete_minimo), num(t.valor_fixo) + num(t.valor_kg) * num(peso) + num(t.pct_nf) / 100 * num(nf));
+// Rota da tabela × rota do CT-e/cotação: igual (3) > mesmo par de estados "MS - SP", em qualquer sentido (2) > geral (1).
+function rotaCasa(rotaTabela, rota) {
+  if (!rotaTabela) return 1;
+  const a = norm(rotaTabela), b = norm(rota || '');
+  if (!b) return 0;
+  if (a === b) return 3;
+  const par = /^([A-Z]{2})\s*-\s*([A-Z]{2})$/.exec(a);
+  if (par) {
+    const ufsB = /^([A-Z]{2})\s*-\s*([A-Z]{2})$/.test(b) ? b.split(/\s*-\s*/) : [...b.matchAll(/\/([A-Z]{2})\b/g)].map(m => m[1]);
+    if (ufsB.length >= 2 && [par[1], par[2]].sort().join() === [ufsB[0], ufsB[ufsB.length - 1]].sort().join()) return 2;
+  }
+  return 0;
+}
 // Linha aplicável: mesma transportadora; rota específica antes da geral; vigente na data;
 // menor faixa de peso que comporta o peso. Precisa do peso se a tabela cobra por kg.
-function linhaTabela(transportadora, rota, peso, dataRef) {
-  const cands = data.tab.filter(t => norm(t.transportadora) === norm(transportadora)
-    && (!t.rota || norm(t.rota) === norm(rota))
+function linhaTabela(transportadora, rota, peso, dataRef, nf) {
+  const cands = data.tab.map(t => ({ t, sc: rotaCasa(t.rota, rota) })).filter(({ t, sc }) => sc > 0
+    && norm(t.transportadora) === norm(transportadora)
     && (!t.vigencia_inicio || !dataRef || t.vigencia_inicio <= dataRef)
-    && (t.peso_ate == null || peso == null || num(peso) <= num(t.peso_ate)));
+    && (t.peso_ate == null || peso == null || num(peso) <= num(t.peso_ate))
+    && (t.nf_ate == null || nf == null || num(nf) <= num(t.nf_ate)));
   if (!cands.length) return null;
-  return cands.sort((a, b) => (!!b.rota - !!a.rota) || (b.vigencia_inicio || '').localeCompare(a.vigencia_inicio || '')
-    || (a.peso_ate == null) - (b.peso_ate == null) || num(a.peso_ate) - num(b.peso_ate))[0];
+  const melhor = Math.max(...cands.map(c => c.sc));
+  return cands.filter(c => c.sc === melhor).map(c => c.t).sort((a, b) => (b.vigencia_inicio || '').localeCompare(a.vigencia_inicio || '')
+    || (a.peso_ate == null) - (b.peso_ate == null) || num(a.peso_ate) - num(b.peso_ate)
+    || (a.nf_ate == null) - (b.nf_ate == null) || num(a.nf_ate) - num(b.nf_ate))[0];
 }
 function precoTabela(transportadora, rota, peso, nf, dataRef) {
-  const t = linhaTabela(transportadora, rota, peso, dataRef);
+  const t = linhaTabela(transportadora, rota, peso, dataRef, nf);
   if (!t || (num(t.valor_kg) > 0 && !(num(peso) > 0))) return null;
   return { preco: precoPorLinha(t, peso, nf), linha: t };
 }
 function renderTabelas() {
-  const lista = [...data.tab].sort((a, b) => (a.transportadora || '').localeCompare(b.transportadora || '') || (a.rota || '').localeCompare(b.rota || ''));
+  const lista = [...data.tab].sort((a, b) => (a.transportadora || '').localeCompare(b.transportadora || '') || (a.rota || '').localeCompare(b.rota || '')
+    || num(a.peso_ate ?? 1e9) - num(b.peso_ate ?? 1e9) || num(a.nf_ate ?? 1e12) - num(b.nf_ate ?? 1e12));
   $('cnt-tab').textContent = lista.length;
-  $('tb-tab').innerHTML = lista.length ? `<thead><tr><th>Transportadora</th><th>Rota</th><th class="num">Até kg</th><th class="num">Fixo</th><th class="num">R$/kg</th><th class="num">% NF</th><th class="num">Mínimo</th><th>Desde</th><th>Tabela anexa</th><th></th></tr></thead><tbody>
+  $('tb-tab').innerHTML = lista.length ? `<thead><tr><th>Transportadora</th><th>Rota</th><th class="num">Até kg</th><th class="num">NF até</th><th class="num">Fixo</th><th class="num">R$/kg</th><th class="num">% NF</th><th class="num">Mínimo</th><th>Desde</th><th>Tabela anexa</th><th></th></tr></thead><tbody>
     ${lista.map(t => `<tr class="click" onclick="abrirModal('tab','${t.id}')"><td class="td-strong">${esc(t.transportadora)}</td><td>${esc(t.rota || 'todas')}</td>
-      <td class="num">${t.peso_ate != null ? num(t.peso_ate).toLocaleString('pt-BR') : '—'}</td><td class="num">${t.valor_fixo != null ? brl(t.valor_fixo) : '—'}</td>
+      <td class="num">${t.peso_ate != null ? num(t.peso_ate).toLocaleString('pt-BR') : '—'}</td><td class="num">${t.nf_ate != null ? brl(t.nf_ate) : '—'}</td><td class="num">${t.valor_fixo != null ? brl(t.valor_fixo) : '—'}</td>
       <td class="num">${t.valor_kg != null ? brl(t.valor_kg) : '—'}</td><td class="num">${t.pct_nf != null ? num(t.pct_nf).toLocaleString('pt-BR') + '%' : '—'}</td>
-      <td class="num">${t.frete_minimo != null ? brl(t.frete_minimo) : '—'}</td><td class="td-mono">${dataBR(t.vigencia_inicio)}</td>
+      <td class="num">${t.frete_minimo != null ? brl(t.frete_minimo) + (t.minimo_base === 'peso' ? '<div class="td-doc">só frete peso</div>' : '') : '—'}</td><td class="td-mono">${dataBR(t.vigencia_inicio)}</td>
       <td>${t.anexo_url ? `<a href="${esc(t.anexo_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(t.anexo_nome || '')}">📎 ${esc((t.anexo_nome || 'abrir').slice(0, 24))}</a>` : '<span class="td-mono">—</span>'}</td>
       <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('tab','${t.id}')">🗑</button></div></td></tr>`).join('')}</tbody>`
     : `<tbody><tr><td><div class="empty-page">📑 Nenhuma tabela cadastrada.<br><br>Cadastre a tabela combinada com cada transportadora (<b>＋ Nova tabela</b>):<br>a auditoria passa a conferir cada CT-e contra o valor contratado e a calculadora já mostra o preço.</div></td></tr></tbody>`;
@@ -1998,8 +2019,10 @@ const FORMS = {
   ]},
   tab: { titulo: 'Tabela de frete', campos: [
     { k: 'transportadora', l: 'Transportadora', req: true, selTransp: true },
-    { k: 'rota', l: 'Rota (em branco = todas)', dl: 'dl-rotas', ph: 'Ex.: SJP - CGB' },
+    { k: 'rota', l: 'Rota (em branco = todas; "MS - SP" = por estado)', dl: 'dl-rotas', ph: 'Ex.: MS - SP ou CAMPO GRANDE/MS - DOURADOS/MS' },
     { k: 'peso_ate', l: 'Faixa: peso até (kg)', t: 'dec', s: 1, ph: 'sem limite' },
+    { k: 'nf_ate', l: 'Faixa: NF até (R$)', t: 'money', s: 1, ph: 'sem limite' },
+    { k: 'minimo_base', l: 'O mínimo vale para', o: ['total', 'peso'], ol: ['o frete total', 'só o frete peso'], s: 1, def: 'total' },
     { k: 'valor_fixo', l: 'Taxa fixa por CT-e (R$)', t: 'money', s: 1 },
     { k: 'valor_kg', l: 'R$ por kg', t: 'dec', s: 1 },
     { k: 'pct_nf', l: '% sobre a NF (ad valorem/GRIS)', t: 'dec', s: 1 },

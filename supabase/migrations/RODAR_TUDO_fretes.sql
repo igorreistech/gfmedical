@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════
--- Controle de Fretes — TODAS as migrações juntas (20261010 a 20261017).
+-- Controle de Fretes — TODAS as migrações juntas (20261010 a 20261018).
 -- Pode rodar inteiro, quantas vezes quiser, no SQL Editor de CADA projeto
 -- (Cuiabá e Campo Grande): nada que já existe é apagado ou sobrescrito.
 -- ════════════════════════════════════════════════════════════════════════
@@ -343,4 +343,12 @@ alter table public.frete_tabelas
   add column if not exists anexo_url  text,
   add column if not exists anexo_nome text;
 
+notify pgrst, 'reload schema';
+
+-- ───────────── 20261018_fretes_tabela_faixa_nf.sql ─────────────
+-- Controle de Fretes: faixa por valor da NF e base do frete mínimo na tabela combinada.
+-- Rodar no SQL Editor de CADA projeto Supabase de filial (Cuiabá e Campo Grande).
+alter table public.frete_tabelas
+  add column if not exists nf_ate      numeric(14,2),
+  add column if not exists minimo_base text not null default 'total';  -- 'total' | 'peso'
 notify pgrst, 'reload schema';
