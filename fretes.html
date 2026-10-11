@@ -183,6 +183,9 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.nova-versao{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:450;display:none;align-items:center;gap:10px;padding:9px 14px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--accent2);box-shadow:var(--shadow-md);font-size:0.78rem;color:var(--text)}
+.nova-versao.show{display:flex}
+.versao{font-family:var(--mono);font-size:0.55rem;color:var(--text3);text-align:center;margin-top:6px}
 .calc-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;align-items:start}
 .calc-nf{font-family:var(--display);font-size:1.15rem;font-weight:700;padding:10px 12px}
 .calc-op{display:grid;grid-template-columns:1.6fr 1fr 0.7fr 28px;gap:6px;margin-bottom:6px}
@@ -298,6 +301,7 @@ textarea.finput{resize:vertical;min-height:60px}
         <button class="logout" onclick="doLogout()" title="Sair">⏻</button>
       </div>
       <select class="filial-sel" id="sidebar-filial-sel" aria-label="Filial" onchange="trocarFilial(this.value)" title="Trocar filial (recarrega a página)"><option value="cgr">🟢 Campo Grande · MS</option><option value="cba">🔵 Cuiabá · MT</option></select>
+      <div class="versao" id="versao"></div>
     </div>
   </aside>
 
@@ -453,6 +457,7 @@ textarea.finput{resize:vertical;min-height:60px}
 <datalist id="dl-tipo"></datalist>
 <datalist id="dl-carga"></datalist>
 <div class="toasts" id="toasts"></div>
+<div class="nova-versao" id="nova-versao">🔄 Nova versão do Controle de Fretes disponível. <button class="tbtn tbtn-p" onclick="location.reload()">Recarregar</button></div>
 <div class="drop-ov" id="drop-ov">📄 Solte o(s) PDF(s) do CT-e para importar</div>
 
 <script type="module">
@@ -484,6 +489,9 @@ window.trocarFilial = code => {
   location.href = u.toString();
 };
 const FILIAL_LABEL = BR.cityLabel;
+// Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
+// em tempos se o servidor já tem outra e oferece recarregar.
+const VERSAO = '2026-10-11.1';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -2527,6 +2535,18 @@ window.exportarExcel = () => {
     'Tipo de Saída': c.tipo_saida, 'Observações': c.observacoes })));
   XLSX.writeFile(wb, `Controle_Fretes_${FILIAL}_${ui.periodo || 'completo'}_${hojeISO()}.xlsx`);
 };
+
+// ───────────────────────── Versão nova publicada? ─────────────────────────
+$('versao').textContent = 'versão ' + VERSAO;
+async function checarVersao() {
+  try {
+    const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text();
+    const m = /const VERSAO = '([^']+)'/.exec(t);
+    if (m && m[1] !== VERSAO) $('nova-versao').classList.add('show');
+  } catch (e) {}
+}
+setInterval(checarVersao, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checarVersao(); });
 
 // ───────────────────────── Início ─────────────────────────
 let _viewInicial = 'dashboard';
