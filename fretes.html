@@ -183,8 +183,15 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.lote-status{display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 15px;border-bottom:1px solid var(--border);background:var(--info-bg);font-size:0.76rem;color:var(--text)}
+.lote-status.show{display:flex}
+.lote-status .tsel,.lote-status .finput{padding:5px 8px;width:auto}
+td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 .nova-versao{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:450;display:none;align-items:center;gap:10px;padding:9px 14px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--accent2);box-shadow:var(--shadow-md);font-size:0.78rem;color:var(--text)}
 .nova-versao.show{display:flex}
+.aviso-banco{display:none;margin-bottom:14px;padding:11px 14px;border-radius:var(--radius);background:var(--warn-bg);border:1px solid var(--warn-bd);font-size:0.78rem;color:var(--text);line-height:1.6}
+.aviso-banco.show{display:block}
+.aviso-banco code{font-family:var(--mono);font-size:0.7rem;background:var(--surface);padding:1px 5px;border-radius:4px}
 .versao{font-family:var(--mono);font-size:0.55rem;color:var(--text3);text-align:center;margin-top:6px}
 .calc-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;align-items:start}
 .calc-nf{font-family:var(--display);font-size:1.15rem;font-weight:700;padding:10px 12px}
@@ -328,12 +335,14 @@ textarea.finput{resize:vertical;min-height:60px}
     </div>
 
     <div class="page-content">
+      <div class="aviso-banco" id="aviso-banco"></div>
       <section class="view" id="view-dashboard"></section>
 
       <section class="view" id="view-ctes">
         <div class="filters">
           <span class="flabel">Status</span>
           <span id="chips-status-cte"></span>
+          <button class="fchip" id="chip-vencidos" onclick="toggleVencidos()" title="Não entregues com a previsão de entrega já passada">⏰ Vencidos</button>
           <span class="fdiv"></span>
           <select class="tsel" id="f-cte-transp"></select>
           <select class="tsel" id="f-cte-tipo"></select>
@@ -350,6 +359,7 @@ textarea.finput{resize:vertical;min-height:60px}
             <span class="tcount" id="cnt-ctes">0</span>
             <span style="margin-left:auto" class="legend-pct" id="legend-pct"></span>
           </div>
+          <div class="lote-status w-only" id="lote-status"></div>
           <div class="tscroll"><table id="tb-ctes"></table></div>
         </div>
       </section>
@@ -491,7 +501,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.1';
+const VERSAO = '2026-10-11.3';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -508,7 +518,7 @@ const T = { transp: 'frete_transportadoras', cot: 'frete_cotacoes', cte: 'frete_
 // Mesmas listas suspensas da planilha original.
 const STATUS_COT = ['Aprovado', 'Reprovado', 'Em análise', 'Aguardando'];
 const STATUS_CTE = ['Entregue', 'Em trânsito', 'Pendente', 'Atrasado'];
-const TIPOS_SAIDA = ['COMPRA', 'TRANSFERENCIA', 'REMESSA PARA CONSERTO', 'SAIDA DE MATERIAL PARA CIRURGIA', 'REMESSA EM COMODATO', 'REMESSA EM CONSIGNAÇÃO'];
+const TIPOS_SAIDA = ['COMPRA', 'TRANSFERENCIA', 'REMESSA PARA CONSERTO', 'SAIDA DE MATERIAL PARA CIRURGIA', 'REMESSA EM COMODATO', 'REMESSA EM CONSIGNAÇÃO', 'DEVOLUÇÃO DE COMPRA'];
 const MODAIS = ['Rodoviário', 'Aéreo', 'Rodoviário e Aéreo'];
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const BADGE_STATUS = {
@@ -529,7 +539,7 @@ const PCT_FAIXAS = {
 const data = { transp: [], cot: [], cte: [] };
 const ui = {
   view: 'dashboard', periodo: '', busca: '',
-  cteStatus: '', cteTransp: '', cteTipo: '', ctePct: '',
+  cteStatus: '', cteTransp: '', cteTipo: '', ctePct: '', cteVencidos: false, cteSel: new Set(),
   cotStatus: '', cotTransp: '',
   sort: { ctes: ['data_emissao', -1], cot: ['data_cotacao', -1], comp: ['frete_total', -1], transp: ['nome', 1] },
 };
@@ -729,7 +739,25 @@ async function carregar(k) {
   data[k] = rows;
 }
 
+// Banco da filial sem as colunas/tabela das migrações novas: aviso fixo dizendo o que rodar
+// (sem isso os CNPJs, a previsão etc. lidos do PDF são descartados ao gravar).
+async function verificarBanco() {
+  const checar = async (cli, label) => {
+    const faltas = [];
+    const c = await cli.from(T.cte).select('remetente_cnpj, previsao_entrega, numero_cotacao').limit(1);
+    if (c.error) faltas.push('colunas novas dos CT-es (CNPJs, previsão, cotação)');
+    const h = await cli.from('frete_calculos').select('id').limit(1);
+    if (h.error) faltas.push('histórico da calculadora');
+    return faltas.length ? `<b>${label}</b>: falta ${faltas.join(' e ')}` : null;
+  };
+  const avisos = (await Promise.all([checar(supabase, NOME_FILIAL[FILIAL]), IMPORTA_PARA ? checar(supaImport, IMPORTA_PARA.label + ' (onde os CT-es importados são gravados)') : null])).filter(Boolean);
+  $('aviso-banco').innerHTML = avisos.length ? `⚠ O banco ainda não foi atualizado — ${avisos.join(' · ')}. Enquanto isso, esses dados lidos do PDF não são gravados.
+    Rode no <b>SQL Editor do Supabase</b> dessa filial os arquivos <code>supabase/migrations/20261011</code> a <code>20261015</code> e depois importe os PDFs de novo (eles só completam o que faltar, sem duplicar).` : '';
+  $('aviso-banco').classList.toggle('show', !!avisos.length);
+}
+
 async function carregarTudo() {
+  verificarBanco();
   await Promise.all([...Object.keys(T).map(carregar), carregarDestinoImport(), carregarCalculos()]);
   montarFiltros();
   render();
@@ -765,6 +793,7 @@ function ctesFiltrados({ ignorarFiltrosTabela = false } = {}) {
     && casaBusca(c, ['numero_cte', 'numero_nfe', 'origem', 'remetente', 'remetente_cnpj', 'destino', 'destino_cnpj', 'transportadora', 'tipo_saida', 'observacoes'])
     && (ignorarFiltrosTabela || (
       (!ui.cteStatus || c.status_entrega === ui.cteStatus)
+      && (!ui.cteVencidos || c.status_entrega === 'Atrasado' || cteVencido(c))
       && (!ui.cteTransp || norm(c.transportadora) === norm(ui.cteTransp))
       && (!ui.cteTipo || norm(c.tipo_saida) === norm(ui.cteTipo))
       && (!ui.ctePct || faixaPct(pctFrete(c)) === ui.ctePct))));
@@ -856,7 +885,11 @@ window.addEventListener('popstate', e => {
   goView(e.state?.view && TITULOS[e.state.view] ? e.state.view : 'dashboard', false);
 });
 document.querySelectorAll('[data-view]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); goView(el.dataset.view); }));
-window.atalhoStatus = s => { ui.cteStatus = s; goView('ctes'); };
+window.atalhoStatus = s => {
+  if (s === 'Atrasado') { ui.cteStatus = ''; ui.cteVencidos = true; } else { ui.cteStatus = s; ui.cteVencidos = false; }
+  goView('ctes');
+};
+window.toggleVencidos = () => { ui.cteVencidos = !ui.cteVencidos; render(); };
 
 function chips(container, lista, atual, onPick) {
   $(container).innerHTML = ['', ...lista].map(s =>
@@ -969,13 +1002,20 @@ function renderCtes() {
   }
   const frete = lista.reduce((s, c) => s + num(c.valor_frete), 0);
   const nf = lista.reduce((s, c) => s + num(c.valor_nfe), 0);
+  $('chip-vencidos').classList.toggle('on', ui.cteVencidos);
+  const idsVisiveis = lista.map(c => c.id);
+  ui.cteSel.forEach(id => { if (!idsVisiveis.includes(id)) ui.cteSel.delete(id); }); // seleção só do que está na tela
+  renderLoteStatus(lista);
+  const todosSel = lista.length && lista.every(c => ui.cteSel.has(c.id));
   $('tb-ctes').innerHTML = `<thead><tr>
+    <th class="sel w-only"><input type="checkbox" aria-label="Selecionar todos" ${todosSel ? 'checked' : ''} onclick="event.stopPropagation();selCteTodos(this.checked)"></th>
     ${th('ctes', 'numero_cte', 'Nº CT-e')}${th('ctes', 'data_emissao', 'Emissão')}${th('ctes', 'numero_nfe', 'NF-e / Série')}
     ${th('ctes', 'origem', 'Origem / Rota')}${th('ctes', 'remetente', 'Remetente')}${th('ctes', 'destino', 'Destinatário')}${th('ctes', 'transportadora', 'Transportadora')}
     ${th('ctes', 'tipo_saida', 'Tipo saída')}${th('ctes', 'valor_frete', 'Frete', 'num')}${th('ctes', 'valor_nfe', 'Valor NF-e', 'num')}
     ${th('ctes', 'pct', '% Frete', 'num')}${th('ctes', 'prazo_dias', 'Prazo', 'num')}${th('ctes', 'previsao_entrega', 'Previsão')}${th('ctes', 'status_entrega', 'Status')}${th('ctes', 'data_entrega', 'Entrega')}<th></th>
   </tr></thead><tbody>
   ${lista.map(c => `<tr class="click" onclick="abrirModal('cte','${c.id}')">
+    <td class="sel w-only" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Selecionar CT-e ${esc(c.numero_cte)}" ${ui.cteSel.has(c.id) ? 'checked' : ''} onchange="selCte('${c.id}', this.checked)"></td>
     <td class="td-strong">${esc(c.numero_cte)}</td>
     <td class="td-mono">${dataBR(c.data_emissao)}</td>
     <td class="td-mono">${esc(c.numero_nfe || '—')}${c.serie_nf ? ' / ' + esc(c.serie_nf) : ''}</td>
@@ -993,7 +1033,7 @@ function renderCtes() {
     <td class="td-mono">${dataBR(c.data_entrega)}</td>
     <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('cte','${c.id}')">🗑</button></div></td>
   </tr>`).join('')}</tbody>
-  <tfoot><tr><td colspan="8">Total (${lista.length})</td><td class="num">${brl(frete)}</td><td class="num">${brl(nf)}</td><td class="num">${pctHTML(nf > 0 ? frete / nf : null)}</td><td colspan="5"></td></tr></tfoot>`;
+  <tfoot><tr><td colspan="9">Total (${lista.length})</td><td class="num">${brl(frete)}</td><td class="num">${brl(nf)}</td><td class="num">${pctHTML(nf > 0 ? frete / nf : null)}</td><td colspan="5"></td></tr></tfoot>`;
 }
 
 // CNPJ do emitente do CT-e (a transportadora): da chave de acesso guardada nas
@@ -1062,6 +1102,47 @@ async function vincularCotacoes(pares) {
   }
   if (pares.length) await carregar('cot');
 }
+
+// ── Status em lote: seleciona CT-es (ou todos os vencidos da tela) e troca o status de uma vez.
+let _listaCtesTela = [];
+function renderLoteStatus(lista) {
+  _listaCtesTela = lista;
+  const vencidos = lista.filter(c => c.status_entrega !== 'Entregue' && (c.status_entrega === 'Atrasado' || cteVencido(c)));
+  const n = ui.cteSel.size;
+  const el = $('lote-status');
+  el.classList.toggle('show', n > 0 || vencidos.length > 0);
+  if (!n && !vencidos.length) { el.innerHTML = ''; return; }
+  el.innerHTML = n
+    ? `<b>${n} CT-e(s) selecionado(s)</b> → status
+       <select class="tsel" id="ls-status">${STATUS_CTE.map(st => `<option ${st === 'Entregue' ? 'selected' : ''}>${st}</option>`).join('')}</select>
+       <span id="ls-data-wrap">data de entrega <input class="finput" type="date" id="ls-data" value="${hojeISO()}"></span>
+       <button class="tbtn tbtn-p" onclick="aplicarStatusLote()">✔ Aplicar</button>
+       <button class="tbtn tbtn-g" onclick="selCteTodos(false)">Limpar seleção</button>
+       ${vencidos.length && vencidos.some(c => !ui.cteSel.has(c.id)) ? `<button class="fchip" onclick="selecionarVencidos()">⏰ Selecionar os ${vencidos.length} vencidos</button>` : ''}`
+    : `⏰ <b>${vencidos.length} CT-e(s) vencido(s)</b> nesta lista (não entregues com a previsão já passada).
+       <button class="fchip" onclick="selecionarVencidos()">Selecionar os vencidos para atualizar o status</button>`;
+  const st = $('ls-status');
+  if (st) st.onchange = () => { $('ls-data-wrap').style.display = st.value === 'Entregue' ? '' : 'none'; };
+}
+window.selCte = (id, on) => { if (on) ui.cteSel.add(id); else ui.cteSel.delete(id); render(); };
+window.selCteTodos = on => { if (on) _listaCtesTela.forEach(c => ui.cteSel.add(c.id)); else ui.cteSel.clear(); render(); };
+window.selecionarVencidos = () => {
+  _listaCtesTela.filter(c => c.status_entrega !== 'Entregue' && (c.status_entrega === 'Atrasado' || cteVencido(c))).forEach(c => ui.cteSel.add(c.id));
+  render();
+};
+window.aplicarStatusLote = async () => {
+  const ids = [...ui.cteSel];
+  const status = $('ls-status').value;
+  if (!ids.length) return;
+  const dataEnt = status === 'Entregue' ? ($('ls-data').value || hojeISO()) : null;
+  if (!confirm(`Alterar o status de ${ids.length} CT-e(s) para "${status}"${dataEnt ? ` com entrega em ${dataBR(dataEnt)}` : ''}?`)) return;
+  // Entregue grava a data de entrega; os outros status limpam a data (não foi entregue).
+  const { error } = await supabase.from(T.cte).update({ status_entrega: status, data_entrega: dataEnt, atualizado_em: new Date().toISOString() }).in('id', ids);
+  if (error) { toast('Erro ao atualizar: ' + msgErroBanco(error), 'err'); return; }
+  toast(`✔ ${ids.length} CT-e(s) atualizado(s) para ${status}`);
+  ui.cteSel.clear();
+  await carregar('cte'); render();
+};
 
 function renderCot() {
   chips('chips-status-cot', STATUS_COT, ui.cotStatus, v => ui.cotStatus = v);
