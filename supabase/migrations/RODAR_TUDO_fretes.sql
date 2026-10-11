@@ -352,3 +352,8 @@ alter table public.frete_tabelas
   add column if not exists nf_ate      numeric(14,2),
   add column if not exists minimo_base text not null default 'total';  -- 'total' | 'peso'
 notify pgrst, 'reload schema';
+
+-- ───────────── 20261020 (coluna de cubagem) ─────────────
+alter table public.frete_tabelas
+  add column if not exists cubagem_kg_m3 numeric(8,2);  -- peso cubado = m³ × este fator (ex.: 300 kg/m³)
+notify pgrst, 'reload schema';

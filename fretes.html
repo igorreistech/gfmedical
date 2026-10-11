@@ -663,7 +663,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.18';
+const VERSAO = '2026-10-11.20';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -736,7 +736,7 @@ function msgErroBanco(error) {
 // Colunas criadas pelas migrações novas. Se a filial ainda não rodou a migração,
 // a gravação tira a coluna que falta e grava o resto (avisando), em vez de falhar.
 const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte', 'remetente_cnpj', 'destino_cnpj',
-  'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base'];
+  'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base', 'cubagem_kg_m3'];
 // Colunas que faltam, por banco (cliente) e tabela — descobertas ao abrir (detectarColunas)
 // ou na primeira gravação; depois são tiradas ANTES de enviar, numa tentativa só (antes era
 // uma tentativa por coluna faltando, o que deixava salvar lento, principalmente no celular).
@@ -746,7 +746,7 @@ let _avisouColunas = false;
 const COLUNAS_POR_TABELA = {
   frete_ctes: ['remetente', 'previsao_entrega', 'numero_cotacao', 'remetente_cnpj', 'destino_cnpj', 'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe'],
   frete_cotacoes: ['valor_mercadoria', 'calculo_id', 'numero_cte'],
-  frete_tabelas: ['anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base'],
+  frete_tabelas: ['anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base', 'cubagem_kg_m3'],
 };
 async function detectarColunas(cli) {
   await Promise.all(Object.entries(COLUNAS_POR_TABELA).flatMap(([tab, cols]) => cols.map(async col => {
@@ -1579,7 +1579,15 @@ function tabelaPara(tipo, v, transportadora = v.transportadora) {
   const comUf = (cid, uf) => cid ? cid + (uf ? '/' + uf : '') : (uf || '');
   const rotas = tipo === 'cot' ? [[comUf(v.origem, v.uf_origem), comUf(v.destino, v.uf_destino)].filter(Boolean).join(' - '), v.origem] : [v.origem];
   const dataRef = tipo === 'cot' ? v.data_cotacao : v.data_emissao;
-  for (const rota of rotas) { const r = precoTabela(transportadora, rota || '', num(v.peso_kg) || null, nf, dataRef); if (r) return { ...r, peso: num(v.peso_kg), nf }; }
+  for (const rota of rotas) {
+    let peso = num(v.peso_kg) || null;
+    let r = precoTabela(transportadora, rota || '', peso, nf, dataRef);
+    if (!r) continue;
+    // Cubagem: cobra pelo maior entre o peso real e o volume × fator da tabela (ex.: 300 kg/m³).
+    const cub = num(r.linha.cubagem_kg_m3) * num(v.volume_m3);
+    if (cub > num(peso)) { const rc = precoTabela(transportadora, rota || '', cub, nf, dataRef); if (rc) return { ...rc, peso: cub, pesoReal: num(v.peso_kg), cubado: true, nf }; }
+    return { ...r, peso: num(v.peso_kg), nf };
+  }
   return null;
 }
 function conferirTabela(tipo, v) {
@@ -1595,8 +1603,11 @@ function conferirTabela(tipo, v) {
 // "fixo R$ 14,00 + 5 kg × R$ 0,41 + 1,5% × NF R$ 10.400,00 (mínimo R$ 26,50 no frete peso)"
 function contaTabela(t, peso, nf) {
   const p = [];
-  if (num(t.valor_fixo)) p.push(`fixo ${brl(t.valor_fixo)}`);
-  if (num(t.valor_kg)) p.push(`${num(peso).toLocaleString('pt-BR')} kg × ${brl(t.valor_kg)}`);
+  // fixo negativo + R$/kg = "R$/kg acima de X kg" (ex.: LH, 0,60/kg acima de 50 kg)
+  const acimaDe = num(t.valor_fixo) < 0 && num(t.valor_kg) > 0 ? -num(t.valor_fixo) / num(t.valor_kg) : 0;
+  if (num(t.valor_fixo) > 0) p.push(`fixo ${brl(t.valor_fixo)}`);
+  if (acimaDe) p.push(`${Math.max(0, num(peso) - acimaDe).toLocaleString('pt-BR')} kg acima de ${acimaDe.toLocaleString('pt-BR')} kg × ${brl(t.valor_kg)}`);
+  else if (num(t.valor_kg)) p.push(`${num(peso).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg × ${brl(t.valor_kg)}`);
   if (num(t.pct_nf)) p.push(`${num(t.pct_nf).toLocaleString('pt-BR')}% × NF ${brl(nf)}`);
   let txt = p.join(' + ') || 'sem valores';
   if (num(t.frete_minimo)) {
@@ -1606,6 +1617,14 @@ function contaTabela(t, peso, nf) {
     txt += ` · mínimo ${brl(t.frete_minimo)}${t.minimo_base === 'peso' ? ' no frete peso' : ''}${aplicou ? ' <b>(aplicado)</b>' : ''}`;
   }
   return txt;
+}
+// Tabela com mais de 1 ano (propostas costumam valer 12 meses / reajuste anual)
+function tabelaAntiga(t) {
+  if (!t?.vigencia_inicio) return '';
+  const dias = diasEntre(t.vigencia_inicio, hojeISO());
+  if (dias > 365) return `tabela de ${dataBR(t.vigencia_inicio)} — mais de 1 ano, pode estar desatualizada`;
+  if (dias > 335) return `vence em ${365 - dias} dia(s) (validade de 12 meses)`;
+  return '';
 }
 function descLinhaTabela(t) {
   return [t.rota ? `rota ${t.rota}` : 'todas as rotas', t.peso_ate != null ? `até ${num(t.peso_ate).toLocaleString('pt-BR')} kg` : '',
@@ -1627,7 +1646,9 @@ function conferenciaTabelaHTML(chk, transportadora, { cot = false, v = null } = 
   }
   if (chk.semTabela) return `<br><span class="td-mono">Sem tabela combinada da ${esc(transportadora)} — cadastre/anexe em 📑 Tabelas de frete para conferir automaticamente.</span>${alt}`;
   if (chk.faltaPeso) return `<br><span class="td-mono">Há tabela da ${esc(transportadora)}, mas faltam dados para calcular (informe o peso e a mercadoria, e confira origem/destino com UF).</span>${alt}`;
-  const conta = `<div class="tab-conta">📑 <b>${esc(transportadora)}</b> · ${esc(descLinhaTabela(chk.linha))}<br>${contaTabela(chk.linha, chk.peso, chk.nf)} = <b>${brl(chk.preco)}</b>${link(chk.linha)}</div>`;
+  const conta = `<div class="tab-conta">📑 <b>${esc(transportadora)}</b> · ${esc(descLinhaTabela(chk.linha))}${tabelaAntiga(chk.linha) ? ` <span class="badge b-warn">⚠ ${tabelaAntiga(chk.linha)}</span>` : ''}<br>
+    ${chk.cubado ? `<b>Peso cubado:</b> ${num(chk.peso).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg (volume × ${num(chk.linha.cubagem_kg_m3)} kg/m³ — maior que o peso real de ${num(chk.pesoReal).toLocaleString('pt-BR')} kg)<br>` : ''}
+    ${contaTabela(chk.linha, chk.peso, chk.nf)} = <b>${brl(chk.preco)}</b>${link(chk.linha)}</div>`;
   const usar = cot && Math.abs((num(v?.valor_frete) || 0) - chk.preco) > 0.005 ? ` <button type="button" class="fchip" onclick="usarValorTabela()">↩ Usar ${brl(chk.preco)} da tabela</button>` : '';
   if (chk.semValor) return `<br><span class="badge b-ok">📑 pela tabela: ${brl(chk.preco)}</span>${usar}${conta}${alt}`;
   if (chk.acima) return `<br><span class="badge b-crit">⚠ ${brl(chk.dif)} acima da tabela</span> <span>pela tabela combinada: <b>${brl(chk.preco)}</b> — questione a transportadora antes de fechar</span>${usar}${cot ? ' <button type="button" class="fchip" onclick="questionarTabela()">💬 Questionar no WhatsApp</button>' : ''}${conta}${alt}`;
@@ -1708,7 +1729,7 @@ function renderTabelas() {
     ${lista.map(t => `<tr class="click" onclick="abrirModal('tab','${t.id}')"><td class="td-strong">${esc(t.transportadora)}</td><td>${esc(t.rota || 'todas')}</td>
       <td class="num">${t.peso_ate != null ? num(t.peso_ate).toLocaleString('pt-BR') : '—'}</td><td class="num">${t.nf_ate != null ? brl(t.nf_ate) : '—'}</td><td class="num">${t.valor_fixo != null ? brl(t.valor_fixo) : '—'}</td>
       <td class="num">${t.valor_kg != null ? brl(t.valor_kg) : '—'}</td><td class="num">${t.pct_nf != null ? num(t.pct_nf).toLocaleString('pt-BR') + '%' : '—'}</td>
-      <td class="num">${t.frete_minimo != null ? brl(t.frete_minimo) + (t.minimo_base === 'peso' ? '<div class="td-doc">só frete peso</div>' : '') : '—'}</td><td class="td-mono">${dataBR(t.vigencia_inicio)}</td>
+      <td class="num">${t.frete_minimo != null ? brl(t.frete_minimo) + (t.minimo_base === 'peso' ? '<div class="td-doc">só frete peso</div>' : '') : '—'}</td><td class="td-mono">${dataBR(t.vigencia_inicio)}${tabelaAntiga(t) ? `<div class="tag-venc" title="${esc(tabelaAntiga(t))}">⚠ ${diasEntre(t.vigencia_inicio, hojeISO()) > 365 ? 'antiga' : 'vencendo'}</div>` : ''}${num(t.cubagem_kg_m3) ? `<div class="td-doc">cubagem ${num(t.cubagem_kg_m3)} kg/m³</div>` : ''}</td>
       <td>${t.anexo_url ? `<a href="${esc(t.anexo_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(t.anexo_nome || '')}">📎 ${esc((t.anexo_nome || 'abrir').slice(0, 24))}</a>` : '<span class="td-mono">—</span>'}</td>
       <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('tab','${t.id}')">🗑</button></div></td></tr>`).join('')}</tbody>`
     : `<tbody><tr><td><div class="empty-page">📑 Nenhuma tabela cadastrada.<br><br>Cadastre a tabela combinada com cada transportadora (<b>＋ Nova tabela</b>):<br>a auditoria passa a conferir cada CT-e contra o valor contratado e a calculadora já mostra o preço.</div></td></tr></tbody>`;
@@ -2098,9 +2119,32 @@ window.selecionarVencidos = () => {
 // esses CT-es perdem só o vínculo (numero_cte) e continuam cadastradas.
 // Rastreio: SSW pela chave da NF-e (atende a maioria das transportadoras rodoviárias,
 // mesmo do Monitor); sem ela, copia a chave do CT-e e abre a consulta da SEFAZ.
+// CNPJ da GF desta filial: o mais usado nos CT-es (remetente/destinatário com raiz 07.356.800); senão a matriz.
+function cnpjGf() {
+  const cont = new Map();
+  data.cte.forEach(c => [c.remetente_cnpj, c.destino_cnpj].map(soDigitos).filter(d => d.length === 14 && d.startsWith('07356800'))
+    .forEach(d => cont.set(d, (cont.get(d) || 0) + 1)));
+  return [...cont.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '07356800000199';
+}
+function postarSsw(acao, campos) {
+  const f = document.createElement('form');
+  f.method = 'POST'; f.action = 'https://ssw.inf.br/2/' + acao; f.target = '_blank';
+  Object.entries(campos).forEach(([k, v]) => { const i = document.createElement('textarea'); i.name = k; i.value = v; i.style.display = 'none'; f.appendChild(i); });
+  document.body.appendChild(f); f.submit(); f.remove();
+}
 window.rastrearCte = id => {
   const c = data.cte.find(x => x.id === id);
   if (!c) return;
+  // SSW "pelo remetente": CNPJ de quem emitiu a NF (a GF nas saídas, o fornecedor nas compras) + Nº da(s) NF(s).
+  const nfs = nfsDe(c);
+  const rem = soDigitos(c.remetente_cnpj);
+  const gfRemetente = /GF MEDICAL/i.test(c.remetente || '') || !/COMPRA/i.test(c.tipo_saida || '');
+  const cnpjEmit = rem.length === 14 ? rem : (gfRemetente ? cnpjGf() : '');
+  if (nfs.length && cnpjEmit) {
+    postarSsw('resultSSW', { cnpj: cnpjEmit, NR: nfs.join(String.fromCharCode(10)), chave: '' });
+    toast(`🔍 Rastreando no SSW: NF ${nfs.join(', ')} · CNPJ ${fmtDoc(cnpjEmit)}`, 'info');
+    return;
+  }
   const chaveNf = c.chave_nfe || (/Chave NF-e: (\d{44})/.exec(c.observacoes || '') || [])[1];
   if (chaveNf) {
     const f = document.createElement('form');
@@ -2116,7 +2160,9 @@ window.rastrearCte = id => {
     window.open('https://www.cte.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=completa&tipoConteudo=mCK/KoCqru0=', '_blank');
     return;
   }
-  toast('Esse CT-e não tem chave de acesso gravada — importe o PDF/XML de novo para habilitar o rastreio.', 'info');
+  // Compra sem o CNPJ do fornecedor: SSW "pelo destinatário" lista tudo que está vindo para a GF.
+  postarSsw('resultSSW_dest', { cnpjdest: cnpjGf(), senha: '' });
+  toast(`🔍 Sem o CNPJ de quem emitiu a NF — abri no SSW tudo que está vindo para a GF (${fmtDoc(cnpjGf())}); procure a NF ${nfs.join(', ') || c.numero_cte}.`, 'info');
 };
 
 window.excluirCtesLote = async () => {
@@ -2361,6 +2407,7 @@ const FORMS = {
     { k: 'peso_ate', l: 'Faixa: peso até (kg)', t: 'dec', s: 1, ph: 'sem limite' },
     { k: 'nf_ate', l: 'Faixa: NF até (R$)', t: 'money', s: 1, ph: 'sem limite' },
     { k: 'minimo_base', l: 'O mínimo vale para', o: ['total', 'peso'], ol: ['o frete total', 'só o frete peso'], s: 1, def: 'total' },
+    { k: 'cubagem_kg_m3', l: 'Cubagem (kg por m³)', t: 'dec', s: 1, ph: 'Ex.: 300' },
     { k: 'valor_fixo', l: 'Taxa fixa por CT-e (R$)', t: 'money', s: 1 },
     { k: 'valor_kg', l: 'R$ por kg', t: 'dec', s: 1 },
     { k: 'pct_nf', l: '% sobre a NF (ad valorem/GRIS)', t: 'dec', s: 1 },
