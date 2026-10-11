@@ -1424,9 +1424,16 @@ window.novoRegistro = () => abrirModal({ cotacoes: 'cot', transportadoras: 'tran
 // extraídos aqui pela posição: no DACTE cada rótulo fica numa caixa e o valor
 // logo abaixo, então procuramos o texto mais próximo abaixo do rótulo e na
 // mesma coluna — mais robusto que regex quando o PDF embaralha colunas.
-const RE_MOEDA = /(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})(?!\d)/;
+// Valor em reais no formato brasileiro (1.234,56) ou americano (1,234.56 — alguns
+// DACTEs da GOL saem assim), sempre com 2 casas e sem fazer parte de outro número.
+const RE_MOEDA = /(?:R\$\s*)?(?<![\d.,])(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2}|\d{1,3}(?:,\d{3})+\.\d{2}|\d+\.\d{2})(?![\d.,]?\d)/;
 const RE_DATA = /(\d{2})[\/.\-](\d{2})[\/.\-](\d{4}|\d{2})(?!\d)/;
-const moedaNum = s => { const m = RE_MOEDA.exec(s || ''); return m ? Number(m[1].replace(/\./g, '').replace(',', '.')) : null; };
+const moedaNum = s => {
+  const m = RE_MOEDA.exec(s || '');
+  if (!m) return null;
+  const v = m[1];
+  return Number(/,\d{2}$/.test(v) ? v.replace(/\./g, '').replace(',', '.') : v.replace(/,/g, ''));
+};
 
 // ── Chave de acesso (44 dígitos): cUF(2) AAMM(4) CNPJ(14) modelo(2) série(3)
 // número(9) tpEmis(1) código(8) DV(1). Modelo 57 = CT-e, 55 = NF-e. O DV (módulo
