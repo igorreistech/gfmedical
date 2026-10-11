@@ -240,7 +240,9 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 #btn-lote-importar:disabled{opacity:0.5;cursor:not-allowed}
 .fpreview{grid-column:span 4;display:flex;align-items:center;flex-wrap:wrap;gap:8px;line-height:1.6;padding:9px 12px;border-radius:var(--radius);background:var(--bg);border:1px dashed var(--border2);font-size:0.74rem;color:var(--text2)}
 
-.toasts{position:fixed;bottom:18px;right:18px;z-index:400;display:flex;flex-direction:column;gap:6px}
+.toasts{position:fixed;bottom:18px;right:18px;z-index:400;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+/* celular: avisos no topo — no rodapé cobriam o botão Salvar dos formulários */
+@media(max-width:680px){.toasts{top:10px;bottom:auto;left:10px;right:10px}.toast{min-width:0;max-width:none}}
 .toast{padding:9px 14px;color:white;border-radius:var(--radius);font-size:0.75rem;font-weight:500;box-shadow:var(--shadow-md);animation:tIn 0.2s ease;min-width:210px;max-width:360px}
 .t-ok{background:var(--accent)}.t-err{background:var(--crit-c)}.t-info{background:var(--accent2)}
 @keyframes tIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
@@ -611,7 +613,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.12';
+const VERSAO = '2026-10-11.14';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -685,19 +687,40 @@ function msgErroBanco(error) {
 // a gravação tira a coluna que falta e grava o resto (avisando), em vez de falhar.
 const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte', 'remetente_cnpj', 'destino_cnpj',
   'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base'];
-async function gravarTolerante(exec, dados) {
+// Colunas que faltam, por banco (cliente) e tabela — descobertas ao abrir (detectarColunas)
+// ou na primeira gravação; depois são tiradas ANTES de enviar, numa tentativa só (antes era
+// uma tentativa por coluna faltando, o que deixava salvar lento, principalmente no celular).
+const _faltam = new Map(); // cliente → Map(tabela → Set(colunas))
+const faltamEm = (cli, tabela) => { if (!_faltam.has(cli)) _faltam.set(cli, new Map()); const m = _faltam.get(cli); if (!m.has(tabela)) m.set(tabela, new Set()); return m.get(tabela); };
+let _avisouColunas = false;
+const COLUNAS_POR_TABELA = {
+  frete_ctes: ['remetente', 'previsao_entrega', 'numero_cotacao', 'remetente_cnpj', 'destino_cnpj', 'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe'],
+  frete_cotacoes: ['valor_mercadoria', 'calculo_id', 'numero_cte'],
+  frete_tabelas: ['anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base'],
+};
+async function detectarColunas(cli) {
+  await Promise.all(Object.entries(COLUNAS_POR_TABELA).flatMap(([tab, cols]) => cols.map(async col => {
+    const { error } = await cli.from(tab).select(col).limit(1);
+    if (error && /column|schema cache/i.test(error.message || '') && !/relation|does not exist.*table|Could not find the table/i.test(error.message || '')) faltamEm(cli, tab).add(col);
+  })));
+}
+async function gravarTolerante(exec, dados, cli = supabase, tabela = '') {
   const lista = Array.isArray(dados);
-  let arr = [].concat(dados);
-  const faltando = [];
+  const ja = faltamEm(cli, tabela);
+  const tira = r => { const c = { ...r }; ja.forEach(k => delete c[k]); return c; };
+  let arr = [].concat(dados).map(tira);
   for (let t = 0; t <= COLUNAS_NOVAS.length; t++) {
     const res = await exec(lista ? arr : arr[0]);
     const m = res.error && /Could not find the '([^']+)' column/.exec(res.error.message || '');
-    if (!m || !COLUNAS_NOVAS.includes(m[1]) || faltando.includes(m[1])) {
-      if (faltando.length && !res.error) toast(`Gravado, mas esta filial ainda não tem a(s) coluna(s) ${faltando.join(', ')} — rode o arquivo supabase/migrations/RODAR_TUDO_fretes.sql no Supabase desta filial para guardar esses dados.`, 'info');
+    if (!m || !COLUNAS_NOVAS.includes(m[1]) || ja.has(m[1])) {
+      if (ja.size && !res.error && !_avisouColunas) {
+        _avisouColunas = true;
+        toast(`Gravado, mas o banco desta filial ainda não tem algumas colunas novas (${[...ja].join(', ')}) — rode o SQL de atualização no Supabase para guardar esses dados.`, 'info');
+      }
       return res;
     }
-    faltando.push(m[1]);
-    arr = arr.map(r => { const c = { ...r }; delete c[m[1]]; return c; });
+    ja.add(m[1]);
+    arr = arr.map(tira);
   }
 }
 
@@ -906,6 +929,7 @@ async function verificarBanco() {
 
 async function carregarTudo() {
   verificarBanco();
+  detectarColunas(supabase); if (IMPORTA_PARA) detectarColunas(supaImport);
   await Promise.all([...Object.keys(T).map(carregar), carregarDestinoImport(), carregarCalculos(), carregarConfig()]);
   montarFiltros();
   render();
@@ -1280,7 +1304,7 @@ async function vincularCotacoes(pares) {
   for (const { numeroCotacao, numeroCte } of pares) {
     const c = data.cot.find(x => x.numero === numeroCotacao);
     if (!c || c.numero_cte === numeroCte) continue;
-    const { error } = await gravarTolerante(r => supabase.from(T.cot).update(r).eq('id', c.id), { numero_cte: numeroCte, status: 'Aprovado', atualizado_em: agora });
+    const { error } = await gravarTolerante(r => supabase.from(T.cot).update(r).eq('id', c.id), { numero_cte: numeroCte, status: 'Aprovado', atualizado_em: agora }, supabase, T.cot);
     if (error) console.warn('[Fretes] Não vinculou a cotação', numeroCotacao, error.message);
   }
   if (pares.length) await carregar('cot');
@@ -1796,7 +1820,7 @@ Digite EXCLUIR para confirmar:`);
   registrarLog('excluir em lote', T.cte, `${ids.length} CT-e(s)`, { ctes: sel.map(c => c.numero_cte) });
   const nums = new Set(sel.map(c => c.numero_cte));
   const cots = data.cot.filter(c => c.numero_cte && nums.has(c.numero_cte));
-  if (cots.length) await gravarTolerante(r => supabase.from(T.cot).update(r).in('id', cots.map(c => c.id)), { numero_cte: null, atualizado_em: new Date().toISOString() });
+  if (cots.length) await gravarTolerante(r => supabase.from(T.cot).update(r).in('id', cots.map(c => c.id)), { numero_cte: null, atualizado_em: new Date().toISOString() }, supabase, T.cot);
   toast(`🗑 ${ids.length} CT-e(s) excluído(s)${cots.length ? ` · ${cots.length} cotação(ões) desvinculada(s)` : ''}`, 'info');
   ui.cteSel.clear();
   await Promise.all([carregar('cte'), carregar('cot')]); montarFiltros(); render();
@@ -2244,6 +2268,14 @@ function lerForm(tipo) {
 }
 
 window.salvarModal = async () => {
+  const btn = document.querySelector('#modal .mfoot .tbtn-p');
+  if (btn?.disabled) return;
+  const txt = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Salvando…'; }
+  try { await salvarModalInterno(); }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = txt; } }
+};
+async function salvarModalInterno() {
   const { tipo, id } = _modal;
   const form = $('modal-form');
   if (!form.reportValidity()) return;
@@ -2271,18 +2303,23 @@ window.salvarModal = async () => {
   }
   const paraDestino = !id && tipo === 'cte' && _modal.importacao && !!IMPORTA_PARA;
   if (tipo === 'cte') {
-    const dup = (paraDestino ? ctesConhecidos() : data.cte).find(c => c.id !== id && (idCte(c.numero_cte) === idCte(row.numero_cte) || mesmoLancamento(c, row)));
+    // Novo: não deixa duplicar. Edição: só barra se o Nº foi trocado para o de outro CT-e
+    // (CT-es repetidos de importações antigas não podem impedir de salvar a edição).
+    const original = id ? data.cte.find(c => c.id === id) : null;
+    const dup = (paraDestino ? ctesConhecidos() : data.cte).find(c => c.id !== id && (
+      id ? idCte(row.numero_cte) !== idCte(original?.numero_cte) && idCte(c.numero_cte) === idCte(row.numero_cte)
+         : idCte(c.numero_cte) === idCte(row.numero_cte) || mesmoLancamento(c, row)));
     if (dup) { toast(`Esse CT-e já está lançado (${dup.numero_cte}${dup.data_emissao ? ', emissão ' + dataBR(dup.data_emissao) : ''}) — não foi duplicado.`, 'err'); return; }
     if (row.status_entrega === 'Entregue' && !row.data_entrega) row.data_entrega = hojeISO();
   }
   row.atualizado_em = new Date().toISOString();
   let res;
-  if (id) res = await gravarTolerante(r => supabase.from(T[tipo]).update(r).eq('id', id), row);
+  if (id) res = await gravarTolerante(r => supabase.from(T[tipo]).update(r).eq('id', id), row, supabase, T[tipo]);
   else {
     if (paraDestino && !(await garantirSessaoImport())) return;
     row.filial = paraDestino ? FILIAL_IMPORT : FILIAL;
     if (tipo !== 'transp') row.criado_por = _user?.email || null;
-    res = await gravarTolerante(r => (paraDestino ? supaImport : supabase).from(T[tipo]).insert(r), row);
+    res = await gravarTolerante(r => (paraDestino ? supaImport : supabase).from(T[tipo]).insert(r), row, paraDestino ? supaImport : supabase, T[tipo]);
   }
   if (res.error) { toast('Erro ao salvar: ' + msgErroBanco(res.error), 'err'); return; }
   registrarLog(id ? 'editar' : (_modal.importacao ? 'importar PDF/XML' : 'criar'), T[tipo], row.numero_cte || row.numero || row.nome || id,
@@ -2294,7 +2331,7 @@ window.salvarModal = async () => {
   if (!id && _modal.loteIdx >= 0 && _lote[_modal.loteIdx]) Object.assign(_lote[_modal.loteIdx], { estado: 'importado', valores: row });
   fecharModal();
   await carregar(tipo); montarFiltros(); render();
-};
+}
 
 window.excluir = async (tipo, id) => {
   const r = data[tipo].find(x => x.id === id);
@@ -2789,7 +2826,7 @@ function faltantesDe(existe, valores) {
 // Grava só os campos faltantes no CT-e existente (aqui ou no destino da importação).
 async function completarCte(existe, faltam) {
   const cliente = data.cte.includes(existe) ? supabase : supaImport;
-  return gravarTolerante(r => cliente.from(T.cte).update(r).eq('id', existe.id), { ...faltam, atualizado_em: new Date().toISOString() });
+  return gravarTolerante(r => cliente.from(T.cte).update(r).eq('id', existe.id), { ...faltam, atualizado_em: new Date().toISOString() }, cliente, T.cte);
 }
 
 async function importarPdfCte(file) {
@@ -2964,7 +3001,7 @@ window.importarLoteSelecionados = async () => {
   }
   const rows = itens.map(it => ({ ...it.valores, filial: FILIAL_IMPORT, criado_por: _user?.email || null, atualizado_em: agora }));
   $('btn-lote-importar').disabled = true;
-  const { error } = await gravarTolerante(r => supaImport.from(T.cte).insert(r), rows);
+  const { error } = await gravarTolerante(r => supaImport.from(T.cte).insert(r), rows, supaImport, T.cte);
   if (error) { toast('Erro ao importar: ' + msgErroBanco(error), 'err'); renderLote(); return; }
   itens.forEach(it => it.estado = 'importado');
   registrarLog('importar lote', T.cte, `${rows.length} CT-e(s)`, { ctes: rows.map(r => r.numero_cte) }, supaImport, FILIAL_IMPORT);
@@ -3267,7 +3304,7 @@ window.calcSalvarHistorico = async () => {
   }));
   let msgCot = '';
   if (cots.length) {
-    const r = await gravarTolerante(x => supabase.from(T.cot).insert(x), cots);
+    const r = await gravarTolerante(x => supabase.from(T.cot).insert(x), cots, supabase, T.cot);
     msgCot = r.error ? ` — mas as cotações não foram geradas: ${msgErroBanco(r.error)}` : ` · ${cots.length} cotação(ões) gerada(s): ${cots.map(c => c.numero).join(', ')}`;
   }
   if (ops.length > comNome.length) msgCot += ` · ${ops.length - comNome.length} opção(ões) sem transportadora não viraram cotação`;
