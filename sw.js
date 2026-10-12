@@ -1,4 +1,4 @@
-const CACHE = 'monitor-unificado-v13';
+const CACHE = 'monitor-unificado-v14';
 const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
   BASE,
@@ -45,6 +45,8 @@ self.addEventListener('fetch', e => {
   // a lista de exclusão por substring do hostname deixava passar hosts novos
   // por engano; checar a origem direto é mais robusto.
   const isLocal = url.origin === self.location.origin;
+  // fretes.html (aviso de nova versão) e os arquivos .sql sempre da rede: o cache guardava versões antigas.
+  if (isLocal && /fretes\.html$|\.sql$/.test(url.pathname)) { e.respondWith(fetch(e.request, { cache: 'no-store' }).catch(() => caches.match(e.request))); return; }
   if (isLocal && e.request.method === 'GET' && url.pathname.startsWith(BASE)) {
     e.respondWith(
       caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
