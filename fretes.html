@@ -716,14 +716,10 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-12.01';
-// CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
-// que concentra o controle de fretes das duas filiais. Campo Grande é outro
-// projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
-// ou pede a senha na hora de importar.
-const IMPORTA_PARA = FILIAL === 'CBA'
-  ? { filial: 'CGR', label: 'Campo Grande', url: 'https://rqzqetfoxiutabsooqqn.supabase.co', key: 'sb_publishable_P3EggMdsxQUoKnX_pLMaRQ_ZrGEYpIP' }
-  : null;
+const VERSAO = '2026-10-12.03';
+// CT-es importados ficam no banco da própria filial (Cuiabá grava em Cuiabá, Campo Grande em
+// Campo Grande). IMPORTA_PARA = { filial, label, url, key } desviaria a importação para outro banco.
+const IMPORTA_PARA = null;
 const supaImport = IMPORTA_PARA ? createClient(IMPORTA_PARA.url, IMPORTA_PARA.key, { auth: { storageKey: 'sb-cgr-auth' } }) : supabase;
 const FILIAL_IMPORT = IMPORTA_PARA ? IMPORTA_PARA.filial : FILIAL;
 let ctesDestino = []; // CT-es já gravados no destino da importação (duplicados, formatos, transportadoras)
@@ -2353,7 +2349,7 @@ window.atualizarStatusPeloRastreio = async (manual = false) => {
   if (_readOnly) { if (manual) toast('Seu usuário é só de visualização — não pode alterar status.', 'err'); return; }
   const chaveTs = 'gf_fretes_rastreio_' + FILIAL;
   if (!manual) { try { if (Date.now() - +(localStorage.getItem(chaveTs) || 0) < 5 * 60e3 - 5000) return; } catch (e) {} }
-  const cands = data.cte.filter(c => c.status_entrega !== 'Entregue' && nfsDe(c).length && (!c.data_emissao || diasEntre(c.data_emissao, hojeISO()) <= 90));
+  const cands = data.cte.filter(c => c.status_entrega !== 'Entregue' && nfsDe(c).length && !rastreioSiteDe(c.transportadora) && (!c.data_emissao || diasEntre(c.data_emissao, hojeISO()) <= 90));
   if (!cands.length) { if (manual) toast('Nenhum CT-e em aberto (últimos 90 dias) para consultar.', 'info'); return; }
   _rastreandoLote = true;
   const btn = $('btn-rastreio-lote'); const txt = btn?.textContent;
@@ -2411,10 +2407,36 @@ window.atualizarStatusPeloRastreio = async (manual = false) => {
     if (btn) { btn.disabled = false; btn.textContent = txt; }
   }
 };
+// Transportadoras com rastreio próprio (fora do SSW). O site pede reCAPTCHA, então não dá
+// para consultar por aqui: o 🔍 mostra o que preencher, com botões de copiar, e abre o site.
+const RASTREIO_SITES = [
+  { re: /BRIX/i, nome: 'Brix Cargo', url: 'https://brixcargo.com.br/rastreamento',
+    passos: t => [`Tipo de Pesquisa: <b>Nota Fiscal</b>`, `Tipo: <b>${t.tipo === 'dest' ? 'Sou Destinatario' : 'Sou Remetente'}</b>`, 'CNPJ/CPF e Código de Número: use os botões abaixo', 'Marque o “Não sou um robô” e clique em Rastrear'] },
+];
+const rastreioSiteDe = nome => RASTREIO_SITES.find(r => r.re.test(nome || ''));
+window.copiarTexto = (txt, rot) => { navigator.clipboard?.writeText(txt).then(() => toast(`📋 ${rot} copiado: ${txt}`), () => toast(txt, 'info')); };
 window.rastrearCte = async id => {
   const c = data.cte.find(x => x.id === id);
   if (!c) return;
   const tent = tentativasRastreio(c);
+  const site = rastreioSiteDe(c.transportadora);
+  if (site && tent.length) {
+    const t = tent[0], nfs = t.nfs.join(', ');
+    _rastreio = { cte: c, tent: t };
+    $('rast-title').textContent = `🔍 Rastreio — CT-e ${c.numero_cte} · ${c.transportadora}`;
+    $('rast-info').textContent = `NF ${nfs} · ${site.nome} (rastreio no site da transportadora)`;
+    $('rast-entregue').style.display = 'none';
+    $('rast-res').innerHTML = `<div class="rast-nf">
+      <div class="td-mono" style="margin-bottom:8px">O site da ${esc(site.nome)} pede a confirmação “Não sou um robô”, então o rastreio abre lá. Preencha assim:</div>
+      <ol style="margin:0 0 10px 18px;font-size:0.8rem;line-height:1.8">${site.passos(t).map(p => `<li>${p}</li>`).join('')}</ol>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="tbtn tbtn-g" onclick="copiarTexto('${t.cnpj}', 'CNPJ')">📋 Copiar CNPJ ${esc(fmtDoc(t.cnpj))}</button>
+        ${t.nfs.map(n => `<button type="button" class="tbtn tbtn-g" onclick="copiarTexto('${n}', 'NF')">📋 Copiar NF ${esc(n)}</button>`).join('')}
+        <a class="tbtn tbtn-p" href="${site.url}" target="_blank" rel="noopener" onclick="copiarTexto('${t.nfs[0]}', 'NF')">🔗 Abrir rastreio da ${esc(site.nome)}</a>
+      </div></div>`;
+    $('modal-rastreio').classList.add('open');
+    return;
+  }
   if (tent.length) {
     _rastreio = { cte: c, tent: tent[0] };
     $('rast-title').textContent = `🔍 Rastreio — CT-e ${c.numero_cte}${c.transportadora ? ' · ' + c.transportadora : ''}`;
@@ -3295,9 +3317,10 @@ function filiaisGF(texto) {
   const t = String(texto || '').replace(/(\d)[ ](?=\d)/g, '$1');
   return Object.keys(CNPJ_FILIAIS).filter(f => CNPJ_FILIAIS[f].test(t));
 }
-// Campo Grande concentra os CT-es das duas filiais: lá nada é "de outra filial".
-const FILIAL_RECEBE_TODAS = 'CGR';
-const foraDaFilial = filiais => FILIAL_IMPORT !== FILIAL_RECEBE_TODAS && !!filiais?.length && !filiais.includes(FILIAL_IMPORT);
+// Cuiabá e Campo Grande recebem os CT-es das duas filiais: todo CT-e importado fica no banco
+// de quem importou, sem barrar como "de outra filial".
+const FILIAIS_RECEBEM_TODAS = new Set(['CGR', 'CBA']);
+const foraDaFilial = filiais => !FILIAIS_RECEBEM_TODAS.has(FILIAL_IMPORT) && !!filiais?.length && !filiais.includes(FILIAL_IMPORT);
 const deOutraFilial = it => foraDaFilial(it.filiais);
 
 // Extrai os campos de um documento (um CT-e) já separado por lerDocsPdf.
