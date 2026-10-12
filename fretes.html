@@ -406,13 +406,15 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <option value="crit">&gt; 5% (revisar)</option>
           </select>
           <select class="tsel" id="f-cte-ordem" aria-label="Ordenar CT-es" data-chave="ctes">
-            <option value="data_emissao:-1">Ordem: mais recentes</option>
+            <option value="data_emissao:-1">↕ Ordenar: mais recentes</option>
             <option value="valor_frete:-1">💰 Frete mais caro</option>
             <option value="valor_frete:1">🪙 Frete mais barato</option>
             <option value="pct:-1">% frete maior</option>
             <option value="pct:1">% frete menor</option>
             <option value="data_emissao:1">Mais antigos</option>
           </select>
+          <button class="fchip chip-ordem" data-chave="ctes" data-ordem="valor_frete:-1" onclick="ordemRapida(this)">💰 Mais caro</button>
+          <button class="fchip chip-ordem" data-chave="ctes" data-ordem="valor_frete:1" onclick="ordemRapida(this)">🪙 Mais barato</button>
           <button class="fchip w-only" id="btn-dups" onclick="abrirDuplicados()" title="CT-es lançados mais de uma vez">🧹 Revisar duplicados</button>
           <button class="fchip w-only" id="btn-rastreio-lote" onclick="atualizarStatusPeloRastreio(true)" title="Consulta no SSW os CT-es não entregues e atualiza o status">📡 Atualizar pelo rastreio</button>
         </div>
@@ -434,12 +436,14 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
           <span class="fdiv"></span>
           <select class="tsel" id="f-cot-transp"></select>
           <select class="tsel" id="f-cot-ordem" aria-label="Ordenar cotações" data-chave="cot">
-            <option value="data_cotacao:-1">Ordem: mais recentes</option>
+            <option value="data_cotacao:-1">↕ Ordenar: mais recentes</option>
             <option value="valor_frete:-1">💰 Frete mais caro</option>
             <option value="valor_frete:1">🪙 Frete mais barato</option>
             <option value="pct:-1">% s/ mercadoria maior</option>
             <option value="pct:1">% s/ mercadoria menor</option>
           </select>
+          <button class="fchip chip-ordem" data-chave="cot" data-ordem="valor_frete:-1" onclick="ordemRapida(this)">💰 Mais caro</button>
+          <button class="fchip chip-ordem" data-chave="cot" data-ordem="valor_frete:1" onclick="ordemRapida(this)">🪙 Mais barato</button>
         </div>
         <div class="twrap">
           <div class="thead-bar"><span class="thead-title">Cotações de frete</span><span class="tcount" id="cnt-cot">0</span></div>
@@ -709,7 +713,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.26';
+const VERSAO = '2026-10-11.27';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -1181,8 +1185,16 @@ $('f-busca').oninput = e => { ui.busca = e.target.value; if (ui.busca.trim() && 
 $('f-cte-transp').onchange = e => { ui.cteTransp = e.target.value; render(); };
 $('f-cte-tipo').onchange = e => { ui.cteTipo = e.target.value; render(); };
 $('f-cte-pct').onchange = e => { ui.ctePct = e.target.value; render(); };
-['f-cte-ordem', 'f-cot-ordem'].forEach(id => { $(id).onchange = e => { const [k, d] = e.target.value.split(':'); ui.sort[e.target.dataset.chave] = [k, +d]; render(); }; });
+['f-cte-ordem', 'f-cot-ordem'].forEach(id => { $(id).onchange = e => { const [k, d] = e.target.value.split(':'); ui.sort[e.target.dataset.chave] = [k, +d]; render(); sincronizarOrdem(); }; });
+// Botões rápidos: liga/desliga a ordem por frete (desligar volta para mais recentes)
+window.ordemRapida = b => {
+  const [k, d] = b.dataset.ordem.split(':'), ch = b.dataset.chave;
+  const [sk, sd] = ui.sort[ch];
+  ui.sort[ch] = sk === k && sd === +d ? [ch === 'cot' ? 'data_cotacao' : 'data_emissao', -1] : [k, +d];
+  render(); sincronizarOrdem();
+};
 function sincronizarOrdem() {
+  document.querySelectorAll('.chip-ordem').forEach(b => { const [sk, sd] = ui.sort[b.dataset.chave]; b.classList.toggle('on', b.dataset.ordem === sk + ':' + sd); });
   ['f-cte-ordem', 'f-cot-ordem'].forEach(id => {
     const el = $(id); const [k, d] = ui.sort[el.dataset.chave]; const v = k + ':' + d;
     if (![...el.options].some(o => o.value === v)) { [...el.options].filter(o => o.dataset.extra).forEach(o => o.remove()); const o = new Option('Ordem: pela coluna', v); o.dataset.extra = 1; el.add(o); }
