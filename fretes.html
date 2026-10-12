@@ -716,7 +716,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-12.04';
+const VERSAO = '2026-10-12.05';
 // CT-es importados ficam no banco da própria filial (Cuiabá grava em Cuiabá, Campo Grande em
 // Campo Grande). IMPORTA_PARA = { filial, label, url, key } desviaria a importação para outro banco.
 const IMPORTA_PARA = null;
@@ -2420,17 +2420,36 @@ const RASTREIO_SITES = [
   { re: /BRIX/i, nome: 'Brix Cargo', url: 'https://brixcargo.com.br/rastreamento', motivo: 'pede a confirmação “Não sou um robô”',
     passos: t => [`Tipo de Pesquisa: <b>Nota Fiscal</b>`, `Tipo: <b>${t.tipo === 'dest' ? 'Sou Destinatario' : 'Sou Remetente'}</b>`, 'CNPJ/CPF e Código de Número: use os botões abaixo', 'Marque o “Não sou um robô” e clique em Rastrear'],
     copiar: (c, t) => [['CNPJ', t.cnpj, fmtDoc(t.cnpj)], ...t.nfs.map(n => ['NF', n, n])] },
-  { re: /AZUL/i, nome: 'Azul Cargo', url: 'https://www.azullogistica.com.br/Rastreio/Rastrear', motivo: 'bloqueia consultas automáticas',
+  { re: /AZUL/i, nome: 'Azul Cargo', url: 'https://www.azullogistica.com.br/Rastreio/Rastrear', motivo: 'bloqueia consultas automáticas', direto: true,
     passos: () => ['Informe o <b>número do conhecimento (CT-e / AWB)</b> — botão abaixo', 'Se o site pedir, use a NF ou o CNPJ (botões abaixo)', 'Clique em Rastrear'],
     copiar: (c, t) => [['Nº do CT-e', soDigitos(c.numero_cte), c.numero_cte], ...t.nfs.map(n => ['NF', n, n]), ['CNPJ', t.cnpj, fmtDoc(t.cnpj)]] },
 ];
 const rastreioSiteDe = nome => RASTREIO_SITES.find(r => r.re.test(nome || ''));
 window.copiarTexto = (txt, rot) => { navigator.clipboard?.writeText(txt).then(() => toast(`📋 ${rot} copiado: ${txt}`), () => toast(txt, 'info')); };
+// Lupa da Gollog e da Azul: abre o site de rastreio direto (aba nova, no clique) com o Nº do CT-e copiado.
+const SITE_GOLLOG = 'https://servicos.gollog.com.br/app/site/tracking';
+function abrirSiteDireto(url, nome, copias) {
+  const w = window.open(url, '_blank');
+  try { if (w) w.opener = null; } catch (e) {}
+  const [rot, v] = copias[0] || [];
+  if (v) navigator.clipboard?.writeText(v).catch(() => {});
+  toast(`🔍 Abrindo o rastreio da ${nome}${v ? ` — ${rot} ${v} copiado: cole (Ctrl+V) no campo do site` : ''}${copias.length > 1 ? ` · ${copias.slice(1).map(([r, x]) => `${r} ${x}`).join(' · ')}` : ''}`, 'info');
+  if (!w) toast(`O navegador bloqueou a aba. Libere pop-ups deste site ou abra: ${url}`, 'err');
+}
 window.rastrearCte = async id => {
   const c = data.cte.find(x => x.id === id);
   if (!c) return;
   const tent = tentativasRastreio(c);
   const site = rastreioSiteDe(c.transportadora);
+  if (ehGollog(c.transportadora) && soDigitos(c.numero_cte)) {
+    abrirSiteDireto(SITE_GOLLOG, 'Gollog', [['Nº do CT-e', soDigitos(c.numero_cte)], ...nfsDe(c).map(n => ['NF', n])]);
+    return;
+  }
+  if (site?.direto) {
+    const t = tent[0] || { tipo: 'rem', cnpj: cnpjGf(), nfs: [] };
+    abrirSiteDireto(site.url, site.nome, site.copiar(c, t).filter(x => x[1]).map(([r, v]) => [r, v]));
+    return;
+  }
   if (site && (tent.length || soDigitos(c.numero_cte))) {
     const t = tent[0] || { tipo: 'rem', cnpj: cnpjGf(), nfs: [] }, nfs = t.nfs.join(', ') || '—';
     _rastreio = { cte: c, tent: t };
