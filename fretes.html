@@ -183,6 +183,7 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.tab-rec{margin-top:8px;padding:7px 10px;border-radius:var(--radius);background:rgba(212,146,10,.08);border:1px solid rgba(212,146,10,.35);font-size:0.74rem}
 .rast-nf{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;background:var(--surface)}
 .rast-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
 .rast-ev{list-style:none;margin:10px 0 0 6px;padding:0 0 0 14px;border-left:2px solid var(--border2)}
@@ -411,6 +412,8 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <option value="valor_frete:1">🪙 Frete mais barato</option>
             <option value="pct:-1">% frete maior</option>
             <option value="pct:1">% frete menor</option>
+            <option value="rkg:-1">R$/kg maior</option>
+            <option value="rkg:1">R$/kg menor</option>
             <option value="data_emissao:1">Mais antigos</option>
           </select>
           <button class="fchip chip-ordem" data-chave="ctes" data-ordem="valor_frete:-1" onclick="ordemRapida(this)">💰 Mais caro</button>
@@ -713,7 +716,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.28';
+const VERSAO = '2026-10-12.01';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -1310,6 +1313,27 @@ function dashMetaEConsolidacao(ctesPeriodo) {
 }
 
 function renderDashboard() {
+  renderDashboardBase();
+  // 💰 Economia: acima da tabela (a recuperar), faturas contestadas e economia nas cotações da calculadora
+  const ctes = ctesFiltrados({ ignorarFiltrosTabela: true });
+  const acima = ctes.map(c => ({ c, chk: conferirTabela('cte', c) })).filter(x => x.chk?.acima).sort((a, b) => b.chk.dif - a.chk.dif);
+  const totAcima = acima.reduce((a, x) => a + x.chk.dif, 0);
+  const contest = data.fat.filter(f => f.status === 'Contestada' && noPeriodo(f.emissao));
+  const totContest = contest.reduce((a, f) => a + faturaAcimaTabela(f).total + Math.max(0, situacaoFatura(f).dif), 0);
+  const calcs = (calculos || []).filter(c => noPeriodo((c.criado_em || '').slice(0, 10)) && (c.opcoes || []).length > 1);
+  const econ = calcs.reduce((a, c) => a + Math.max(0, Math.max(...c.opcoes.map(o => num(o.frete))) - num(c.melhor_frete)), 0);
+  const html = `<div class="dcard" style="margin-bottom:14px"><div class="dcard-head">💰 Economia e cobranças acima da tabela <small>no período</small></div><div class="dcard-body">
+    <div class="stats-bar" style="margin:0 0 10px">
+      <div class="stat-card ${acima.length ? 'crit' : ''}"><div class="stat-lbl">Cobrado acima da tabela</div><div class="stat-val">${brl(totAcima)}</div><div class="stat-sub">${acima.length} CT-e(s) — conteste nas faturas</div></div>
+      <div class="stat-card warn"><div class="stat-lbl">Em faturas contestadas</div><div class="stat-val">${brl(totContest)}</div><div class="stat-sub">${contest.length} fatura(s) contestada(s)</div></div>
+      <div class="stat-card"><div class="stat-lbl">Economia nas cotações</div><div class="stat-val">${brl(econ)}</div><div class="stat-sub">mais barata × mais cara, em ${calcs.length} cálculo(s)</div></div>
+    </div>
+    ${acima.length ? `<table><thead><tr><th>CT-e</th><th>Transportadora</th><th class="num">Cobrado</th><th class="num">Tabela</th><th class="num">A mais</th></tr></thead><tbody>${acima.slice(0, 5).map(x => `<tr class="click" onclick="abrirModal('cte','${x.c.id}')"><td class="td-strong">${esc(x.c.numero_cte)}</td><td>${esc(x.c.transportadora)}</td><td class="num">${brl(x.c.valor_frete)}</td><td class="num">${brl(x.chk.preco)}</td><td class="num" style="color:var(--crit-c)">+${brl(x.chk.dif)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-mini">✔ Nenhum CT-e acima da tabela combinada no período</div>'}
+  </div></div>`;
+  const sb = document.querySelector('#view-dashboard .stats-bar');
+  if (sb) sb.insertAdjacentHTML('afterend', html);
+}
+function renderDashboardBase() {
   const ctes = ctesFiltrados({ ignorarFiltrosTabela: true });
   const cots = cotFiltradas({ ignorarFiltrosTabela: true });
   const frete = ctes.reduce((s, c) => s + num(c.valor_frete), 0);
@@ -1372,7 +1396,7 @@ window.ui_cotStatus = s => { ui.cotStatus = s; goView('cotacoes'); };
 function renderCtes() {
   chips('chips-status-cte', STATUS_CTE, ui.cteStatus, v => ui.cteStatus = v);
   $('legend-pct').innerHTML = '<span class="flabel">% Frete/NF</span>' + Object.values(PCT_FAIXAS).map(f => `<span class="pct ${f.cls}">${f.icon} ${f.label}</span>`).join('');
-  const lista = ordenar(ctesFiltrados(), 'ctes', (r, k) => k === 'pct' ? pctFrete(r) : k === 'previsao_entrega' ? previsaoEntrega(r)
+  const lista = ordenar(ctesFiltrados(), 'ctes', (r, k) => k === 'pct' ? pctFrete(r) : k === 'rkg' ? (num(r.peso_kg) > 0 ? num(r.valor_frete) / num(r.peso_kg) : null) : k === 'previsao_entrega' ? previsaoEntrega(r)
     : (/valor|prazo/.test(k) ? (r[k] == null ? null : num(r[k])) : r[k]));
   $('cnt-ctes').textContent = lista.length;
   if (!lista.length) {
@@ -1517,6 +1541,20 @@ function pontualidade(cs) {
   return { medidos: med.length, noPrazo: med.length - atrasos.length, pct: med.length ? (med.length - atrasos.length) / med.length : null,
     atrasoMedio: atrasos.length ? atrasos.reduce((a, b) => a + b, 0) / atrasos.length : null };
 }
+// Nota automática (0–5) dos últimos 12 meses: 45% entregas no prazo (rastreio/data de entrega),
+// 35% custo (% frete/NF da transportadora × média geral) e 20% ocorrências (avaria, extravio…).
+function notaTransp(nome) {
+  const ano = data.cte.filter(c => c.data_emissao && diasEntre(c.data_emissao, hojeISO()) <= 365);
+  const es = ano.filter(c => norm(c.transportadora) === norm(nome));
+  if (es.length < 3) return null;
+  const pct = cs => { const nf = cs.reduce((a, c) => a + num(c.valor_nfe), 0); return nf > 0 ? cs.reduce((a, c) => a + num(c.valor_frete), 0) / nf : null; };
+  const pT = pct(es), pG = pct(ano), pt = pontualidade(es);
+  const custo = pT == null || !pG ? 0.5 : Math.max(0, Math.min(1, 1 - (pT - pG) / pG));
+  const prazo = pt.medidos >= 2 ? pt.pct : 0.7;
+  const ocorr = 1 - Math.min(1, es.filter(c => c.ocorrencia).length / es.length * 5);
+  return { nota: 5 * (0.45 * prazo + 0.35 * custo + 0.2 * ocorr), pont: pt.medidos >= 2 ? pt.pct : null, medidos: pt.medidos, n: es.length, pct: pT };
+}
+const notaHTML = r => r ? `<b>${r.nota.toLocaleString('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 1 })}</b> <span style="color:#d4920a">★</span>` : '<span class="td-mono">—</span>';
 // Semana ISO (AAAA-Sww) — janela da consolidação.
 function semanaISO(iso) {
   const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
@@ -1645,7 +1683,10 @@ function tabelaPara(tipo, v, transportadora = v.transportadora) {
   if (!transportadora) return null;
   const nf = tipo === 'cot' ? num(v.valor_mercadoria) : num(v.valor_nfe);
   const comUf = (cid, uf) => cid ? cid + (uf ? '/' + uf : '') : (uf || '');
-  const rotas = tipo === 'cot' ? [[comUf(v.origem, v.uf_origem), comUf(v.destino, v.uf_destino)].filter(Boolean).join(' - '), v.origem] : [v.origem];
+  // CT-e: a rota com cidades ("CAMPO GRANDE/MS → DOURADOS/MS", das observações) vem antes da origem em siglas
+  const mObs = /([A-ZÀ-Ü][A-ZÀ-Ü' .-]+\/[A-Z]{2})\s*→\s*([A-ZÀ-Ü][A-ZÀ-Ü' .-]+\/[A-Z]{2})/.exec(v.observacoes || '');
+  const rotas = tipo === 'cot' ? [[comUf(v.origem, v.uf_origem), comUf(v.destino, v.uf_destino)].filter(Boolean).join(' - '), v.origem]
+    : [mObs ? `${mObs[1].trim()} - ${mObs[2].trim()}` : null, v.origem].filter(Boolean);
   const dataRef = tipo === 'cot' ? v.data_cotacao : v.data_emissao;
   for (const rota of rotas) {
     let peso = num(v.peso_kg) || null;
@@ -1709,7 +1750,16 @@ function conferenciaTabelaHTML(chk, transportadora, { cot = false, v = null } = 
     const nomes = [...new Set(data.tab.map(t => t.transportadora).filter(n => n && norm(n) !== norm(transportadora)))];
     _altTabela = nomes.map(n => ({ nome: n, r: tabelaPara('cot', v, n) })).filter(x => x.r).sort((a, b) => a.r.preco - b.r.preco).slice(0, 4);
     const ref = chk.preco ?? (chk.valor || num(v.valor_frete) + num(v.ad_valorem)) ?? 0;
-    if (_altTabela.length) alt = `<div class="tab-alt"><span class="flabel">Outras tabelas p/ esta carga</span> ${_altTabela.map((x, i) =>
+    // ⭐ Recomendada: 60% preço pela tabela + 40% nota automática (pontualidade, custo, ocorrências)
+    const cands = [...(chk.preco ? [{ nome: transportadora, preco: chk.preco, i: -1 }] : []), ..._altTabela.map((x, i) => ({ nome: x.nome, preco: x.r.preco, i }))];
+    if (cands.length > 1) {
+      const min = Math.min(...cands.map(c => c.preco));
+      cands.forEach(c => { c.nt = notaTransp(c.nome); c.sc = 0.6 * (min / c.preco) + 0.4 * ((c.nt ? c.nt.nota : 3) / 5); });
+      const rec = [...cands].sort((a, b) => b.sc - a.sc)[0];
+      alt += `<div class="tab-rec">⭐ <b>Recomendada: ${esc(rec.nome)}</b> — ${brl(rec.preco)} pela tabela${rec.nt ? ` · nota ${rec.nt.nota.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}/5${rec.nt.pont != null ? ` · ${pctFmt(rec.nt.pont)} no prazo` : ''}` : ' · sem histórico suficiente'}
+        ${rec.i >= 0 ? ` <button type="button" class="fchip" onclick="trocarPelaTabela(${rec.i})">trocar para ela</button>` : ' <span class="badge b-ok">é a escolhida</span>'}</div>`;
+    }
+    if (_altTabela.length) alt += `<div class="tab-alt"><span class="flabel">Outras tabelas p/ esta carga</span> ${_altTabela.map((x, i) =>
       `<button type="button" class="fchip${ref && x.r.preco < ref - 1 ? ' on' : ''}" title="${esc(descLinhaTabela(x.r.linha))}" onclick="trocarPelaTabela(${i})">${esc(x.nome.split(' ').slice(0, 2).join(' '))} ${brl(x.r.preco)}</button>`).join('')}</div>`;
   }
   if (chk.semTabela) return `<br><span class="td-mono">Sem tabela combinada da ${esc(transportadora)} — cadastre/anexe em 📑 Tabelas de frete para conferir automaticamente.</span>${alt}`;
@@ -1822,6 +1872,33 @@ function situacaoFatura(f) {
   const dias = f.vencimento ? diasEntre(hojeISO(), f.vencimento) : null;
   return { soma, dif, confere: Math.abs(dif) < 0.01, dias, vencida: f.status !== 'Paga' && dias != null && dias < 0, vencendo: f.status !== 'Paga' && dias != null && dias >= 0 && dias <= 5 };
 }
+// CT-es da fatura cobrados acima da tabela combinada
+function faturaAcimaTabela(f, nums = f.ctes || []) {
+  const itens = data.cte.filter(c => nums.includes(c.numero_cte)).map(c => ({ c, chk: conferirTabela('cte', c) }));
+  const acima = itens.filter(x => x.chk?.acima);
+  return { conferidos: itens.filter(x => x.chk && x.chk.preco != null).length, acima, total: acima.reduce((a, x) => a + x.chk.dif, 0) };
+}
+window.contestarFatura = async id => {
+  const f = data.fat.find(x => x.id === id); if (!f) return;
+  const r = faturaAcimaTabela(f), st = situacaoFatura(f);
+  if (!r.acima.length && st.confere) { toast('Essa fatura confere com os CT-es e com a tabela — nada a contestar.', 'info'); return; }
+  const t = data.transp.find(x => norm(x.nome) === norm(f.transportadora));
+  const L = [`Olá${t?.contato ? ' ' + t.contato : ''}, tudo bem? Aqui é da GF Medical ${FILIAL_LABEL}.`, `Sobre a fatura ${f.numero || ''} (${brl(f.valor)}, vencimento ${dataBR(f.vencimento)}):`, ''];
+  if (!st.confere) L.push(`• A soma dos CT-es dá ${brl(st.soma)}, mas a fatura é de ${brl(f.valor)} (diferença de ${brl(st.dif)}).`);
+  if (r.acima.length) {
+    L.push(`• ${r.acima.length} CT-e(s) acima da tabela combinada:`);
+    r.acima.forEach(x => L.push(`   - CT-e ${x.c.numero_cte} (${dataBR(x.c.data_emissao)}, NF ${x.c.numero_nfe || '—'}): cobrado ${brl(x.c.valor_frete)} × tabela ${brl(x.chk.preco)} → ${brl(x.chk.dif)} a mais`));
+    L.push(`   Total acima da tabela: ${brl(r.total)}`);
+  }
+  L.push('', 'Podem revisar e reemitir/abater, por favor?');
+  const texto = L.join('\n'), tel = soDigitos(t?.telefone);
+  navigator.clipboard?.writeText(texto).catch(() => {});
+  window.open(tel.length >= 10 ? `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(texto)}` : 'https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
+  if (f.status !== 'Contestada' && !_readOnly && confirm('Mensagem pronta no WhatsApp (e copiada). Marcar esta fatura como "Contestada"?')) {
+    const { error } = await supabase.from(T.fat).update({ status: 'Contestada', atualizado_em: new Date().toISOString() }).eq('id', id);
+    if (!error) { registrarLog('fatura contestada', T.fat, f.numero || id, { acima_tabela: r.total }); await carregar('fat'); render(); }
+  }
+};
 function renderFaturas() {
   const lista = [...data.fat].sort((a, b) => (a.status === 'Paga') - (b.status === 'Paga') || (a.vencimento || '9').localeCompare(b.vencimento || '9'));
   $('cnt-fat').textContent = lista.length;
@@ -1831,14 +1908,15 @@ function renderFaturas() {
   const sem = data.cte.filter(c => !faturados.has(c.numero_cte) && c.data_emissao && diasEntre(c.data_emissao, hojeISO()) > 30);
   const semPorT = new Map(); sem.forEach(c => semPorT.set(c.transportadora, (semPorT.get(c.transportadora) || 0) + 1));
   $('fat-sem').innerHTML = sem.length ? `ℹ ${sem.length} CT-e(s) com mais de 30 dias ainda sem fatura lançada: ${[...semPorT].map(([t, n]) => `${esc(t)} (${n})`).join(', ')}.` : '✔ Todos os CT-es com mais de 30 dias já estão em alguma fatura.';
-  $('tb-fat').innerHTML = lista.length ? `<thead><tr><th>Transportadora</th><th>Nº</th><th>Emissão</th><th>Vencimento</th><th class="num">Cobrado</th><th class="num">CT-es</th><th class="num">Soma dos CT-es</th><th>Conferência</th><th>Situação</th><th></th></tr></thead><tbody>
-    ${lista.map(f => { const st = situacaoFatura(f); return `<tr class="click" onclick="abrirModal('fat','${f.id}')">
+  $('tb-fat').innerHTML = lista.length ? `<thead><tr><th>Transportadora</th><th>Nº</th><th>Emissão</th><th>Vencimento</th><th class="num">Cobrado</th><th class="num">CT-es</th><th class="num">Soma dos CT-es</th><th>Conferência</th><th>Tabela combinada</th><th>Situação</th><th></th></tr></thead><tbody>
+    ${lista.map(f => { const st = situacaoFatura(f), tb = faturaAcimaTabela(f); return `<tr class="click" onclick="abrirModal('fat','${f.id}')">
       <td class="td-strong">${esc(f.transportadora)}</td><td class="td-mono">${esc(f.numero || '—')}</td><td class="td-mono">${dataBR(f.emissao)}</td>
       <td class="td-mono">${dataBR(f.vencimento)}${st.vencida ? '<span class="tag-venc">VENCIDA</span>' : st.vencendo ? `<span class="tag-venc" style="color:var(--warn-c)">em ${st.dias}d</span>` : ''}</td>
       <td class="num">${brl(f.valor)}</td><td class="num">${(f.ctes || []).length}</td><td class="num">${brl(st.soma)}</td>
       <td>${!num(f.valor) ? '—' : st.confere ? '<span class="badge b-ok">✔ confere</span>' : `<span class="badge ${st.dif > 0 ? 'b-crit' : 'b-warn'}">⚠ ${st.dif > 0 ? '+' : '−'}${brl(Math.abs(st.dif))}</span>`}</td>
+      <td>${tb.acima.length ? `<span class="badge b-crit" title="${esc(tb.acima.map(x => `${x.c.numero_cte}: ${brl(x.c.valor_frete)} × tabela ${brl(x.chk.preco)}`).join(' · '))}">⚠ ${tb.acima.length} acima · +${brl(tb.total)}</span>` : tb.conferidos ? `<span class="badge b-ok">✔ ${tb.conferidos} conferido(s)</span>` : '<span class="td-mono">sem tabela</span>'}</td>
       <td>${badge(f.status === 'Paga' ? 'Aprovado' : f.status === 'Contestada' ? 'Reprovado' : 'Aguardando').replace(/Aprovado|Reprovado|Aguardando/, esc(f.status))}</td>
-      <td><div class="row-acts w-only">${f.status !== 'Paga' ? `<button class="abtn" title="Marcar como paga" onclick="event.stopPropagation();marcarFaturaPaga('${f.id}')">✔</button>` : ''}<button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('fat','${f.id}')">🗑</button></div></td></tr>`; }).join('')}</tbody>`
+      <td><div class="row-acts w-only">${(tb.acima.length || (!st.confere && num(f.valor))) && f.status !== 'Paga' ? `<button class="abtn" title="Contestar no WhatsApp (acima da tabela / soma não confere)" onclick="event.stopPropagation();contestarFatura('${f.id}')">💬</button>` : ''}${f.status !== 'Paga' ? `<button class="abtn" title="Marcar como paga" onclick="event.stopPropagation();marcarFaturaPaga('${f.id}')">✔</button>` : ''}<button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('fat','${f.id}')">🗑</button></div></td></tr>`; }).join('')}</tbody>`
     : '<tbody><tr><td><div class="empty-page">💳 Nenhuma fatura lançada.<br><br>Lance a fatura/boleto de cada transportadora (<b>＋ Nova fatura</b>) e marque os CT-es cobrados:<br>a página confere se a soma bate e avisa os vencimentos.</div></td></tr></tbody>';
 }
 window.marcarFaturaPaga = async id => {
@@ -1996,7 +2074,8 @@ function resumoDoDia() {
   const doMes = data.cte.filter(c => (c.data_emissao || '').startsWith(mes) && num(c.valor_nfe) > 0);
   const pMes = doMes.length ? doMes.reduce((a, c) => a + num(c.valor_frete), 0) / doMes.reduce((a, c) => a + num(c.valor_nfe), 0) : null;
   const fatVenc = data.fat.filter(f => { const st = situacaoFatura(f); return st.vencida || st.vencendo; });
-  return { vencidos, aud, pMes, fatVenc, meta: metaPct() };
+  const tabVenc = [...new Map(data.tab.filter(t => tabelaAntiga(t)).map(t => [norm(t.transportadora), t])).values()];
+  return { vencidos, aud, pMes, fatVenc, tabVenc, meta: metaPct() };
 }
 window.enviarResumoDia = () => {
   const r = resumoDoDia();
@@ -2005,6 +2084,7 @@ window.enviarResumoDia = () => {
   r.vencidos.slice(0, 8).forEach(c => L.push(`- ${c.numero_cte} · ${c.transportadora || '—'} · previsão ${dataBR(previsaoEntrega(c))}`));
   L.push('', `Auditoria (últimos 60 dias): ${r.aud.length} CT-e(s) · a contestar ~${brl(r.aud.reduce((a, x) => a + x.contestar, 0))}`);
   L.push('', `% frete/NF no mês: ${pctFmt(r.pMes)} · meta ${pctFmt(r.meta)}${r.pMes != null ? (r.pMes <= r.meta ? ' (dentro)' : ' (acima)') : ''}`);
+  if (r.tabVenc.length) { L.push('', `Tabelas combinadas para renovar: ${r.tabVenc.length}`); r.tabVenc.forEach(t => L.push(`- ${t.transportadora}: ${tabelaAntiga(t)}`)); }
   if (r.fatVenc.length) { L.push('', `Faturas vencidas ou vencendo em até 5 dias: ${r.fatVenc.length}`); r.fatVenc.forEach(f => L.push(`- ${f.transportadora} ${f.numero || ''} · ${brl(f.valor)} · vence ${dataBR(f.vencimento)}`)); }
   const texto = L.join('\n');
   navigator.clipboard?.writeText(texto).catch(() => {});
@@ -2018,7 +2098,7 @@ function avisoDiario() {
   try { localStorage.setItem(chave, hojeISO()); } catch (e) {}
   const r = resumoDoDia();
   const partes = [r.vencidos.length ? `${r.vencidos.length} entrega(s) vencida(s)` : null, r.aud.length ? `${r.aud.length} CT-e(s) na auditoria` : null,
-    r.fatVenc.length ? `${r.fatVenc.length} fatura(s) vencendo` : null, r.pMes != null && r.pMes > r.meta ? `frete do mês acima da meta (${pctFmt(r.pMes)})` : null].filter(Boolean);
+    r.fatVenc.length ? `${r.fatVenc.length} fatura(s) vencendo` : null, r.tabVenc.length ? `${r.tabVenc.length} tabela(s) combinada(s) para renovar (${r.tabVenc.map(t => t.transportadora).join(', ')})` : null, r.pMes != null && r.pMes > r.meta ? `frete do mês acima da meta (${pctFmt(r.pMes)})` : null].filter(Boolean);
   if (!partes.length) return;
   const msg = '🔔 Hoje no frete: ' + partes.join(' · ');
   toast(msg, 'info');
@@ -2262,6 +2342,9 @@ function rastreioHTML(res) {
 // CT-es não entregues (até 90 dias, prazo do SSW) consultados em lote, agrupados por consulta
 // (remetente/destinatário + CNPJ, até 100 NFs cada). ENTREGUE → Entregue com a data do SSW;
 // qualquer movimento com o CT-e Pendente → Em trânsito. Roda sozinho ao abrir e a cada 5 minutos com a página aberta.
+// Situação do SSW → ocorrência do CT-e (só quando o CT-e ainda não tem ocorrência)
+const ocorrenciaDoSsw = s => /AVARIA/i.test(s) ? 'Avaria' : /EXTRAVI/i.test(s) ? 'Extravio' : /DEVOLU|DEVOLVID/i.test(s) ? 'Devolução'
+  : /AUSENTE|ENDERE[ÇC]O (N[ÃA]O|INCORRET|INSUFIC)|RECUS|REENTREGA|ESTABELECIMENTO FECHADO|N[ÃA]O LOCALIZAD/i.test(s) ? 'Reentrega' : null;
 const dataSsw = dh => { const m = /(\d{2})\/(\d{2})\/(\d{2,4})/.exec(dh || ''); return m ? `${m[3].length === 2 ? '20' + m[3] : m[3]}-${m[2]}-${m[1]}` : null; };
 const nfDaLinha = l => (String(l.nf || '').trim().split(/\s+/).pop() || '').replace(/^0+/, '');
 let _rastreandoLote = false;
@@ -2304,17 +2387,21 @@ window.atualizarStatusPeloRastreio = async (manual = false) => {
     const mudar = [];
     achados.forEach((l, id) => {
       const c = data.cte.find(x => x.id === id);
-      if (ehEntregue(l.situacao)) mudar.push({ c, upd: { status_entrega: 'Entregue', data_entrega: dataSsw(l.dataHora) || hojeISO() }, l });
-      else if (c.status_entrega === 'Pendente') mudar.push({ c, upd: { status_entrega: 'Em trânsito' }, l });
+      const upd = {};
+      if (ehEntregue(l.situacao)) Object.assign(upd, { status_entrega: 'Entregue', data_entrega: dataSsw(l.dataHora) || hojeISO() });
+      else if (c.status_entrega === 'Pendente') upd.status_entrega = 'Em trânsito';
+      const oc = ocorrenciaDoSsw(l.situacao + ' ' + (l.detalhe || ''));
+      if (oc && !c.ocorrencia) Object.assign(upd, { ocorrencia: oc, ocorrencia_obs: `SSW ${l.dataHora || ''}: ${l.situacao}`.slice(0, 300) });
+      if (Object.keys(upd).length) mudar.push({ c, upd, l });
     });
     const agora = new Date().toISOString();
-    const res = await Promise.all(mudar.map(m => supabase.from(T.cte).update({ ...m.upd, atualizado_em: agora }).eq('id', m.c.id)));
+    const res = await Promise.all(mudar.map(m => gravarTolerante(r => supabase.from(T.cte).update(r).eq('id', m.c.id), { ...m.upd, atualizado_em: agora }, supabase, T.cte)));
     const ok = mudar.filter((m, i) => !res[i].error);
     try { localStorage.setItem(chaveTs, String(Date.now())); } catch (e) {}
     if (ok.length) {
-      registrarLog('status pelo rastreio SSW', T.cte, `${ok.length} CT-e(s)`, { alterados: ok.map(m => `${m.c.numero_cte}: ${m.c.status_entrega} → ${m.upd.status_entrega}${m.upd.data_entrega ? ' em ' + m.upd.data_entrega : ''}`) });
-      const ent = ok.filter(m => m.upd.status_entrega === 'Entregue').length;
-      toast(`📡 Rastreio SSW: ${ent ? `${ent} CT-e(s) marcados como entregues` : ''}${ent && ok.length - ent ? ' · ' : ''}${ok.length - ent ? `${ok.length - ent} em trânsito` : ''}`);
+      registrarLog('status pelo rastreio SSW', T.cte, `${ok.length} CT-e(s)`, { alterados: ok.map(m => `${m.c.numero_cte}: ${m.upd.status_entrega ? `${m.c.status_entrega} → ${m.upd.status_entrega}` : ''}${m.upd.data_entrega ? ' em ' + m.upd.data_entrega : ''}${m.upd.ocorrencia ? ' · ocorrência ' + m.upd.ocorrencia : ''}`) });
+      const ent = ok.filter(m => m.upd.status_entrega === 'Entregue').length, tr = ok.filter(m => m.upd.status_entrega === 'Em trânsito').length, oc = ok.filter(m => m.upd.ocorrencia).length;
+      toast('📡 Rastreio SSW: ' + [ent && `${ent} entregue(s)`, tr && `${tr} em trânsito`, oc && `${oc} ocorrência(s) registrada(s)`].filter(Boolean).join(' · '));
       await carregar('cte'); montarFiltros(); render();
     } else if (manual) {
       toast(`📡 Consultei ${cands.length} CT-e(s) no SSW: nenhuma mudança de status${achados.size ? '' : ' (as transportadoras desses CT-es não aparecem no SSW)'}.`, 'info');
@@ -2556,13 +2643,13 @@ function renderTransp() {
   }
   $('tb-transp').innerHTML = `<thead><tr>
     ${th('transp', 'nome', 'Transportadora')}${th('transp', 'cnpj', 'CNPJ')}${th('transp', 'contato', 'Contato')}
-    ${th('transp', 'telefone', 'Telefone')}${th('transp', 'email', 'E-mail')}${th('transp', 'modal', 'Modal')}${th('transp', 'avaliacao', 'Avaliação')}${th('transp', 'observacoes', 'Observações')}<th></th>
+    ${th('transp', 'telefone', 'Telefone')}${th('transp', 'email', 'E-mail')}${th('transp', 'modal', 'Modal')}${th('transp', 'avaliacao', 'Avaliação')}<th class="num" title="Automática, últimos 12 meses: 45% entregas no prazo · 35% custo (% frete/NF × média) · 20% ocorrências">Nota automática</th><th class="num">No prazo</th>${th('transp', 'observacoes', 'Observações')}<th></th>
   </tr></thead><tbody>
   ${lista.map(t => `<tr class="click" onclick="abrirModal('transp','${t.id}')">
     <td class="td-strong">${esc(t.nome)}</td><td class="td-mono">${esc(t.cnpj || '—')}</td><td>${esc(t.contato || '—')}</td>
     <td class="td-mono">${esc(t.telefone || '—')}</td><td>${t.email ? `<a href="mailto:${esc(t.email)}" onclick="event.stopPropagation()">${esc(t.email)}</a>` : '—'}</td>
     <td>${t.modal ? `<span class="badge ${/aéreo/i.test(t.modal) && !/rodo/i.test(t.modal) ? 'b-info' : 'b-mute'}">${/aéreo/i.test(t.modal) && !/rodo/i.test(t.modal) ? '✈' : '🚚'} ${esc(t.modal)}</span>` : '—'}</td>
-    <td>${stars(t.avaliacao)}</td><td class="td-trunc" title="${esc(t.observacoes)}">${esc(t.observacoes || '—')}</td>
+    <td>${stars(t.avaliacao)}</td>${(() => { const r = notaTransp(t.nome); return `<td class="num" title="${r ? `${r.n} CT-e(s) · % frete ${pctFmt(r.pct)} · ${r.medidos} entrega(s) medidas` : 'menos de 3 CT-es nos últimos 12 meses'}">${notaHTML(r)}</td><td class="num">${r?.pont != null ? pctFmt(r.pont) : '—'}</td>`; })()}<td class="td-trunc" title="${esc(t.observacoes)}">${esc(t.observacoes || '—')}</td>
     <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('transp','${t.id}')">🗑</button></div></td>
   </tr>`).join('')}</tbody>`;
 }
@@ -2811,6 +2898,9 @@ function atualizarPreview() {
     const dif = v('valor') - soma;
     el.innerHTML = `<span class="flabel">Conferência</span> ${sel.length} CT-e(s) somam <b>${brl(soma)}</b> · fatura ${brl(v('valor'))} →
       ${!v('valor') ? '<span class="td-mono">informe o valor cobrado</span>' : Math.abs(dif) < 0.01 ? '<span class="badge b-ok">✔ confere</span>' : `<span class="badge ${dif > 0 ? 'b-crit' : 'b-warn'}">⚠ ${dif > 0 ? 'cobrado a mais' : 'cobrado a menos'} ${brl(Math.abs(dif))}</span>`}`;
+    const tb = faturaAcimaTabela({}, sel);
+    if (tb.acima.length) el.innerHTML += `<br><span class="flabel">Tabela combinada</span> <span class="badge b-crit">⚠ ${tb.acima.length} CT-e(s) acima: +${brl(tb.total)}</span> <span class="td-mono">${tb.acima.map(x => `${esc(x.c.numero_cte)} (${brl(x.c.valor_frete)} × ${brl(x.chk.preco)})`).join(' · ')}</span>`;
+    else if (tb.conferidos) el.innerHTML += `<br><span class="flabel">Tabela combinada</span> <span class="badge b-ok">✔ ${tb.conferidos} CT-e(s) de acordo com a tabela</span>`;
     return;
   }
   if (_modal.tipo === 'cte') {
