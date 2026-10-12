@@ -183,6 +183,12 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.sim-grid{grid-template-columns:1fr 84px 1fr 84px}.sim-grid .fg{grid-column:auto}
+.sim-grid .fg:nth-child(5){grid-column:1 / span 2}.sim-grid .fg:nth-child(6){grid-column:3 / span 2}
+.sim-vol{display:grid;grid-template-columns:70px repeat(3,1fr) 34px;gap:6px;margin-bottom:6px;align-items:center}
+.sim-vol .finput{padding:7px 8px}
+.sim-conta{font-size:0.66rem;color:var(--text2);margin-top:2px;line-height:1.4}
+@media(max-width:680px){.sim-grid{grid-template-columns:1fr 70px}.sim-grid .fg:nth-child(5),.sim-grid .fg:nth-child(6){grid-column:1 / -1}}
 body{padding-bottom:38px}.sidebar{padding-bottom:38px}
 .tab-rec{margin-top:8px;padding:7px 10px;border-radius:var(--radius);background:rgba(212,146,10,.08);border:1px solid rgba(212,146,10,.35);font-size:0.74rem}
 .rast-nf{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;background:var(--surface)}
@@ -476,13 +482,21 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <div class="tscroll"><table id="tb-tab"></table></div>
           </div>
           <div class="dcard">
-            <div class="dcard-head">🧮 Simulador — quanto cada uma cobraria pela tabela</div>
+            <div class="dcard-head">🧮 Calcular frete pela tabela — dimensões, peso e valor da NF</div>
             <div class="dcard-body">
-              <div class="fgrid">
-                <div class="fg s4"><label class="flbl" for="sim-rota">Rota</label><input class="finput" id="sim-rota" list="dl-rotas" placeholder="Ex.: SJP - CGB (em branco = só tabelas gerais)"></div>
-                <div class="fg"><label class="flbl" for="sim-peso">Peso (kg)</label><input class="finput" id="sim-peso" type="number" min="0" step="0.1"></div>
-                <div class="fg"><label class="flbl" for="sim-nf">Valor da NF (R$)</label><input class="finput" id="sim-nf" type="number" min="0" step="0.01"></div>
+              <div class="fgrid sim-grid">
+                <div class="fg"><label class="flbl" for="sim-origem">Origem</label><input class="finput" id="sim-origem" list="dl-orig" autocomplete="off" placeholder="Cidade de saída"></div>
+                <div class="fg sim-uf"><label class="flbl" for="sim-uf_origem">UF</label><select class="finput" id="sim-uf_origem"></select></div>
+                <div class="fg"><label class="flbl" for="sim-destino">Destino</label><input class="finput" id="sim-destino" list="dl-dest" autocomplete="off" placeholder="Cidade de entrega"></div>
+                <div class="fg sim-uf"><label class="flbl" for="sim-uf_destino">UF</label><select class="finput" id="sim-uf_destino"></select></div>
+                <div class="fg"><label class="flbl" for="sim-nf">Valor da NF (R$)</label><input class="finput" id="sim-nf" type="number" min="0" step="0.01" placeholder="Ex.: 10400"></div>
+                <div class="fg"><label class="flbl" for="sim-peso">Peso real total (kg)</label><input class="finput" id="sim-peso" type="number" min="0" step="0.1" placeholder="Ex.: 5"></div>
               </div>
+              <div class="flbl" style="margin:12px 0 6px">Volumes — dimensões em cm (para o peso cubado)</div>
+              <div class="sim-vol td-mono" style="margin-bottom:2px"><span>Qtd</span><span>Comprimento</span><span>Largura</span><span>Altura</span><span></span></div>
+              <div id="sim-vols"></div>
+              <button type="button" class="add-item" onclick="simAddVol()">＋ adicionar volume</button>
+              <div class="td-mono" id="sim-cub" style="margin-top:6px"></div>
               <div id="sim-res" style="margin-top:12px"></div>
             </div>
           </div>
@@ -551,7 +565,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             </div>
           </div>
           <div class="dcard">
-            <div class="dcard-head">📋 Resultado<small id="calc-sub"></small></div>
+            <div class="dcard-head">📋 Resultado<small id="calc-sub"></small><button type="button" class="fchip" style="margin-left:auto" onclick="goView('tabelas');setTimeout(()=>document.getElementById('sim-nf').focus(),50)" title="Calcula o frete de todas as transportadoras pela tabela combinada, com dimensões">📐 Calcular pela tabela (com dimensões)</button></div>
             <div class="dcard-body" id="calc-resultado"></div>
             <div class="calc-salvar w-only" id="calc-salvar" style="display:none">
               <input class="finput" id="calc-obs" placeholder="Observação (opcional): pedido, cliente, NF…" aria-label="Observação do cálculo">
@@ -717,7 +731,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-12.08';
+const VERSAO = '2026-10-12.09';
 // CT-es importados ficam no banco da própria filial (Cuiabá grava em Cuiabá, Campo Grande em
 // Campo Grande). IMPORTA_PARA = { filial, label, url, key } desviaria a importação para outro banco.
 const IMPORTA_PARA = null;
@@ -1848,19 +1862,65 @@ function renderTabelas() {
       <td>${t.anexo_url ? `<a href="${esc(t.anexo_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(t.anexo_nome || '')}">📎 ${esc((t.anexo_nome || 'abrir').slice(0, 24))}</a>` : '<span class="td-mono">—</span>'}</td>
       <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('tab','${t.id}')">🗑</button></div></td></tr>`).join('')}</tbody>`
     : `<tbody><tr><td><div class="empty-page">📑 Nenhuma tabela cadastrada.<br><br>Cadastre a tabela combinada com cada transportadora (<b>＋ Nova tabela</b>):<br>a auditoria passa a conferir cada CT-e contra o valor contratado e a calculadora já mostra o preço.</div></td></tr></tbody>`;
-  ['sim-rota', 'sim-peso', 'sim-nf'].forEach(id => { $(id).oninput = simular; });
+  if (!$('sim-uf_origem').options.length) {
+    const ufs = ['', ...UFS].map(u => `<option value="${u}">${u || '—'}</option>`).join('');
+    $('sim-uf_origem').innerHTML = ufs; $('sim-uf_destino').innerHTML = ufs;
+    $('sim-uf_origem').value = FILIAL === 'CGR' ? 'MS' : 'MT';
+    ['sim-origem', 'sim-destino', 'sim-nf', 'sim-peso'].forEach(id => { $(id).oninput = simular; });
+    ['sim-uf_origem', 'sim-uf_destino'].forEach(id => { $(id).onchange = simular; });
+    ligarOrigemDestino('sim-', simular);
+    $('sim-vols').oninput = simular;
+    simAddVol();
+  }
   simular();
 }
-function simular() {
-  const rota = $('sim-rota').value.trim(), peso = num($('sim-peso').value), nf = num($('sim-nf').value);
-  const transps = [...new Set(data.tab.map(t => t.transportadora))];
-  if (!transps.length) { $('sim-res').innerHTML = '<div class="empty-mini">Cadastre tabelas para simular.</div>'; return; }
-  const res = transps.map(t => ({ t, r: precoTabela(t, rota, peso || null, nf, hojeISO()) })).filter(x => x.r).sort((a, b) => a.r.preco - b.r.preco);
-  $('sim-res').innerHTML = res.length ? `<table><thead><tr><th>Transportadora</th><th class="num">Frete pela tabela</th><th class="num">% NF</th><th class="num">R$/kg</th></tr></thead><tbody>
-    ${res.map((x, i) => `<tr><td>${i === 0 ? '<span class="calc-melhor">MAIS BARATA</span> ' : ''}${esc(x.t)}${x.r.linha.rota ? '' : ' <span class="td-mono">(tabela geral)</span>'}</td><td class="num"><b>${brl(x.r.preco)}</b></td>
-      <td class="num">${nf > 0 ? pctHTML(x.r.preco / nf) : '—'}</td><td class="num">${peso > 0 ? brl(x.r.preco / peso) : '—'}</td></tr>`).join('')}</tbody></table>`
-    : '<div class="empty-mini">Nenhuma tabela atende (confira a rota e informe o peso, se a tabela cobra por kg).</div>';
+// Volumes (qtd × C × L × A em cm) → m³; cada transportadora cobra pelo maior entre o peso real
+// e o cubado (m³ × fator da tabela dela, ex.: 300 kg/m³).
+window.simAddVol = () => {
+  const d = document.createElement('div'); d.className = 'sim-vol';
+  d.innerHTML = `<input class="finput" data-v="q" type="number" min="1" step="1" value="1" aria-label="Quantidade de volumes" title="Quantidade">
+    <input class="finput" data-v="c" type="number" min="0" step="0.1" placeholder="Compr. cm" aria-label="Comprimento (cm)">
+    <input class="finput" data-v="l" type="number" min="0" step="0.1" placeholder="Largura cm" aria-label="Largura (cm)">
+    <input class="finput" data-v="a" type="number" min="0" step="0.1" placeholder="Altura cm" aria-label="Altura (cm)">
+    <button type="button" class="abtn del" title="Remover volume" onclick="this.parentElement.remove();simular()">✕</button>`;
+  $('sim-vols').appendChild(d);
+};
+function simDados() {
+  const g = id => $(id)?.value.trim() || null;
+  let m3 = 0, vols = 0;
+  $('sim-vols').querySelectorAll('.sim-vol').forEach(r => {
+    const v = k => num(r.querySelector(`[data-v="${k}"]`).value);
+    const q = Math.max(1, v('q') || 1);
+    if (v('c') && v('l') && v('a')) { m3 += q * v('c') * v('l') * v('a') / 1e6; vols += q; }
+  });
+  return { origem: g('sim-origem'), uf_origem: g('sim-uf_origem'), destino: g('sim-destino'), uf_destino: g('sim-uf_destino'),
+    peso_kg: num($('sim-peso').value) || null, valor_mercadoria: num($('sim-nf').value), volume_m3: m3 || null, data_cotacao: hojeISO(), vols };
 }
+let _simRes = [];
+function simular() {
+  const v = simDados();
+  const transps = [...new Set(data.tab.map(t => canonTransp(t.transportadora)))];
+  $('sim-cub').innerHTML = v.volume_m3 ? `📦 ${v.vols} volume(s) · <b>${v.volume_m3.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} m³</b> · peso cubado a 300 kg/m³: <b>${(v.volume_m3 * 300).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg</b> (cada tabela usa o fator dela)` : 'Sem dimensões: calcula só pelo peso real.';
+  if (!transps.length) { $('sim-res').innerHTML = '<div class="empty-mini">Cadastre tabelas para simular.</div>'; return; }
+  if (!v.valor_mercadoria && !v.peso_kg && !v.volume_m3) { $('sim-res').innerHTML = '<div class="empty-mini">Informe o valor da NF, o peso e/ou as dimensões.</div>'; return; }
+  _simRes = transps.map(t => ({ t, r: tabelaPara('cot', v, t) })).filter(x => x.r).sort((a, b) => a.r.preco - b.r.preco);
+  const kg = x => num(x.r.peso).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  $('sim-res').innerHTML = _simRes.length ? `<table><thead><tr><th>Transportadora</th><th class="num">Peso cobrado</th><th class="num">Frete pela tabela</th><th class="num">% NF</th><th></th></tr></thead><tbody>
+    ${_simRes.map((x, i) => `<tr><td>${i === 0 ? '<span class="calc-melhor">MAIS BARATA</span> ' : ''}<b>${esc(x.t)}</b>${tabelaAntiga(x.r.linha) ? ' <span class="badge b-warn" title="' + esc(tabelaAntiga(x.r.linha)) + '">⚠ tabela antiga</span>' : ''}
+        <div class="sim-conta">${esc(descLinhaTabela(x.r.linha))}<br>${contaTabela(x.r.linha, x.r.peso, x.r.nf)}</div></td>
+      <td class="num">${x.r.peso ? kg(x) + ' kg' : '—'}${x.r.cubado ? '<div class="td-doc">cubado</div>' : ''}</td><td class="num"><b>${brl(x.r.preco)}</b></td>
+      <td class="num">${v.valor_mercadoria > 0 ? pctHTML(x.r.preco / v.valor_mercadoria) : '—'}</td>
+      <td><button type="button" class="fchip w-only" onclick="simCotar(${i})" title="Abre uma cotação já preenchida">＋ Cotar</button></td></tr>`).join('')}</tbody></table>`
+    : '<div class="empty-mini">Nenhuma tabela atende essa rota/carga. Confira origem e destino com UF e informe o peso (ou as dimensões).</div>';
+}
+window.simCotar = i => {
+  const x = _simRes[i]; if (!x) return;
+  const v = simDados();
+  abrirModal('cot', null, { valores: { transportadora: x.t, origem: v.origem, uf_origem: v.uf_origem, destino: v.destino, uf_destino: v.uf_destino,
+    peso_kg: v.peso_kg, volume_m3: v.volume_m3 ? +v.volume_m3.toFixed(4) : null, valor_mercadoria: v.valor_mercadoria || null, valor_frete: +x.r.preco.toFixed(2),
+    data_cotacao: hojeISO(), observacoes: `Calculado pela tabela combinada: ${descLinhaTabela(x.r.linha)}${x.r.cubado ? ` · peso cubado ${num(x.r.peso).toFixed(1)} kg` : ''}` } });
+  $('modal-title').textContent = '＋ Nova cotação — valor pela tabela combinada';
+};
 
 // ═════════════ Faturas ═════════════
 function situacaoFatura(f) {
