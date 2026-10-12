@@ -2,7 +2,7 @@
 // O SSW não deixa ser aberto dentro de outro site (X-Frame-Options) nem lido pelo navegador
 // (sem CORS), então esta função da Vercel faz a consulta e devolve as linhas em JSON.
 //
-// POST /api/rastreio  { tipo: 'dest' | 'rem', cnpj: '07356800000199', nfs: ['929351', ...], detalhes?: false }
+// POST /api/rastreio  { tipo: 'dest' | 'rem' | 'gollog' (nfs = Nº dos CT-es), cnpj: '07356800000199', nfs: ['929351', ...], detalhes?: false }
 //   dest = "pelo destinatário" (ssw.inf.br/2/rastreamento_dest?pwd=2) — cnpj de quem recebe
 //   rem  = "pelo remetente"    (ssw.inf.br/2/rastreamento)            — cnpj de quem emitiu a NF
 // Resposta: { ok, linhas: [{ nf, pedido, unidade, dataHora, situacao, detalhe, link }], vazio }
@@ -43,12 +43,38 @@ export function lerDetalhe(html) {
   return { eventos, transportadora: campo('Estamos transportando'), email: campo('E-mail:'), telefone: campo('Telefone:') };
 }
 
+// GOLLOG: API pública do site (servicos.gollog.com.br/app/site/tracking), pelo Nº do CT-e/AWB.
+const dhBR = iso => { if (!iso) return ''; const d = new Date(new Date(iso).getTime() - 3 * 3600e3); const p = n => String(n).padStart(2, '0');
+  return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${String(d.getUTCFullYear()).slice(2)} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`; };
+async function rastrearGollog(codigos) {
+  const url = 'https://servicos.gollog.com.br/api/services/app/Tracking/GetAllByCodes?' + codigos.map(c => 'values=' + encodeURIComponent(c)).join('&');
+  const r = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (Controle de Fretes GF Medical)' } });
+  const j = await r.json();
+  const linhas = (j.result || []).map((x, i) => {
+    const h = x.header || {}, ev = x.events || [], ult = ev[0];
+    if (!x.found) return { codigo: String(codigos[i] || h.code || ''), nf: '', situacao: 'Informação não disponível', dataHora: '', unidade: '', detalhe: '', link: null };
+    const entregue = x.dlv || x.lastStatus?.code === 'DLV';
+    const situacao = x.isCancelled ? 'CT-e CANCELADO' : entregue ? 'MERCADORIA ENTREGUE' : (ult?.codeDescription || x.lastStatus?.description || '').toUpperCase();
+    return { codigo: String(h.code || codigos[i] || ''), nf: String(h.nf || '').replace(/^0+/, ''), situacao, dataHora: dhBR(ult?.date), unidade: ult?.station || '',
+      detalhe: [x.lastStatus?.description, x.expectedDeliveryDate && !entregue ? `Previsão de entrega: ${x.expectedDeliveryDate}` : '', `${x.originAdvancedPost || ''} → ${x.destinationAdvancedPost || ''}`, h.serviceName, h.pieces ? `${h.pieces} volume(s), ${h.weight} kg` : ''].filter(Boolean).join(' · '),
+      eventos: [...ev].reverse().map(e => ({ dataHora: dhBR(e.date), unidade: e.station || '', situacao: (e.codeDescription || '').toUpperCase(), detalhe: e.message || '' })), // do mais antigo ao mais recente (como no SSW)
+      transportadora: 'GOLLOG', telefone: x.routing?.destination?.phoneNumber || '', email: x.routing?.destination?.email || '', link: null };
+  });
+  return { linhas, vazio: !linhas.length };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ ok: false, erro: 'use POST' });
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   const { tipo, cnpj, nfs, detalhes = true } = body || {};
+  if (tipo === 'gollog') {
+    const cods = (Array.isArray(nfs) ? nfs : []).map(n => String(n).replace(/\D/g, '')).filter(n => n && n.length <= 14).slice(0, 50);
+    if (!cods.length) return res.status(400).json({ ok: false, erro: 'informe o Nº do CT-e da Gollog' });
+    try { return res.status(200).json({ ok: true, ...(await rastrearGollog(cods)) }); }
+    catch (e) { return res.status(502).json({ ok: false, erro: 'Gollog não respondeu: ' + (e.message || e) }); }
+  }
   const acao = ACOES[tipo];
   const doc = String(cnpj || '').replace(/\D/g, '');
   const lista = (Array.isArray(nfs) ? nfs : []).map(n => String(n).replace(/\D/g, '')).filter(n => n && n.length <= 12).slice(0, 100);

@@ -617,7 +617,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <div class="td-mono" id="rast-info" style="margin-bottom:10px"></div>
       <div id="rast-res"></div>
     </div>
-    <div class="mfoot"><button class="tbtn tbtn-g" onclick="abrirSswSite()">🔗 Abrir no site do SSW</button><button class="tbtn tbtn-p" id="rast-entregue" style="display:none" onclick="marcarEntreguePeloSsw()"></button></div>
+    <div class="mfoot"><button class="tbtn tbtn-g" id="rast-site" onclick="abrirSswSite()">🔗 Abrir no site do SSW</button><button class="tbtn tbtn-p" id="rast-entregue" style="display:none" onclick="marcarEntreguePeloSsw()"></button></div>
   </div>
 </div>
 
@@ -716,7 +716,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-12.03';
+const VERSAO = '2026-10-12.04';
 // CT-es importados ficam no banco da própria filial (Cuiabá grava em Cuiabá, Campo Grande em
 // Campo Grande). IMPORTA_PARA = { filial, label, url, key } desviaria a importação para outro banco.
 const IMPORTA_PARA = null;
@@ -2291,7 +2291,9 @@ function postarSsw(acao, campos) {
 }
 // Rastreio dentro da página: /api/rastreio (função da Vercel) consulta o SSW e devolve
 // situação atual + histórico completo. Tenta pelo remetente e pelo destinatário.
+const ehGollog = nome => /GOLLOG|GOL LINHAS/i.test(nome || '');
 function tentativasRastreio(c) {
+  if (ehGollog(c.transportadora)) { const cod = soDigitos(c.numero_cte); return cod ? [{ tipo: 'gollog', cnpj: '', nfs: [cod] }] : []; }
   const nfs = nfsDe(c);
   if (!nfs.length) return [];
   const gfDestino = /GF MEDICAL/i.test(c.destino || '') || /COMPRA/i.test(c.tipo_saida || '') || soDigitos(c.destino_cnpj).startsWith('07356800');
@@ -2310,7 +2312,11 @@ function tentativasRastreio(c) {
 const sswForm = x => x.tipo === 'dest' ? ['resultSSW_dest_nro', { cnpjdest: x.cnpj, NR: x.nfs.join(String.fromCharCode(10)), chave: '' }]
   : ['resultSSW', { cnpj: x.cnpj, NR: x.nfs.join(String.fromCharCode(10)), chave: '' }];
 let _rastreio = null;
-window.abrirSswSite = () => { if (_rastreio?.tent) postarSsw(...sswForm(_rastreio.tent)); };
+window.abrirSswSite = () => {
+  if (!_rastreio?.tent) return;
+  if (_rastreio.tent.tipo === 'gollog') { copiarTexto(_rastreio.tent.nfs[0], 'Nº do CT-e'); window.open('https://servicos.gollog.com.br/app/site/tracking', '_blank'); return; }
+  postarSsw(...sswForm(_rastreio.tent));
+};
 window.marcarEntreguePeloSsw = async () => {
   const r = _rastreio; if (!r?.entregueEm || _readOnly) return;
   const { error } = await supabase.from(T.cte).update({ status_entrega: 'Entregue', data_entrega: r.entregueEm, atualizado_em: new Date().toISOString() }).eq('id', r.cte.id);
@@ -2349,7 +2355,7 @@ window.atualizarStatusPeloRastreio = async (manual = false) => {
   if (_readOnly) { if (manual) toast('Seu usuário é só de visualização — não pode alterar status.', 'err'); return; }
   const chaveTs = 'gf_fretes_rastreio_' + FILIAL;
   if (!manual) { try { if (Date.now() - +(localStorage.getItem(chaveTs) || 0) < 5 * 60e3 - 5000) return; } catch (e) {} }
-  const cands = data.cte.filter(c => c.status_entrega !== 'Entregue' && nfsDe(c).length && !rastreioSiteDe(c.transportadora) && (!c.data_emissao || diasEntre(c.data_emissao, hojeISO()) <= 90));
+  const cands = data.cte.filter(c => c.status_entrega !== 'Entregue' && tentativasRastreio(c).length && !rastreioSiteDe(c.transportadora) && (!c.data_emissao || diasEntre(c.data_emissao, hojeISO()) <= 90));
   if (!cands.length) { if (manual) toast('Nenhum CT-e em aberto (últimos 90 dias) para consultar.', 'info'); return; }
   _rastreandoLote = true;
   const btn = $('btn-rastreio-lote'); const txt = btn?.textContent;
@@ -2361,20 +2367,21 @@ window.atualizarStatusPeloRastreio = async (manual = false) => {
       cands.filter(c => !achados.has(c.id)).forEach(c => {
         const t = tentativasRastreio(c)[passo]; if (!t) return;
         const k = t.tipo + '|' + t.cnpj;
-        if (!grupos.has(k)) grupos.set(k, { tipo: t.tipo, cnpj: t.cnpj, ctes: [] });
-        grupos.get(k).ctes.push(c);
+        if (!grupos.has(k)) grupos.set(k, { tipo: t.tipo, cnpj: t.cnpj, itens: [] });
+        grupos.get(k).itens.push({ c, cods: t.nfs });
       });
       for (const g of grupos.values()) {
-        const nfs = [...new Set(g.ctes.flatMap(nfsDe))];
-        for (let i = 0; i < nfs.length; i += 100) {
+        const nfs = [...new Set(g.itens.flatMap(x => x.cods))];
+        const passoLote = g.tipo === 'gollog' ? 50 : 100;
+        for (let i = 0; i < nfs.length; i += passoLote) {
           try {
             const r = await fetch('api/rastreio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ tipo: g.tipo, cnpj: g.cnpj, nfs: nfs.slice(i, i + 100), detalhes: false }) });
+              body: JSON.stringify({ tipo: g.tipo, cnpj: g.cnpj, nfs: nfs.slice(i, i + passoLote), detalhes: false }) });
             const j = await r.json().catch(() => null);
             if (!r.ok || !j?.ok) continue;
-            j.linhas.filter(l => !naoDisp(l.situacao)).forEach(l => {
-              const n = nfDaLinha(l);
-              g.ctes.filter(c => !achados.has(c.id) && nfsDe(c).includes(n)).forEach(c => achados.set(c.id, l));
+            j.linhas.filter(l => !naoDisp(l.situacao) && !/CANCELAD/i.test(l.situacao)).forEach(l => {
+              const n = l.codigo || nfDaLinha(l);
+              g.itens.filter(x => !achados.has(x.c.id) && x.cods.includes(n)).forEach(x => achados.set(x.c.id, l));
             });
           } catch (e) { /* sem rede / sem a função (servidor local): ignora */ }
         }
@@ -2410,8 +2417,12 @@ window.atualizarStatusPeloRastreio = async (manual = false) => {
 // Transportadoras com rastreio próprio (fora do SSW). O site pede reCAPTCHA, então não dá
 // para consultar por aqui: o 🔍 mostra o que preencher, com botões de copiar, e abre o site.
 const RASTREIO_SITES = [
-  { re: /BRIX/i, nome: 'Brix Cargo', url: 'https://brixcargo.com.br/rastreamento',
-    passos: t => [`Tipo de Pesquisa: <b>Nota Fiscal</b>`, `Tipo: <b>${t.tipo === 'dest' ? 'Sou Destinatario' : 'Sou Remetente'}</b>`, 'CNPJ/CPF e Código de Número: use os botões abaixo', 'Marque o “Não sou um robô” e clique em Rastrear'] },
+  { re: /BRIX/i, nome: 'Brix Cargo', url: 'https://brixcargo.com.br/rastreamento', motivo: 'pede a confirmação “Não sou um robô”',
+    passos: t => [`Tipo de Pesquisa: <b>Nota Fiscal</b>`, `Tipo: <b>${t.tipo === 'dest' ? 'Sou Destinatario' : 'Sou Remetente'}</b>`, 'CNPJ/CPF e Código de Número: use os botões abaixo', 'Marque o “Não sou um robô” e clique em Rastrear'],
+    copiar: (c, t) => [['CNPJ', t.cnpj, fmtDoc(t.cnpj)], ...t.nfs.map(n => ['NF', n, n])] },
+  { re: /AZUL/i, nome: 'Azul Cargo', url: 'https://www.azullogistica.com.br/Rastreio/Rastrear', motivo: 'bloqueia consultas automáticas',
+    passos: () => ['Informe o <b>número do conhecimento (CT-e / AWB)</b> — botão abaixo', 'Se o site pedir, use a NF ou o CNPJ (botões abaixo)', 'Clique em Rastrear'],
+    copiar: (c, t) => [['Nº do CT-e', soDigitos(c.numero_cte), c.numero_cte], ...t.nfs.map(n => ['NF', n, n]), ['CNPJ', t.cnpj, fmtDoc(t.cnpj)]] },
 ];
 const rastreioSiteDe = nome => RASTREIO_SITES.find(r => r.re.test(nome || ''));
 window.copiarTexto = (txt, rot) => { navigator.clipboard?.writeText(txt).then(() => toast(`📋 ${rot} copiado: ${txt}`), () => toast(txt, 'info')); };
@@ -2420,19 +2431,18 @@ window.rastrearCte = async id => {
   if (!c) return;
   const tent = tentativasRastreio(c);
   const site = rastreioSiteDe(c.transportadora);
-  if (site && tent.length) {
-    const t = tent[0], nfs = t.nfs.join(', ');
+  if (site && (tent.length || soDigitos(c.numero_cte))) {
+    const t = tent[0] || { tipo: 'rem', cnpj: cnpjGf(), nfs: [] }, nfs = t.nfs.join(', ') || '—';
     _rastreio = { cte: c, tent: t };
     $('rast-title').textContent = `🔍 Rastreio — CT-e ${c.numero_cte} · ${c.transportadora}`;
     $('rast-info').textContent = `NF ${nfs} · ${site.nome} (rastreio no site da transportadora)`;
     $('rast-entregue').style.display = 'none';
     $('rast-res').innerHTML = `<div class="rast-nf">
-      <div class="td-mono" style="margin-bottom:8px">O site da ${esc(site.nome)} pede a confirmação “Não sou um robô”, então o rastreio abre lá. Preencha assim:</div>
+      <div class="td-mono" style="margin-bottom:8px">O site da ${esc(site.nome)} ${site.motivo}, então o rastreio abre lá. Preencha assim:</div>
       <ol style="margin:0 0 10px 18px;font-size:0.8rem;line-height:1.8">${site.passos(t).map(p => `<li>${p}</li>`).join('')}</ol>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="tbtn tbtn-g" onclick="copiarTexto('${t.cnpj}', 'CNPJ')">📋 Copiar CNPJ ${esc(fmtDoc(t.cnpj))}</button>
-        ${t.nfs.map(n => `<button type="button" class="tbtn tbtn-g" onclick="copiarTexto('${n}', 'NF')">📋 Copiar NF ${esc(n)}</button>`).join('')}
-        <a class="tbtn tbtn-p" href="${site.url}" target="_blank" rel="noopener" onclick="copiarTexto('${t.nfs[0]}', 'NF')">🔗 Abrir rastreio da ${esc(site.nome)}</a>
+        ${site.copiar(c, t).filter(x => x[1]).map(([rot, v, mostra]) => `<button type="button" class="tbtn tbtn-g" onclick="copiarTexto('${esc(v)}', '${esc(rot)}')">📋 Copiar ${esc(rot)} ${esc(mostra)}</button>`).join('')}
+        <a class="tbtn tbtn-p" href="${site.url}" target="_blank" rel="noopener" onclick="copiarTexto('${esc(site.copiar(c, t).find(x => x[1])?.[1] || '')}', '${esc(site.copiar(c, t).find(x => x[1])?.[0] || '')}')">🔗 Abrir rastreio da ${esc(site.nome)}</a>
       </div></div>`;
     $('modal-rastreio').classList.add('open');
     return;
@@ -2440,7 +2450,7 @@ window.rastrearCte = async id => {
   if (tent.length) {
     _rastreio = { cte: c, tent: tent[0] };
     $('rast-title').textContent = `🔍 Rastreio — CT-e ${c.numero_cte}${c.transportadora ? ' · ' + c.transportadora : ''}`;
-    $('rast-info').textContent = `NF ${tent[0].nfs.join(', ')} · consultando o SSW…`;
+    $('rast-info').textContent = tent[0].tipo === 'gollog' ? `CT-e ${tent[0].nfs[0]} · consultando a Gollog…` : `NF ${tent[0].nfs.join(', ')} · consultando o SSW…`;
     $('rast-res').innerHTML = '<div class="empty-mini">⏳ Consultando o SSW…</div>';
     $('rast-entregue').style.display = 'none';
     $('modal-rastreio').classList.add('open');
@@ -2456,16 +2466,17 @@ window.rastrearCte = async id => {
     }
     if (_rastreio?.cte !== c) return; // abriu outro enquanto consultava
     _rastreio.tent = usada;
-    $('rast-info').textContent = `NF ${usada.nfs.join(', ')} · consulta pelo ${usada.tipo === 'dest' ? 'destinatário' : 'remetente'} ${fmtDoc(usada.cnpj)}`;
+    $('rast-info').textContent = usada.tipo === 'gollog' ? `CT-e ${usada.nfs[0]} · consulta na Gollog` : `NF ${usada.nfs.join(', ')} · consulta pelo ${usada.tipo === 'dest' ? 'destinatário' : 'remetente'} ${fmtDoc(usada.cnpj)}`;
+    $('rast-site').textContent = usada.tipo === 'gollog' ? '🔗 Abrir no site da Gollog' : '🔗 Abrir no site do SSW';
     if (!res) {
-      $('rast-res').innerHTML = `<div class="empty-mini">Não consegui consultar o SSW por aqui (${esc(erro)}). Use “Abrir no site do SSW”.</div>`;
+      $('rast-res').innerHTML = `<div class="empty-mini">Não consegui consultar por aqui (${esc(erro)}). Use o botão “Abrir no site” abaixo.</div>`;
       return;
     }
     $('rast-res').innerHTML = rastreioHTML(res) + (res.linhas.length && res.linhas.every(l => naoDisp(l.situacao))
       ? '<div class="td-mono" style="margin-top:8px">“Informação não disponível” = a transportadora não usa o SSW, a NF tem mais de 90 dias ou o CNPJ não é o da NF.</div>' : '');
     // entregue? oferece marcar no CT-e
     const ent = res.linhas.flatMap(l => (l.eventos || []).concat([{ situacao: l.situacao, dataHora: l.dataHora }]))
-      .find(e => ehEntregue(e.situacao) && /\d{2}\/\d{2}\/\d{2}/.test(e.dataHora || ''));
+      .find(e => ehEntregue(e.situacao) && !/CANCELAD/i.test(e.situacao || '') && /\d{2}\/\d{2}\/\d{2}/.test(e.dataHora || ''));
     if (ent && c.status_entrega !== 'Entregue' && !_readOnly) {
       const [d, m, y] = /(\d{2})\/(\d{2})\/(\d{2,4})/.exec(ent.dataHora).slice(1);
       _rastreio.entregueEm = `${y.length === 2 ? '20' + y : y}-${m}-${d}`;
