@@ -713,7 +713,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.27';
+const VERSAO = '2026-10-11.28';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -1036,6 +1036,7 @@ async function carregarTudo() {
   render();
   setTimeout(avisoDiario, 1500);
   setTimeout(() => atualizarStatusPeloRastreio(false), 5000);
+  if (!window._timerRastreio) window._timerRastreio = setInterval(() => { if (!document.hidden) atualizarStatusPeloRastreio(false); }, 5 * 60e3);
   // Tempo real: recarrega a tabela inteira a cada mudança (volumes pequenos).
   _channels.forEach(ch => supabase.removeChannel(ch));
   _channels = Object.keys(T).map(k => supabase
@@ -2260,7 +2261,7 @@ function rastreioHTML(res) {
 // ── Status automático pelo rastreio do SSW ──
 // CT-es não entregues (até 90 dias, prazo do SSW) consultados em lote, agrupados por consulta
 // (remetente/destinatário + CNPJ, até 100 NFs cada). ENTREGUE → Entregue com a data do SSW;
-// qualquer movimento com o CT-e Pendente → Em trânsito. Roda sozinho ao abrir (no máximo a cada 2 h).
+// qualquer movimento com o CT-e Pendente → Em trânsito. Roda sozinho ao abrir e a cada 5 minutos com a página aberta.
 const dataSsw = dh => { const m = /(\d{2})\/(\d{2})\/(\d{2,4})/.exec(dh || ''); return m ? `${m[3].length === 2 ? '20' + m[3] : m[3]}-${m[2]}-${m[1]}` : null; };
 const nfDaLinha = l => (String(l.nf || '').trim().split(/\s+/).pop() || '').replace(/^0+/, '');
 let _rastreandoLote = false;
@@ -2268,7 +2269,7 @@ window.atualizarStatusPeloRastreio = async (manual = false) => {
   if (_rastreandoLote) return;
   if (_readOnly) { if (manual) toast('Seu usuário é só de visualização — não pode alterar status.', 'err'); return; }
   const chaveTs = 'gf_fretes_rastreio_' + FILIAL;
-  if (!manual) { try { if (Date.now() - +(localStorage.getItem(chaveTs) || 0) < 2 * 3600e3) return; } catch (e) {} }
+  if (!manual) { try { if (Date.now() - +(localStorage.getItem(chaveTs) || 0) < 5 * 60e3 - 5000) return; } catch (e) {} }
   const cands = data.cte.filter(c => c.status_entrega !== 'Entregue' && nfsDe(c).length && (!c.data_emissao || diasEntre(c.data_emissao, hojeISO()) <= 90));
   if (!cands.length) { if (manual) toast('Nenhum CT-e em aberto (últimos 90 dias) para consultar.', 'info'); return; }
   _rastreandoLote = true;
