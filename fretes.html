@@ -717,7 +717,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-12.07';
+const VERSAO = '2026-10-12.08';
 // CT-es importados ficam no banco da própria filial (Cuiabá grava em Cuiabá, Campo Grande em
 // Campo Grande). IMPORTA_PARA = { filial, label, url, key } desviaria a importação para outro banco.
 const IMPORTA_PARA = null;
@@ -2419,9 +2419,9 @@ window.atualizarStatusPeloRastreio = async (manual = false) => {
 // Transportadoras com rastreio próprio (fora do SSW). O site pede reCAPTCHA, então não dá
 // para consultar por aqui: o 🔍 mostra o que preencher, com botões de copiar, e abre o site.
 const RASTREIO_SITES = [
-  { re: /BRIX|BRINGER/i, nome: 'Brix Cargo (Bringer)', url: 'https://brixcargo.com.br/rastreamento', motivo: 'pede a confirmação “Não sou um robô”',
+  { re: /BRIX|BRINGER/i, nome: 'Brix Cargo (Bringer)', url: 'https://brixcargo.com.br/rastreamento', motivo: 'pede a confirmação “Não sou um robô”', direto: true,
     passos: t => [`Tipo de Pesquisa: <b>Nota Fiscal</b>`, `Tipo: <b>${t.tipo === 'dest' ? 'Sou Destinatario' : 'Sou Remetente'}</b>`, 'CNPJ/CPF e Código de Número: use os botões abaixo', 'Marque o “Não sou um robô” e clique em Rastrear'],
-    copiar: (c, t) => [['CNPJ', t.cnpj, fmtDoc(t.cnpj)], ...t.nfs.map(n => ['NF', n, n])] },
+    copiar: (c, t) => [...t.nfs.map(n => ['NF', n, n]), ['CNPJ', t.cnpj, fmtDoc(t.cnpj)]] }, // NF primeiro: é a que fica copiada ao abrir
   { re: /AZUL/i, nome: 'Azul Cargo', url: 'https://www.azullogistica.com.br/Rastreio/Rastrear', motivo: 'bloqueia consultas automáticas', direto: true,
     passos: () => ['Informe o <b>número do conhecimento (CT-e / AWB)</b> — botão abaixo', 'Se o site pedir, use a NF ou o CNPJ (botões abaixo)', 'Clique em Rastrear'],
     copiar: (c, t) => [['Nº do CT-e', soDigitos(c.numero_cte), c.numero_cte], ...t.nfs.map(n => ['NF', n, n]), ['CNPJ', t.cnpj, fmtDoc(t.cnpj)]] },
