@@ -183,6 +183,7 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.calculo-wrap{max-width:980px}
 .sim-grid{grid-template-columns:1fr 84px 1fr 84px}.sim-grid .fg{grid-column:auto}
 .sim-grid .fg:nth-child(5){grid-column:1 / span 2}.sim-grid .fg:nth-child(6){grid-column:3 / span 2}
 .sim-vol{display:grid;grid-template-columns:70px repeat(3,1fr) 34px;gap:6px;margin-bottom:6px;align-items:center}
@@ -344,7 +345,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <a class="nav-item" data-view="cotacoes" href="#"><span class="nav-icon">💬</span> Cotações<span class="nbadge" id="nb-cot">0</span></a>
       <a class="nav-item" data-view="comparativo" href="#"><span class="nav-icon">⚖️</span> Comparativo</a>
       <a class="nav-item" data-view="transportadoras" href="#"><span class="nav-icon">🚚</span> Transportadoras<span class="nbadge" id="nb-transp">0</span></a>
-      <a class="nav-item" data-view="calculadora" href="#"><span class="nav-icon">🧮</span> Calculadora de frete</a>
+      <a class="nav-item" data-view="calculo" href="#"><span class="nav-icon">🧮</span> Cálculo de frete</a>
       <a class="nav-item" data-view="tabelas" href="#"><span class="nav-icon">📑</span> Tabelas de frete</a>
       <a class="nav-item" data-view="faturas" href="#"><span class="nav-icon">💳</span> Faturas<span class="nbadge" id="nb-fat">0</span></a>
       <a class="nav-item" data-view="cirurgias" href="#"><span class="nav-icon">🏥</span> Cirurgia / vendedor / cliente</a>
@@ -388,7 +389,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <div class="vtab" data-view="cotacoes">💬 Cotações</div>
       <div class="vtab" data-view="comparativo">⚖️ Comparativo</div>
       <div class="vtab" data-view="transportadoras">🚚 Transp.</div>
-      <div class="vtab" data-view="calculadora">🧮 Calculadora</div>
+      <div class="vtab" data-view="calculo">🧮 Cálculo</div>
       <div class="vtab" data-view="tabelas">📑 Tabelas</div>
       <div class="vtab" data-view="faturas">💳 Faturas</div>
       <div class="vtab" data-view="cirurgias">🏥 Cirurgias</div>
@@ -475,14 +476,19 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       </section>
 
       <section class="view" id="view-tabelas">
-        <div class="calc-grid">
+        <div>
           <div class="twrap">
             <div class="thead-bar"><span class="thead-title">📑 Tabelas de frete combinadas</span><span class="tcount" id="cnt-tab">0</span>
               <span class="td-mono" style="margin-left:auto">frete = máx(mínimo; fixo + R$/kg × peso + % × NF)</span></div>
             <div class="tscroll"><table id="tb-tab"></table></div>
           </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-calculo">
+        <div class="calculo-wrap">
           <div class="dcard">
-            <div class="dcard-head">🧮 Calcular frete pela tabela — dimensões, peso e valor da NF</div>
+            <div class="dcard-head">🧮 Cálculo de frete pela tabela combinada <small>dimensões, peso e valor da NF → quanto cada transportadora cobra</small></div>
             <div class="dcard-body">
               <div class="fgrid sim-grid">
                 <div class="fg"><label class="flbl" for="sim-origem">Origem</label><input class="finput" id="sim-origem" list="dl-orig" autocomplete="off" placeholder="Cidade de saída"></div>
@@ -565,7 +571,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             </div>
           </div>
           <div class="dcard">
-            <div class="dcard-head">📋 Resultado<small id="calc-sub"></small><button type="button" class="fchip" style="margin-left:auto" onclick="goView('tabelas');setTimeout(()=>document.getElementById('sim-nf').focus(),50)" title="Calcula o frete de todas as transportadoras pela tabela combinada, com dimensões">📐 Calcular pela tabela (com dimensões)</button></div>
+            <div class="dcard-head">📋 Resultado<small id="calc-sub"></small><button type="button" class="fchip" style="margin-left:auto" onclick="goView('calculo');setTimeout(()=>document.getElementById('sim-nf').focus(),50)" title="Calcula o frete de todas as transportadoras pela tabela combinada, com dimensões">📐 Calcular pela tabela (com dimensões)</button></div>
             <div class="dcard-body" id="calc-resultado"></div>
             <div class="calc-salvar w-only" id="calc-salvar" style="display:none">
               <input class="finput" id="calc-obs" placeholder="Observação (opcional): pedido, cliente, NF…" aria-label="Observação do cálculo">
@@ -731,7 +737,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-12.09';
+const VERSAO = '2026-10-12.10';
 // CT-es importados ficam no banco da própria filial (Cuiabá grava em Cuiabá, Campo Grande em
 // Campo Grande). IMPORTA_PARA = { filial, label, url, key } desviaria a importação para outro banco.
 const IMPORTA_PARA = null;
@@ -1218,7 +1224,7 @@ function sincronizarOrdem() {
 }
 $('f-cot-transp').onchange = e => { ui.cotTransp = e.target.value; render(); };
 
-const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete', auditoria: 'Auditoria de fretes', tabelas: 'Tabelas de frete', faturas: 'Faturas das transportadoras', cirurgias: 'Frete por cirurgia, vendedor e cliente' };
+const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete', calculo: 'Cálculo de frete', auditoria: 'Auditoria de fretes', tabelas: 'Tabelas de frete', faturas: 'Faturas das transportadoras', cirurgias: 'Frete por cirurgia, vendedor e cliente' };
 // Cada tela entra no histórico do navegador: o "voltar" do celular/navegador e o
 // botão ⬅ Voltar levam de volta ao início do Controle de Fretes (Dashboard); no
 // Dashboard, o Voltar leva ao Monitor Cirúrgico.
@@ -1267,7 +1273,7 @@ function render() {
   { const nd = gruposDuplicados().length; $('btn-dups').textContent = nd ? `🧹 Revisar duplicados (${nd})` : '🧹 Revisar duplicados'; $('btn-dups').classList.toggle('on', nd > 0); }
   $('nb-fat').textContent = data.fat.filter(f => { const st = situacaoFatura(f); return st.vencida || st.vencendo; }).length;
   $('nb-pend').textContent = ctesTodos.filter(c => c.status_entrega === 'Pendente' || c.status_entrega === 'Em trânsito').length;
-  ({ dashboard: renderDashboard, ctes: renderCtes, cotacoes: renderCot, comparativo: renderComparativo, transportadoras: renderTransp, calculadora: renderCalc, auditoria: renderAuditoria, tabelas: renderTabelas, faturas: renderFaturas, cirurgias: renderCirurgias })[ui.view]();
+  ({ dashboard: renderDashboard, ctes: renderCtes, cotacoes: renderCot, comparativo: renderComparativo, transportadoras: renderTransp, calculadora: renderCalc, calculo: renderCalculo, auditoria: renderAuditoria, tabelas: renderTabelas, faturas: renderFaturas, cirurgias: renderCirurgias })[ui.view]();
 }
 
 function agrupar(lista, chaveFn) {
@@ -1861,7 +1867,9 @@ function renderTabelas() {
       <td class="num">${t.frete_minimo != null ? brl(t.frete_minimo) + (t.minimo_base === 'peso' ? '<div class="td-doc">só frete peso</div>' : '') : '—'}</td><td class="td-mono">${dataBR(t.vigencia_inicio)}${tabelaAntiga(t) ? `<div class="tag-venc" title="${esc(tabelaAntiga(t))}">⚠ ${diasEntre(t.vigencia_inicio, hojeISO()) > 365 ? 'antiga' : 'vencendo'}</div>` : ''}${num(t.cubagem_kg_m3) ? `<div class="td-doc">cubagem ${num(t.cubagem_kg_m3)} kg/m³</div>` : ''}</td>
       <td>${t.anexo_url ? `<a href="${esc(t.anexo_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(t.anexo_nome || '')}">📎 ${esc((t.anexo_nome || 'abrir').slice(0, 24))}</a>` : '<span class="td-mono">—</span>'}</td>
       <td><div class="row-acts w-only"><button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('tab','${t.id}')">🗑</button></div></td></tr>`).join('')}</tbody>`
-    : `<tbody><tr><td><div class="empty-page">📑 Nenhuma tabela cadastrada.<br><br>Cadastre a tabela combinada com cada transportadora (<b>＋ Nova tabela</b>):<br>a auditoria passa a conferir cada CT-e contra o valor contratado e a calculadora já mostra o preço.</div></td></tr></tbody>`;
+    : `<tbody><tr><td><div class="empty-page">📑 Nenhuma tabela cadastrada.<br><br>Cadastre a tabela combinada com cada transportadora (<b>＋ Nova tabela</b>):<br>a auditoria passa a conferir cada CT-e contra o valor contratado e o Cálculo de frete já mostra o preço.</div></td></tr></tbody>`;
+}
+function renderCalculo() {
   if (!$('sim-uf_origem').options.length) {
     const ufs = ['', ...UFS].map(u => `<option value="${u}">${u || '—'}</option>`).join('');
     $('sim-uf_origem').innerHTML = ufs; $('sim-uf_destino').innerHTML = ufs;
