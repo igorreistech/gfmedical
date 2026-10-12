@@ -46,6 +46,13 @@ export function lerDetalhe(html) {
 // GOLLOG: API pública do site (servicos.gollog.com.br/app/site/tracking), pelo Nº do CT-e/AWB.
 const dhBR = iso => { if (!iso) return ''; const d = new Date(new Date(iso).getTime() - 3 * 3600e3); const p = n => String(n).padStart(2, '0');
   return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${String(d.getUTCFullYear()).slice(2)} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`; };
+// "09/09" (dia/mês) → AAAA-MM-DD, no ano da emissão (ou no seguinte, se o mês já passou)
+function previsaoGollog(ddmm, emissaoIso) {
+  const m = /^(\d{2})\/(\d{2})$/.exec(ddmm || ''); if (!m) return null;
+  const em = emissaoIso ? new Date(emissaoIso) : new Date();
+  let ano = em.getUTCFullYear(); if (+m[2] < em.getUTCMonth() + 1) ano++;
+  return `${ano}-${m[2]}-${m[1]}`;
+}
 async function rastrearGollog(codigos) {
   const url = 'https://servicos.gollog.com.br/api/services/app/Tracking/GetAllByCodes?' + codigos.map(c => 'values=' + encodeURIComponent(c)).join('&');
   const r = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (Controle de Fretes GF Medical)' } });
@@ -58,6 +65,7 @@ async function rastrearGollog(codigos) {
     return { codigo: String(h.code || codigos[i] || ''), nf: String(h.nf || '').replace(/^0+/, ''), situacao, dataHora: dhBR(ult?.date), unidade: ult?.station || '',
       detalhe: [x.lastStatus?.description, x.expectedDeliveryDate && !entregue ? `Previsão de entrega: ${x.expectedDeliveryDate}` : '', `${x.originAdvancedPost || ''} → ${x.destinationAdvancedPost || ''}`, h.serviceName, h.pieces ? `${h.pieces} volume(s), ${h.weight} kg` : ''].filter(Boolean).join(' · '),
       eventos: [...ev].reverse().map(e => ({ dataHora: dhBR(e.date), unidade: e.station || '', situacao: (e.codeDescription || '').toUpperCase(), detalhe: e.message || '' })), // do mais antigo ao mais recente (como no SSW)
+      previsao: previsaoGollog(x.expectedDeliveryDate, ev[ev.length - 1]?.date),
       transportadora: 'GOLLOG', telefone: x.routing?.destination?.phoneNumber || '', email: x.routing?.destination?.email || '', link: null };
   });
   return { linhas, vazio: !linhas.length };

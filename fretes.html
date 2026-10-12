@@ -717,7 +717,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-12.06';
+const VERSAO = '2026-10-12.07';
 // CT-es importados ficam no banco da própria filial (Cuiabá grava em Cuiabá, Campo Grande em
 // Campo Grande). IMPORTA_PARA = { filial, label, url, key } desviaria a importação para outro banco.
 const IMPORTA_PARA = null;
@@ -2394,6 +2394,7 @@ window.atualizarStatusPeloRastreio = async (manual = false) => {
       const upd = {};
       if (ehEntregue(l.situacao)) Object.assign(upd, { status_entrega: 'Entregue', data_entrega: dataSsw(l.dataHora) || hojeISO() });
       else if (c.status_entrega === 'Pendente') upd.status_entrega = 'Em trânsito';
+      if (l.previsao && !c.previsao_entrega && c.status_entrega !== 'Entregue') upd.previsao_entrega = l.previsao;
       const oc = ocorrenciaDoSsw(l.situacao + ' ' + (l.detalhe || ''));
       if (oc && !c.ocorrencia) Object.assign(upd, { ocorrencia: oc, ocorrencia_obs: `SSW ${l.dataHora || ''}: ${l.situacao}`.slice(0, 300) });
       if (Object.keys(upd).length) mudar.push({ c, upd, l });
@@ -2418,7 +2419,7 @@ window.atualizarStatusPeloRastreio = async (manual = false) => {
 // Transportadoras com rastreio próprio (fora do SSW). O site pede reCAPTCHA, então não dá
 // para consultar por aqui: o 🔍 mostra o que preencher, com botões de copiar, e abre o site.
 const RASTREIO_SITES = [
-  { re: /BRIX/i, nome: 'Brix Cargo', url: 'https://brixcargo.com.br/rastreamento', motivo: 'pede a confirmação “Não sou um robô”',
+  { re: /BRIX|BRINGER/i, nome: 'Brix Cargo (Bringer)', url: 'https://brixcargo.com.br/rastreamento', motivo: 'pede a confirmação “Não sou um robô”',
     passos: t => [`Tipo de Pesquisa: <b>Nota Fiscal</b>`, `Tipo: <b>${t.tipo === 'dest' ? 'Sou Destinatario' : 'Sou Remetente'}</b>`, 'CNPJ/CPF e Código de Número: use os botões abaixo', 'Marque o “Não sou um robô” e clique em Rastrear'],
     copiar: (c, t) => [['CNPJ', t.cnpj, fmtDoc(t.cnpj)], ...t.nfs.map(n => ['NF', n, n])] },
   { re: /AZUL/i, nome: 'Azul Cargo', url: 'https://www.azullogistica.com.br/Rastreio/Rastrear', motivo: 'bloqueia consultas automáticas', direto: true,
@@ -3690,6 +3691,21 @@ async function importarLotePdf(files, lidos = null) {
     atribuirCotacoesLote();
     renderLote();
   }
+  previsaoGollogNoLote();
+}
+// CT-es da Gollog sem data prevista: busca a previsão na Gollog (pelo Nº do CT-e)
+async function previsaoGollogNoLote() {
+  const its = _lote.filter(it => it.estado === 'lido' && it.valores && !it.valores.previsao_entrega && ehGollog(it.valores.transportadora) && soDigitos(it.valores.numero_cte));
+  if (!its.length) return;
+  try {
+    const r = await fetch('api/rastreio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo: 'gollog', nfs: its.map(it => soDigitos(it.valores.numero_cte)).slice(0, 50) }) });
+    const j = await r.json().catch(() => null);
+    if (!j?.ok) return;
+    let n = 0;
+    its.forEach(it => { const l = j.linhas.find(x => x.codigo === soDigitos(it.valores.numero_cte)); if (l?.previsao) { it.valores.previsao_entrega = l.previsao; n++; } });
+    if (n) { renderLote(); toast(`📅 Previsão de entrega da Gollog preenchida em ${n} CT-e(s)`, 'info'); }
+  } catch (e) { /* sem a função (servidor local): segue sem previsão */ }
 }
 
 // Cada CT-e do lote fica com a cotação mais provável, sem usar a mesma duas vezes.
