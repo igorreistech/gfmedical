@@ -405,6 +405,14 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <option value="warn">3% – 5% (atenção)</option>
             <option value="crit">&gt; 5% (revisar)</option>
           </select>
+          <select class="tsel" id="f-cte-ordem" aria-label="Ordenar CT-es" data-chave="ctes">
+            <option value="data_emissao:-1">Ordem: mais recentes</option>
+            <option value="valor_frete:-1">💰 Frete mais caro</option>
+            <option value="valor_frete:1">🪙 Frete mais barato</option>
+            <option value="pct:-1">% frete maior</option>
+            <option value="pct:1">% frete menor</option>
+            <option value="data_emissao:1">Mais antigos</option>
+          </select>
           <button class="fchip w-only" id="btn-dups" onclick="abrirDuplicados()" title="CT-es lançados mais de uma vez">🧹 Revisar duplicados</button>
           <button class="fchip w-only" id="btn-rastreio-lote" onclick="atualizarStatusPeloRastreio(true)" title="Consulta no SSW os CT-es não entregues e atualiza o status">📡 Atualizar pelo rastreio</button>
         </div>
@@ -425,6 +433,13 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
           <span id="chips-status-cot"></span>
           <span class="fdiv"></span>
           <select class="tsel" id="f-cot-transp"></select>
+          <select class="tsel" id="f-cot-ordem" aria-label="Ordenar cotações" data-chave="cot">
+            <option value="data_cotacao:-1">Ordem: mais recentes</option>
+            <option value="valor_frete:-1">💰 Frete mais caro</option>
+            <option value="valor_frete:1">🪙 Frete mais barato</option>
+            <option value="pct:-1">% s/ mercadoria maior</option>
+            <option value="pct:1">% s/ mercadoria menor</option>
+          </select>
         </div>
         <div class="twrap">
           <div class="thead-bar"><span class="thead-title">Cotações de frete</span><span class="tcount" id="cnt-cot">0</span></div>
@@ -694,7 +709,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-11.25';
+const VERSAO = '2026-10-11.26';
 // CT-es importados de PDF na configuração de Cuiabá são gravados em Campo Grande,
 // que concentra o controle de fretes das duas filiais. Campo Grande é outro
 // projeto Supabase (login próprio): entra com a mesma credencial ao logar aqui
@@ -1128,7 +1143,7 @@ document.addEventListener('click', e => {
   const [chave, k] = t.dataset.sort.split(':');
   const [sk, dir] = ui.sort[chave];
   ui.sort[chave] = [k, sk === k ? -dir : (k.startsWith('data') || /valor|frete|pct|qtd|taxa/.test(k) ? -1 : 1)];
-  render();
+  render(); sincronizarOrdem();
 });
 
 // ───────────────────────── Filtros / navegação ─────────────────────────
@@ -1166,6 +1181,14 @@ $('f-busca').oninput = e => { ui.busca = e.target.value; if (ui.busca.trim() && 
 $('f-cte-transp').onchange = e => { ui.cteTransp = e.target.value; render(); };
 $('f-cte-tipo').onchange = e => { ui.cteTipo = e.target.value; render(); };
 $('f-cte-pct').onchange = e => { ui.ctePct = e.target.value; render(); };
+['f-cte-ordem', 'f-cot-ordem'].forEach(id => { $(id).onchange = e => { const [k, d] = e.target.value.split(':'); ui.sort[e.target.dataset.chave] = [k, +d]; render(); }; });
+function sincronizarOrdem() {
+  ['f-cte-ordem', 'f-cot-ordem'].forEach(id => {
+    const el = $(id); const [k, d] = ui.sort[el.dataset.chave]; const v = k + ':' + d;
+    if (![...el.options].some(o => o.value === v)) { [...el.options].filter(o => o.dataset.extra).forEach(o => o.remove()); const o = new Option('Ordem: pela coluna', v); o.dataset.extra = 1; el.add(o); }
+    el.value = v;
+  });
+}
 $('f-cot-transp').onchange = e => { ui.cotTransp = e.target.value; render(); };
 
 const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete', auditoria: 'Auditoria de fretes', tabelas: 'Tabelas de frete', faturas: 'Faturas das transportadoras', cirurgias: 'Frete por cirurgia, vendedor e cliente' };
