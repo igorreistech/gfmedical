@@ -746,10 +746,10 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-13.4';
+const VERSAO = '2026-10-13.5';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
-const VERSAO_BANCO = '20261024';
+const VERSAO_BANCO = '20261025';
 // CT-es importados ficam no banco da própria filial (Cuiabá grava em Cuiabá, Campo Grande em
 // Campo Grande). IMPORTA_PARA = { filial, label, url, key } desviaria a importação para outro banco.
 const IMPORTA_PARA = null;
@@ -819,7 +819,7 @@ function msgErroBanco(error) {
 // a gravação tira a coluna que falta e grava o resto (avisando), em vez de falhar.
 const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte', 'remetente_cnpj', 'destino_cnpj',
   'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base', 'cubagem_kg_m3',
-  'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos'];
+  'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos', 'origens'];
 // Colunas que faltam, por banco (cliente) e tabela — descobertas ao abrir (detectarColunas)
 // ou na primeira gravação; depois são tiradas ANTES de enviar, numa tentativa só (antes era
 // uma tentativa por coluna faltando, o que deixava salvar lento, principalmente no celular).
@@ -829,7 +829,7 @@ let _avisouColunas = false;
 const COLUNAS_POR_TABELA = {
   frete_ctes: ['remetente', 'previsao_entrega', 'numero_cotacao', 'remetente_cnpj', 'destino_cnpj', 'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe'],
   frete_cotacoes: ['valor_mercadoria', 'calculo_id', 'numero_cte'],
-  frete_tabelas: ['anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base', 'cubagem_kg_m3', 'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos'],
+  frete_tabelas: ['anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base', 'cubagem_kg_m3', 'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos', 'origens'],
 };
 async function detectarColunas(cli) {
   await Promise.all(Object.entries(COLUNAS_POR_TABELA).flatMap(([tab, cols]) => cols.map(async col => {
@@ -1056,7 +1056,7 @@ async function verificarBanco() {
     if (!faltas.length) {
       const vb = await cli.from('frete_config').select('versao_banco').eq('filial', FILIAL).limit(1);
       const atual = vb.error ? null : vb.data?.[0]?.versao_banco || null;
-      if (!atual || atual < VERSAO_BANCO) faltas.push(`as últimas atualizações (banco na versão ${atual || 'anterior a 20261023'}, a página precisa da ${VERSAO_BANCO}: tabela por componentes, ICMS pela rota, validade e cidades de destino das tabelas)`);
+      if (!atual || atual < VERSAO_BANCO) faltas.push(`as últimas atualizações (banco na versão ${atual || 'anterior a 20261023'}, a página precisa da ${VERSAO_BANCO}: tabela por componentes, ICMS pela rota, validade e cidades de origem/destino das tabelas)`);
     }
     return faltas.length ? `<b>${label}</b>: falta ${faltas.join(' e ')}` : null;
   };
@@ -1789,7 +1789,7 @@ function tabelaAntiga(t) {
   return '';
 }
 function descLinhaTabela(t) {
-  return [t.rota ? `rota ${t.rota}` : 'todas as rotas', destinosDe(t) ? `${destinosDe(t).length} cidade(s) de destino` : '', t.peso_ate != null ? `até ${num(t.peso_ate).toLocaleString('pt-BR')} kg` : '',
+  return [t.rota ? `rota ${t.rota}` : 'todas as rotas', origensDe(t) ? `saindo de ${origensDe(t).join(', ')}` : '', destinosDe(t) ? `${destinosDe(t).length} cidade(s) de destino` : '', t.peso_ate != null ? `até ${num(t.peso_ate).toLocaleString('pt-BR')} kg` : '',
     t.nf_ate != null ? `NF até ${brl(t.nf_ate)}` : '', t.vigencia_inicio ? `desde ${dataBR(t.vigencia_inicio)}` : '', t.vigencia_fim ? `até ${dataBR(t.vigencia_fim)}` : '',
     t.icms_modo === 'somar' ? 'sem ICMS (somado pela rota)' : ''].filter(Boolean).join(' · ');
 }
@@ -1917,6 +1917,20 @@ function cidadeDestinoDaRota(rota) {
   return m ? m[1].trim() : null;
 }
 const destinosDe = t => t.destinos ? String(t.destinos).split(/\s*[,;\n]\s*/).map(norm).filter(Boolean) : null;
+const origensDe = t => t.origens ? String(t.origens).split(/\s*[,;\n]\s*/).map(norm).filter(Boolean) : null;
+// Cidade de origem da rota ("RIBEIRAO PRETO/SP - CUIABA/MT" → "RIBEIRAO PRETO").
+function cidadeOrigemDaRota(rota) {
+  const pri = norm(rota || '').split(/\s+-\s+/)[0];
+  const m = /^(.+?)\s*\/\s*([A-Z]{2})$/.exec(pri);
+  return m ? m[1].trim() : null;
+}
+// Linha com lista de cidades de origem (ex.: Logmed saindo de Ribeirão Preto ou Valinhos): vale só
+// quando a carga sai dessas cidades e passa na frente da linha geral; sem a cidade de origem, fica de fora.
+function scoreOrigens(t, cid) {
+  const l = origensDe(t);
+  if (!l) return 0;
+  return cid && l.includes(cid) ? 0.5 : null;
+}
 // Linha com lista de cidades (ex.: Logmed por Capital / Interior I / Interior II): vale só para essas
 // cidades; sem a cidade de destino, entra com prioridade menor (e, no empate, a mais barata = capital).
 function scoreDestinos(t, cid) {
@@ -1926,8 +1940,8 @@ function scoreDestinos(t, cid) {
   return l.includes(cid) ? 0.5 : null;
 }
 function linhaTabela(transportadora, rota, peso, dataRef, nf) {
-  const cid = cidadeDestinoDaRota(rota);
-  const cands = data.tab.map(t => { const sc = rotaCasa(t.rota, rota), sd = scoreDestinos(t, cid); return { t, sc: sc > 0 && sd !== null ? sc + sd : 0 }; }).filter(({ t, sc }) => sc > 0
+  const cid = cidadeDestinoDaRota(rota), cidO = cidadeOrigemDaRota(rota);
+  const cands = data.tab.map(t => { const sc = rotaCasa(t.rota, rota), sd = scoreDestinos(t, cid), so = scoreOrigens(t, cidO); return { t, sc: sc > 0 && sd !== null && so !== null ? sc + sd + so : 0 }; }).filter(({ t, sc }) => sc > 0
     && norm(t.transportadora) === norm(transportadora)
     && (!t.vigencia_inicio || !dataRef || t.vigencia_inicio <= dataRef)
     && (t.peso_ate == null || peso == null || num(peso) <= num(t.peso_ate))
@@ -1953,7 +1967,7 @@ function renderTabelas() {
     || num(a.peso_ate ?? 1e9) - num(b.peso_ate ?? 1e9) || num(a.nf_ate ?? 1e12) - num(b.nf_ate ?? 1e12));
   $('cnt-tab').textContent = lista.length;
   $('tb-tab').innerHTML = lista.length ? `<thead><tr><th>Transportadora</th><th>Rota</th><th class="num">Até kg</th><th class="num">NF até</th><th class="num">Fixo</th><th class="num">R$/kg</th><th class="num">% NF</th><th class="num">Mínimo</th><th>Desde</th><th>Tabela anexa</th><th></th></tr></thead><tbody>
-    ${lista.map(t => `<tr class="click" onclick="abrirModal('tab','${t.id}')"><td class="td-strong">${esc(t.transportadora)}</td><td>${esc(t.rota || 'todas')}${destinosDe(t) ? `<div class="td-doc" title="${esc(destinosDe(t).join(', '))}">${destinosDe(t).length} cidade(s) de destino</div>` : ''}</td>
+    ${lista.map(t => `<tr class="click" onclick="abrirModal('tab','${t.id}')"><td class="td-strong">${esc(t.transportadora)}</td><td>${esc(t.rota || 'todas')}${origensDe(t) ? `<div class="td-doc">saindo de ${esc(origensDe(t).join(', '))}</div>` : ''}${destinosDe(t) ? `<div class="td-doc" title="${esc(destinosDe(t).join(', '))}">${destinosDe(t).length} cidade(s) de destino</div>` : ''}</td>
       <td class="num">${t.peso_ate != null ? num(t.peso_ate).toLocaleString('pt-BR') : '—'}</td><td class="num">${t.nf_ate != null ? brl(t.nf_ate) : '—'}</td><td class="num">${t.valor_fixo != null ? brl(t.valor_fixo) : '—'}</td>
       <td class="num">${t.valor_kg != null ? brl(t.valor_kg) : '—'}</td><td class="num">${t.pct_nf != null ? num(t.pct_nf).toLocaleString('pt-BR') + '%' : '—'}</td>
       <td class="num">${t.frete_minimo != null ? brl(t.frete_minimo) + (t.minimo_base === 'peso' ? '<div class="td-doc">só frete peso</div>' : '') : '—'}</td><td class="td-mono">${dataBR(t.vigencia_inicio)}${t.vigencia_fim ? `<div class="td-doc">até ${dataBR(t.vigencia_fim)}</div>` : ''}${tabelaAntiga(t) ? `<div class="tag-venc" title="${esc(tabelaAntiga(t))}">⚠ ${/^vencida|mais de 1 ano/.test(tabelaAntiga(t)) ? (t.vigencia_fim ? 'vencida' : 'antiga') : 'vencendo'}</div>` : ''}${num(t.cubagem_kg_m3) ? `<div class="td-doc">cubagem ${num(t.cubagem_kg_m3)} kg/m³</div>` : ''}${componentesTabela(t) ? `<div class="td-doc">${esc(componentesTabela(t))}</div>` : ''}</td>
@@ -3114,6 +3128,7 @@ const FORMS = {
     { k: 'coleta_valor', l: 'Coleta (R$, quando há)', t: 'money', s: 1 },
     { k: 'icms_modo', l: 'ICMS', o: ['incluso', 'somar'], ol: ['já incluso nos valores', 'somar pela rota (7%/12%)'], s: 1, def: 'incluso' },
     { k: 'icms_pct', l: 'Alíquota ICMS fixa (%)', t: 'dec', s: 1, ph: 'em branco = pela rota' },
+    { k: 'origens', l: 'Só para estas cidades de origem (separadas por vírgula; em branco = todas)', t: 'textarea', s: 4, ph: 'Ex.: RIBEIRAO PRETO' },
     { k: 'destinos', l: 'Só para estas cidades de destino (separadas por vírgula; em branco = todas)', t: 'textarea', s: 4, ph: 'Ex.: CAMPO GRANDE, JARAGUARI, TERENOS' },
     { k: 'vigencia_inicio', l: 'Vigente desde', t: 'date', s: 1 },
     { k: 'vigencia_fim', l: 'Válida até', t: 'date', s: 1 },
