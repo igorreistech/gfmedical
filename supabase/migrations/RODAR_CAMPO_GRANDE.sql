@@ -504,3 +504,67 @@ from (values
 ) v(transportadora, rota, peso_ate, nf_ate, valor_fixo, valor_kg, pct_nf, observacoes)
 cross join (values ('CBA'), ('CGR')) f(filial);
 notify pgrst, 'reload schema';
+
+-- ───────────── 20261021_fretes_tabela_andorinha.sql ─────────────
+-- Tabela da ANDORINHA deduzida dos CT-es (XML) de 30/09 a 09/10/2026 — os componentes do frete
+-- de cada CT-e (frete peso, frete valor, GRIS, POS, despacho, TAS, pedágio, ICMS) batem com estes valores.
+-- Valores JÁ COM O ICMS "por dentro" (12% MS→MT, 7% SP→MS), como sai no total do CT-e.
+-- Pedágio: R$ 10,51 a cada 100 kg (acima de 100 kg vira aprox. R$ 0,105/kg). Cubagem: 300 kg/m³.
+-- Grava para as duas filiais (CBA e CGR): pode rodar nos dois projetos e quantas vezes quiser.
+delete from public.frete_tabelas where transportadora = 'ANDORINHA' and observacoes like 'Deduzida dos CT-es%';
+insert into public.frete_tabelas (transportadora, rota, peso_ate, nf_ate, valor_fixo, valor_kg, pct_nf, frete_minimo, minimo_base, cubagem_kg_m3, vigencia_inicio, observacoes, filial)
+select v.transportadora, v.rota, v.peso_ate::numeric, v.nf_ate::numeric, v.valor_fixo::numeric, v.valor_kg::numeric, v.pct_nf::numeric, v.frete_minimo::numeric,
+       'total', 300, '2026-09-30'::date, v.observacoes, f.filial
+from (values
+  -- MS → MT (Campo Grande → Cuiabá): frete peso 0,84/kg · frete valor 0,4% · GRIS 0,3% (mín. 8,77) · POS 0,1% · despacho 49,03 · TAS 17,50 · pedágio 10,51 · ICMS 12%
+  ('ANDORINHA', 'MS - MT', 100, 2923.33, 97.51, 0.9545, 0.5682, null, 'Deduzida dos CT-es: MS-MT ate 100 kg, NF ate 2.923 (GRIS no minimo 8,77). Componentes: peso 0,84/kg, valor 0,4%, GRIS 0,3% min 8,77, POS 0,1%, despacho 49,03, TAS 17,50, pedagio 10,51/100kg, ICMS 12% por dentro.'),
+  ('ANDORINHA', 'MS - MT', 100, null,    87.55, 0.9545, 0.9091, null, 'Deduzida dos CT-es: MS-MT ate 100 kg. Componentes: peso 0,84/kg, valor 0,4%, GRIS 0,3%, POS 0,1%, despacho 49,03, TAS 17,50, pedagio 10,51/100kg, ICMS 12% por dentro.'),
+  ('ANDORINHA', 'MS - MT', null, 2923.33, 85.57, 1.0740, 0.5682, null, 'Deduzida dos CT-es: MS-MT acima de 100 kg, NF ate 2.923 (pedagio aprox. 0,105/kg). ICMS 12% por dentro.'),
+  ('ANDORINHA', 'MS - MT', null, null,    75.60, 1.0740, 0.9091, null, 'Deduzida dos CT-es: MS-MT acima de 100 kg (pedagio aprox. 0,105/kg). ICMS 12% por dentro.'),
+  -- SP → MS (fornecedores de SP → Campo Grande): frete peso 0,928/kg · frete valor 0,5% · GRIS 0,3% · POS 0,1% · despacho 61,30 · TAS 17,50 · pedágio 10,51 · ICMS 7%
+  -- (+ COLETA R$ 33,29 quando há coleta no fornecedor — não incluída)
+  ('ANDORINHA', 'SP - MS', 100, null,    96.03, 0.9978, 0.9677, null, 'Deduzida dos CT-es: SP-MS ate 100 kg. Componentes: peso 0,928/kg, valor 0,5%, GRIS 0,3%, POS 0,1%, despacho 61,30, TAS 17,50, pedagio 10,51/100kg, ICMS 7% por dentro. Coleta 33,29 a parte.'),
+  ('ANDORINHA', 'SP - MS', null, null,   84.73, 1.1109, 0.9677, null, 'Deduzida dos CT-es: SP-MS acima de 100 kg (pedagio aprox. 0,105/kg). ICMS 7% por dentro. Coleta 33,29 a parte.')
+) v(transportadora, rota, peso_ate, nf_ate, valor_fixo, valor_kg, pct_nf, frete_minimo, observacoes)
+cross join (values ('CBA'), ('CGR')) f(filial);
+notify pgrst, 'reload schema';
+
+-- ───────────── 20261023_fretes_tabela_componentes.sql ─────────────
+-- Controle de Fretes: tabela combinada por componentes (como vêm na proposta), ICMS pelo sentido da
+-- viagem, validade da tabela e versão do banco. Rodar no SQL Editor de CADA projeto (Cuiabá e Campo Grande);
+-- pode rodar mais de uma vez.
+
+-- 1) Colunas novas da tabela de frete
+alter table public.frete_tabelas
+  add column if not exists pedagio_valor     numeric(12,2),             -- R$ por fração de peso
+  add column if not exists pedagio_fracao_kg numeric(10,2),             -- tamanho da fração (padrão 100 kg)
+  add column if not exists gris_pct          numeric(8,4),              -- % da NF
+  add column if not exists gris_min          numeric(12,2),             -- GRIS mínimo (R$)
+  add column if not exists coleta_valor      numeric(12,2),             -- coleta no remetente (R$), quando há
+  add column if not exists icms_modo         text not null default 'incluso',  -- 'incluso' | 'somar' (por dentro, pela rota)
+  add column if not exists icms_pct          numeric(5,2),              -- alíquota fixa (em branco = 7%/12% pela rota)
+  add column if not exists vigencia_fim      date;                      -- válida até
+
+-- 2) Versão do banco (a página avisa quando o banco está mais velho que ela)
+alter table public.frete_config add column if not exists versao_banco text;
+
+-- 3) Andorinha: proposta de 13/10/26 por componentes — troca as 16 linhas "Proposta 13/10/26" por 4
+--    (uma por rota). Valores SEM ICMS, como na proposta; o sistema soma 7% ou 12% pelo sentido.
+delete from public.frete_tabelas where transportadora = 'ANDORINHA' and observacoes like 'Proposta 13/10/26%';
+insert into public.frete_tabelas (transportadora, rota, peso_ate, nf_ate, valor_fixo, valor_kg, pct_nf, frete_minimo, minimo_base, cubagem_kg_m3,
+  pedagio_valor, pedagio_fracao_kg, gris_pct, gris_min, coleta_valor, icms_modo, vigencia_inicio, vigencia_fim, observacoes, filial)
+select 'ANDORINHA', v.rota, null, null, v.fixo::numeric, v.kg::numeric, v.pct::numeric, null, 'total', 300,
+       10.51, 100, 0.3, 8.77, v.coleta::numeric, 'somar', '2026-10-13'::date, '2027-07-28'::date, v.obs, f.filial
+from (values
+  ('MS - MT', 66.53, 0.84066, 0.5, null,  'Proposta 13/10/26 (ate 28/07/27): MS-MT (Cuiaba e regiao). Despacho 49,03 + TAS 17,50; 840,66/ton; frete valor 0,4% + POS 0,1%; GRIS 0,3% min 8,77; pedagio 10,51/100kg; ICMS somado pela rota.'),
+  ('MS - PR', 78.80, 0.92823, 0.6, null,  'Proposta 13/10/26 (ate 28/07/27): MS-PR (Maringa e regiao). Despacho 61,30 + TAS 17,50; 928,23/ton; frete valor 0,5% + POS 0,1%; GRIS 0,3% min 8,77; pedagio 10,51/100kg; ICMS somado pela rota.'),
+  ('MS - SP', 78.80, 0.92823, 0.6, 33.29, 'Proposta 13/10/26 (ate 28/07/27): MS-SP (Sao Paulo e Pres. Prudente). Despacho 61,30 + TAS 17,50; 928,23/ton; frete valor 0,5% + POS 0,1%; GRIS 0,3% min 8,77; pedagio 10,51/100kg; coleta 33,29 (Sao Paulo); ICMS somado pela rota.'),
+  ('MS - RJ', 209.03, 1.59609, 0.6, 33.29, 'Proposta 13/10/26 (ate 28/07/27): MS-RJ (Rio de Janeiro e regiao). Despacho 191,53 + TAS 17,50; 1.596,09/ton; frete valor 0,5% + POS 0,1%; GRIS 0,3% min 8,77; pedagio 10,51/100kg; coleta 33,29; ICMS somado pela rota.')
+) v(rota, fixo, kg, pct, coleta, obs)
+cross join (values ('CBA'), ('CGR')) f(filial);
+
+-- 4) Marca a versão do banco nas duas filiais (por último: só fica marcada se tudo acima rodou)
+insert into public.frete_config (filial, versao_banco) values ('CBA', '20261023'), ('CGR', '20261023')
+on conflict (filial) do update set versao_banco = excluded.versao_banco, atualizado_em = now();
+
+notify pgrst, 'reload schema';
