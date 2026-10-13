@@ -746,7 +746,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-13.5';
+const VERSAO = '2026-10-13.6';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1871,10 +1871,18 @@ function aliquotaIcms(ufO, ufD) {
   return { pct: UFS_SUL_SUDESTE.includes(ufO) && !UFS_SUL_SUDESTE.includes(ufD) ? 7 : 12, obs: `${ufO}→${ufD}` };
 }
 // UFs de origem e destino a partir da rota ("CAMPO GRANDE/MS - CUIABA/MT" ou "MS - MT").
+// Rota aérea/SSW por código de aeroporto ou base ("CGR - CGB", "OR:[GRU] DE:[CGR]") → UF.
+const UF_DO_CODIGO = { CGR: 'MS', CGE: 'MS', DOU: 'MS', TJL: 'MS', CMG: 'MS', PMG: 'MS', BYO: 'MS', CGB: 'MT', CBA: 'MT', ROO: 'MT', OPS: 'MT', AFL: 'MT',
+  SMT: 'MT', BPG: 'MT', LVR: 'MT', GRU: 'SP', CGH: 'SP', VCP: 'SP', SAO: 'SP', SPA: 'SP', SPO: 'SP', RAO: 'SP', SJK: 'SP', SJP: 'SP', BAU: 'SP', PPB: 'SP',
+  GIG: 'RJ', SDU: 'RJ', RIO: 'RJ', BSB: 'DF', GYN: 'GO', RVD: 'GO', CNF: 'MG', PLU: 'MG', BHZ: 'MG', UDI: 'MG', CWB: 'PR', LDB: 'PR', MGF: 'PR', IGU: 'PR',
+  POA: 'RS', FLN: 'SC', JOI: 'SC', NVT: 'SC', VIX: 'ES', SSA: 'BA', REC: 'PE', FOR: 'CE', MAO: 'AM', BEL: 'PA', PVH: 'RO', RBR: 'AC', PMW: 'TO', SLZ: 'MA',
+  THE: 'PI', NAT: 'RN', JPA: 'PB', MCZ: 'AL', AJU: 'SE', MCP: 'AP', BVB: 'RR' };
 function ufsDaRota(rota) {
   const b = norm(rota || '');
   const par = /^([A-Z]{2})\s*-\s*([A-Z]{2})$/.exec(b);
   if (par) return { ufO: par[1], ufD: par[2] };
+  const cod = /^([A-Z]{3})\s*-\s*([A-Z]{3})$/.exec(b);
+  if (cod && UF_DO_CODIGO[cod[1]] && UF_DO_CODIGO[cod[2]]) return { ufO: UF_DO_CODIGO[cod[1]], ufD: UF_DO_CODIGO[cod[2]] };
   const ufs = [...b.matchAll(/\/([A-Z]{2})\b/g)].map(m => m[1]).filter(u => UFS.includes(u));
   return ufs.length >= 2 ? { ufO: ufs[0], ufD: ufs[ufs.length - 1] } : {};
 }
@@ -2019,9 +2027,10 @@ function estimativaHistorico(transportadora, v) {
     const mObs = /([A-ZÀ-Ü][A-ZÀ-Ü' .-]+\/[A-Z]{2})\s*→\s*([A-ZÀ-Ü][A-ZÀ-Ü' .-]+\/[A-Z]{2})/.exec(c.observacoes || '');
     return [mObs ? `${mObs[1].trim()} - ${mObs[2].trim()}` : null, c.origem].filter(Boolean);
   };
+  const mesmoPar = r => { const u = ufsDaRota(r); return u.ufO && [u.ufO, u.ufD].sort().join() === [v.uf_origem, v.uf_destino].sort().join(); };
   const cs = data.cte.filter(c => norm(canonTransp(c.transportadora)) === norm(transportadora) && num(c.valor_frete) > 0
-    && rotasCte(c).some(r => rotaCasa(par, r) >= 2));
-  if (cs.length < 3) return null;
+    && rotasCte(c).some(r => rotaCasa(par, r) >= 2 || mesmoPar(r)));
+  if (cs.length < 3) return { semBase: true, total: cs.length };
   const peso = Math.max(num(v.peso_kg), num(v.volume_m3) * 300) || null, nf = num(v.valor_mercadoria) || null;
   const dist = c => (peso && num(c.peso_kg) > 0 ? Math.abs(Math.log(num(c.peso_kg) / peso)) : peso ? 1 : 0)
     + (nf && num(c.valor_nfe) > 0 ? 0.5 * Math.abs(Math.log(num(c.valor_nfe) / nf)) : nf ? 0.5 : 0);
@@ -2040,7 +2049,11 @@ function simular() {
   _simRes = transps.map(t => ({ t, r: tabelaPara('cot', v, t, { coleta: v.coleta }) })).filter(x => x.r);
   const comTabela = new Set(_simRes.map(x => norm(x.t)));
   const semTabela = [...new Set(data.cte.map(c => canonTransp(c.transportadora)).filter(Boolean))].filter(t => !comTabela.has(norm(t)));
-  _simRes.push(...semTabela.map(t => ({ t, r: estimativaHistorico(t, v) })).filter(x => x.r));
+  const estimadas = semTabela.map(t => ({ t, r: estimativaHistorico(t, v) }));
+  _simRes.push(...estimadas.filter(x => x.r && !x.r.semBase));
+  // Quem ficou de fora e por quê (sem tabela para a rota e menos de 3 CT-es nela)
+  const fora = estimadas.filter(x => x.r?.semBase).sort((a, b) => b.r.total - a.r.total || a.t.localeCompare(b.t));
+  const foraHTML = fora.length && v.uf_origem && v.uf_destino ? `<div class="td-mono" style="margin-top:8px">Sem tabela para ${esc(v.uf_origem)}↔${esc(v.uf_destino)} e com menos de 3 CT-es nessa rota (sem base para estimar): ${fora.map(x => `${esc(x.t)} (${x.r.total})`).join(', ')}. Cadastre a tabela delas em 📑 Tabelas de frete.</div>` : '';
   _simRes.sort((a, b) => a.r.preco - b.r.preco);
   const kg = x => num(x.r.peso).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
   $('sim-res').innerHTML = _simRes.length ? `<table><thead><tr><th>Transportadora</th><th class="num">Peso cobrado</th><th class="num">Frete</th><th class="num">% NF</th><th></th></tr></thead><tbody>
@@ -2055,6 +2068,7 @@ function simular() {
       <td class="num">${v.valor_mercadoria > 0 ? pctHTML(x.r.preco / v.valor_mercadoria) : '—'}</td>
       <td><button type="button" class="fchip w-only" onclick="simCotar(${i})" title="Abre uma cotação já preenchida">＋ Cotar</button></td></tr>`).join('')}</tbody></table>`
     : '<div class="empty-mini">Nenhuma tabela atende essa rota/carga. Confira origem e destino com UF e informe o peso (ou as dimensões).</div>';
+  if (foraHTML) $('sim-res').insertAdjacentHTML('beforeend', foraHTML);
 }
 window.simCotar = i => {
   const x = _simRes[i]; if (!x) return;
