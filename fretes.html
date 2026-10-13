@@ -488,7 +488,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <section class="view" id="view-calculo">
         <div class="calculo-wrap">
           <div class="dcard">
-            <div class="dcard-head">🧮 Cálculo de frete pela tabela combinada <small>dimensões, peso e valor da NF → quanto cada transportadora cobra</small></div>
+            <div class="dcard-head">🧮 Cálculo de frete pela tabela combinada <small>dimensões, peso e valor da NF → quanto cada transportadora cobra (sem tabela: ≈ estimativa pelos CT-es)</small></div>
             <div class="dcard-body">
               <div class="fgrid sim-grid">
                 <div class="fg"><label class="flbl" for="sim-origem">Origem</label><input class="finput" id="sim-origem" list="dl-orig" autocomplete="off" placeholder="Cidade de saída"></div>
@@ -737,7 +737,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-12.10';
+const VERSAO = '2026-10-13.1';
 // CT-es importados ficam no banco da própria filial (Cuiabá grava em Cuiabá, Campo Grande em
 // Campo Grande). IMPORTA_PARA = { filial, label, url, key } desviaria a importação para outro banco.
 const IMPORTA_PARA = null;
@@ -1904,17 +1904,46 @@ function simDados() {
   return { origem: g('sim-origem'), uf_origem: g('sim-uf_origem'), destino: g('sim-destino'), uf_destino: g('sim-uf_destino'),
     peso_kg: num($('sim-peso').value) || null, valor_mercadoria: num($('sim-nf').value), volume_m3: m3 || null, data_cotacao: hojeISO(), vols };
 }
+// Transportadora sem tabela combinada para a rota: estima pelo histórico dela — mediana do frete
+// dos CT-es mais parecidos (mesmo par de UFs, peso e valor da NF mais próximos). Precisa de 3+ CT-es na rota.
+function estimativaHistorico(transportadora, v) {
+  if (!v.uf_origem || !v.uf_destino) return null;
+  const par = `${v.uf_origem} - ${v.uf_destino}`;
+  const rotasCte = c => {
+    const mObs = /([A-ZÀ-Ü][A-ZÀ-Ü' .-]+\/[A-Z]{2})\s*→\s*([A-ZÀ-Ü][A-ZÀ-Ü' .-]+\/[A-Z]{2})/.exec(c.observacoes || '');
+    return [mObs ? `${mObs[1].trim()} - ${mObs[2].trim()}` : null, c.origem].filter(Boolean);
+  };
+  const cs = data.cte.filter(c => norm(canonTransp(c.transportadora)) === norm(transportadora) && num(c.valor_frete) > 0
+    && rotasCte(c).some(r => rotaCasa(par, r) >= 2));
+  if (cs.length < 3) return null;
+  const peso = Math.max(num(v.peso_kg), num(v.volume_m3) * 300) || null, nf = num(v.valor_mercadoria) || null;
+  const dist = c => (peso && num(c.peso_kg) > 0 ? Math.abs(Math.log(num(c.peso_kg) / peso)) : peso ? 1 : 0)
+    + (nf && num(c.valor_nfe) > 0 ? 0.5 * Math.abs(Math.log(num(c.valor_nfe) / nf)) : nf ? 0.5 : 0);
+  const viz = cs.map(c => ({ c, d: dist(c) })).sort((a, b) => a.d - b.d).slice(0, 5).map(x => x.c);
+  const fr = viz.map(c => num(c.valor_frete)).sort((a, b) => a - b);
+  return { preco: fr[Math.floor((fr.length - 1) / 2)], peso, nf, estimativa: { n: viz.length, total: cs.length, min: fr[0], max: fr[fr.length - 1], ctes: viz } };
+}
+const descEstimativa = (t, e) => `Sem tabela combinada — estimativa pelo histórico: mediana dos ${e.n} CT-es mais parecidos da ${t} nessa rota (de ${e.total}), entre ${brl(e.min)} e ${brl(e.max)}`;
 let _simRes = [];
 function simular() {
   const v = simDados();
   const transps = [...new Set(data.tab.map(t => canonTransp(t.transportadora)))];
   $('sim-cub').innerHTML = v.volume_m3 ? `📦 ${v.vols} volume(s) · <b>${v.volume_m3.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} m³</b> · peso cubado a 300 kg/m³: <b>${(v.volume_m3 * 300).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg</b> (cada tabela usa o fator dela)` : 'Sem dimensões: calcula só pelo peso real.';
-  if (!transps.length) { $('sim-res').innerHTML = '<div class="empty-mini">Cadastre tabelas para simular.</div>'; return; }
+  if (!transps.length && !data.cte.length) { $('sim-res').innerHTML = '<div class="empty-mini">Cadastre tabelas para simular.</div>'; return; }
   if (!v.valor_mercadoria && !v.peso_kg && !v.volume_m3) { $('sim-res').innerHTML = '<div class="empty-mini">Informe o valor da NF, o peso e/ou as dimensões.</div>'; return; }
-  _simRes = transps.map(t => ({ t, r: tabelaPara('cot', v, t) })).filter(x => x.r).sort((a, b) => a.r.preco - b.r.preco);
+  _simRes = transps.map(t => ({ t, r: tabelaPara('cot', v, t) })).filter(x => x.r);
+  const comTabela = new Set(_simRes.map(x => norm(x.t)));
+  const semTabela = [...new Set(data.cte.map(c => canonTransp(c.transportadora)).filter(Boolean))].filter(t => !comTabela.has(norm(t)));
+  _simRes.push(...semTabela.map(t => ({ t, r: estimativaHistorico(t, v) })).filter(x => x.r));
+  _simRes.sort((a, b) => a.r.preco - b.r.preco);
   const kg = x => num(x.r.peso).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-  $('sim-res').innerHTML = _simRes.length ? `<table><thead><tr><th>Transportadora</th><th class="num">Peso cobrado</th><th class="num">Frete pela tabela</th><th class="num">% NF</th><th></th></tr></thead><tbody>
-    ${_simRes.map((x, i) => `<tr><td>${i === 0 ? '<span class="calc-melhor">MAIS BARATA</span> ' : ''}<b>${esc(x.t)}</b>${tabelaAntiga(x.r.linha) ? ' <span class="badge b-warn" title="' + esc(tabelaAntiga(x.r.linha)) + '">⚠ tabela antiga</span>' : ''}
+  $('sim-res').innerHTML = _simRes.length ? `<table><thead><tr><th>Transportadora</th><th class="num">Peso cobrado</th><th class="num">Frete</th><th class="num">% NF</th><th></th></tr></thead><tbody>
+    ${_simRes.map((x, i) => x.r.estimativa ? `<tr><td>${i === 0 ? '<span class="calc-melhor">MAIS BARATA</span> ' : ''}<b>${esc(x.t)}</b> <span class="badge b-warn" title="Sem tabela combinada: valor estimado pelos CT-es anteriores">≈ estimativa</span>
+        <div class="sim-conta">${esc(descEstimativa(x.t, x.r.estimativa))}<br>CT-es usados: ${x.r.estimativa.ctes.map(c => `${esc(c.numero_cte)} (${num(c.peso_kg) ? num(c.peso_kg).toLocaleString('pt-BR') + ' kg · ' : ''}NF ${brl(c.valor_nfe)} → ${brl(c.valor_frete)})`).join(' · ')}</div></td>
+      <td class="num">${x.r.peso ? kg(x) + ' kg' : '—'}</td><td class="num"><b>≈ ${brl(x.r.preco)}</b></td>
+      <td class="num">${v.valor_mercadoria > 0 ? pctHTML(x.r.preco / v.valor_mercadoria) : '—'}</td>
+      <td><button type="button" class="fchip w-only" onclick="simCotar(${i})" title="Abre uma cotação já preenchida">＋ Cotar</button></td></tr>`
+    : `<tr><td>${i === 0 ? '<span class="calc-melhor">MAIS BARATA</span> ' : ''}<b>${esc(x.t)}</b>${tabelaAntiga(x.r.linha) ? ' <span class="badge b-warn" title="' + esc(tabelaAntiga(x.r.linha)) + '">⚠ tabela antiga</span>' : ''}
         <div class="sim-conta">${esc(descLinhaTabela(x.r.linha))}<br>${contaTabela(x.r.linha, x.r.peso, x.r.nf)}</div></td>
       <td class="num">${x.r.peso ? kg(x) + ' kg' : '—'}${x.r.cubado ? '<div class="td-doc">cubado</div>' : ''}</td><td class="num"><b>${brl(x.r.preco)}</b></td>
       <td class="num">${v.valor_mercadoria > 0 ? pctHTML(x.r.preco / v.valor_mercadoria) : '—'}</td>
@@ -1926,8 +1955,9 @@ window.simCotar = i => {
   const v = simDados();
   abrirModal('cot', null, { valores: { transportadora: x.t, origem: v.origem, uf_origem: v.uf_origem, destino: v.destino, uf_destino: v.uf_destino,
     peso_kg: v.peso_kg, volume_m3: v.volume_m3 ? +v.volume_m3.toFixed(4) : null, valor_mercadoria: v.valor_mercadoria || null, valor_frete: +x.r.preco.toFixed(2),
-    data_cotacao: hojeISO(), observacoes: `Calculado pela tabela combinada: ${descLinhaTabela(x.r.linha)}${x.r.cubado ? ` · peso cubado ${num(x.r.peso).toFixed(1)} kg` : ''}` } });
-  $('modal-title').textContent = '＋ Nova cotação — valor pela tabela combinada';
+    data_cotacao: hojeISO(), observacoes: x.r.estimativa ? `Estimado pelo histórico (sem tabela combinada): mediana dos ${x.r.estimativa.n} CT-es mais parecidos, entre ${brl(x.r.estimativa.min)} e ${brl(x.r.estimativa.max)} — confirmar com a transportadora`
+      : `Calculado pela tabela combinada: ${descLinhaTabela(x.r.linha)}${x.r.cubado ? ` · peso cubado ${num(x.r.peso).toFixed(1)} kg` : ''}` } });
+  $('modal-title').textContent = x.r.estimativa ? '＋ Nova cotação — valor estimado pelo histórico' : '＋ Nova cotação — valor pela tabela combinada';
 };
 
 // ═════════════ Faturas ═════════════
