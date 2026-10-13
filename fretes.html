@@ -746,7 +746,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-13.2';
+const VERSAO = '2026-10-13.3';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261023';
@@ -2062,6 +2062,13 @@ function cteDaFatura(n, transportadora) {
 }
 const ctesDaFatura = f => [...new Set((f.ctes || []).map(n => cteDaFatura(n, f.transportadora)).filter(Boolean))];
 const naoAchadosFatura = f => (f.ctes || []).filter(n => !cteDaFatura(n, f.transportadora));
+// Por que a fatura não foi conferida pela tabela: sem CT-e vinculado, sem tabela, ou a tabela não atende.
+function situacaoTabelaFatura(f) {
+  if (!ctesDaFatura(f).length) return `<span class="badge b-warn" title="Abra a fatura e marque os CT-es cobrados nela">sem CT-es vinculados</span>`;
+  const temTabela = data.tab.some(t => norm(canonTransp(t.transportadora)) === norm(canonTransp(f.transportadora)));
+  return temTabela ? '<span class="td-mono" title="Há tabela da transportadora, mas nenhuma linha atende a rota/peso destes CT-es (confira origem/destino com UF e o peso)">tabela não atende estes CT-es</span>'
+    : '<span class="td-mono">sem tabela</span>';
+}
 function situacaoFatura(f) {
   const soma = ctesDaFatura(f).reduce((a, c) => a + num(c.valor_frete), 0);
   const dif = num(f.valor) - soma;
@@ -2110,7 +2117,7 @@ function renderFaturas() {
       <td class="td-mono">${dataBR(f.vencimento)}${st.vencida ? '<span class="tag-venc">VENCIDA</span>' : st.vencendo ? `<span class="tag-venc" style="color:var(--warn-c)">em ${st.dias}d</span>` : ''}</td>
       <td class="num">${brl(f.valor)}</td><td class="num">${(f.ctes || []).length}${naoAchadosFatura(f).length ? `<div class="tag-venc" title="Nº na fatura sem CT-e cadastrado com esse número: ${esc(naoAchadosFatura(f).join(', '))} — importe esses CT-es ou abra a fatura e marque os CT-es certos">${naoAchadosFatura(f).length} não achado(s)</div>` : ''}</td><td class="num">${brl(st.soma)}</td>
       <td>${!num(f.valor) ? '—' : st.confere ? '<span class="badge b-ok">✔ confere</span>' : `<span class="badge ${st.dif > 0 ? 'b-crit' : 'b-warn'}">⚠ ${st.dif > 0 ? '+' : '−'}${brl(Math.abs(st.dif))}</span>`}</td>
-      <td>${tb.acima.length ? `<span class="badge b-crit" title="${esc(tb.acima.map(x => `${x.c.numero_cte}: ${brl(x.c.valor_frete)} × tabela ${brl(x.chk.preco)}`).join(' · '))}">⚠ ${tb.acima.length} acima · +${brl(tb.total)}</span>` : tb.conferidos ? `<span class="badge b-ok">✔ ${tb.conferidos} conferido(s)</span>` : '<span class="td-mono">sem tabela</span>'}</td>
+      <td>${tb.acima.length ? `<span class="badge b-crit" title="${esc(tb.acima.map(x => `${x.c.numero_cte}: ${brl(x.c.valor_frete)} × tabela ${brl(x.chk.preco)}`).join(' · '))}">⚠ ${tb.acima.length} acima · +${brl(tb.total)}</span>` : tb.conferidos ? `<span class="badge b-ok">✔ ${tb.conferidos} conferido(s)</span>` : situacaoTabelaFatura(f)}</td>
       <td>${badge(f.status === 'Paga' ? 'Aprovado' : f.status === 'Contestada' ? 'Reprovado' : 'Aguardando').replace(/Aprovado|Reprovado|Aguardando/, esc(f.status))}</td>
       <td><div class="row-acts w-only">${(tb.acima.length || (!st.confere && num(f.valor))) && f.status !== 'Paga' ? `<button class="abtn" title="Contestar no WhatsApp (acima da tabela / soma não confere)" onclick="event.stopPropagation();contestarFatura('${f.id}')">💬</button>` : ''}${f.status !== 'Paga' ? `<button class="abtn" title="Marcar como paga" onclick="event.stopPropagation();marcarFaturaPaga('${f.id}')">✔</button>` : ''}<button class="abtn del" title="Excluir" onclick="event.stopPropagation();excluir('fat','${f.id}')">🗑</button></div></td></tr>`; }).join('')}</tbody>`
     : '<tbody><tr><td><div class="empty-page">💳 Nenhuma fatura lançada.<br><br>Lance a fatura/boleto de cada transportadora (<b>＋ Nova fatura</b>) e marque os CT-es cobrados:<br>a página confere se a soma bate e avisa os vencimentos.</div></td></tr></tbody>';
@@ -2480,6 +2487,22 @@ async function importarFaturaPdf(file) {
     const achar = n => data.cte.find(c => (!transportadora || norm(c.transportadora) === norm(transportadora) || true)
       && (idCte(c.numero_cte) === idCte(n) || (/Chave CT-e: (\d{44})/.exec(c.observacoes || '') || [])[1]?.slice(25, 34).replace(/^0+/, '') === idCte(n)));
     const casados = linhas.map(l => ({ ...l, cte: achar(l.num) }));
+    // Layout que o padrão de linhas não reconhece: procura no texto o Nº (ou a NF) de cada CT-e da
+    // transportadora já cadastrado e ainda sem fatura — só números de 4+ dígitos, fora de datas e valores.
+    if (!transportadora && casados.find(x => x.cte)) transportadora = casados.find(x => x.cte).cte.transportadora;
+    if (transportadora) {
+      const tokens = new Set([...texto.matchAll(/(?<![\d.,\/])(\d{4,12})(?![\d,\/]|\.\d)/g)].map(m => m[1].replace(/^0+/, ''))
+        .concat([...texto.matchAll(/[A-Z]{3}\s?\d{5,8}-?\d/g)].flatMap(m => [idCte(m[0]), digitos(m[0]), digitos(m[0]).slice(0, -1)])));
+      const jaFaturados = new Set(data.fat.flatMap(ctesDaFatura));
+      const ja = new Set(casados.filter(x => x.cte).map(x => x.cte));
+      data.cte.filter(c => norm(canonTransp(c.transportadora)) === norm(canonTransp(transportadora)) && !ja.has(c) && !jaFaturados.has(c)
+        && (!emissao || !c.data_emissao || c.data_emissao <= emissao))
+        .forEach(c => {
+          const ids = [...idsDoCte(c)].filter(id => id.length >= 4);
+          const pelaNf = !ids.some(id => tokens.has(id)) && nfsDe(c).some(n => n.length >= 4 && tokens.has(n));
+          if (ids.some(id => tokens.has(id)) || pelaNf) casados.push({ num: c.numero_cte + (pelaNf ? ' (pela NF)' : ''), valor: num(c.valor_frete), cte: c, achadoNoTexto: true });
+        });
+    }
     const ctes = casados.filter(x => x.cte).map(x => x.cte.numero_cte);
     const faltam = casados.filter(x => !x.cte);
     const difs = casados.filter(x => x.cte && Math.abs(num(x.cte.valor_frete) - x.valor) > 0.01);
@@ -2487,7 +2510,8 @@ async function importarFaturaPdf(file) {
     const cabecalho = (texto.split('\n').find(l => l.trim().length > 5) || '').trim();
     if (!transportadora && cabecalho && !/FATURA|DUPLICATA/i.test(cabecalho)) transportadora = cabecalho.slice(0, 80);
     const resumo = `<div class="pdf-result"><b>📄 ${esc(file.name)}</b> — fatura ${esc(numero || '?')} · ${esc(transportadora || 'transportadora não identificada')} · ${valor != null ? brl(valor) : 'valor ?'}<br>
-      <span class="ok">✔ ${ctes.length} de ${linhas.length} CT-e(s) da fatura encontrados no sistema</span>
+      <span class="ok">✔ ${ctes.length} CT-e(s) da fatura encontrados no sistema${casados.some(x => x.achadoNoTexto) ? ` (${casados.filter(x => x.achadoNoTexto).length} pelo Nº/NF no texto do PDF — confira a lista abaixo)` : ''}</span>
+      ${!ctes.length ? '<br><span class="miss">– Nenhum CT-e reconhecido no PDF: marque abaixo os CT-es cobrados nesta fatura</span>' : ''}
       ${faltam.length ? `<br><span class="miss">– Não lançados no sistema: ${faltam.map(x => `${esc(x.num)} (${brl(x.valor)})`).join(', ')} — importe esses CT-es antes de conferir</span>` : ''}
       ${difs.length ? `<br><span class="miss">⚠ Valor na fatura diferente do CT-e: ${difs.map(x => `${esc(x.num)}: fatura ${brl(x.valor)} × CT-e ${brl(x.cte.valor_frete)}`).join('; ')}</span>` : ''}</div>`;
     goView('faturas');
