@@ -748,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.5';
+const VERSAO = '2026-10-14.6';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -4677,6 +4677,7 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
   const max = Math.max(...d.porTransp.map(g => g.frete), 1), maxR = Math.max(...d.porRota.map(g => g.frete), 1), maxS = Math.max(...d.porSemana.map(g => g.frete), 1);
   const logo = new URL('logo.jpg', location.href).href;
   const contestar = d.aud.reduce((a, x) => a + x.contestar, 0);
+  const porTranspAud = audPorTransportadora(d.aud);
   win.document.open();
   // Uma página só (A4 deitada): layout compacto e, ao abrir e ao imprimir, a página é reduzida (zoom) até
   // caber na folha; se ficaria pequena demais (< 60%), a lista mostra os fretes de maior valor e avisa
@@ -4709,6 +4710,10 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
     .alerta{border:1px solid #f1d3d3;background:#fdf6f6;border-radius:5px;padding:4px 7px;margin-bottom:4px}
     .alerta.ok{border-color:#cfe5d7;background:#f4faf6}
     .alerta b{color:#0a2a18}.alerta ul{margin:2px 0 0 12px}.alerta li{margin:1px 0}
+    .cobrar{margin-top:5px;border-top:1px dashed #e8c4c4;padding-top:4px}
+    .cobrar-lin{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:2px 0}
+    .acoes-cob button{margin-left:4px;padding:2px 6px;font-size:8.5px;border:1px solid #1a7a4a;background:#fff;color:#1a7a4a;border-radius:4px;cursor:pointer;font-weight:700}
+    @media print{.acoes-cob{display:none}}
     table.rel td,table.rel th{font-size:8px;padding:2px 3px}
     .omitidos{margin-top:3px;color:#7a5a00;font-size:8.5px}
     footer{margin-top:6px;font-size:8px;color:#777;border-top:1px solid #ddd;padding-top:3px}
@@ -4755,7 +4760,9 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
     </div>
     <div><h2>Alertas</h2>
       <div class="alerta ${d.aud.length ? '' : 'ok'}"><b>Acima da tabela/usual: ${d.aud.length}</b>${d.aud.length ? ` · a contestar ~${brl(contestar)}` : ''}
-        ${alertaItens(d.aud, x => `<li>CT-e ${esc(x.c.numero_cte)} · ${esc(x.c.transportadora || '—')} · ${brl(x.c.valor_frete)}${x.contestar ? ` (+${brl(x.contestar)})` : ''}</li>`)}</div>
+        ${alertaItens(d.aud, x => `<li>CT-e ${esc(x.c.numero_cte)} · ${esc(x.c.transportadora || '—')} · ${brl(x.c.valor_frete)}${x.contestar ? ` (+${brl(x.contestar)})` : ''}</li>`)}
+        ${porTranspAud.length ? `<div class="cobrar">${porTranspAud.map(g => `<div class="cobrar-lin"><span><b>${esc(g.nome)}</b>: ${g.itens.length} CT-e(s) · ${brl(g.total)}</span>
+          <span class="acoes-cob"><button onclick="opener.cobrarTransportadora(${JSON.stringify(g.nome).replace(/"/g, '&quot;')}, 'whatsapp')">📲 Cobrar no WhatsApp</button><button onclick="opener.cobrarTransportadora(${JSON.stringify(g.nome).replace(/"/g, '&quot;')}, 'email')">✉ Cobrar por e-mail</button></span></div>`).join('')}</div>` : ''}</div>
       <div class="alerta ${d.atrasadas.length ? '' : 'ok'}"><b>Entregas atrasadas (hoje): ${d.atrasadas.length}</b>
         ${alertaItens(d.atrasadas, c => `<li>CT-e ${esc(c.numero_cte)} · ${esc(c.transportadora || '—')} · prev. ${dataBR(previsaoEntrega(c))}${previsaoEntrega(c) ? ` (${Math.max(0, diasEntre(previsaoEntrega(c), hojeISO()))}d)` : ''}</li>`)}</div>
       <div class="alerta ${d.faturas.length ? '' : 'ok'}"><b>Faturas vencidas/vencendo: ${d.faturas.length}</b>${d.faturas.length ? ` · ${brl(d.faturas.reduce((a, f) => a + num(f.valor), 0))}` : ''}
@@ -4798,6 +4805,44 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
   </body></html>`);
   win.document.close();
   win.focus();
+};
+// Cobrança por transportadora: CT-es do período acima da tabela/usual, com motivo e valor a revisar.
+function audPorTransportadora(aud) {
+  const m = new Map();
+  aud.forEach(x => { const k = canonTransp(x.c.transportadora) || '—'; if (!m.has(k)) m.set(k, []); m.get(k).push(x); });
+  return [...m].map(([nome, itens]) => ({ nome, itens, total: itens.reduce((a, x) => a + num(x.contestar), 0) })).sort((a, b) => b.total - a.total);
+}
+function textoCobranca(nome, itens, periodo) {
+  const t = data.transp.find(x => norm(canonTransp(x.nome)) === norm(nome));
+  const total = itens.reduce((a, x) => a + num(x.contestar), 0);
+  const L = [`Olá${t?.contato ? ' ' + t.contato : ''}, tudo bem?`, '',
+    `Aqui é da GF Medical ${FILIAL_LABEL}. Na conferência dos fretes de ${periodo}, encontramos cobranças da ${nome} acima do combinado nos CT-es abaixo:`, ''];
+  itens.forEach(x => {
+    const c = x.c, motivo = x.achados.map(a => a.txt.replace(/<[^>]+>/g, '')).join('; ');
+    L.push(`• CT-e ${c.numero_cte} — emissão ${dataBR(c.data_emissao)}${c.numero_nfe ? `, NF ${c.numero_nfe}` : ''}`);
+    L.push(`  Cobrado: ${brl(c.valor_frete)}${x.contestar ? ` · a revisar: ${brl(x.contestar)}` : ''}`);
+    L.push(`  Motivo: ${motivo}`);
+  });
+  L.push('', `Total a revisar: ${brl(total)}.`, '',
+    'Podem conferir e nos enviar a correção (CT-e substituto ou abatimento na próxima fatura), por favor?', 'Fico no aguardo. Obrigado!');
+  return { texto: L.join('\n'), t, total };
+}
+window.cobrarTransportadora = (nome, canal) => {
+  const d = dadosRelatorio(_relOffset, _relTipo);
+  const g = audPorTransportadora(d.aud).find(x => x.nome === nome);
+  if (!g) { toast('Nada a cobrar dessa transportadora no período.', 'info'); return; }
+  const periodo = _relTipo === 'mes' ? d.s.nome : `${dataBR(d.s.ini)} a ${dataBR(d.s.fim)}`;
+  const { texto, t, total } = textoCobranca(nome, g.itens, periodo);
+  navigator.clipboard?.writeText(texto).catch(() => {});
+  if (canal === 'email') {
+    const assunto = `Revisão de cobrança de frete — ${nome} — CT-e ${g.itens.map(x => x.c.numero_cte).join(', ')} — GF Medical ${FILIAL_LABEL}`;
+    window.open(`mailto:${encodeURIComponent(t?.email || '')}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(texto)}`, '_blank');
+    if (!t?.email) toast(`A ${nome} está sem e-mail no cadastro — preencha o destinatário (o texto também foi copiado).`, 'info');
+  } else {
+    const tel = soDigitos(t?.telefone);
+    window.open(tel.length >= 10 ? `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(texto)}` : 'https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
+  }
+  registrarLog('cobrança de frete enviada', T.cte, nome, { canal, periodo, ctes: g.itens.map(x => x.c.numero_cte), total });
 };
 window.copiarRelatorioSemanal = canal => {
   const d = dadosRelatorio(_relOffset, _relTipo), texto = textoRelatorio(d);
