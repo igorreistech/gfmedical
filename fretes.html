@@ -383,7 +383,8 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <label class="tbtn tbtn-g w-only" title="Importar a planilha Controle_Cotacao_Frete (.xlsx)">📥 Importar<input type="file" id="f-import" accept=".xlsx,.xls" hidden></label>
       <button class="tbtn tbtn-g" onclick="enviarWhatsApp()" title="Resumo dos números do período para enviar no WhatsApp">📲 WhatsApp</button>
       <button class="tbtn tbtn-g" onclick="enviarResumoDia()" title="Resumo do dia (vencidos, auditoria, meta e faturas) para o WhatsApp">🔔 Resumo do dia</button>
-      <button class="tbtn tbtn-g" onclick="relatorioSemanal(0)" title="Relatório da última semana (segunda a domingo) para o gestor: PDF + resumo no WhatsApp/e-mail">📊 Relatório semanal</button>
+      <button class="tbtn tbtn-g" onclick="relatorioSemanal(0, 'semana')" title="Relatório da última semana (segunda a domingo) para o gestor: PDF + resumo no WhatsApp/e-mail">📊 Relatório semanal</button>
+      <button class="tbtn tbtn-g" onclick="relatorioSemanal(0, 'mes')" title="Relatório do último mês fechado para o gestor: PDF + resumo no WhatsApp/e-mail">📅 Relatório mensal</button>
       <button class="tbtn tbtn-g" onclick="gerarPdf()" title="Relatório do período para salvar em PDF ou imprimir">🖨 PDF</button>
       <button class="tbtn tbtn-g" onclick="exportarExcel()">📤 Exportar</button>
       <button class="tbtn tbtn-g" onclick="backupCompleto()" title="Baixa tudo (CT-es, cotações, transportadoras, tabelas, faturas, cálculos e registro) em Excel, sem filtros">💾 Backup</button>
@@ -747,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.1';
+const VERSAO = '2026-10-14.2';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -4589,47 +4590,65 @@ window.enviarWhatsApp = () => {
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
 };
 
-// ═════════════ Relatório semanal para o gestor ═════════════
-// Semana fechada (segunda a domingo) pela data de emissão do CT-e: resumo e custo × semana anterior,
-// por transportadora e por rota, alertas (acima da tabela, entregas atrasadas, faturas, tabelas a renovar)
-// e a lista dos fretes. Abre pronto para salvar em PDF; o resumo em texto vai para WhatsApp/e-mail.
+// ═════════════ Relatório semanal / mensal para o gestor ═════════════
+// Semana fechada (segunda a domingo) ou mês fechado, pela data de emissão do CT-e: resumo e custo × período
+// anterior, por transportadora e por rota (no mensal, também por semana), alertas (acima da tabela, entregas
+// atrasadas, faturas, tabelas a renovar) e a lista dos fretes. Abre pronto para salvar em PDF; o resumo em
+// texto vai para WhatsApp/e-mail.
 const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
-// offset 0 = última semana completa; -1 = a anterior; 1 = semana atual (até hoje)
-function semanaRelatorio(offset = 0) {
-  const hoje = hojeISO(), dow = (new Date(hoje + 'T12:00:00').getDay() + 6) % 7; // 0 = segunda
+const MESES_EXTENSO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+// offset 0 = última semana/mês completo; -1 = o anterior; 1 = o atual (até hoje)
+function periodoRelatorio(offset = 0, tipo = 'semana') {
+  const hoje = hojeISO();
+  if (tipo === 'mes') {
+    const d = new Date(+hoje.slice(0, 4), +hoje.slice(5, 7) - 2 + offset, 1);
+    const ini = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    const ult = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    return { ini, fim: ini.slice(0, 8) + String(ult).padStart(2, '0'), offset, tipo, nome: `${MESES_EXTENSO[d.getMonth()]}/${d.getFullYear()}` };
+  }
+  const dow = (new Date(hoje + 'T12:00:00').getDay() + 6) % 7; // 0 = segunda
   const ini = somaDias(hoje, -dow - 7 + offset * 7), fim = somaDias(ini, 6);
-  return { ini, fim, offset };
+  return { ini, fim, offset, tipo, nome: `${dataBR(ini)} a ${dataBR(fim)}` };
 }
+const PER = tipo => tipo === 'mes'
+  ? { titulo: 'mensal', unid: 'mês', ant: 'mês anterior', antBtn: 'Mês anterior', prox: 'Próximo mês', atual: 'mês atual', Rot: 'Mês', curto: 'mês' }
+  : { titulo: 'semanal', unid: 'semana', ant: 'semana anterior', antBtn: 'Semana anterior', prox: 'Próxima semana', atual: 'semana atual', Rot: 'Semana', curto: 'sem.' };
 const rotaUfs = c => {
   const mObs = /([A-ZÀ-Ü][A-ZÀ-Ü' .-]+\/[A-Z]{2})\s*→\s*([A-ZÀ-Ü][A-ZÀ-Ü' .-]+\/[A-Z]{2})/.exec(c.observacoes || '');
   for (const r of [mObs ? `${mObs[1]} - ${mObs[2]}` : null, c.origem].filter(Boolean)) { const u = ufsDaRota(r); if (u.ufO) return `${u.ufO} → ${u.ufD}`; }
   return c.origem ? String(c.origem).trim() : 'sem rota';
 };
-function dadosSemana(offset = 0) {
-  const s = semanaRelatorio(offset), sa = semanaRelatorio(offset - 1);
-  const daSemana = w => data.cte.filter(c => c.data_emissao && c.data_emissao >= w.ini && c.data_emissao <= w.fim);
-  const ctes = daSemana(s).sort((a, b) => (a.data_emissao || '').localeCompare(b.data_emissao || '') || String(a.numero_cte).localeCompare(String(b.numero_cte)));
-  const ant = daSemana(sa);
+function dadosRelatorio(offset = 0, tipo = 'semana') {
+  const s = periodoRelatorio(offset, tipo), sa = periodoRelatorio(offset - 1, tipo);
+  const doPeriodo = w => data.cte.filter(c => c.data_emissao && c.data_emissao >= w.ini && c.data_emissao <= w.fim);
+  const ctes = doPeriodo(s).sort((a, b) => (a.data_emissao || '').localeCompare(b.data_emissao || '') || String(a.numero_cte).localeCompare(String(b.numero_cte)));
+  const ant = doPeriodo(sa);
   const tot = cs => { const frete = cs.reduce((a, c) => a + num(c.valor_frete), 0), comNf = cs.filter(c => num(c.valor_nfe) > 0);
     const nf = comNf.reduce((a, c) => a + num(c.valor_nfe), 0), freteNf = comNf.reduce((a, c) => a + num(c.valor_frete), 0);
     return { qtd: cs.length, frete, nf, pct: nf > 0 ? freteNf / nf : null, peso: cs.reduce((a, c) => a + num(c.peso_kg), 0) }; };
   const agrupa = (cs, chave) => { const m = new Map(); cs.forEach(c => { const k = chave(c) || '—'; if (!m.has(k)) m.set(k, []); m.get(k).push(c); });
     return [...m].map(([nome, l]) => ({ nome, ...tot(l) })).sort((a, b) => b.frete - a.frete); };
   const porTransp = agrupa(ctes, c => canonTransp(c.transportadora)), porTranspAnt = new Map(agrupa(ant, c => canonTransp(c.transportadora)).map(g => [g.nome, g]));
+  // No mensal: quebra por semana (segunda a domingo) dentro do mês
+  const iniSemana = c => somaDias(c.data_emissao, -((new Date(c.data_emissao + 'T12:00:00').getDay() + 6) % 7));
+  const nomeSemana = c => { const i = iniSemana(c), f = somaDias(i, 6); return `${dataBR(i < s.ini ? s.ini : i)} a ${dataBR(f > s.fim ? s.fim : f)}`; };
+  const porSemana = tipo === 'mes' ? agrupa(ctes, nomeSemana).map(g => ({ ...g, ini: iniSemana(ctes.find(c => nomeSemana(c) === g.nome)) })).sort((a, b) => a.ini.localeCompare(b.ini)) : [];
   const aud = auditoria(ctes);
   const atrasadas = data.cte.filter(c => c.status_entrega !== 'Entregue' && (c.status_entrega === 'Atrasado' || cteVencido(c)))
     .sort((a, b) => (previsaoEntrega(a) || '').localeCompare(previsaoEntrega(b) || ''));
   const faturas = data.fat.filter(f => { const st = situacaoFatura(f); return st.vencida || st.vencendo; });
   const tabelas = [...new Map(data.tab.filter(t => tabelaAntiga(t)).map(t => [norm(t.transportadora), t])).values()];
-  return { s, sa, ctes, atual: tot(ctes), anterior: tot(ant), porTransp, porTranspAnt, porRota: agrupa(ctes, rotaUfs), aud, atrasadas, faturas, tabelas };
+  return { s, sa, tipo, ctes, atual: tot(ctes), anterior: tot(ant), porTransp, porTranspAnt, porRota: agrupa(ctes, rotaUfs), porSemana, aud, atrasadas, faturas, tabelas };
 }
 const variacao = (a, b) => b > 0 ? (a - b) / b : null;
-const variacaoTxt = (a, b) => { const v = variacao(a, b); return v == null ? 'sem base na semana anterior' : `${v >= 0 ? '+' : '−'}${Math.abs(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% vs semana anterior`; };
-function textoRelatorioSemanal(d) {
-  const L = [`*Relatório semanal de fretes — GF Medical ${FILIAL_LABEL}*`, `Semana ${dataBR(d.s.ini)} a ${dataBR(d.s.fim)}`, ''];
-  L.push(`• Fretes contratados: ${d.atual.qtd} CT-e(s) · ${brl(d.atual.frete)} (${variacaoTxt(d.atual.frete, d.anterior.frete)})`);
+const variacaoTxt = (a, b, ant) => { const v = variacao(a, b); return v == null ? `sem base no(a) ${ant}` : `${v >= 0 ? '+' : '−'}${Math.abs(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% vs ${ant}`; };
+function textoRelatorio(d) {
+  const P = PER(d.tipo);
+  const L = [`*Relatório ${P.titulo} de fretes — GF Medical ${FILIAL_LABEL}*`, `${P.Rot}: ${d.s.nome}`, ''];
+  L.push(`• Fretes contratados: ${d.atual.qtd} CT-e(s) · ${brl(d.atual.frete)} (${variacaoTxt(d.atual.frete, d.anterior.frete, P.ant)})`);
   L.push(`• Valor em NF: ${brl(d.atual.nf)} · frete/NF ${pctFmt(d.atual.pct)} (meta ${pctFmt(metaPct())})`);
   if (d.porTransp.length) { L.push('', '*Por transportadora*'); d.porTransp.forEach(g => L.push(`- ${g.nome}: ${g.qtd} CT-e(s) · ${brl(g.frete)} · ${pctFmt(g.pct)} da NF`)); }
+  if (d.porSemana.length) { L.push('', '*Por semana*'); d.porSemana.forEach(g => L.push(`- ${g.nome}: ${g.qtd} CT-e(s) · ${brl(g.frete)}`)); }
   if (d.porRota.length) { L.push('', '*Por rota*'); d.porRota.slice(0, 8).forEach(g => L.push(`- ${g.nome}: ${g.qtd} · ${brl(g.frete)}`)); }
   L.push('', '*Alertas*');
   L.push(`- Acima da tabela/usual: ${d.aud.length} CT-e(s)${d.aud.length ? ` · a contestar ~${brl(d.aud.reduce((a, x) => a + x.contestar, 0))}` : ''}`);
@@ -4639,22 +4658,24 @@ function textoRelatorioSemanal(d) {
   L.push('', 'Relatório completo em PDF em anexo.');
   return L.join('\n');
 }
-let _relSemana = 0;
-window.relatorioSemanal = (offset = _relSemana) => {
-  _relSemana = offset;
-  const d = dadosSemana(offset);
-  const win = window.open('', 'relatorio-semanal');
+let _relOffset = 0, _relTipo = 'semana';
+window.relatorioMensal = (offset = 0) => relatorioSemanal(offset, 'mes');
+window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
+  _relOffset = offset; _relTipo = tipo;
+  const d = dadosRelatorio(offset, tipo), P = PER(tipo);
+  const win = window.open('', 'relatorio-' + tipo);
   if (!win) { toast('O navegador bloqueou a janela do relatório — libere pop-ups para este site.', 'err'); return; }
   const corFx = { ok: '#1a7a4a', warn: '#b7790a', crit: '#dc2626' };
   const pctCel = p => { const f = faixaPct(p); return f ? `<span style="color:${corFx[f]};font-weight:700">${pctFmt(p)}</span>` : '—'; };
   const seta = (a, b) => { const v = variacao(a, b); if (v == null) return '<span class="cinza">—</span>'; const cor = v > 0.05 ? '#dc2626' : v < -0.05 ? '#1a7a4a' : '#555';
     return `<span style="color:${cor};font-weight:700">${v >= 0 ? '▲' : '▼'} ${Math.abs(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>`; };
-  const max = Math.max(...d.porTransp.map(g => g.frete), 1), maxR = Math.max(...d.porRota.map(g => g.frete), 1);
+  const barra = (v, max) => `<div class="bar"><div style="width:${(v / Math.max(max, 1) * 100).toFixed(1)}%"></div></div>`;
+  const max = Math.max(...d.porTransp.map(g => g.frete), 1), maxR = Math.max(...d.porRota.map(g => g.frete), 1), maxS = Math.max(...d.porSemana.map(g => g.frete), 1);
   const logo = new URL('logo.jpg', location.href).href;
   const contestar = d.aud.reduce((a, x) => a + x.contestar, 0);
   win.document.open();
   win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
-  <title>Relatório semanal de fretes — ${esc(FILIAL_LABEL)} — ${dataBR(d.s.ini)} a ${dataBR(d.s.fim)}</title>
+  <title>Relatório ${P.titulo} de fretes — ${esc(FILIAL_LABEL)} — ${esc(d.s.nome)}</title>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#111;padding:22px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -4688,37 +4709,42 @@ window.relatorioSemanal = (offset = _relSemana) => {
     @media print{body{padding:8px}.barra-acoes{display:none}}
   </style></head><body>
   <div class="barra-acoes">
-    <button onclick="opener.relatorioSemanal(${offset - 1})">◀ Semana anterior</button>
-    ${offset < 1 ? `<button onclick="opener.relatorioSemanal(${offset + 1})">Próxima semana ▶</button>` : ''}
+    <button onclick="opener.relatorioSemanal(${offset - 1}, '${tipo}')">◀ ${P.antBtn}</button>
+    ${offset < 1 ? `<button onclick="opener.relatorioSemanal(${offset + 1}, '${tipo}')">${P.prox} ▶</button>` : ''}
+    <button onclick="opener.relatorioSemanal(0, '${tipo === 'mes' ? 'semana' : 'mes'}')">${tipo === 'mes' ? '📅 Ver semanal' : '📅 Ver mensal'}</button>
     <button onclick="opener.copiarRelatorioSemanal('whatsapp')">📲 Resumo no WhatsApp</button>
     <button onclick="opener.copiarRelatorioSemanal('email')">✉ Resumo por e-mail</button>
     <button class="p" onclick="window.print()">🖨 Salvar como PDF</button>
   </div>
-  <header><img src="${logo}" alt=""><div><h1>Relatório semanal de fretes — GF Medical ${esc(FILIAL_LABEL)}</h1>
-    <div class="sub">Semana de <b>${dataBR(d.s.ini)}</b> a <b>${dataBR(d.s.fim)}</b>${offset === 1 ? ' (semana atual, até hoje)' : ''} · fretes contratados = CT-es emitidos na semana · gerado em ${agoraBR()}</div></div></header>
+  <header><img src="${logo}" alt=""><div><h1>Relatório ${P.titulo} de fretes — GF Medical ${esc(FILIAL_LABEL)}</h1>
+    <div class="sub">${P.Rot}: <b>${esc(d.s.nome)}</b>${tipo === 'mes' ? ` (${dataBR(d.s.ini)} a ${dataBR(d.s.fim)})` : ''}${offset === 1 ? ` — ${P.atual}, até hoje` : ''} · fretes contratados = CT-es emitidos no período · gerado em ${agoraBR()}</div></div></header>
 
   <div class="kpis">
-    <div class="kpi"><span>Frete contratado</span><b>${brl(d.atual.frete)}</b><small>${seta(d.atual.frete, d.anterior.frete)} vs ${brl(d.anterior.frete)} na semana anterior</small></div>
+    <div class="kpi"><span>Frete contratado</span><b>${brl(d.atual.frete)}</b><small>${seta(d.atual.frete, d.anterior.frete)} vs ${brl(d.anterior.frete)} no(a) ${P.ant}</small></div>
     <div class="kpi"><span>Fretes (CT-es)</span><b>${d.atual.qtd}</b><small>${seta(d.atual.qtd, d.anterior.qtd)} vs ${d.anterior.qtd} · ticket médio ${brl(d.atual.qtd ? d.atual.frete / d.atual.qtd : 0)}</small></div>
-    <div class="kpi ${faixaPct(d.atual.pct) === 'crit' ? 'crit' : faixaPct(d.atual.pct) === 'warn' ? 'warn' : ''}"><span>Frete / valor da NF</span><b>${pctFmt(d.atual.pct)}</b><small>meta ${pctFmt(metaPct())} · semana anterior ${pctFmt(d.anterior.pct)}</small></div>
+    <div class="kpi ${faixaPct(d.atual.pct) === 'crit' ? 'crit' : faixaPct(d.atual.pct) === 'warn' ? 'warn' : ''}"><span>Frete / valor da NF</span><b>${pctFmt(d.atual.pct)}</b><small>meta ${pctFmt(metaPct())} · ${P.ant} ${pctFmt(d.anterior.pct)}</small></div>
     <div class="kpi ${contestar > 0 ? 'crit' : ''}"><span>A contestar</span><b>${brl(contestar)}</b><small>${d.aud.length} CT-e(s) acima da tabela/usual</small></div>
   </div>
 
   ${d.ctes.length ? `<div class="grid2">
   <div><h2>Por transportadora</h2>
-    <table><thead><tr><th>Transportadora</th><th class="n">CT-es</th><th style="width:28%">Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n">vs sem. ant.</th></tr></thead><tbody>
-    ${d.porTransp.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td><div class="bar"><div style="width:${(g.frete / max * 100).toFixed(1)}%"></div></div></td>
+    <table><thead><tr><th>Transportadora</th><th class="n">CT-es</th><th style="width:28%">Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n">vs ${P.curto} ant.</th></tr></thead><tbody>
+    ${d.porTransp.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, max)}</td>
       <td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td><td class="n">${seta(g.frete, d.porTranspAnt.get(g.nome)?.frete || 0)}</td></tr>`).join('')}
     </tbody><tfoot><tr><td>Total</td><td class="n">${d.atual.qtd}</td><td></td><td class="n">${brl(d.atual.frete)}</td><td class="n">${pctCel(d.atual.pct)}</td><td class="n">${seta(d.atual.frete, d.anterior.frete)}</td></tr></tfoot></table></div>
   <div><h2>Por rota</h2>
     <table><thead><tr><th>Rota</th><th class="n">CT-es</th><th style="width:28%">Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n">Peso (kg)</th></tr></thead><tbody>
-    ${d.porRota.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td><div class="bar"><div style="width:${(g.frete / maxR * 100).toFixed(1)}%"></div></div></td>
+    ${d.porRota.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, maxR)}</td>
       <td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td><td class="n">${g.peso ? g.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td></tr>`).join('')}
     </tbody></table></div>
-  </div>` : `<h2>Fretes da semana</h2><div class="alerta ok">Nenhum CT-e emitido nesta semana.</div>`}
+  </div>
+  ${d.porSemana.length ? `<h2>Por semana do mês</h2>
+    <table><thead><tr><th>Semana</th><th class="n">CT-es</th><th style="width:40%">Frete</th><th class="n">Valor</th><th class="n">% NF</th></tr></thead><tbody>
+    ${d.porSemana.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, maxS)}</td><td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td></tr>`).join('')}
+    </tbody></table>` : ''}` : `<h2>Fretes do período</h2><div class="alerta ok">Nenhum CT-e emitido neste(a) ${P.unid}.</div>`}
 
   <h2>Alertas</h2>
-  <div class="alerta ${d.aud.length ? '' : 'ok'}"><b>Cobranças acima da tabela ou do usual: ${d.aud.length}</b>${d.aud.length ? ` — a contestar ~${brl(contestar)}` : ' — nenhuma nesta semana'}
+  <div class="alerta ${d.aud.length ? '' : 'ok'}"><b>Cobranças acima da tabela ou do usual: ${d.aud.length}</b>${d.aud.length ? ` — a contestar ~${brl(contestar)}` : ` — nenhuma neste(a) ${P.unid}`}
     ${d.aud.length ? `<table style="margin-top:6px"><thead><tr><th>CT-e</th><th>Emissão</th><th>Transportadora</th><th>Motivo</th><th class="n">Frete</th><th class="n">A contestar</th></tr></thead><tbody>
     ${d.aud.map(x => `<tr><td>${esc(x.c.numero_cte)}</td><td>${dataBR(x.c.data_emissao)}</td><td>${esc(x.c.transportadora || '—')}</td><td>${esc(x.achados.map(a => a.txt.replace(/<[^>]+>/g, '')).join(' · '))}</td><td class="n">${brl(x.c.valor_frete)}</td><td class="n">${x.contestar ? brl(x.contestar) : '—'}</td></tr>`).join('')}
     </tbody></table>` : ''}</div>
@@ -4729,7 +4755,7 @@ window.relatorioSemanal = (offset = _relSemana) => {
   <div class="alerta ${d.faturas.length ? '' : 'ok'}"><b>Faturas vencidas ou vencendo em até 5 dias: ${d.faturas.length}</b>${d.faturas.length ? ` — ${d.faturas.map(f => `${esc(f.transportadora)} ${esc(f.numero || '')} ${brl(f.valor)} (vence ${dataBR(f.vencimento)})`).join(' · ')}` : ''}</div>
   ${d.tabelas.length ? `<div class="alerta"><b>Tabelas combinadas a renovar: ${d.tabelas.length}</b> — ${d.tabelas.map(t => `${esc(t.transportadora)}: ${esc(tabelaAntiga(t))}`).join(' · ')}</div>` : ''}
 
-  ${d.ctes.length ? `<h2 class="quebra">Fretes contratados na semana (${d.ctes.length})</h2>
+  ${d.ctes.length ? `<h2 class="quebra">Fretes contratados no(a) ${P.unid} (${d.ctes.length})</h2>
     <table class="rel"><thead><tr><th>CT-e</th><th>Emissão</th><th>NF-e</th><th>Transportadora</th><th>Rota</th><th>Destinatário</th><th>Tipo</th><th class="n">Peso (kg)</th><th class="n">Frete</th><th class="n">NF-e</th><th class="n">%</th><th>Previsão</th><th>Status</th></tr></thead><tbody>
     ${d.ctes.map(c => `<tr><td>${esc(c.numero_cte)}</td><td>${dataBR(c.data_emissao)}</td><td>${esc(c.numero_nfe || '—')}</td><td>${esc(c.transportadora || '—')}</td><td>${esc(rotaUfs(c))}</td><td>${esc(c.destino || '—')}</td><td>${esc(c.tipo_saida || '—')}</td>
       <td class="n">${num(c.peso_kg) ? num(c.peso_kg).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td><td class="n">${brl(c.valor_frete)}</td><td class="n">${num(c.valor_nfe) ? brl(c.valor_nfe) : '—'}</td><td class="n">${pctCel(pctFrete(c))}</td><td>${dataBR(previsaoEntrega(c))}</td><td>${esc(c.status_entrega || '—')}</td></tr>`).join('')}
@@ -4741,10 +4767,10 @@ window.relatorioSemanal = (offset = _relSemana) => {
   win.focus();
 };
 window.copiarRelatorioSemanal = canal => {
-  const d = dadosSemana(_relSemana), texto = textoRelatorioSemanal(d);
+  const d = dadosRelatorio(_relOffset, _relTipo), texto = textoRelatorio(d);
   navigator.clipboard?.writeText(texto).catch(() => {});
   if (canal === 'email') {
-    const assunto = `Relatório semanal de fretes — ${FILIAL_LABEL} — ${dataBR(d.s.ini)} a ${dataBR(d.s.fim)}`;
+    const assunto = `Relatório ${PER(d.tipo).titulo} de fretes — ${FILIAL_LABEL} — ${d.s.nome}`;
     window.open(`mailto:?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(texto.replace(/\*/g, ''))}`, '_blank');
     toast('E-mail aberto com o resumo — anexe o PDF do relatório antes de enviar.', 'info');
   } else window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
