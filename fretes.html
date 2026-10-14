@@ -748,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.9';
+const VERSAO = '2026-10-14.10';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1956,7 +1956,7 @@ function linhaTabela(transportadora, rota, peso, dataRef, nf) {
   const cands = data.tab.map(t => { const sc = rotaCasa(t.rota, rota), sd = scoreDestinos(t, cid), so = scoreOrigens(t, cidO); return { t, sc: sc > 0 && sd !== null && so !== null ? sc + sd + so : 0 }; }).filter(({ t, sc }) => sc > 0
     && norm(t.transportadora) === norm(transportadora)
     && (!t.vigencia_inicio || !dataRef || t.vigencia_inicio <= dataRef)
-    && (t.peso_ate == null || peso == null || num(peso) <= num(t.peso_ate))
+    && (t.peso_ate == null || (peso != null && num(peso) <= num(t.peso_ate)))   // sem o peso não presume a faixa mais leve
     && (t.nf_ate == null || nf == null || num(nf) <= num(t.nf_ate)));
   if (!cands.length) return null;
   const melhor = Math.max(...cands.map(c => c.sc));
