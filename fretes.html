@@ -383,6 +383,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <label class="tbtn tbtn-g w-only" title="Importar a planilha Controle_Cotacao_Frete (.xlsx)">📥 Importar<input type="file" id="f-import" accept=".xlsx,.xls" hidden></label>
       <button class="tbtn tbtn-g" onclick="enviarWhatsApp()" title="Resumo dos números do período para enviar no WhatsApp">📲 WhatsApp</button>
       <button class="tbtn tbtn-g" onclick="enviarResumoDia()" title="Resumo do dia (vencidos, auditoria, meta e faturas) para o WhatsApp">🔔 Resumo do dia</button>
+      <button class="tbtn tbtn-g" onclick="relatorioSemanal(0)" title="Relatório da última semana (segunda a domingo) para o gestor: PDF + resumo no WhatsApp/e-mail">📊 Relatório semanal</button>
       <button class="tbtn tbtn-g" onclick="gerarPdf()" title="Relatório do período para salvar em PDF ou imprimir">🖨 PDF</button>
       <button class="tbtn tbtn-g" onclick="exportarExcel()">📤 Exportar</button>
       <button class="tbtn tbtn-g" onclick="backupCompleto()" title="Baixa tudo (CT-es, cotações, transportadoras, tabelas, faturas, cálculos e registro) em Excel, sem filtros">💾 Backup</button>
@@ -746,7 +747,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-13.6';
+const VERSAO = '2026-10-14.1';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -4588,6 +4589,166 @@ window.enviarWhatsApp = () => {
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
 };
 
+// ═════════════ Relatório semanal para o gestor ═════════════
+// Semana fechada (segunda a domingo) pela data de emissão do CT-e: resumo e custo × semana anterior,
+// por transportadora e por rota, alertas (acima da tabela, entregas atrasadas, faturas, tabelas a renovar)
+// e a lista dos fretes. Abre pronto para salvar em PDF; o resumo em texto vai para WhatsApp/e-mail.
+const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+// offset 0 = última semana completa; -1 = a anterior; 1 = semana atual (até hoje)
+function semanaRelatorio(offset = 0) {
+  const hoje = hojeISO(), dow = (new Date(hoje + 'T12:00:00').getDay() + 6) % 7; // 0 = segunda
+  const ini = somaDias(hoje, -dow - 7 + offset * 7), fim = somaDias(ini, 6);
+  return { ini, fim, offset };
+}
+const rotaUfs = c => {
+  const mObs = /([A-ZÀ-Ü][A-ZÀ-Ü' .-]+\/[A-Z]{2})\s*→\s*([A-ZÀ-Ü][A-ZÀ-Ü' .-]+\/[A-Z]{2})/.exec(c.observacoes || '');
+  for (const r of [mObs ? `${mObs[1]} - ${mObs[2]}` : null, c.origem].filter(Boolean)) { const u = ufsDaRota(r); if (u.ufO) return `${u.ufO} → ${u.ufD}`; }
+  return c.origem ? String(c.origem).trim() : 'sem rota';
+};
+function dadosSemana(offset = 0) {
+  const s = semanaRelatorio(offset), sa = semanaRelatorio(offset - 1);
+  const daSemana = w => data.cte.filter(c => c.data_emissao && c.data_emissao >= w.ini && c.data_emissao <= w.fim);
+  const ctes = daSemana(s).sort((a, b) => (a.data_emissao || '').localeCompare(b.data_emissao || '') || String(a.numero_cte).localeCompare(String(b.numero_cte)));
+  const ant = daSemana(sa);
+  const tot = cs => { const frete = cs.reduce((a, c) => a + num(c.valor_frete), 0), comNf = cs.filter(c => num(c.valor_nfe) > 0);
+    const nf = comNf.reduce((a, c) => a + num(c.valor_nfe), 0), freteNf = comNf.reduce((a, c) => a + num(c.valor_frete), 0);
+    return { qtd: cs.length, frete, nf, pct: nf > 0 ? freteNf / nf : null, peso: cs.reduce((a, c) => a + num(c.peso_kg), 0) }; };
+  const agrupa = (cs, chave) => { const m = new Map(); cs.forEach(c => { const k = chave(c) || '—'; if (!m.has(k)) m.set(k, []); m.get(k).push(c); });
+    return [...m].map(([nome, l]) => ({ nome, ...tot(l) })).sort((a, b) => b.frete - a.frete); };
+  const porTransp = agrupa(ctes, c => canonTransp(c.transportadora)), porTranspAnt = new Map(agrupa(ant, c => canonTransp(c.transportadora)).map(g => [g.nome, g]));
+  const aud = auditoria(ctes);
+  const atrasadas = data.cte.filter(c => c.status_entrega !== 'Entregue' && (c.status_entrega === 'Atrasado' || cteVencido(c)))
+    .sort((a, b) => (previsaoEntrega(a) || '').localeCompare(previsaoEntrega(b) || ''));
+  const faturas = data.fat.filter(f => { const st = situacaoFatura(f); return st.vencida || st.vencendo; });
+  const tabelas = [...new Map(data.tab.filter(t => tabelaAntiga(t)).map(t => [norm(t.transportadora), t])).values()];
+  return { s, sa, ctes, atual: tot(ctes), anterior: tot(ant), porTransp, porTranspAnt, porRota: agrupa(ctes, rotaUfs), aud, atrasadas, faturas, tabelas };
+}
+const variacao = (a, b) => b > 0 ? (a - b) / b : null;
+const variacaoTxt = (a, b) => { const v = variacao(a, b); return v == null ? 'sem base na semana anterior' : `${v >= 0 ? '+' : '−'}${Math.abs(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% vs semana anterior`; };
+function textoRelatorioSemanal(d) {
+  const L = [`*Relatório semanal de fretes — GF Medical ${FILIAL_LABEL}*`, `Semana ${dataBR(d.s.ini)} a ${dataBR(d.s.fim)}`, ''];
+  L.push(`• Fretes contratados: ${d.atual.qtd} CT-e(s) · ${brl(d.atual.frete)} (${variacaoTxt(d.atual.frete, d.anterior.frete)})`);
+  L.push(`• Valor em NF: ${brl(d.atual.nf)} · frete/NF ${pctFmt(d.atual.pct)} (meta ${pctFmt(metaPct())})`);
+  if (d.porTransp.length) { L.push('', '*Por transportadora*'); d.porTransp.forEach(g => L.push(`- ${g.nome}: ${g.qtd} CT-e(s) · ${brl(g.frete)} · ${pctFmt(g.pct)} da NF`)); }
+  if (d.porRota.length) { L.push('', '*Por rota*'); d.porRota.slice(0, 8).forEach(g => L.push(`- ${g.nome}: ${g.qtd} · ${brl(g.frete)}`)); }
+  L.push('', '*Alertas*');
+  L.push(`- Acima da tabela/usual: ${d.aud.length} CT-e(s)${d.aud.length ? ` · a contestar ~${brl(d.aud.reduce((a, x) => a + x.contestar, 0))}` : ''}`);
+  L.push(`- Entregas atrasadas (em aberto hoje): ${d.atrasadas.length}`);
+  L.push(`- Faturas vencidas ou vencendo: ${d.faturas.length}${d.faturas.length ? ` · ${brl(d.faturas.reduce((a, f) => a + num(f.valor), 0))}` : ''}`);
+  if (d.tabelas.length) L.push(`- Tabelas a renovar: ${d.tabelas.map(t => t.transportadora).join(', ')}`);
+  L.push('', 'Relatório completo em PDF em anexo.');
+  return L.join('\n');
+}
+let _relSemana = 0;
+window.relatorioSemanal = (offset = _relSemana) => {
+  _relSemana = offset;
+  const d = dadosSemana(offset);
+  const win = window.open('', 'relatorio-semanal');
+  if (!win) { toast('O navegador bloqueou a janela do relatório — libere pop-ups para este site.', 'err'); return; }
+  const corFx = { ok: '#1a7a4a', warn: '#b7790a', crit: '#dc2626' };
+  const pctCel = p => { const f = faixaPct(p); return f ? `<span style="color:${corFx[f]};font-weight:700">${pctFmt(p)}</span>` : '—'; };
+  const seta = (a, b) => { const v = variacao(a, b); if (v == null) return '<span class="cinza">—</span>'; const cor = v > 0.05 ? '#dc2626' : v < -0.05 ? '#1a7a4a' : '#555';
+    return `<span style="color:${cor};font-weight:700">${v >= 0 ? '▲' : '▼'} ${Math.abs(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>`; };
+  const max = Math.max(...d.porTransp.map(g => g.frete), 1), maxR = Math.max(...d.porRota.map(g => g.frete), 1);
+  const logo = new URL('logo.jpg', location.href).href;
+  const contestar = d.aud.reduce((a, x) => a + x.contestar, 0);
+  win.document.open();
+  win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+  <title>Relatório semanal de fretes — ${esc(FILIAL_LABEL)} — ${dataBR(d.s.ini)} a ${dataBR(d.s.fim)}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#111;padding:22px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    header{display:flex;align-items:center;gap:12px;border-bottom:2px solid #1a7a4a;padding-bottom:10px;margin-bottom:14px}
+    header img{width:42px;height:42px;border-radius:8px;object-fit:cover}
+    h1{font-size:16px;color:#0a2a18}.sub{color:#555;font-size:10px;margin-top:2px}
+    h2{font-size:12px;color:#1a7a4a;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .kpi{border:1px solid #cfe5d7;border-top:3px solid #1a7a4a;border-radius:6px;padding:8px 10px}
+    .kpi.warn{border-top-color:#b7790a}.kpi.crit{border-top-color:#dc2626}
+    .kpi b{display:block;font-size:15px;margin-top:3px;color:#0a2a18}.kpi span{font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.05em}
+    .kpi small{display:block;color:#666;margin-top:2px}
+    table{width:100%;border-collapse:collapse;margin-top:2px}
+    th{background:#e8f5ee;text-align:left;padding:5px 6px;border:1px solid #cfe5d7;font-size:9px;text-transform:uppercase;color:#2a5a3a}
+    td{padding:4px 6px;border:1px solid #e1ece5;vertical-align:middle}
+    tr:nth-child(even) td{background:#f7fbf8}
+    .n{text-align:right;white-space:nowrap}.cinza{color:#888}
+    tfoot td{font-weight:700;background:#e8f5ee!important}
+    .bar{height:9px;background:#eef5f0;border-radius:2px}.bar div{height:100%;background:#1a7a4a;border-radius:0 2px 2px 0}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .alerta{border:1px solid #f1d3d3;background:#fdf6f6;border-radius:6px;padding:8px 10px;margin-bottom:6px}
+    .alerta.ok{border-color:#cfe5d7;background:#f4faf6}
+    .alerta b{color:#0a2a18}
+    footer{margin-top:18px;font-size:9px;color:#777;border-top:1px solid #ddd;padding-top:6px}
+    .quebra{page-break-before:always}
+    @page{size:A4 landscape;margin:10mm}
+    table.rel td,table.rel th{font-size:8.5px;padding:3px 4px}
+    .barra-acoes{position:fixed;top:10px;right:10px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+    .barra-acoes button{padding:7px 12px;background:#fff;color:#1a7a4a;border:1px solid #1a7a4a;border-radius:6px;font-weight:700;cursor:pointer;font-size:11px}
+    .barra-acoes button.p{background:#1a7a4a;color:#fff}
+    @media print{body{padding:8px}.barra-acoes{display:none}}
+  </style></head><body>
+  <div class="barra-acoes">
+    <button onclick="opener.relatorioSemanal(${offset - 1})">◀ Semana anterior</button>
+    ${offset < 1 ? `<button onclick="opener.relatorioSemanal(${offset + 1})">Próxima semana ▶</button>` : ''}
+    <button onclick="opener.copiarRelatorioSemanal('whatsapp')">📲 Resumo no WhatsApp</button>
+    <button onclick="opener.copiarRelatorioSemanal('email')">✉ Resumo por e-mail</button>
+    <button class="p" onclick="window.print()">🖨 Salvar como PDF</button>
+  </div>
+  <header><img src="${logo}" alt=""><div><h1>Relatório semanal de fretes — GF Medical ${esc(FILIAL_LABEL)}</h1>
+    <div class="sub">Semana de <b>${dataBR(d.s.ini)}</b> a <b>${dataBR(d.s.fim)}</b>${offset === 1 ? ' (semana atual, até hoje)' : ''} · fretes contratados = CT-es emitidos na semana · gerado em ${agoraBR()}</div></div></header>
+
+  <div class="kpis">
+    <div class="kpi"><span>Frete contratado</span><b>${brl(d.atual.frete)}</b><small>${seta(d.atual.frete, d.anterior.frete)} vs ${brl(d.anterior.frete)} na semana anterior</small></div>
+    <div class="kpi"><span>Fretes (CT-es)</span><b>${d.atual.qtd}</b><small>${seta(d.atual.qtd, d.anterior.qtd)} vs ${d.anterior.qtd} · ticket médio ${brl(d.atual.qtd ? d.atual.frete / d.atual.qtd : 0)}</small></div>
+    <div class="kpi ${faixaPct(d.atual.pct) === 'crit' ? 'crit' : faixaPct(d.atual.pct) === 'warn' ? 'warn' : ''}"><span>Frete / valor da NF</span><b>${pctFmt(d.atual.pct)}</b><small>meta ${pctFmt(metaPct())} · semana anterior ${pctFmt(d.anterior.pct)}</small></div>
+    <div class="kpi ${contestar > 0 ? 'crit' : ''}"><span>A contestar</span><b>${brl(contestar)}</b><small>${d.aud.length} CT-e(s) acima da tabela/usual</small></div>
+  </div>
+
+  ${d.ctes.length ? `<div class="grid2">
+  <div><h2>Por transportadora</h2>
+    <table><thead><tr><th>Transportadora</th><th class="n">CT-es</th><th style="width:28%">Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n">vs sem. ant.</th></tr></thead><tbody>
+    ${d.porTransp.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td><div class="bar"><div style="width:${(g.frete / max * 100).toFixed(1)}%"></div></div></td>
+      <td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td><td class="n">${seta(g.frete, d.porTranspAnt.get(g.nome)?.frete || 0)}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td>Total</td><td class="n">${d.atual.qtd}</td><td></td><td class="n">${brl(d.atual.frete)}</td><td class="n">${pctCel(d.atual.pct)}</td><td class="n">${seta(d.atual.frete, d.anterior.frete)}</td></tr></tfoot></table></div>
+  <div><h2>Por rota</h2>
+    <table><thead><tr><th>Rota</th><th class="n">CT-es</th><th style="width:28%">Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n">Peso (kg)</th></tr></thead><tbody>
+    ${d.porRota.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td><div class="bar"><div style="width:${(g.frete / maxR * 100).toFixed(1)}%"></div></div></td>
+      <td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td><td class="n">${g.peso ? g.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td></tr>`).join('')}
+    </tbody></table></div>
+  </div>` : `<h2>Fretes da semana</h2><div class="alerta ok">Nenhum CT-e emitido nesta semana.</div>`}
+
+  <h2>Alertas</h2>
+  <div class="alerta ${d.aud.length ? '' : 'ok'}"><b>Cobranças acima da tabela ou do usual: ${d.aud.length}</b>${d.aud.length ? ` — a contestar ~${brl(contestar)}` : ' — nenhuma nesta semana'}
+    ${d.aud.length ? `<table style="margin-top:6px"><thead><tr><th>CT-e</th><th>Emissão</th><th>Transportadora</th><th>Motivo</th><th class="n">Frete</th><th class="n">A contestar</th></tr></thead><tbody>
+    ${d.aud.map(x => `<tr><td>${esc(x.c.numero_cte)}</td><td>${dataBR(x.c.data_emissao)}</td><td>${esc(x.c.transportadora || '—')}</td><td>${esc(x.achados.map(a => a.txt.replace(/<[^>]+>/g, '')).join(' · '))}</td><td class="n">${brl(x.c.valor_frete)}</td><td class="n">${x.contestar ? brl(x.contestar) : '—'}</td></tr>`).join('')}
+    </tbody></table>` : ''}</div>
+  <div class="alerta ${d.atrasadas.length ? '' : 'ok'}"><b>Entregas atrasadas (em aberto hoje): ${d.atrasadas.length}</b>
+    ${d.atrasadas.length ? `<table style="margin-top:6px"><thead><tr><th>CT-e</th><th>Transportadora</th><th>Destinatário</th><th>Previsão</th><th class="n">Dias de atraso</th></tr></thead><tbody>
+    ${d.atrasadas.slice(0, 20).map(c => `<tr><td>${esc(c.numero_cte)}</td><td>${esc(c.transportadora || '—')}</td><td>${esc(c.destino || '—')}</td><td>${dataBR(previsaoEntrega(c))}</td><td class="n">${previsaoEntrega(c) ? Math.max(0, diasEntre(previsaoEntrega(c), hojeISO())) : '—'}</td></tr>`).join('')}
+    </tbody></table>${d.atrasadas.length > 20 ? `<div class="cinza" style="margin-top:4px">+ ${d.atrasadas.length - 20} outra(s) no sistema</div>` : ''}` : ''}</div>
+  <div class="alerta ${d.faturas.length ? '' : 'ok'}"><b>Faturas vencidas ou vencendo em até 5 dias: ${d.faturas.length}</b>${d.faturas.length ? ` — ${d.faturas.map(f => `${esc(f.transportadora)} ${esc(f.numero || '')} ${brl(f.valor)} (vence ${dataBR(f.vencimento)})`).join(' · ')}` : ''}</div>
+  ${d.tabelas.length ? `<div class="alerta"><b>Tabelas combinadas a renovar: ${d.tabelas.length}</b> — ${d.tabelas.map(t => `${esc(t.transportadora)}: ${esc(tabelaAntiga(t))}`).join(' · ')}</div>` : ''}
+
+  ${d.ctes.length ? `<h2 class="quebra">Fretes contratados na semana (${d.ctes.length})</h2>
+    <table class="rel"><thead><tr><th>CT-e</th><th>Emissão</th><th>NF-e</th><th>Transportadora</th><th>Rota</th><th>Destinatário</th><th>Tipo</th><th class="n">Peso (kg)</th><th class="n">Frete</th><th class="n">NF-e</th><th class="n">%</th><th>Previsão</th><th>Status</th></tr></thead><tbody>
+    ${d.ctes.map(c => `<tr><td>${esc(c.numero_cte)}</td><td>${dataBR(c.data_emissao)}</td><td>${esc(c.numero_nfe || '—')}</td><td>${esc(c.transportadora || '—')}</td><td>${esc(rotaUfs(c))}</td><td>${esc(c.destino || '—')}</td><td>${esc(c.tipo_saida || '—')}</td>
+      <td class="n">${num(c.peso_kg) ? num(c.peso_kg).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td><td class="n">${brl(c.valor_frete)}</td><td class="n">${num(c.valor_nfe) ? brl(c.valor_nfe) : '—'}</td><td class="n">${pctCel(pctFrete(c))}</td><td>${dataBR(previsaoEntrega(c))}</td><td>${esc(c.status_entrega || '—')}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="7">Total</td><td class="n">${d.atual.peso ? d.atual.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td><td class="n">${brl(d.atual.frete)}</td><td class="n">${brl(d.atual.nf)}</td><td class="n">${pctCel(d.atual.pct)}</td><td colspan="2"></td></tr></tfoot></table>` : ''}
+
+  <footer>GF Medical · Controle de Fretes · ${esc(FILIAL_LABEL)} · % frete/NF = soma do frete ÷ soma do valor das NF-e (CT-es com NF informada)</footer>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+};
+window.copiarRelatorioSemanal = canal => {
+  const d = dadosSemana(_relSemana), texto = textoRelatorioSemanal(d);
+  navigator.clipboard?.writeText(texto).catch(() => {});
+  if (canal === 'email') {
+    const assunto = `Relatório semanal de fretes — ${FILIAL_LABEL} — ${dataBR(d.s.ini)} a ${dataBR(d.s.fim)}`;
+    window.open(`mailto:?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(texto.replace(/\*/g, ''))}`, '_blank');
+    toast('E-mail aberto com o resumo — anexe o PDF do relatório antes de enviar.', 'info');
+  } else window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
+};
 window.gerarPdf = () => {
   const n = numerosPeriodo();
   if (!n.ctes.length && !n.cots.length) { toast('Sem dados no período selecionado.', 'info'); return; }
