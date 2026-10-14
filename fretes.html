@@ -748,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.4';
+const VERSAO = '2026-10-14.5';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -4669,6 +4669,10 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
   const pctCel = p => { const f = faixaPct(p); return f ? `<span style="color:${corFx[f]};font-weight:700">${pctFmt(p)}</span>` : '—'; };
   const seta = (a, b) => { const v = variacao(a, b); if (v == null) return '<span class="cinza">—</span>'; const cor = v > 0.05 ? '#dc2626' : v < -0.05 ? '#1a7a4a' : '#555';
     return `<span style="color:${cor};font-weight:700">${v >= 0 ? '▲' : '▼'} ${Math.abs(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>`; };
+  // Célula "comparado ao período anterior": seta/% + quanto se gastou antes
+  const antNome = tipo === 'mes' ? d.sa.nome : `semana de ${d.sa.nome}`;
+  const comparado = (agora, antes) => antes > 0 ? `${seta(agora, antes)}<div class="cinza" style="font-size:7.5px">antes: ${brl(antes)}</div>`
+    : '<span class="cinza" style="font-size:7.5px">não teve frete</span>';
   const barra = (v, max) => `<div class="bar"><div style="width:${(v / Math.max(max, 1) * 100).toFixed(1)}%"></div></div>`;
   const max = Math.max(...d.porTransp.map(g => g.frete), 1), maxR = Math.max(...d.porRota.map(g => g.frete), 1), maxS = Math.max(...d.porSemana.map(g => g.frete), 1);
   const logo = new URL('logo.jpg', location.href).href;
@@ -4728,17 +4732,18 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
     <div class="sub">${P.Rot}: <b>${esc(d.s.nome)}</b>${tipo === 'mes' ? ` (${dataBR(d.s.ini)} a ${dataBR(d.s.fim)})` : ''}${offset === 1 ? ` — ${P.atual}, até hoje` : ''} · fretes contratados = CT-es emitidos no período · gerado em ${agoraBR()}</div></div></header>
 
   <div class="kpis">
-    <div class="kpi"><span>Frete contratado</span><b>${brl(d.atual.frete)}</b><small>${seta(d.atual.frete, d.anterior.frete)} vs ${brl(d.anterior.frete)} no(a) ${P.ant}</small></div>
-    <div class="kpi"><span>Fretes (CT-es)</span><b>${d.atual.qtd}</b><small>${seta(d.atual.qtd, d.anterior.qtd)} vs ${d.anterior.qtd} · ticket médio ${brl(d.atual.qtd ? d.atual.frete / d.atual.qtd : 0)}</small></div>
-    <div class="kpi ${faixaPct(d.atual.pct) === 'crit' ? 'crit' : faixaPct(d.atual.pct) === 'warn' ? 'warn' : ''}"><span>Frete / valor da NF</span><b>${pctFmt(d.atual.pct)}</b><small>meta ${pctFmt(metaPct())} · ${P.ant} ${pctFmt(d.anterior.pct)}</small></div>
+    <div class="kpi"><span>Frete contratado</span><b>${brl(d.atual.frete)}</b><small>${seta(d.atual.frete, d.anterior.frete)} em relação a ${esc(antNome)}: ${brl(d.anterior.frete)}</small></div>
+    <div class="kpi"><span>Fretes (CT-es)</span><b>${d.atual.qtd}</b><small>${seta(d.atual.qtd, d.anterior.qtd)} em ${esc(antNome)}: ${d.anterior.qtd} · ticket médio ${brl(d.atual.qtd ? d.atual.frete / d.atual.qtd : 0)}</small></div>
+    <div class="kpi ${faixaPct(d.atual.pct) === 'crit' ? 'crit' : faixaPct(d.atual.pct) === 'warn' ? 'warn' : ''}"><span>Frete / valor da NF</span><b>${pctFmt(d.atual.pct)}</b><small>meta ${pctFmt(metaPct())} · em ${esc(antNome)}: ${pctFmt(d.anterior.pct)}</small></div>
     <div class="kpi ${contestar > 0 ? 'crit' : ''}"><span>A contestar</span><b>${brl(contestar)}</b><small>${d.aud.length} CT-e(s) acima da tabela/usual</small></div>
   </div>
 
   <div class="grid3">
     <div><h2>Por transportadora</h2>
-      ${d.porTransp.length ? `<table><thead><tr><th>Transportadora</th><th class="n">CT-es</th><th>Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n" title="Quanto o gasto com a transportadora subiu (▲) ou caiu (▼) em relação ao ${P.ant}">Variação vs ${P.ant}</th></tr></thead><tbody>
-      ${d.porTransp.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, max)}</td><td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td><td class="n">${seta(g.frete, d.porTranspAnt.get(g.nome)?.frete || 0)}</td></tr>`).join('')}
-      </tbody><tfoot><tr><td>Total</td><td class="n">${d.atual.qtd}</td><td></td><td class="n">${brl(d.atual.frete)}</td><td class="n">${pctCel(d.atual.pct)}</td><td class="n">${seta(d.atual.frete, d.anterior.frete)}</td></tr></tfoot></table>` : `<div class="alerta ok">Nenhum CT-e emitido neste(a) ${P.unid}.</div>`}
+      <div class="cinza" style="font-size:8px;margin:-2px 0 3px">Última coluna: gasto com cada transportadora comparado a <b>${esc(antNome)}</b> — ▲ gastou mais · ▼ gastou menos (vermelho/verde = mudou mais de 5%)</div>
+      ${d.porTransp.length ? `<table><thead><tr><th>Transportadora</th><th class="n">CT-es</th><th>Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n">Comparado a ${esc(antNome)}</th></tr></thead><tbody>
+      ${d.porTransp.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, max)}</td><td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td><td class="n">${comparado(g.frete, d.porTranspAnt.get(g.nome)?.frete || 0)}</td></tr>`).join('')}
+      </tbody><tfoot><tr><td>Total</td><td class="n">${d.atual.qtd}</td><td></td><td class="n">${brl(d.atual.frete)}</td><td class="n">${pctCel(d.atual.pct)}</td><td class="n">${comparado(d.atual.frete, d.anterior.frete)}</td></tr></tfoot></table>` : `<div class="alerta ok">Nenhum CT-e emitido neste(a) ${P.unid}.</div>`}
     </div>
     <div><h2>Por rota</h2>
       ${d.porRota.length ? `<table><thead><tr><th>Rota</th><th class="n">CT-es</th><th>Frete</th><th class="n">Valor</th><th class="n">% NF</th></tr></thead><tbody>
@@ -4766,7 +4771,7 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
     </tbody><tfoot><tr><td colspan="6">Total (${d.ctes.length} CT-es)</td><td class="n">${d.atual.peso ? d.atual.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td><td class="n">${brl(d.atual.frete)}</td><td class="n">${brl(d.atual.nf)}</td><td class="n">${pctCel(d.atual.pct)}</td><td></td></tr></tfoot></table>
     <div class="omitidos" id="omitidos"></div>` : ''}
 
-  <footer>GF Medical · Controle de Fretes · ${esc(FILIAL_LABEL)} · % frete/NF = soma do frete ÷ soma do valor das NF-e (CT-es com NF informada) · Variação vs ${P.ant}: ▲ gasto subiu · ▼ gasto caiu (vermelho = subiu mais de 5%, verde = caiu mais de 5%, — = sem frete no período anterior)</footer>
+  <footer>GF Medical · Controle de Fretes · ${esc(FILIAL_LABEL)} · % frete/NF = soma do frete ÷ soma do valor das NF-e (CT-es com NF informada) · ▲▼ = quanto o gasto mudou em relação a ${esc(antNome)}</footer>
   </div>
   <script>
   (function () {
