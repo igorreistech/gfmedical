@@ -748,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.2';
+const VERSAO = '2026-10-14.3';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -4674,39 +4674,46 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
   const logo = new URL('logo.jpg', location.href).href;
   const contestar = d.aud.reduce((a, x) => a + x.contestar, 0);
   win.document.open();
+  // Uma página só (A4 deitada): layout compacto e, ao abrir e ao imprimir, a página é reduzida (zoom) até
+  // caber na folha; se ficaria pequena demais (< 60%), a lista mostra os fretes de maior valor e avisa
+  // quantos menores ficaram de fora (os totais continuam com todos).
+  const alertaItens = (itens, html) => itens.length ? `<ul>${itens.slice(0, 5).map(html).join('')}${itens.length > 5 ? `<li class="cinza">+ ${itens.length - 5} outro(s)</li>` : ''}</ul>` : '';
   win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
   <title>Relatório ${P.titulo} de fretes — ${esc(FILIAL_LABEL)} — ${esc(d.s.nome)}</title>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#111;padding:22px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    header{display:flex;align-items:center;gap:12px;border-bottom:2px solid #1a7a4a;padding-bottom:10px;margin-bottom:14px}
-    header img{width:42px;height:42px;border-radius:8px;object-fit:cover}
-    h1{font-size:16px;color:#0a2a18}.sub{color:#555;font-size:10px;margin-top:2px}
-    h2{font-size:12px;color:#1a7a4a;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.04em}
-    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-    .kpi{border:1px solid #cfe5d7;border-top:3px solid #1a7a4a;border-radius:6px;padding:8px 10px}
+    html,body{background:#fff}
+    body{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    #pagina{width:1060px;padding:10px 12px;margin:0 auto;transform-origin:top left}
+    header{display:flex;align-items:center;gap:10px;border-bottom:2px solid #1a7a4a;padding-bottom:6px;margin-bottom:8px}
+    header img{width:32px;height:32px;border-radius:6px;object-fit:cover}
+    h1{font-size:14px;color:#0a2a18}.sub{color:#555;font-size:9px;margin-top:1px}
+    h2{font-size:10px;color:#1a7a4a;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+    .kpi{border:1px solid #cfe5d7;border-top:3px solid #1a7a4a;border-radius:5px;padding:5px 8px}
     .kpi.warn{border-top-color:#b7790a}.kpi.crit{border-top-color:#dc2626}
-    .kpi b{display:block;font-size:15px;margin-top:3px;color:#0a2a18}.kpi span{font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.05em}
-    .kpi small{display:block;color:#666;margin-top:2px}
-    table{width:100%;border-collapse:collapse;margin-top:2px}
-    th{background:#e8f5ee;text-align:left;padding:5px 6px;border:1px solid #cfe5d7;font-size:9px;text-transform:uppercase;color:#2a5a3a}
-    td{padding:4px 6px;border:1px solid #e1ece5;vertical-align:middle}
+    .kpi b{display:block;font-size:13px;margin-top:2px;color:#0a2a18}.kpi span{font-size:8px;color:#666;text-transform:uppercase;letter-spacing:.05em}
+    .kpi small{display:block;color:#666;margin-top:1px;font-size:8.5px}
+    table{width:100%;border-collapse:collapse}
+    th{background:#e8f5ee;text-align:left;padding:3px 4px;border:1px solid #cfe5d7;font-size:8px;text-transform:uppercase;color:#2a5a3a}
+    td{padding:2px 4px;border:1px solid #e1ece5;vertical-align:middle}
     tr:nth-child(even) td{background:#f7fbf8}
     .n{text-align:right;white-space:nowrap}.cinza{color:#888}
     tfoot td{font-weight:700;background:#e8f5ee!important}
-    .bar{height:9px;background:#eef5f0;border-radius:2px}.bar div{height:100%;background:#1a7a4a;border-radius:0 2px 2px 0}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-    .alerta{border:1px solid #f1d3d3;background:#fdf6f6;border-radius:6px;padding:8px 10px;margin-bottom:6px}
+    .bar{height:7px;background:#eef5f0;border-radius:2px;min-width:40px}.bar div{height:100%;background:#1a7a4a;border-radius:0 2px 2px 0}
+    .grid3{display:grid;grid-template-columns:1.15fr 1fr .95fr;gap:10px;align-items:start}
+    .alerta{border:1px solid #f1d3d3;background:#fdf6f6;border-radius:5px;padding:4px 7px;margin-bottom:4px}
     .alerta.ok{border-color:#cfe5d7;background:#f4faf6}
-    .alerta b{color:#0a2a18}
-    footer{margin-top:18px;font-size:9px;color:#777;border-top:1px solid #ddd;padding-top:6px}
-    .quebra{page-break-before:always}
-    @page{size:A4 landscape;margin:10mm}
-    table.rel td,table.rel th{font-size:8.5px;padding:3px 4px}
-    .barra-acoes{position:fixed;top:10px;right:10px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-    .barra-acoes button{padding:7px 12px;background:#fff;color:#1a7a4a;border:1px solid #1a7a4a;border-radius:6px;font-weight:700;cursor:pointer;font-size:11px}
+    .alerta b{color:#0a2a18}.alerta ul{margin:2px 0 0 12px}.alerta li{margin:1px 0}
+    table.rel td,table.rel th{font-size:8px;padding:2px 3px}
+    .omitidos{margin-top:3px;color:#7a5a00;font-size:8.5px}
+    footer{margin-top:6px;font-size:8px;color:#777;border-top:1px solid #ddd;padding-top:3px}
+    @page{size:A4 landscape;margin:7mm}
+    .barra-acoes{position:fixed;top:8px;right:8px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;z-index:2}
+    .barra-acoes button{padding:6px 10px;background:#fff;color:#1a7a4a;border:1px solid #1a7a4a;border-radius:6px;font-weight:700;cursor:pointer;font-size:11px}
     .barra-acoes button.p{background:#1a7a4a;color:#fff}
-    @media print{body{padding:8px}.barra-acoes{display:none}}
+    @media screen{body{background:#e9efeb;padding:50px 0 20px}#pagina{background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.15)}}
+    @media print{.barra-acoes{display:none}#pagina{margin:0}}
   </style></head><body>
   <div class="barra-acoes">
     <button onclick="opener.relatorioSemanal(${offset - 1}, '${tipo}')">◀ ${P.antBtn}</button>
@@ -4716,6 +4723,7 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
     <button onclick="opener.copiarRelatorioSemanal('email')">✉ Resumo por e-mail</button>
     <button class="p" onclick="window.print()">🖨 Salvar como PDF</button>
   </div>
+  <div id="pagina">
   <header><img src="${logo}" alt=""><div><h1>Relatório ${P.titulo} de fretes — GF Medical ${esc(FILIAL_LABEL)}</h1>
     <div class="sub">${P.Rot}: <b>${esc(d.s.nome)}</b>${tipo === 'mes' ? ` (${dataBR(d.s.ini)} a ${dataBR(d.s.fim)})` : ''}${offset === 1 ? ` — ${P.atual}, até hoje` : ''} · fretes contratados = CT-es emitidos no período · gerado em ${agoraBR()}</div></div></header>
 
@@ -4726,42 +4734,62 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
     <div class="kpi ${contestar > 0 ? 'crit' : ''}"><span>A contestar</span><b>${brl(contestar)}</b><small>${d.aud.length} CT-e(s) acima da tabela/usual</small></div>
   </div>
 
-  ${d.ctes.length ? `<div class="grid2">
-  <div><h2>Por transportadora</h2>
-    <table><thead><tr><th>Transportadora</th><th class="n">CT-es</th><th style="width:28%">Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n">vs ${P.curto} ant.</th></tr></thead><tbody>
-    ${d.porTransp.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, max)}</td>
-      <td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td><td class="n">${seta(g.frete, d.porTranspAnt.get(g.nome)?.frete || 0)}</td></tr>`).join('')}
-    </tbody><tfoot><tr><td>Total</td><td class="n">${d.atual.qtd}</td><td></td><td class="n">${brl(d.atual.frete)}</td><td class="n">${pctCel(d.atual.pct)}</td><td class="n">${seta(d.atual.frete, d.anterior.frete)}</td></tr></tfoot></table></div>
-  <div><h2>Por rota</h2>
-    <table><thead><tr><th>Rota</th><th class="n">CT-es</th><th style="width:28%">Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n">Peso (kg)</th></tr></thead><tbody>
-    ${d.porRota.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, maxR)}</td>
-      <td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td><td class="n">${g.peso ? g.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td></tr>`).join('')}
-    </tbody></table></div>
+  <div class="grid3">
+    <div><h2>Por transportadora</h2>
+      ${d.porTransp.length ? `<table><thead><tr><th>Transportadora</th><th class="n">CT-es</th><th>Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n">vs ${P.curto} ant.</th></tr></thead><tbody>
+      ${d.porTransp.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, max)}</td><td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td><td class="n">${seta(g.frete, d.porTranspAnt.get(g.nome)?.frete || 0)}</td></tr>`).join('')}
+      </tbody><tfoot><tr><td>Total</td><td class="n">${d.atual.qtd}</td><td></td><td class="n">${brl(d.atual.frete)}</td><td class="n">${pctCel(d.atual.pct)}</td><td class="n">${seta(d.atual.frete, d.anterior.frete)}</td></tr></tfoot></table>` : `<div class="alerta ok">Nenhum CT-e emitido neste(a) ${P.unid}.</div>`}
+    </div>
+    <div><h2>Por rota</h2>
+      ${d.porRota.length ? `<table><thead><tr><th>Rota</th><th class="n">CT-es</th><th>Frete</th><th class="n">Valor</th><th class="n">% NF</th></tr></thead><tbody>
+      ${d.porRota.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, maxR)}</td><td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td></tr>`).join('')}
+      </tbody></table>` : '<div class="cinza">—</div>'}
+      ${d.porSemana.length ? `<h2>Por semana do mês</h2><table><thead><tr><th>Semana</th><th class="n">CT-es</th><th>Frete</th><th class="n">Valor</th><th class="n">% NF</th></tr></thead><tbody>
+      ${d.porSemana.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, maxS)}</td><td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td></tr>`).join('')}
+      </tbody></table>` : ''}
+    </div>
+    <div><h2>Alertas</h2>
+      <div class="alerta ${d.aud.length ? '' : 'ok'}"><b>Acima da tabela/usual: ${d.aud.length}</b>${d.aud.length ? ` · a contestar ~${brl(contestar)}` : ''}
+        ${alertaItens(d.aud, x => `<li>CT-e ${esc(x.c.numero_cte)} · ${esc(x.c.transportadora || '—')} · ${brl(x.c.valor_frete)}${x.contestar ? ` (+${brl(x.contestar)})` : ''}</li>`)}</div>
+      <div class="alerta ${d.atrasadas.length ? '' : 'ok'}"><b>Entregas atrasadas (hoje): ${d.atrasadas.length}</b>
+        ${alertaItens(d.atrasadas, c => `<li>CT-e ${esc(c.numero_cte)} · ${esc(c.transportadora || '—')} · prev. ${dataBR(previsaoEntrega(c))}${previsaoEntrega(c) ? ` (${Math.max(0, diasEntre(previsaoEntrega(c), hojeISO()))}d)` : ''}</li>`)}</div>
+      <div class="alerta ${d.faturas.length ? '' : 'ok'}"><b>Faturas vencidas/vencendo: ${d.faturas.length}</b>${d.faturas.length ? ` · ${brl(d.faturas.reduce((a, f) => a + num(f.valor), 0))}` : ''}
+        ${alertaItens(d.faturas, f => `<li>${esc(f.transportadora)} ${esc(f.numero || '')} · ${brl(f.valor)} · vence ${dataBR(f.vencimento)}</li>`)}</div>
+      ${d.tabelas.length ? `<div class="alerta"><b>Tabelas a renovar: ${d.tabelas.length}</b>${alertaItens(d.tabelas, t => `<li>${esc(t.transportadora)}: ${esc(tabelaAntiga(t))}</li>`)}</div>` : ''}
+    </div>
   </div>
-  ${d.porSemana.length ? `<h2>Por semana do mês</h2>
-    <table><thead><tr><th>Semana</th><th class="n">CT-es</th><th style="width:40%">Frete</th><th class="n">Valor</th><th class="n">% NF</th></tr></thead><tbody>
-    ${d.porSemana.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, maxS)}</td><td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td></tr>`).join('')}
-    </tbody></table>` : ''}` : `<h2>Fretes do período</h2><div class="alerta ok">Nenhum CT-e emitido neste(a) ${P.unid}.</div>`}
 
-  <h2>Alertas</h2>
-  <div class="alerta ${d.aud.length ? '' : 'ok'}"><b>Cobranças acima da tabela ou do usual: ${d.aud.length}</b>${d.aud.length ? ` — a contestar ~${brl(contestar)}` : ` — nenhuma neste(a) ${P.unid}`}
-    ${d.aud.length ? `<table style="margin-top:6px"><thead><tr><th>CT-e</th><th>Emissão</th><th>Transportadora</th><th>Motivo</th><th class="n">Frete</th><th class="n">A contestar</th></tr></thead><tbody>
-    ${d.aud.map(x => `<tr><td>${esc(x.c.numero_cte)}</td><td>${dataBR(x.c.data_emissao)}</td><td>${esc(x.c.transportadora || '—')}</td><td>${esc(x.achados.map(a => a.txt.replace(/<[^>]+>/g, '')).join(' · '))}</td><td class="n">${brl(x.c.valor_frete)}</td><td class="n">${x.contestar ? brl(x.contestar) : '—'}</td></tr>`).join('')}
-    </tbody></table>` : ''}</div>
-  <div class="alerta ${d.atrasadas.length ? '' : 'ok'}"><b>Entregas atrasadas (em aberto hoje): ${d.atrasadas.length}</b>
-    ${d.atrasadas.length ? `<table style="margin-top:6px"><thead><tr><th>CT-e</th><th>Transportadora</th><th>Destinatário</th><th>Previsão</th><th class="n">Dias de atraso</th></tr></thead><tbody>
-    ${d.atrasadas.slice(0, 20).map(c => `<tr><td>${esc(c.numero_cte)}</td><td>${esc(c.transportadora || '—')}</td><td>${esc(c.destino || '—')}</td><td>${dataBR(previsaoEntrega(c))}</td><td class="n">${previsaoEntrega(c) ? Math.max(0, diasEntre(previsaoEntrega(c), hojeISO())) : '—'}</td></tr>`).join('')}
-    </tbody></table>${d.atrasadas.length > 20 ? `<div class="cinza" style="margin-top:4px">+ ${d.atrasadas.length - 20} outra(s) no sistema</div>` : ''}` : ''}</div>
-  <div class="alerta ${d.faturas.length ? '' : 'ok'}"><b>Faturas vencidas ou vencendo em até 5 dias: ${d.faturas.length}</b>${d.faturas.length ? ` — ${d.faturas.map(f => `${esc(f.transportadora)} ${esc(f.numero || '')} ${brl(f.valor)} (vence ${dataBR(f.vencimento)})`).join(' · ')}` : ''}</div>
-  ${d.tabelas.length ? `<div class="alerta"><b>Tabelas combinadas a renovar: ${d.tabelas.length}</b> — ${d.tabelas.map(t => `${esc(t.transportadora)}: ${esc(tabelaAntiga(t))}`).join(' · ')}</div>` : ''}
+  ${d.ctes.length ? `<h2>Fretes contratados no(a) ${P.unid} (${d.ctes.length})</h2>
+    <table class="rel"><thead><tr><th>CT-e</th><th>Emissão</th><th>NF-e</th><th>Transportadora</th><th>Rota</th><th>Destinatário</th><th class="n">Peso (kg)</th><th class="n">Frete</th><th class="n">Valor NF</th><th class="n">%</th><th>Status</th></tr></thead><tbody id="lista">
+    ${d.ctes.map(c => `<tr class="lin" data-v="${num(c.valor_frete)}"><td>${esc(c.numero_cte)}</td><td>${dataBR(c.data_emissao)}</td><td>${esc(c.numero_nfe || '—')}</td><td>${esc(c.transportadora || '—')}</td><td>${esc(rotaUfs(c))}</td><td>${esc(String(c.destino || '—').slice(0, 38))}</td>
+      <td class="n">${num(c.peso_kg) ? num(c.peso_kg).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td><td class="n">${brl(c.valor_frete)}</td><td class="n">${num(c.valor_nfe) ? brl(c.valor_nfe) : '—'}</td><td class="n">${pctCel(pctFrete(c))}</td><td>${esc(c.status_entrega || '—')}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="6">Total (${d.ctes.length} CT-es)</td><td class="n">${d.atual.peso ? d.atual.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td><td class="n">${brl(d.atual.frete)}</td><td class="n">${brl(d.atual.nf)}</td><td class="n">${pctCel(d.atual.pct)}</td><td></td></tr></tfoot></table>
+    <div class="omitidos" id="omitidos"></div>` : ''}
 
-  ${d.ctes.length ? `<h2 class="quebra">Fretes contratados no(a) ${P.unid} (${d.ctes.length})</h2>
-    <table class="rel"><thead><tr><th>CT-e</th><th>Emissão</th><th>NF-e</th><th>Transportadora</th><th>Rota</th><th>Destinatário</th><th>Tipo</th><th class="n">Peso (kg)</th><th class="n">Frete</th><th class="n">NF-e</th><th class="n">%</th><th>Previsão</th><th>Status</th></tr></thead><tbody>
-    ${d.ctes.map(c => `<tr><td>${esc(c.numero_cte)}</td><td>${dataBR(c.data_emissao)}</td><td>${esc(c.numero_nfe || '—')}</td><td>${esc(c.transportadora || '—')}</td><td>${esc(rotaUfs(c))}</td><td>${esc(c.destino || '—')}</td><td>${esc(c.tipo_saida || '—')}</td>
-      <td class="n">${num(c.peso_kg) ? num(c.peso_kg).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td><td class="n">${brl(c.valor_frete)}</td><td class="n">${num(c.valor_nfe) ? brl(c.valor_nfe) : '—'}</td><td class="n">${pctCel(pctFrete(c))}</td><td>${dataBR(previsaoEntrega(c))}</td><td>${esc(c.status_entrega || '—')}</td></tr>`).join('')}
-    </tbody><tfoot><tr><td colspan="7">Total</td><td class="n">${d.atual.peso ? d.atual.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td><td class="n">${brl(d.atual.frete)}</td><td class="n">${brl(d.atual.nf)}</td><td class="n">${pctCel(d.atual.pct)}</td><td colspan="2"></td></tr></tfoot></table>` : ''}
-
-  <footer>GF Medical · Controle de Fretes · ${esc(FILIAL_LABEL)} · % frete/NF = soma do frete ÷ soma do valor das NF-e (CT-es com NF informada)</footer>
+  <footer>GF Medical · Controle de Fretes · ${esc(FILIAL_LABEL)} · % frete/NF = soma do frete ÷ soma do valor das NF-e (CT-es com NF informada) · ▲▼ = variação do gasto vs ${P.ant}</footer>
+  </div>
+  <script>
+  (function () {
+    // Área útil da folha A4 deitada com margem de 7 mm, em px (96 dpi)
+    var W = 1040, H = 690, MIN = 0.6, pg = document.getElementById('pagina');
+    function escala() { pg.style.zoom = 1; return Math.min(1, W / pg.scrollWidth, H / pg.scrollHeight); }
+    function caber() {
+      var z = escala(), lista = document.getElementById('lista');
+      if (z < MIN && lista) {
+        var linhas = [].slice.call(lista.querySelectorAll('tr.lin')), tirados = 0, soma = 0;
+        linhas.sort(function (a, b) { return a.dataset.v - b.dataset.v; });
+        while (z < MIN && linhas.length > 10) { var l = linhas.shift(); soma += +l.dataset.v; l.remove(); tirados++; z = escala(); }
+        if (tirados) document.getElementById('omitidos').textContent = '+ ' + tirados + ' frete(s) de menor valor fora da lista para caber em uma página (somam ' +
+          soma.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + '; já estão nos totais). A lista completa está no sistema (Exportar).';
+        z = escala();
+      }
+      pg.style.zoom = z;
+    }
+    if (document.readyState === 'complete') caber(); else window.addEventListener('load', caber);
+    window.addEventListener('beforeprint', function () { var z = escala(); pg.style.zoom = z; });
+    document.fonts && document.fonts.ready.then(caber);
+  })();
+  <\/script>
   </body></html>`);
   win.document.close();
   win.focus();
