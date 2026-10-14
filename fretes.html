@@ -748,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.10';
+const VERSAO = '2026-10-14.11';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -4763,7 +4763,7 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
     <div><h2>Alertas</h2>
       <div class="alerta ${d.aud.length ? '' : 'ok'}"><b>Acima da tabela/usual: ${d.aud.length}</b>${d.aud.length ? ` · a contestar ~${brl(contestar)}` : ''}
         ${alertaItens(d.aud, x => `<li>CT-e ${esc(x.c.numero_cte)} · ${esc(x.c.transportadora || '—')} · ${brl(x.c.valor_frete)}${x.contestar ? ` (+${brl(x.contestar)})` : ''}</li>`)}
-        ${porTranspAud.length ? `<div class="cobrar">${porTranspAud.map(g => `<div class="cobrar-lin"><span><b>${esc(g.nome)}</b>: ${g.itens.length} CT-e(s) · ${brl(g.total)}</span>
+        ${porTranspAud.length ? `<div class="cobrar">${porTranspAud.map(g => `<div class="cobrar-lin"><span><b>${esc(g.nome)}</b>: ${g.itens.length} CT-e(s)${g.total > 0 ? ` · a corrigir ${brl(g.total)}` : ''}${g.itens.some(x => x.cl.dobro) ? ' · NF repetida' : ''}</span>
           <span class="acoes-cob"><button onclick="abrir(opener.linkCobranca(${JSON.stringify(g.nome).replace(/"/g, '&quot;')}, 'whatsapp'))">📲 Cobrar no WhatsApp</button><button onclick="abrir(opener.linkCobranca(${JSON.stringify(g.nome).replace(/"/g, '&quot;')}, 'email'))">✉ Cobrar por e-mail</button></span></div>`).join('')}</div>` : ''}</div>
       <div class="alerta ${d.atrasadas.length ? '' : 'ok'}"><b>Entregas atrasadas (hoje): ${d.atrasadas.length}</b>
         ${alertaItens(d.atrasadas, c => `<li>CT-e ${esc(c.numero_cte)} · ${esc(c.transportadora || '—')} · prev. ${dataBR(previsaoEntrega(c))}${previsaoEntrega(c) ? ` (${Math.max(0, diasEntre(previsaoEntrega(c), hojeISO()))}d)` : ''}</li>`)}</div>
@@ -4815,25 +4815,61 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
   win.document.close();
   win.focus();
 };
-// Cobrança por transportadora: CT-es do período acima da tabela/usual, com motivo e valor a revisar.
+// Cobrança por transportadora — só o que é combinado: acima da tabela combinada, acima da cotação aprovada
+// e a mesma NF em mais de um CT-e (para confirmar). "Acima do usual"/"do histórico" é estatística: fica só no relatório.
+const brCurto = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '—';
+function classificarCobranca(x) {
+  const c = x.c, fr = num(c.valor_frete), r = { tabela: null, cotacao: null, dobro: false };
+  if (x.achados.some(a => /^Acima da tabela combinada/.test(a.txt))) {
+    const chk = conferirTabela('cte', c);
+    if (chk?.preco != null && fr - chk.preco > 0.01) r.tabela = { preco: chk.preco, dif: fr - chk.preco };
+  }
+  const cot = x.achados.map(a => /^Cotação (\S+): cobrado a mais (R\$\s*[\d.,]+) \(cotado (R\$\s*[\d.,]+)\)/.exec(a.txt.replace(/ /g, ' '))).find(Boolean);
+  if (cot) r.cotacao = { numero: cot[1], dif: moedaNum(cot[2]), cotado: moedaNum(cot[3]) };
+  r.dobro = x.achados.some(a => /possível cobrança em dobro/.test(a.txt));
+  r.valor = Math.max(r.tabela?.dif || 0, r.cotacao?.dif || 0);
+  return r;
+}
 function audPorTransportadora(aud) {
   const m = new Map();
-  aud.forEach(x => { const k = canonTransp(x.c.transportadora) || '—'; if (!m.has(k)) m.set(k, []); m.get(k).push(x); });
-  return [...m].map(([nome, itens]) => ({ nome, itens, total: itens.reduce((a, x) => a + num(x.contestar), 0) })).sort((a, b) => b.total - a.total);
+  aud.forEach(x => {
+    const cl = classificarCobranca(x);
+    if (!cl.tabela && !cl.cotacao && !cl.dobro) return; // só estatística: não entra na cobrança
+    const k = canonTransp(x.c.transportadora) || '—';
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push({ ...x, cl });
+  });
+  return [...m].map(([nome, itens]) => ({ nome, itens, total: itens.reduce((a, x) => a + x.cl.valor, 0) })).sort((a, b) => b.total - a.total || b.itens.length - a.itens.length);
 }
 function textoCobranca(nome, itens, periodo) {
   const t = data.transp.find(x => norm(canonTransp(x.nome)) === norm(nome));
-  const total = itens.reduce((a, x) => a + num(x.contestar), 0);
-  const L = [`Olá${t?.contato ? ' ' + t.contato : ''}, tudo bem?`, '',
-    `Aqui é da GF Medical ${FILIAL_LABEL}. Na conferência dos fretes de ${periodo}, encontramos cobranças da ${nome} acima do combinado nos CT-es abaixo:`, ''];
-  itens.forEach(x => {
-    const c = x.c, motivo = x.achados.map(a => a.txt.replace(/<[^>]+>/g, '')).join('; ');
-    L.push(`• CT-e ${c.numero_cte} — emissão ${dataBR(c.data_emissao)}${c.numero_nfe ? `, NF ${c.numero_nfe}` : ''}`);
-    L.push(`  Cobrado: ${brl(c.valor_frete)}${x.contestar ? ` · a revisar: ${brl(x.contestar)}` : ''}`);
-    L.push(`  Motivo: ${motivo}`);
-  });
-  L.push('', `Total a revisar: ${brl(total)}.`, '',
-    'Podem conferir e nos enviar a correção (CT-e substituto ou abatimento na próxima fatura), por favor?', 'Fico no aguardo. Obrigado!');
+  const ctNf = c => `CT-e ${c.numero_cte} (${brCurto(c.data_emissao)}${c.numero_nfe ? `, NF ${c.numero_nfe}` : ''})`;
+  const L = [`Olá${t?.contato ? ', ' + t.contato : ''}! Tudo bem?`, '',
+    `Aqui é da *GF Medical – ${FILIAL_LABEL.replace(' · ', '/')}*. Na conferência dos fretes de *${periodo}*, encontramos alguns pontos nas cobranças da *${nome}*:`];
+  let n = 0, total = 0;
+  const tab = itens.filter(x => x.cl.tabela);
+  if (tab.length) {
+    L.push('', `*${++n}) Valor acima da tabela combinada*`);
+    tab.forEach(x => { L.push(`• ${ctNf(x.c)}: cobrado ${brl(x.c.valor_frete)} | pela tabela ${brl(x.cl.tabela.preco)} | diferença *${brl(x.cl.tabela.dif)}*`); total += x.cl.tabela.dif; });
+  }
+  const cot = itens.filter(x => x.cl.cotacao && !x.cl.tabela);
+  if (cot.length) {
+    L.push('', `*${++n}) Valor acima da cotação aprovada*`);
+    cot.forEach(x => { L.push(`• ${ctNf(x.c)}: cobrado ${brl(x.c.valor_frete)} | cotação ${x.cl.cotacao.numero} ${brl(x.cl.cotacao.cotado)} | diferença *${brl(x.cl.cotacao.dif)}*`); total += x.cl.cotacao.dif; });
+  }
+  if (total > 0) L.push('', `Total a corrigir: *${brl(total)}*`);
+  // mesma NF em mais de um CT-e: agrupa por NF (cada par aparece uma vez só)
+  const porNf = new Map();
+  itens.filter(x => x.cl.dobro).forEach(x => nfsDe(x.c).forEach(nf => {
+    const mesmos = data.cte.filter(o => norm(canonTransp(o.transportadora)) === norm(nome) && nfsDe(o).includes(nf));
+    if (mesmos.length > 1) porNf.set(nf, mesmos);
+  }));
+  if (porNf.size) {
+    L.push('', `*${++n}) Mesma nota fiscal em mais de um CT-e*`);
+    [...porNf].sort((a, b) => a[0].localeCompare(b[0])).forEach(([nf, cs]) => L.push(`• NF ${nf}: ${cs.map(o => `CT-e ${o.numero_cte} (${brl(o.valor_frete)})`).join(' e ')}`));
+    L.push('Podem confirmar se houve cobrança em duplicidade?');
+  }
+  L.push('', total > 0 ? 'Podem verificar e nos enviar a correção (CT-e substituto ou desconto na próxima fatura), por favor?' : 'Podem verificar, por favor?', '', 'Obrigado!');
   return { texto: L.join('\n'), t, total };
 }
 window.linkCobranca = (nome, canal) => {
@@ -4845,7 +4881,7 @@ window.linkCobranca = (nome, canal) => {
   registrarLog('cobrança de frete enviada', T.cte, nome, { canal, periodo, ctes: g.itens.map(x => x.c.numero_cte), total });
   if (canal === 'email') {
     const assunto = `Revisão de cobrança de frete — ${nome} — CT-e ${g.itens.map(x => x.c.numero_cte).join(', ')} — GF Medical ${FILIAL_LABEL}`;
-    return { texto, url: `mailto:${encodeURIComponent(t?.email || '')}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(texto)}`,
+    return { texto: texto.replace(/\*/g, ''), url: `mailto:${encodeURIComponent(t?.email || '')}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(texto.replace(/\*/g, ''))}`,
       aviso: t?.email ? '' : `A ${nome} está sem e-mail no cadastro de Transportadoras — preencha o destinatário no e-mail (o texto também foi copiado).` };
   }
   return { texto, url: 'https://api.whatsapp.com/send?text=' + encodeURIComponent(texto) };
