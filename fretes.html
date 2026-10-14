@@ -748,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.12';
+const VERSAO = '2026-10-14.13';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -4653,7 +4653,9 @@ function textoRelatorio(d) {
   if (d.porSemana.length) { L.push('', '*Por semana*'); d.porSemana.forEach(g => L.push(`- ${g.nome}: ${g.qtd} CT-e(s) · ${brl(g.frete)}`)); }
   if (d.porRota.length) { L.push('', '*Por rota*'); d.porRota.slice(0, 8).forEach(g => L.push(`- ${g.nome}: ${g.qtd} · ${brl(g.frete)}`)); }
   L.push('', '*Alertas*');
-  L.push(`- Acima da tabela/usual: ${d.aud.length} CT-e(s)${d.aud.length ? ` · a contestar ~${brl(d.aud.reduce((a, x) => a + x.contestar, 0))}` : ''}`);
+  { const g = audPorTransportadora(d.aud), n = g.reduce((a, x) => a + x.itens.length, 0), v = g.reduce((a, x) => a + x.total, 0);
+    L.push(`- Acima da tabela combinada: ${n} CT-e(s)${n ? ` · ${brl(v)} a cobrar (${g.map(x => x.nome).join(', ')})` : ''}`);
+    const ver = d.aud.length - n; if (ver > 0) L.push(`- Para verificar (NF repetida / acima do usual): ${ver} CT-e(s)`); }
   L.push(`- Entregas atrasadas (em aberto hoje): ${d.atrasadas.length}`);
   L.push(`- Faturas vencidas ou vencendo: ${d.faturas.length}${d.faturas.length ? ` · ${brl(d.faturas.reduce((a, f) => a + num(f.valor), 0))}` : ''}`);
   if (d.tabelas.length) L.push(`- Tabelas a renovar: ${d.tabelas.map(t => t.transportadora).join(', ')}`);
@@ -4678,8 +4680,11 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
   const barra = (v, max) => `<div class="bar"><div style="width:${(v / Math.max(max, 1) * 100).toFixed(1)}%"></div></div>`;
   const max = Math.max(...d.porTransp.map(g => g.frete), 1), maxR = Math.max(...d.porRota.map(g => g.frete), 1), maxS = Math.max(...d.porSemana.map(g => g.frete), 1);
   const logo = new URL('logo.jpg', location.href).href;
-  const contestar = d.aud.reduce((a, x) => a + x.contestar, 0);
   const porTranspAud = audPorTransportadora(d.aud);
+  const acimaTabela = porTranspAud.flatMap(g => g.itens), contestar = porTranspAud.reduce((a, g) => a + g.total, 0);
+  const paraVerificar = d.aud.filter(x => !acimaTabela.some(y => y.c === x.c));
+  const motivoCurto = x => x.achados.some(a => /possível cobrança em dobro/.test(a.txt)) ? 'NF em mais de um CT-e'
+    : x.achados.some(a => /^Cotação/.test(a.txt)) ? 'diferente da cotação' : 'acima do usual (estatística)';
   win.document.open();
   // Uma página só (A4 deitada): layout compacto e, ao abrir e ao imprimir, a página é reduzida (zoom) até
   // caber na folha; se ficaria pequena demais (< 60%), a lista mostra os fretes de maior valor e avisa
@@ -4742,7 +4747,7 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
     <div class="kpi"><span>Frete contratado</span><b>${brl(d.atual.frete)}</b><small>${seta(d.atual.frete, d.anterior.frete)} em relação a ${esc(antNome)}: ${brl(d.anterior.frete)}</small></div>
     <div class="kpi"><span>Fretes (CT-es)</span><b>${d.atual.qtd}</b><small>${seta(d.atual.qtd, d.anterior.qtd)} em ${esc(antNome)}: ${d.anterior.qtd} · ticket médio ${brl(d.atual.qtd ? d.atual.frete / d.atual.qtd : 0)}</small></div>
     <div class="kpi ${faixaPct(d.atual.pct) === 'crit' ? 'crit' : faixaPct(d.atual.pct) === 'warn' ? 'warn' : ''}"><span>Frete / valor da NF</span><b>${pctFmt(d.atual.pct)}</b><small>meta ${pctFmt(metaPct())} · em ${esc(antNome)}: ${pctFmt(d.anterior.pct)}</small></div>
-    <div class="kpi ${contestar > 0 ? 'crit' : ''}"><span>A contestar</span><b>${brl(contestar)}</b><small>${d.aud.length} CT-e(s) acima da tabela/usual</small></div>
+    <div class="kpi ${contestar > 0 ? 'crit' : ''}"><span>A contestar</span><b>${brl(contestar)}</b><small>${acimaTabela.length} CT-e(s) acima da tabela combinada</small></div>
   </div>
 
   <div class="grid3">
@@ -4761,10 +4766,12 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
       </tbody></table>` : ''}
     </div>
     <div><h2>Alertas</h2>
-      <div class="alerta ${d.aud.length ? '' : 'ok'}"><b>Acima da tabela/usual: ${d.aud.length}</b>${d.aud.length ? ` · a contestar ~${brl(contestar)}` : ''}
-        ${alertaItens(d.aud, x => `<li>CT-e ${esc(x.c.numero_cte)} · ${esc(x.c.transportadora || '—')} · ${brl(x.c.valor_frete)}${x.contestar ? ` (+${brl(x.contestar)})` : ''}</li>`)}
-        ${porTranspAud.length ? `<div class="cobrar">${porTranspAud.map(g => `<div class="cobrar-lin"><span><b>${esc(g.nome)}</b>: ${g.itens.length} CT-e(s) acima da tabela · ${brl(g.total)}</span>
+      <div class="alerta ${acimaTabela.length ? '' : 'ok'}"><b>Acima da tabela combinada (cobrar): ${acimaTabela.length}</b>${acimaTabela.length ? ` · ${brl(contestar)}` : ' — nenhum: todos os CT-es conferidos estão dentro da tabela'}
+        ${alertaItens(acimaTabela, x => `<li>CT-e ${esc(x.c.numero_cte)} · ${esc(x.c.transportadora || '—')} · cobrado ${brl(x.c.valor_frete)} · tabela ${brl(x.cl.tabela.preco)} (+${brl(x.cl.tabela.dif)})</li>`)}
+        ${porTranspAud.length ? `<div class="cobrar">${porTranspAud.map(g => `<div class="cobrar-lin"><span><b>${esc(g.nome)}</b>: ${g.itens.length} CT-e(s) · ${brl(g.total)}</span>
           <span class="acoes-cob"><button onclick="abrir(opener.linkCobranca(${JSON.stringify(g.nome).replace(/"/g, '&quot;')}, 'whatsapp'))">📲 Cobrar no WhatsApp</button><button onclick="abrir(opener.linkCobranca(${JSON.stringify(g.nome).replace(/"/g, '&quot;')}, 'email'))">✉ Cobrar por e-mail</button></span></div>`).join('')}</div>` : ''}</div>
+      ${paraVerificar.length ? `<div class="alerta" style="background:#fffaf0;border-color:#f0dfb5"><b>Para verificar (não é cobrança): ${paraVerificar.length}</b>
+        ${alertaItens(paraVerificar, x => `<li>CT-e ${esc(x.c.numero_cte)} · ${esc(x.c.transportadora || '—')} · ${brl(x.c.valor_frete)} · ${motivoCurto(x)}</li>`)}</div>` : ''}
       <div class="alerta ${d.atrasadas.length ? '' : 'ok'}"><b>Entregas atrasadas (hoje): ${d.atrasadas.length}</b>
         ${alertaItens(d.atrasadas, c => `<li>CT-e ${esc(c.numero_cte)} · ${esc(c.transportadora || '—')} · prev. ${dataBR(previsaoEntrega(c))}${previsaoEntrega(c) ? ` (${Math.max(0, diasEntre(previsaoEntrega(c), hojeISO()))}d)` : ''}</li>`)}</div>
       <div class="alerta ${d.faturas.length ? '' : 'ok'}"><b>Faturas vencidas/vencendo: ${d.faturas.length}</b>${d.faturas.length ? ` · ${brl(d.faturas.reduce((a, f) => a + num(f.valor), 0))}` : ''}
