@@ -748,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.3';
+const VERSAO = '2026-10-14.4';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -4736,7 +4736,7 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
 
   <div class="grid3">
     <div><h2>Por transportadora</h2>
-      ${d.porTransp.length ? `<table><thead><tr><th>Transportadora</th><th class="n">CT-es</th><th>Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n">vs ${P.curto} ant.</th></tr></thead><tbody>
+      ${d.porTransp.length ? `<table><thead><tr><th>Transportadora</th><th class="n">CT-es</th><th>Frete</th><th class="n">Valor</th><th class="n">% NF</th><th class="n" title="Quanto o gasto com a transportadora subiu (▲) ou caiu (▼) em relação ao ${P.ant}">Variação vs ${P.ant}</th></tr></thead><tbody>
       ${d.porTransp.map(g => `<tr><td>${esc(g.nome)}</td><td class="n">${g.qtd}</td><td>${barra(g.frete, max)}</td><td class="n">${brl(g.frete)}</td><td class="n">${pctCel(g.pct)}</td><td class="n">${seta(g.frete, d.porTranspAnt.get(g.nome)?.frete || 0)}</td></tr>`).join('')}
       </tbody><tfoot><tr><td>Total</td><td class="n">${d.atual.qtd}</td><td></td><td class="n">${brl(d.atual.frete)}</td><td class="n">${pctCel(d.atual.pct)}</td><td class="n">${seta(d.atual.frete, d.anterior.frete)}</td></tr></tfoot></table>` : `<div class="alerta ok">Nenhum CT-e emitido neste(a) ${P.unid}.</div>`}
     </div>
@@ -4766,7 +4766,7 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
     </tbody><tfoot><tr><td colspan="6">Total (${d.ctes.length} CT-es)</td><td class="n">${d.atual.peso ? d.atual.peso.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td><td class="n">${brl(d.atual.frete)}</td><td class="n">${brl(d.atual.nf)}</td><td class="n">${pctCel(d.atual.pct)}</td><td></td></tr></tfoot></table>
     <div class="omitidos" id="omitidos"></div>` : ''}
 
-  <footer>GF Medical · Controle de Fretes · ${esc(FILIAL_LABEL)} · % frete/NF = soma do frete ÷ soma do valor das NF-e (CT-es com NF informada) · ▲▼ = variação do gasto vs ${P.ant}</footer>
+  <footer>GF Medical · Controle de Fretes · ${esc(FILIAL_LABEL)} · % frete/NF = soma do frete ÷ soma do valor das NF-e (CT-es com NF informada) · Variação vs ${P.ant}: ▲ gasto subiu · ▼ gasto caiu (vermelho = subiu mais de 5%, verde = caiu mais de 5%, — = sem frete no período anterior)</footer>
   </div>
   <script>
   (function () {
