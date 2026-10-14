@@ -748,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.8';
+const VERSAO = '2026-10-14.9';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1867,9 +1867,11 @@ const baseTabela = (t, peso, nf) => t.minimo_base === 'peso'
   : Math.max(num(t.frete_minimo), num(t.valor_fixo) + num(t.valor_kg) * num(peso) + num(t.pct_nf) / 100 * num(nf));
 // ICMS interestadual do transporte: 7% saindo de S/SE (menos ES) para N/NE/CO/ES; 12% nos demais.
 const UFS_SUL_SUDESTE = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS'];
+// Alíquota interna do transporte (frete dentro do mesmo estado), quando a tabela não informa outra.
+const ALIQ_INTERNA = { MS: 17 };
 function aliquotaIcms(ufO, ufD) {
   if (!ufO || !ufD) return { pct: 12, obs: 'UFs não identificadas — 12% presumido' };
-  if (ufO === ufD) return { pct: 0, obs: `dentro de ${ufO} — informe o ICMS na tabela se houver` };
+  if (ufO === ufD) return ALIQ_INTERNA[ufO] != null ? { pct: ALIQ_INTERNA[ufO], obs: `dentro de ${ufO}` } : { pct: 0, obs: `dentro de ${ufO} — informe o ICMS na tabela se houver` };
   return { pct: UFS_SUL_SUDESTE.includes(ufO) && !UFS_SUL_SUDESTE.includes(ufD) ? 7 : 12, obs: `${ufO}→${ufD}` };
 }
 // UFs de origem e destino a partir da rota ("CAMPO GRANDE/MS - CUIABA/MT" ou "MS - MT").
