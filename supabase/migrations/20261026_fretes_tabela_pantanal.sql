@@ -1,0 +1,59 @@
+-- Tabela PANTANAL TRANSPORTES: Proposta Comercial de Frete (tabela combinada) de 14/10/2026, vigência até 30/03/2027.
+-- Substitui a tabela anterior da Pantanal (que estava só em Campo Grande). Origem MS, IDA/VOLTA:
+--   MS-DF e MS-GO: 77,20 / 83,50 / 90,30 / 98,40 / 126,20 (até 10/20/50/70/100 kg) + 900,00/ton; ad valorem 1% (mín. R$ 3,00)
+--   MS-MS: 65,00 / 75,00 / 82,30 / 88,50 / 95,30 + 800,00/ton; ad valorem 0,9%
+--   MS-MT: 75,20 / 82,40 / 89,50 / 97,80 / 125,30 + 900,00/ton; ad valorem 0,9%
+--   MS-PR: 78,10 / 85,10 / 91,15 / 102,40 / 130,30 + 900,00/ton; ad valorem 0,9%
+--   MS-SP: 65,30 / 71,20 / 82,30 / 91,20 / 105,40 + 900,00/ton; ad valorem 0,9%
+--   Todas: GRIS 0,5%, pedágio 12,30 por fração de 100 kg, cubagem 300 kg/m³.
+-- ICMS "será adicionado": somado pela rota (12% saindo de MS; 7% na volta de SP/PR); dentro de MS, 12%.
+-- No DF/GO o ad valorem tem mínimo (R$ 3,00): vai na coluna "% com mínimo" (gris_pct/gris_min) e o GRIS 0,5% no % da NF.
+-- Grava para as duas filiais (CBA e CGR). Rodar no SQL Editor de CADA projeto; pode rodar mais de uma vez.
+delete from public.frete_tabelas where transportadora = 'PANTANAL TRANSPORTES';
+insert into public.frete_tabelas (transportadora, rota, peso_ate, nf_ate, valor_fixo, valor_kg, pct_nf, frete_minimo, minimo_base, cubagem_kg_m3,
+  pedagio_valor, pedagio_fracao_kg, gris_pct, gris_min, coleta_valor, icms_modo, icms_pct, vigencia_inicio, vigencia_fim, observacoes, filial)
+select 'PANTANAL TRANSPORTES', v.rota, v.peso_ate::numeric, null, v.fixo::numeric, v.kg::numeric, v.pct::numeric, null, 'total', 300,
+       12.30, 100, v.gp::numeric, v.gm::numeric, null, 'somar', v.icms::numeric, '2026-10-14'::date, '2027-03-30'::date, v.obs, f.filial
+from (values
+  ('MS - DF', 10, 77.20, null, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - DF. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 10 kg: 77.20.'),
+  ('MS - DF', 20, 83.50, null, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - DF. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 20 kg: 83.50.'),
+  ('MS - DF', 50, 90.30, null, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - DF. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 50 kg: 90.30.'),
+  ('MS - DF', 70, 98.40, null, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - DF. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 70 kg: 98.40.'),
+  ('MS - DF', 100, 126.20, null, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - DF. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 100 kg: 126.20.'),
+  ('MS - DF', null, 36.20, 0.9, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - DF. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Acima de 100 kg: 126.20 + 0.90/kg.'),
+  ('MS - GO', 10, 77.20, null, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - GO. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 10 kg: 77.20.'),
+  ('MS - GO', 20, 83.50, null, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - GO. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 20 kg: 83.50.'),
+  ('MS - GO', 50, 90.30, null, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - GO. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 50 kg: 90.30.'),
+  ('MS - GO', 70, 98.40, null, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - GO. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 70 kg: 98.40.'),
+  ('MS - GO', 100, 126.20, null, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - GO. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 100 kg: 126.20.'),
+  ('MS - GO', null, 36.20, 0.9, 0.5, 1.0, 3.0, null, 'Proposta Pantanal 14/10/26 (CO61816/CO61815, ate 30/03/27): MS - GO. Frete peso por faixa; excedente 900.00/ton; ad valorem 1.0% (min. 3.00); GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Acima de 100 kg: 126.20 + 0.90/kg.'),
+  ('MS - MS', 10, 65.00, null, 1.4, null, null, 12, 'Proposta Pantanal 14/10/26 (CO66235, ate 30/03/27): MS - MS. Frete peso por faixa; excedente 800.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado (12% dentro de MS). Faixa ate 10 kg: 65.00.'),
+  ('MS - MS', 20, 75.00, null, 1.4, null, null, 12, 'Proposta Pantanal 14/10/26 (CO66235, ate 30/03/27): MS - MS. Frete peso por faixa; excedente 800.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado (12% dentro de MS). Faixa ate 20 kg: 75.00.'),
+  ('MS - MS', 50, 82.30, null, 1.4, null, null, 12, 'Proposta Pantanal 14/10/26 (CO66235, ate 30/03/27): MS - MS. Frete peso por faixa; excedente 800.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado (12% dentro de MS). Faixa ate 50 kg: 82.30.'),
+  ('MS - MS', 70, 88.50, null, 1.4, null, null, 12, 'Proposta Pantanal 14/10/26 (CO66235, ate 30/03/27): MS - MS. Frete peso por faixa; excedente 800.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado (12% dentro de MS). Faixa ate 70 kg: 88.50.'),
+  ('MS - MS', 100, 95.30, null, 1.4, null, null, 12, 'Proposta Pantanal 14/10/26 (CO66235, ate 30/03/27): MS - MS. Frete peso por faixa; excedente 800.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado (12% dentro de MS). Faixa ate 100 kg: 95.30.'),
+  ('MS - MS', null, 15.30, 0.8, 1.4, null, null, 12, 'Proposta Pantanal 14/10/26 (CO66235, ate 30/03/27): MS - MS. Frete peso por faixa; excedente 800.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado (12% dentro de MS). Acima de 100 kg: 95.30 + 0.80/kg.'),
+  ('MS - MT', 10, 75.20, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66236, ate 30/03/27): MS - MT. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 10 kg: 75.20.'),
+  ('MS - MT', 20, 82.40, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66236, ate 30/03/27): MS - MT. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 20 kg: 82.40.'),
+  ('MS - MT', 50, 89.50, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66236, ate 30/03/27): MS - MT. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 50 kg: 89.50.'),
+  ('MS - MT', 70, 97.80, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66236, ate 30/03/27): MS - MT. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 70 kg: 97.80.'),
+  ('MS - MT', 100, 125.30, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66236, ate 30/03/27): MS - MT. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 100 kg: 125.30.'),
+  ('MS - MT', null, 35.30, 0.9, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66236, ate 30/03/27): MS - MT. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Acima de 100 kg: 125.30 + 0.90/kg.'),
+  ('MS - PR', 10, 78.10, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66237, ate 30/03/27): MS - PR. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 10 kg: 78.10.'),
+  ('MS - PR', 20, 85.10, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66237, ate 30/03/27): MS - PR. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 20 kg: 85.10.'),
+  ('MS - PR', 50, 91.15, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66237, ate 30/03/27): MS - PR. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 50 kg: 91.15.'),
+  ('MS - PR', 70, 102.40, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66237, ate 30/03/27): MS - PR. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 70 kg: 102.40.'),
+  ('MS - PR', 100, 130.30, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66237, ate 30/03/27): MS - PR. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 100 kg: 130.30.'),
+  ('MS - PR', null, 40.30, 0.9, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66237, ate 30/03/27): MS - PR. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Acima de 100 kg: 130.30 + 0.90/kg.'),
+  ('MS - SP', 10, 65.30, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66238, ate 30/03/27): MS - SP. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 10 kg: 65.30.'),
+  ('MS - SP', 20, 71.20, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66238, ate 30/03/27): MS - SP. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 20 kg: 71.20.'),
+  ('MS - SP', 50, 82.30, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66238, ate 30/03/27): MS - SP. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 50 kg: 82.30.'),
+  ('MS - SP', 70, 91.20, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66238, ate 30/03/27): MS - SP. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 70 kg: 91.20.'),
+  ('MS - SP', 100, 105.40, null, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66238, ate 30/03/27): MS - SP. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Faixa ate 100 kg: 105.40.'),
+  ('MS - SP', null, 15.40, 0.9, 1.4, null, null, null, 'Proposta Pantanal 14/10/26 (CO66238, ate 30/03/27): MS - SP. Frete peso por faixa; excedente 900.00/ton; ad valorem 0.9%; GRIS 0,5%; pedagio 12,30/100kg; ICMS somado pela rota. Acima de 100 kg: 105.40 + 0.90/kg.')
+) v(rota, peso_ate, fixo, kg, pct, gp, gm, icms, obs)
+cross join (values ('CBA'), ('CGR')) f(filial);
+insert into public.frete_transportadoras (nome, modal, observacoes, filial)
+select 'PANTANAL TRANSPORTES', 'Rodoviário', 'PANTANAL TRANSPORTES E LOGISTICA LTDA', f from (values ('CBA'), ('CGR')) x(f)
+where not exists (select 1 from public.frete_transportadoras t where t.filial = x.f and upper(t.nome) = 'PANTANAL TRANSPORTES');
+notify pgrst, 'reload schema';

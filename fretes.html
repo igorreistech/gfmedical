@@ -748,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.7';
+const VERSAO = '2026-10-14.8';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1855,7 +1855,7 @@ window.questionarTabela = () => {
     `${conta} = ${brl(c.preco)}.`, `Diferença de ${brl(c.dif)}. Podem revisar, por favor?`].join('\n');
   const tel = f('telefone').replace(/\D/g, '');
   navigator.clipboard?.writeText(texto).catch(() => {});
-  window.open(tel.length >= 10 ? `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(texto)}` : 'https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
+  window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
 };
 
 // ═════════════ Tabela de frete combinada ═════════════
@@ -2142,7 +2142,7 @@ window.contestarFatura = async id => {
   L.push('', 'Podem revisar e reemitir/abater, por favor?');
   const texto = L.join('\n'), tel = soDigitos(t?.telefone);
   navigator.clipboard?.writeText(texto).catch(() => {});
-  window.open(tel.length >= 10 ? `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(texto)}` : 'https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
+  window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
   if (f.status !== 'Contestada' && !_readOnly && confirm('Mensagem pronta no WhatsApp (e copiada). Marcar esta fatura como "Contestada"?')) {
     const { error } = await supabase.from(T.fat).update({ status: 'Contestada', atualizado_em: new Date().toISOString() }).eq('id', id);
     if (!error) { registrarLog('fatura contestada', T.fat, f.numero || id, { acima_tabela: r.total }); await carregar('fat'); render(); }
@@ -4846,8 +4846,7 @@ window.linkCobranca = (nome, canal) => {
     return { texto, url: `mailto:${encodeURIComponent(t?.email || '')}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(texto)}`,
       aviso: t?.email ? '' : `A ${nome} está sem e-mail no cadastro de Transportadoras — preencha o destinatário no e-mail (o texto também foi copiado).` };
   }
-  const tel = soDigitos(t?.telefone);
-  return { texto, url: tel.length >= 10 ? `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(texto)}` : 'https://api.whatsapp.com/send?text=' + encodeURIComponent(texto) };
+  return { texto, url: 'https://api.whatsapp.com/send?text=' + encodeURIComponent(texto) };
 };
 window.linkResumoRelatorio = canal => {
   const d = dadosRelatorio(_relOffset, _relTipo), texto = textoRelatorio(d);
