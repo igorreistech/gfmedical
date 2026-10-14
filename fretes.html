@@ -748,7 +748,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.13';
+const VERSAO = '2026-10-14.14';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1646,7 +1646,7 @@ function auditoria(ctes) {
     const p = pctFrete(c), fr = num(c.valor_frete);
     // 0) acima da tabela combinada
     const tb = conferirTabela('cte', c);
-    if (tb?.preco != null && fr > tb.preco * 1.02 + 1) { achados.push({ nivel: 'crit', txt: `Acima da tabela combinada: ${brl(fr)} × ${brl(tb.preco)} pela tabela${tb.linha.rota ? ' da rota' : ''}` }); contestar = Math.max(contestar, fr - tb.preco); }
+    if (tb?.preco != null && fr - tb.preco > TOLERANCIA_TABELA) { achados.push({ nivel: 'crit', txt: `Acima da tabela combinada: ${brl(fr)} × ${brl(tb.preco)} pela tabela${tb.linha.rota ? ' da rota' : ''}` }); contestar = Math.max(contestar, fr - tb.preco); }
     // 1) cotação vinculada com valor diferente
     const cot = c.numero_cotacao && data.cot.find(x => x.numero === c.numero_cotacao);
     if (cot) { const conf = conferenciaCot(c, cot); if (conf && !conf.ok) { achados.push({ nivel: conf.dif > 0 ? 'crit' : 'warn', txt: `Cotação ${cot.numero}: cobrado ${conf.dif > 0 ? 'a mais' : 'a menos'} ${brl(Math.abs(conf.dif))} (cotado ${brl(custoCot(cot))})` }); if (conf.dif > 0) contestar = Math.max(contestar, conf.dif); } }
@@ -1736,6 +1736,8 @@ function tabelaPara(tipo, v, transportadora = v.transportadora, opc = {}) {
   }
   return null;
 }
+// Qualquer valor acima da tabela conta; a folga de 5 centavos só absorve o arredondamento de cada componente do CT-e.
+const TOLERANCIA_TABELA = 0.05;
 function conferirTabela(tipo, v) {
   if (!v.transportadora) return null;
   const r = tabelaPara(tipo, v);
@@ -1748,7 +1750,7 @@ function conferirTabela(tipo, v) {
     if (Math.abs(valor - comColeta) < Math.abs(valor - r.preco)) { r.preco = comColeta; r.ctx = ctxC; }
   }
   const dif = valor - r.preco;
-  return { ...r, valor, dif, acima: dif > r.preco * 0.02 + 1, abaixo: dif < -1 };
+  return { ...r, valor, dif, acima: dif > TOLERANCIA_TABELA, abaixo: dif < -TOLERANCIA_TABELA };
 }
 // "fixo R$ 14,00 + 5 kg × R$ 0,41 + 1,5% × NF R$ 10.400,00 (mínimo R$ 26,50 no frete peso)"
 function contaTabela(t, peso, nf, ctx = {}) {
