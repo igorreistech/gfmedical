@@ -766,7 +766,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.5';
+const VERSAO = '2026-10-15.6';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1847,9 +1847,9 @@ window.pedirDescontoFrete = () => {
     `Cotação ${rota}${f('peso_kg') ? ` · ${f('peso_kg')} kg` : ''}${f('volume_m3') ? ` · ${f('volume_m3').replace('.', ',')} m³` : ''}${f('valor_mercadoria') ? ` · mercadoria ${brl(num(f('valor_mercadoria')))}` : ''}.`,
     `Pela nossa tabela combinada o frete fica em ${brl(c.preco)}.`,
     `Como temos envios frequentes com vocês, conseguem fazer este por ${brl(c.proposta)}?`, 'Obrigado!'].join('\n');
-  const tel = soDigitos(f('telefone'));
   navigator.clipboard?.writeText(texto).catch(() => {});
-  window.open(tel.length >= 10 ? `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(texto)}` : 'https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
+  // Sem número: o WhatsApp abre com o texto pronto e você escolhe para quem enviar.
+  window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
 };
 function conferenciaTabelaHTML(chk, transportadora, { cot = false, v = null } = {}) {
   _chkCot = cot ? chk : null;
