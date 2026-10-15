@@ -193,6 +193,7 @@ textarea.finput{resize:vertical;min-height:60px}
 .sim-colar summary{cursor:pointer;font-weight:700;font-size:0.8rem;color:var(--text)}
 .sim-colar textarea{margin-top:8px;font-size:0.76rem;resize:vertical}
 .sim-colar[open] summary{margin-bottom:2px}
+#cot-lido,#sim-lido{white-space:normal;overflow-wrap:anywhere;line-height:1.5}
 .calculo-wrap{max-width:980px}
 .sim-grid{grid-template-columns:1fr 84px 1fr 84px}.sim-grid .fg{grid-column:auto}
 .sim-grid .fg:nth-child(5){grid-column:1 / span 2}.sim-grid .fg:nth-child(6){grid-column:3 / span 2}
@@ -469,6 +470,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
           </select>
           <button class="fchip chip-ordem" data-chave="cot" data-ordem="valor_frete:-1" onclick="ordemRapida(this)">💰 Mais caro</button>
           <button class="fchip chip-ordem" data-chave="cot" data-ordem="valor_frete:1" onclick="ordemRapida(this)">🪙 Mais barato</button>
+          <button class="fchip w-only" onclick="novaCotacaoPorTexto()" title="Cole o texto do pedido (e-mail/WhatsApp) e a cotação já sai preenchida">📋 Cotar por texto</button>
         </div>
         <div class="twrap">
           <div class="thead-bar"><span class="thead-title">Cotações de frete</span><span class="tcount" id="cnt-cot">0</span></div>
@@ -762,7 +764,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.2';
+const VERSAO = '2026-10-15.3';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -2103,10 +2105,9 @@ function cidadeUfDe(bloco) {
   const m = ach[ach.length - 1];
   return m ? { cidade: m[1].replace(/^[\s.'-]+/, '').trim().toUpperCase(), uf: m[2] } : null;
 }
-window.lerTextoPedido = () => {
-  const bruto = $('sim-texto').value || '';
-  const txt = bruto.replace(/[–—]/g, '-').replace(/\u00a0/g, ' ');
-  if (!txt.trim()) { toast('Cole o texto do pedido primeiro.', 'info'); return; }
+// Lê o texto (sem mexer na tela): usado no Cálculo de frete e na nova cotação.
+function parseTextoPedido(bruto) {
+  const txt = String(bruto || '').replace(/[–—]/g, '-').replace(/\u00a0/g, ' ');
   const linhas = txt.split(/\r?\n/);
   const iO = linhas.findIndex(l => /\borigem\b|\bremetente\b|\bcoleta\b/i.test(l));
   const iD = linhas.findIndex((l, i) => i > iO && /\bdestino\b|\bdestinat[áa]rio\b|\bentrega\b/i.test(l));
@@ -2126,29 +2127,58 @@ window.lerTextoPedido = () => {
   const linhaTotal = linhas.filter(l => /\btotal\b/i.test(l)).pop() || '';
   const reais = l => [...l.matchAll(/R\$\s*([\d.]+,\d{2}|\d+(?:[.,]\d{2})?)/g)].map(m => numTxt(m[1]));
   let valor = reais(linhaTotal).pop() || 0;
-  if (!valor) valor = linhas.filter(l => !/frete/i.test(l)).flatMap(reais).reduce((a, b) => a + b, 0);
+  if (!valor) valor = linhas.filter(l => !/frete/i.test(l)).flatMap(reais).reduce((x, y) => x + y, 0);
   let peso = numTxt((/(\d+(?:[.,]\d+)?)\s*kg/i.exec(linhaTotal) || [])[1]);
-  if (!peso) peso = vols.reduce((a, v) => a + v.kg, 0) || numTxt((/peso[^\d]{0,20}(\d+(?:[.,]\d+)?)/i.exec(txt) || [])[1]);
+  if (!peso) peso = vols.reduce((x, v) => x + v.kg, 0) || numTxt((/peso[^\d]{0,20}(\d+(?:[.,]\d+)?)/i.exec(txt) || [])[1]);
+  const m3 = vols.reduce((x, v) => x + v.q * v.c * v.l * v.a / 1e6, 0);
+  const m3Txt = numTxt((/(\d+(?:[.,]\d+)?)\s*m[³3]/i.exec(txt) || [])[1]);
   const modalidade = (/\b(FOB|CIF)\b/i.exec(txt) || [])[1]?.toUpperCase() || null;
   const ocs = [...txt.matchAll(/\b(?:OC|pedido)\s*[:nº°#]*\s*([\w/.-]+)\s*-\s*R\$\s*([\d.,]+)/gi)].map(m => `OC ${m[1]} (R$ ${m[2]})`);
-  // preenche
-  if (o) { $('sim-origem').value = o.cidade; $('sim-uf_origem').value = o.uf; }
-  if (d) { $('sim-destino').value = d.cidade; $('sim-uf_destino').value = d.uf; }
-  if (valor) $('sim-nf').value = valor.toFixed(2);
-  if (peso) $('sim-peso').value = peso;
-  if (vols.length) {
+  return { o, d, valor, peso, vols, nVol: vols.reduce((x, v) => x + v.q, 0), m3: m3 || m3Txt || 0, modalidade, ocs,
+    remetente: nome(blocoO), remetente_cnpj: cnpj(blocoO), destinatario: nome(blocoD), destino_cnpj: cnpj(blocoD) };
+}
+const resumoTextoPedido = r => {
+  const falta = [!r.o && 'origem (cidade/UF)', !r.d && 'destino (cidade/UF)', !r.valor && 'valor total (R$)', !r.peso && 'peso (kg)', !r.vols.length && 'dimensões dos volumes'].filter(Boolean);
+  return `✔ Lido: ${r.o ? `${esc(r.o.cidade)}/${r.o.uf}` : '?'} → ${r.d ? `${esc(r.d.cidade)}/${r.d.uf}` : '?'} · NF ${r.valor ? brl(r.valor) : '?'} · ${r.peso ? r.peso.toLocaleString('pt-BR') + ' kg' : '? kg'} · ${r.nVol || '?'} volume(s)${r.m3 ? ` · ${r.m3.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} m³` : ''}${r.modalidade ? ` · frete ${r.modalidade}` : ''}${r.ocs.length ? ` · ${r.ocs.length} OC(s)` : ''}`
+    + (falta.length ? `<br><span style="color:var(--warn-c)">⚠ Não achei: ${falta.join(', ')} — preencha nos campos.</span>` : '');
+};
+const obsTextoPedido = r => [r.remetente && `Remetente: ${r.remetente}${r.remetente_cnpj ? ' (' + r.remetente_cnpj + ')' : ''}`, r.destinatario && `Destinatário: ${r.destinatario}${r.destino_cnpj ? ' (' + r.destino_cnpj + ')' : ''}`,
+  r.modalidade && `Frete ${r.modalidade}`, r.ocs.length && r.ocs.join(', '), r.nVol && `${r.nVol} volume(s)${r.vols.length ? ': ' + r.vols.map(v => `${v.q}× ${v.c}x${v.l}x${v.a} cm`).join(', ') : ''}`].filter(Boolean).join(' · ');
+window.lerTextoPedido = () => {
+  const bruto = $('sim-texto').value || '';
+  if (!bruto.trim()) { toast('Cole o texto do pedido primeiro.', 'info'); return; }
+  const r = parseTextoPedido(bruto);
+  if (r.o) { $('sim-origem').value = r.o.cidade; $('sim-uf_origem').value = r.o.uf; }
+  if (r.d) { $('sim-destino').value = r.d.cidade; $('sim-uf_destino').value = r.d.uf; }
+  if (r.valor) $('sim-nf').value = r.valor.toFixed(2);
+  if (r.peso) $('sim-peso').value = r.peso;
+  if (r.vols.length) {
     $('sim-vols').innerHTML = '';
-    vols.forEach(v => { simAddVol(); const r = [...$('sim-vols').querySelectorAll('.sim-vol')].pop();
-      r.querySelector('[data-v="q"]').value = v.q; r.querySelector('[data-v="c"]').value = +v.c.toFixed(1); r.querySelector('[data-v="l"]').value = +v.l.toFixed(1); r.querySelector('[data-v="a"]').value = +v.a.toFixed(1); });
+    r.vols.forEach(v => { simAddVol(); const row = [...$('sim-vols').querySelectorAll('.sim-vol')].pop();
+      row.querySelector('[data-v="q"]').value = v.q; row.querySelector('[data-v="c"]').value = +v.c.toFixed(1); row.querySelector('[data-v="l"]').value = +v.l.toFixed(1); row.querySelector('[data-v="a"]').value = +v.a.toFixed(1); });
   }
-  _simTexto = { remetente: nome(blocoO), remetente_cnpj: cnpj(blocoO), destinatario: nome(blocoD), destino_cnpj: cnpj(blocoD), modalidade, ocs };
+  _simTexto = { remetente: r.remetente, remetente_cnpj: r.remetente_cnpj, destinatario: r.destinatario, destino_cnpj: r.destino_cnpj, modalidade: r.modalidade, ocs: r.ocs };
   simular();
-  const nVol = vols.reduce((a, v) => a + v.q, 0), m3 = simDados().volume_m3;
-  const falta = [!o && 'origem (cidade/UF)', !d && 'destino (cidade/UF)', !valor && 'valor total (R$)', !peso && 'peso (kg)', !vols.length && 'dimensões dos volumes'].filter(Boolean);
-  $('sim-lido').innerHTML = `✔ Lido: ${o ? `${esc(o.cidade)}/${o.uf}` : '?'} → ${d ? `${esc(d.cidade)}/${d.uf}` : '?'} · NF ${valor ? brl(valor) : '?'} · ${peso ? peso.toLocaleString('pt-BR') + ' kg' : '? kg'} · ${nVol || '?'} volume(s)${m3 ? ` · ${m3.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} m³` : ''}${modalidade ? ` · frete ${modalidade}` : ''}${ocs.length ? ` · ${ocs.length} OC(s)` : ''}`
-    + (falta.length ? `<br><span style="color:var(--warn-c)">⚠ Não achei: ${falta.join(', ')} — preencha nos campos abaixo.</span>` : '');
+  $('sim-lido').innerHTML = resumoTextoPedido(r);
   $('sim-res').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
+// Nova cotação: colar o texto preenche rota, UFs, valor, peso, m³ (pelas dimensões) e observações.
+window.colarTextoCot = () => {
+  const bruto = $('cot-texto')?.value || '';
+  if (!bruto.trim()) { toast('Cole o texto do pedido primeiro.', 'info'); return; }
+  const r = parseTextoPedido(bruto);
+  const pos = (k, v) => { const el = $('fm-' + k); if (el && v != null && v !== '') { el.value = v; el.classList.add('from-pdf'); } };
+  if (r.o) { pos('origem', r.o.cidade); pos('uf_origem', r.o.uf); }
+  if (r.d) { pos('destino', r.d.cidade); pos('uf_destino', r.d.uf); }
+  if (r.valor) pos('valor_mercadoria', r.valor.toFixed(2));
+  if (r.peso) pos('peso_kg', r.peso);
+  if (r.m3) pos('volume_m3', +r.m3.toFixed(4));
+  const obs = obsTextoPedido(r);
+  if (obs && $('fm-observacoes')) { const atual = $('fm-observacoes').value.trim(); $('fm-observacoes').value = atual ? atual + ' · ' + obs : obs; $('fm-observacoes').classList.add('from-pdf'); }
+  $('cot-lido').innerHTML = resumoTextoPedido(r) + '<br>Escolha a transportadora: a conferência abaixo mostra o valor pela tabela (e as outras transportadoras) — use “Usar valor da tabela”.';
+  atualizarPreview();
+};
+window.novaCotacaoPorTexto = () => { abrirModal('cot'); const d = $('cot-colar-box'); if (d) { d.open = true; setTimeout(() => $('cot-texto')?.focus(), 50); } };
 window.simCotar = i => {
   const x = _simRes[i]; if (!x) return;
   const v = simDados();
@@ -3341,6 +3371,11 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
   if (tipo === 'fat') listaCtesFatura();
   if (tipo === 'cot') $('fm-transportadora').addEventListener('change', autoContato);
   if (tipo === 'cot') ligarOrigemDestino('fm-', atualizarPreview);
+  if (tipo === 'cot' && !reg) $('modal-form').insertAdjacentHTML('afterbegin', `<details class="sim-colar fg s4" id="cot-colar-box">
+      <summary>📋 Colar o texto do pedido (e-mail / WhatsApp) e preencher a cotação</summary>
+      <textarea class="finput" id="cot-texto" rows="6" placeholder="Cole aqui o texto com origem, destino, volumes (ex.: 8 caixas – 74x69x74 cm – 160 kg), peso e valor total (R$)…"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="tbtn tbtn-p" onclick="colarTextoCot()">🔎 Ler texto e preencher</button></div>
+      <div id="cot-lido" class="td-mono" style="margin-top:6px"></div></details>`);
   if (tipo === 'cte') {
     // Previsão segue emissão + prazo até o usuário (ou o PDF) definir outra data.
     let auto = !$('fm-previsao_entrega').value;
