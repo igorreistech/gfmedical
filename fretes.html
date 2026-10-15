@@ -75,6 +75,7 @@ body.readonly .w-only{display:none!important}
 .filial-sel{width:100%;margin-top:8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);font-family:var(--sans);font-size:0.72rem;color:var(--text2)}
 .login-filial-sel{width:100%;margin-bottom:18px}
 .main{margin-left:224px;flex:1;display:flex;flex-direction:column;min-height:100vh;min-width:0}
+.filial-mobile{display:none}
 .topbar{min-height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;flex-wrap:wrap;padding:8px 18px;gap:8px;position:sticky;top:0;z-index:50;box-shadow:var(--shadow)}
 .page-title{font-family:var(--display);font-size:0.92rem;font-weight:700;color:var(--text);margin-right:auto}
 .sbox{display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:6px 11px;width:220px}
@@ -308,6 +309,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 @media(max-width:860px){.dash-grid{grid-template-columns:1fr}}
 @media(max-width:680px){
   .sidebar{display:none}.main{margin-left:0}.vtabs{display:flex}
+  .filial-mobile{display:inline-block;order:1;margin-left:auto}
   .topbar{padding:8px 16px}.page-content{padding:14px 16px}
   .sbox{width:100%;order:5}
   .fgrid{grid-template-columns:1fr 1fr}.fg,.fg.s4{grid-column:span 2}.fg.s1{grid-column:span 1}.fpreview{grid-column:span 2}
@@ -377,6 +379,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
     <div class="topbar">
       <button class="tbtn tbtn-g" id="btn-voltar" onclick="voltar()" title="Voltar">⬅ Voltar</button>
       <div class="page-title" id="page-title">Dashboard</div>
+      <select class="tsel filial-mobile" id="topbar-filial-sel" aria-label="Filial" onchange="trocarFilial(this.value)" title="Trocar filial (recarrega a página)"><option value="cgr">🟢 Campo Grande</option><option value="cba">🔵 Cuiabá</option></select>
       <select class="tsel" id="f-periodo" title="Período"></select>
       <div class="sbox"><span>🔍</span><input id="f-busca" placeholder="Buscar CT-e, NF, destino…"></div>
       <label class="tbtn tbtn-p w-only" title="Selecione um PDF (abre o formulário preenchido) ou vários de uma vez (importação em lote). Também dá para arrastar os PDFs na tela.">📄 PDF/XML do CT-e<input type="file" id="f-pdf-cte" accept="application/pdf,.pdf,.xml,text/xml,application/xml" multiple hidden></label>
@@ -735,7 +738,8 @@ document.getElementById('login-filial-badge').textContent = BR.icon + ' Filial '
 document.getElementById('user-filial').textContent = BR.cityLabel;
 document.getElementById('login-filial-sel').value = BRANCH;
 document.getElementById('sidebar-filial-sel').value = BRANCH;
-if (window._filialFixa) ['login-filial-sel', 'sidebar-filial-sel'].forEach(id => { document.getElementById(id).style.display = 'none'; });
+document.getElementById('topbar-filial-sel').value = BRANCH;
+if (window._filialFixa) ['login-filial-sel', 'sidebar-filial-sel', 'topbar-filial-sel'].forEach(id => { document.getElementById(id).style.display = 'none'; });
 window.trocarFilial = code => {
   if (code === BRANCH) return;
   try { localStorage.setItem('gf_fretes_branch', code); } catch (e) {}
@@ -748,7 +752,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-14.14';
+const VERSAO = '2026-10-15.1';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
