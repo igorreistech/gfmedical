@@ -374,7 +374,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
     <div class="sidebar-footer">
       <div class="user-chip">
         <div class="user-avatar" id="user-av">?</div>
-        <div class="user-info"><strong id="user-nm">—</strong><span id="user-filial">—</span></div>
+        <div class="user-info"><strong id="user-nm" onclick="pedirOperador()" style="cursor:pointer">—</strong><span id="user-filial">—</span></div>
         <button class="logout" onclick="doLogout()" title="Sair">⏻</button>
       </div>
       <select class="filial-sel" id="sidebar-filial-sel" aria-label="Filial" onchange="trocarFilial(this.value)" title="Trocar filial (recarrega a página)"><option value="cgr">🟢 Campo Grande · MS</option><option value="cba">🔵 Cuiabá · MT</option></select>
@@ -657,6 +657,18 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
   </div>
 </div>
 
+<div id="modal-operador" class="modal-ov">
+  <div class="modal" style="max-width:400px" role="dialog" aria-modal="true" aria-labelledby="op-title">
+    <div class="mhead"><span class="mtitle" id="op-title">👤 Quem está operando?</span><button class="mclose" onclick="document.getElementById('modal-operador').classList.remove('open')" aria-label="Fechar">✕</button></div>
+    <div class="mbody">
+      <div class="td-mono" style="margin-bottom:10px">Esta é uma conta compartilhada. Escolha seu nome — ele aparece no registro de alterações e em “criado por”.</div>
+      <select class="finput" id="op-sel" onchange="document.getElementById('op-outro').style.display = this.value === '__outro' ? '' : 'none'"></select>
+      <input class="finput" id="op-outro" placeholder="Seu nome" style="display:none;margin-top:8px">
+    </div>
+    <div class="mfoot"><button class="tbtn tbtn-p" onclick="confirmarOperador()">Confirmar</button></div>
+  </div>
+</div>
+
 <div id="modal-rastreio" class="modal-ov">
   <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="rast-title">
     <div class="mhead"><span class="mtitle" id="rast-title">🔍 Rastreio</span><button class="mclose" onclick="document.getElementById('modal-rastreio').classList.remove('open')" aria-label="Fechar">✕</button></div>
@@ -766,7 +778,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.6';
+const VERSAO = '2026-10-15.7';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -930,9 +942,12 @@ auth.onAuthStateChange((_event, session) => {
   if (u) {
     $('login-screen').style.display = 'none';
     $('app-root').style.display = 'flex';
-    const nome = (u.email || '').split('@')[0];
-    $('user-nm').textContent = nome || u.email;
-    $('user-av').textContent = (nome || '?').slice(0, 2).toUpperCase();
+    _operador = null;
+    if (contaCompartilhada()) {
+      try { _operador = sessionStorage.getItem('gf_fretes_operador') || sessionStorage.getItem('_nomeComercialCGR') || null; } catch (e) {}
+      if (!_operador) setTimeout(pedirOperador, 300);
+    }
+    mostrarOperador();
     // Escrita de papel "visualizacao" já é barrada no banco (RLS); aqui só
     // esconde os botões para não gerar erro confuso.
     supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => {
@@ -1035,8 +1050,41 @@ const ctesConhecidos = () => IMPORTA_PARA ? [...data.cte, ...ctesDestino] : data
 // ───────────────────────── Dados ─────────────────────────
 // Registro de alterações (tabela frete_log, só inclusão). Falha em silêncio se
 // a migração 20261016 ainda não rodou.
+// Contas compartilhadas (comercial@ / comercialmt@): pergunta o nome do operador (mesma lista do Monitor)
+// e grava "Operador (e-mail)" no registro de alterações e em "criado por".
+const OPERADORES = {
+  CBA: ['Beatriz Helena Calil Barbosa', 'Cristina Luzia', 'Izabela Crozetta', 'Kauana da Silva Feitoza', 'Marcio Benedito Queiroz', 'Murilo Julio Sant Ana Pereira', 'Renata Franco de Lima', 'Roberto Alex Cândido', 'Starley Santos Silva', 'Wilson Cordeiro'],
+  CGR: ['Eva Diana de Araujo', 'Gabriely Amorim Dias', 'Gustavo Ovídio Mussi Faverão', 'Igor dos Reis Silva', 'Larissa Amanda Bernardo do Valle', 'Luis Felipe Moura Braga', 'Marcella Fernandes Ricci', 'Marcos Gonçalves da Silva', 'Paulo Vitor Leite da Silva', 'Regiane da Silva Ramos', 'Thayz Benites Leonel', 'Tiago da Silva Siqueira'],
+};
+let _operador = null;
+const contaCompartilhada = () => /^comercial(mt)?@gfmedical/i.test(_user?.email || '');
+const quemSou = () => _operador ? `${_operador} (${_user?.email || ''})` : (_user?.email || null);
+const nomeQuem = u => !u ? '—' : / \(/.test(u) ? u.split(' (')[0] : /^comercial(mt)?@gfmedical/i.test(u) ? u.split('@')[0] + ' (sem operador registrado)' : u.split('@')[0];
+function mostrarOperador() {
+  const nome = _operador || (_user?.email || '').split('@')[0];
+  $('user-nm').textContent = nome || '—';
+  $('user-av').textContent = (nome || '?').split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase();
+  $('user-nm').title = contaCompartilhada() ? `Conta ${_user?.email} — clique para trocar o operador` : (_user?.email || '');
+}
+window.pedirOperador = () => {
+  if (!contaCompartilhada()) return;
+  const nomes = [...new Set([...(OPERADORES[FILIAL] || []), ...Object.values(OPERADORES).flat()])];
+  $('op-sel').innerHTML = '<option value="">Selecione seu nome</option>' + nomes.map(n => `<option ${n === _operador ? 'selected' : ''}>${esc(n)}</option>`).join('') + '<option value="__outro">✏️ Outro (digitar)</option>';
+  $('op-outro').style.display = 'none'; $('op-outro').value = '';
+  $('modal-operador').classList.add('open');
+};
+window.confirmarOperador = () => {
+  let n = $('op-sel').value;
+  if (n === '__outro') n = $('op-outro').value.trim();
+  if (!n) { $('op-sel').focus(); return; }
+  _operador = n;
+  try { sessionStorage.setItem('gf_fretes_operador', n); } catch (e) {}
+  mostrarOperador();
+  $('modal-operador').classList.remove('open');
+  toast(`👤 Operando como ${n}`, 'info');
+};
 function registrarLog(acao, tabela, registro, detalhes = null, cli = supabase, filial = FILIAL) {
-  cli.from('frete_log').insert({ acao, tabela, registro: registro == null ? null : String(registro), detalhes, usuario: _user?.email || null, filial })
+  cli.from('frete_log').insert({ acao, tabela, registro: registro == null ? null : String(registro), detalhes, usuario: quemSou(), filial })
     .then(() => {}, () => {});
 }
 // Meta de % de frete compartilhada (frete_config); sem a tabela, fica no navegador.
@@ -2455,7 +2503,7 @@ async function renderLog() {
   $('cnt-log').textContent = rows.length;
   $('tb-log').innerHTML = rows.length ? `<thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Registro</th><th>Detalhes</th></tr></thead><tbody>
     ${rows.map(l => { const d = new Date(l.em); const det = l.detalhes ? Object.entries(l.detalhes).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.slice(0, 8).join(', ') + (v.length > 8 ? '…' : '') : v}`).join(' · ') : '';
-      return `<tr><td class="td-mono">${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td><td class="td-mono">${esc((l.usuario || '—').split('@')[0])}</td>
+      return `<tr><td class="td-mono">${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td><td class="td-mono" title="${esc(l.usuario || '')}">${esc(nomeQuem(l.usuario))}</td>
         <td>${esc(l.acao)}</td><td class="td-mono">${esc(l.registro || '—')}</td><td class="td-trunc" style="max-width:420px" title="${esc(det)}">${esc(det)}</td></tr>`; }).join('')}</tbody>`
     : '<tbody><tr><td><div class="empty-mini">Nenhuma alteração registrada ainda.</div></td></tr></tbody>';
 }
@@ -3603,7 +3651,7 @@ async function salvarModalInterno() {
   else {
     if (paraDestino && !(await garantirSessaoImport())) return;
     row.filial = paraDestino ? FILIAL_IMPORT : FILIAL;
-    if (tipo !== 'transp') row.criado_por = _user?.email || null;
+    if (tipo !== 'transp') row.criado_por = quemSou();
     res = await gravarTolerante(r => (paraDestino ? supaImport : supabase).from(T[tipo]).insert(r), row, paraDestino ? supaImport : supabase, T[tipo]);
   }
   if (res.error) { toast('Erro ao salvar: ' + msgErroBanco(res.error), 'err'); return; }
@@ -4300,7 +4348,7 @@ window.importarLoteSelecionados = async () => {
     $('modal-lote').classList.remove('open'); _lote = [];
     return;
   }
-  const rows = itens.map(it => ({ ...it.valores, filial: FILIAL_IMPORT, criado_por: _user?.email || null, atualizado_em: agora }));
+  const rows = itens.map(it => ({ ...it.valores, filial: FILIAL_IMPORT, criado_por: quemSou(), atualizado_em: agora }));
   $('btn-lote-importar').disabled = true;
   const { error } = await gravarTolerante(r => supaImport.from(T.cte).insert(r), rows, supaImport, T.cte);
   if (error) { toast('Erro ao importar: ' + msgErroBanco(error), 'err'); renderLote(); return; }
@@ -4419,7 +4467,7 @@ $('f-import').onchange = async e => {
           transportadora, contato: txt(l[c('CONTATO')]), telefone: txt(l[c('TELEFONE')]),
           peso_kg: excelNum(l[c('PESO')]), volume_m3: excelNum(l[c('VOLUME')]), tipo_carga: txt(l[c('TIPO CARGA')]),
           prazo_dias: excelNum(l[c('PRAZO')]), valor_frete: excelNum(l[c('VALOR FRETE')]), ad_valorem: excelNum(l[c('AD VALOREM')]),
-          status: st, observacoes: txt(l[c('OBSERVA')]), filial: FILIAL, criado_por: _user?.email || null,
+          status: st, observacoes: txt(l[c('OBSERVA')]), filial: FILIAL, criado_por: quemSou(),
         });
       });
     }
@@ -4442,7 +4490,7 @@ $('f-import').onchange = async e => {
           transportadora: txt(l[c('TRANSPORTADORA')])?.toUpperCase() ?? null,
           prazo_dias: prazo == null ? null : Math.round(prazo), status_entrega: st,
           data_entrega: excelData(l[c('DATA ENTREGA')]), tipo_saida: txt(l[c('TIPO DE SAIDA')])?.toUpperCase() ?? null,
-          observacoes: txt(l[c('OBSERVA')]), filial: FILIAL, criado_por: _user?.email || null,
+          observacoes: txt(l[c('OBSERVA')]), filial: FILIAL, criado_por: quemSou(),
         });
       });
     }
@@ -4605,7 +4653,7 @@ window.calcSalvarHistorico = async () => {
   const obs = $('calc-obs').value.trim() || null;
   const { data: calc, error } = await supabase.from('frete_calculos').insert({
     valor_mercadoria: nf, opcoes: ops, melhor_transportadora: melhor.transportadora, melhor_frete: melhor.frete, melhor_pct: melhor.pct,
-    observacao: obs, filial: FILIAL, criado_por: _user?.email || null,
+    observacao: obs, filial: FILIAL, criado_por: quemSou(),
   }).select('id').single();
   if (error) { toast('Erro ao salvar no histórico: ' + (/does not exist|schema cache|Could not find the table/i.test(error.message) ? 'rode supabase/migrations/20261013_fretes_calculos.sql no Supabase.' : error.message), 'err'); return; }
   // Cada opção com transportadora vira uma cotação "Em análise" ligada ao cálculo.
@@ -4615,7 +4663,7 @@ window.calcSalvarHistorico = async () => {
     numero: 'COT-' + String(base + j).padStart(4, '0'), data_cotacao: hojeISO(), transportadora: o.transportadora,
     valor_frete: o.frete, prazo_dias: o.prazo, valor_mercadoria: nf, calculo_id: calc?.id || null, status: 'Em análise',
     origem: calcDados(nf).origem, uf_origem: calcDados(nf).uf_origem, destino: calcDados(nf).destino, uf_destino: calcDados(nf).uf_destino, peso_kg: calcDados(nf).peso_kg,
-    filial: FILIAL, criado_por: _user?.email || null,
+    filial: FILIAL, criado_por: quemSou(),
     observacoes: `Calculadora: mercadoria ${brl(nf)} · frete ${pctFmt(o.pct)} (${PCT_FAIXAS[faixaPct(o.pct)].label})${o === melhor ? ' · mais barata' : ''}${obs ? ' · ' + obs : ''}`,
   }));
   let msgCot = '';
@@ -4677,7 +4725,7 @@ window.calcSalvarCotacao = async i => {
   const p = o.frete / nf;
   const { error } = await supabase.from(T.cot).insert({
     numero: proximoNumeroCot(), data_cotacao: hojeISO(), transportadora: o.transportadora.toUpperCase(),
-    valor_frete: o.frete, prazo_dias: o.prazo, status: 'Em análise', filial: FILIAL, criado_por: _user?.email || null,
+    valor_frete: o.frete, prazo_dias: o.prazo, status: 'Em análise', filial: FILIAL, criado_por: quemSou(),
     observacoes: `Calculadora: mercadoria ${brl(nf)} · frete ${pctFmt(p)} (${PCT_FAIXAS[faixaPct(p)].label})`,
   });
   if (error) { toast('Erro ao salvar cotação: ' + msgErroBanco(error), 'err'); return; }
