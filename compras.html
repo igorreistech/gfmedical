@@ -437,6 +437,8 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
           <button class="fchip" data-prog="fora" title="Têm consumo no C1060 mas não estão no S013 (sem estoque próprio — ex.: consignado do fornecedor ou zerado)">Fora do S013</button>
           <button class="fchip" data-prog="">Todos</button>
           <span class="fdiv"></span>
+          <select class="tsel" id="prog-fab" title="Mostrar só os produtos deste fabricante/fornecedor" onchange="filtrarFabricante(this.value)"></select>
+          <span class="fdiv"></span>
           <button class="tbtn tbtn-g" onclick="listaCompraWhatsApp()">📲 Lista de compra no WhatsApp</button>
           <button class="tbtn tbtn-g" onclick="exportarExcel()">📤 Lista em Excel</button>
         </div></div></div>
@@ -673,7 +675,7 @@ function consPorProduto(soSaldo = true) {
 const consMap = () => new Map(consPorProduto(true).map(g => [norm(g.codigo_alt), g]));
 
 // ───────── Navegação ─────────
-const ui = { view: 'painel', busca: '', est: '', cons: 'saldo', cliente: '', abertos: new Set(), prog: 'comprar' };
+const ui = { view: 'painel', busca: '', est: '', cons: 'saldo', cliente: '', abertos: new Set(), prog: 'comprar', fab: '' };
 const TITULOS = { painel: 'Painel — Programação de Compras', programacao: 'Programação de compra', pendente: 'Pendente de faturamento', estoque: 'Estoque próprio', consignado: 'Consignado', importar: 'Importar do Callisto' };
 window.goView = v => {
   ui.view = v;
@@ -704,13 +706,23 @@ function render() {
 }
 let _qtdEditada = {};
 const SIT = { comprar: ['b-crit', '🛒 Comprar agora'], atencao: ['b-warn', '⚠ Atenção'], ok: ['b-ok', '✔ OK'], semconsumo: ['b-mute', 'Sem consumo'], fora: ['b-info', 'Fora do S013'] };
+// Fabricante escolhido no filtro (ex.: depois de importar o S013 só da JOTEC, mostra só os itens dela)
+const doFabricante = r => !ui.fab || norm(r.fabricante || '') === norm(ui.fab);
+const programacaoFab = () => programacao().filter(doFabricante);
+window.filtrarFabricante = v => { ui.fab = v; render(); };
+function fabricantesConhecidos() {
+  return [...new Set([...data.est.map(r => r.fabricante), ...data.pen.map(r => r.fabricante)].filter(Boolean).map(f => String(f).trim()))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
 function listaProgramacao() {
-  return programacao().filter(r => !ui.prog || r.situacao === ui.prog).filter(r => casa(r, ['codigo', 'descricao', 'fabricante']))
+  return programacaoFab().filter(r => !ui.prog || r.situacao === ui.prog).filter(r => casa(r, ['codigo', 'descricao', 'fabricante']))
     .sort((a, b) => (a.cobertura ?? 1e9) - (b.cobertura ?? 1e9) || b.media - a.media);
 }
 const qtdComprar = r => _qtdEditada[norm(r.codigo)] ?? r.sugerido;
 function renderProgramacao() {
-  const todos = programacao(), lista = listaProgramacao(), iC = ultImp('C1060');
+  const fabs = fabricantesConhecidos();
+  if (ui.fab && !fabs.some(f => norm(f) === norm(ui.fab))) fabs.unshift(ui.fab);
+  $('prog-fab').innerHTML = `<option value="">🏭 Todos os fabricantes</option>` + fabs.map(f => `<option value="${esc(f)}" ${norm(f) === norm(ui.fab) ? 'selected' : ''}>🏭 ${esc(f)}</option>`).join('');
+  const todos = programacaoFab(), lista = listaProgramacao(), iC = ultImp('C1060');
   const comprar = todos.filter(r => r.situacao === 'comprar');
   $('nb-prog').textContent = comprar.length;
   $('prog-info').textContent = iC ? `C1060 importado em ${dataHoraBR(iC.importado_em)}` : '';
@@ -993,6 +1005,7 @@ async function importarArquivos(files) {
       const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen }[tipo], agora = new Date().toISOString();
       $('imp-status').textContent = `⏳ Gravando ${rows.length} linha(s)…`;
       if (parcial) {
+        if (fabricante) ui.fab = fabricante;
         // apaga os produtos deste PDF e os que eram deste fabricante (os que sumiram do relatório estão zerados)
         const cods = tipo === 'S013' ? rows.map(r => r.codigo) : []; // C723: troca os pendentes do fabricante
         for (let i = 0; i < cods.length; i += 100) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).in('codigo', cods.slice(i, i + 100)); if (d.error) throw d.error; }
