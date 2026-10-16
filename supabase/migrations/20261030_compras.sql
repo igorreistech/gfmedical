@@ -1,5 +1,5 @@
 -- Programação de Compras (compras.html): estoque próprio (S013), consignado (C457), consumo mensal (C1060),
--- parâmetros da filial e registro das importações.
+-- pendente de faturamento (C723), parâmetros da filial e registro das importações.
 -- Rodar uma vez no SQL Editor de CADA projeto (Cuiabá e Campo Grande). Pode rodar mais de uma vez.
 
 create table if not exists public.compras_estoque (
@@ -57,6 +57,27 @@ create table if not exists public.compras_config (
   atualizado_em   timestamptz not null default now()
 );
 
+create table if not exists public.compras_pendente (
+  id            uuid primary key default gen_random_uuid(),
+  filial        text not null,
+  pedido        text,
+  nf            text,
+  convenio      text,
+  medico        text,
+  data_cirurgia date,                          -- o pendente conta no consumo do mês da cirurgia
+  cliente       text,
+  paciente      text,
+  codigo        text,
+  codigo_alt    text,                          -- código alternativo (o mesmo do S013/C1060)
+  produto       text,
+  quantidade    numeric(14,4),
+  valor_unit    numeric(14,2),
+  valor_total   numeric(14,2),
+  fabricante    text,                          -- quando o C723 vem filtrado por fabricante
+  importado_em  timestamptz not null default now()
+);
+create index if not exists compras_pendente_filial on public.compras_pendente (filial);
+
 create table if not exists public.compras_importacoes (
   id            uuid primary key default gen_random_uuid(),
   filial        text not null,
@@ -71,7 +92,7 @@ create table if not exists public.compras_importacoes (
 do $$
 declare t text;
 begin
-  foreach t in array array['compras_estoque','compras_consignado','compras_importacoes','compras_consumo','compras_config'] loop
+  foreach t in array array['compras_estoque','compras_consignado','compras_importacoes','compras_consumo','compras_config','compras_pendente'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists %I on public.%I', t || '_select', t);
     execute format('drop policy if exists %I on public.%I', t || '_write', t);
