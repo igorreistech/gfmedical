@@ -799,7 +799,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.21';
+const VERSAO = '2026-10-15.22';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -818,7 +818,8 @@ const OPCIONAIS = new Set(['tab', 'fat']);
 const STATUS_COT = ['Aprovado', 'Reprovado', 'Em análise', 'Aguardando'];
 const STATUS_CTE = ['Entregue', 'Em trânsito', 'Pendente', 'Atrasado'];
 // Em ordem alfabética nas listas.
-const TIPOS_SAIDA = ['COMPRA', 'VENDA', 'TRANSFERENCIA', 'REMESSA PARA CONSERTO', 'SAIDA DE MATERIAL PARA CIRURGIA', 'REMESSA EM COMODATO', 'REMESSA EM CONSIGNAÇÃO', 'DEVOLUÇÃO DE COMPRA']
+const TIPOS_SAIDA = ['COMPRA', 'VENDA', 'TRANSFERENCIA', 'REMESSA PARA CONSERTO', 'SAIDA DE MATERIAL PARA CIRURGIA', 'REMESSA EM COMODATO', 'REMESSA EM CONSIGNAÇÃO', 'DEVOLUÇÃO DE COMPRA',
+  'DEVOLUÇÃO DE REMESSA EM COMODATO', 'DEVOLUÇÃO DE REMESSA EM CONSIGNAÇÃO', 'DEVOLUÇÃO DE REMESSA DE RETORNO DE ITENS PARA CIRURGIA', 'RETORNO DE REMESSA ENVIADA PARA CONSERTO']
   .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 const MODAIS = ['Rodoviário', 'Aéreo', 'Rodoviário e Aéreo'];
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
@@ -2594,7 +2595,7 @@ async function carregarProcedimentos() {
   _procs = error ? [] : rows;
 }
 window.exportarClientes = () => {
-  const saidas = ctesFiltrados({ ignorarFiltrosTabela: true }).filter(c => c.destino && !/COMPRA|TRANSFER|DEVOLU/i.test(c.tipo_saida || '') && !/GF MEDICAL/i.test(c.destino));
+  const saidas = ctesFiltrados({ ignorarFiltrosTabela: true }).filter(c => c.destino && !/COMPRA|TRANSFER|DEVOLU|RETORNO/i.test(c.tipo_saida || '') && !/GF MEDICAL/i.test(c.destino));
   const m = new Map();
   saidas.forEach(c => { const k = c.destino_cnpj || norm(c.destino); const g = m.get(k) || { Cliente: c.destino, CNPJ: c.destino_cnpj || '', 'CT-es': 0, 'Frete (R$)': 0, 'Valor NF (R$)': 0, 'Tipos': new Set(), 'CT-es (nº)': [] };
     g['CT-es']++; g['Frete (R$)'] += num(c.valor_frete); g['Valor NF (R$)'] += num(c.valor_nfe); g.Tipos.add(c.tipo_saida || '—'); g['CT-es (nº)'].push(c.numero_cte); m.set(k, g); });
@@ -2606,7 +2607,7 @@ window.exportarClientes = () => {
 };
 function renderClientes() {
   // Clientes = destinatários das saídas (não compras/transferências), com o CNPJ.
-  const saidas = ctesFiltrados({ ignorarFiltrosTabela: true }).filter(c => c.destino && !/COMPRA|TRANSFER|DEVOLU/i.test(c.tipo_saida || '') && !/GF MEDICAL/i.test(c.destino));
+  const saidas = ctesFiltrados({ ignorarFiltrosTabela: true }).filter(c => c.destino && !/COMPRA|TRANSFER|DEVOLU|RETORNO/i.test(c.tipo_saida || '') && !/GF MEDICAL/i.test(c.destino));
   const m = new Map();
   saidas.forEach(c => { const k = c.destino_cnpj || norm(c.destino); const g = m.get(k) || { nome: c.destino, cnpj: c.destino_cnpj, n: 0, f: 0, nf: 0 }; g.n++; g.f += num(c.valor_frete); g.nf += num(c.valor_nfe); m.set(k, g); });
   const arr = [...m.values()].sort((a, b) => b.f - a.f).slice(0, 15);
@@ -3104,7 +3105,7 @@ function tentativasRastreio(c) {
   if (ehGollog(c.transportadora)) { const cod = soDigitos(c.numero_cte); return cod ? [{ tipo: 'gollog', cnpj: '', nfs: [cod] }] : []; }
   const nfs = nfsDe(c);
   if (!nfs.length) return [];
-  const gfDestino = /GF MEDICAL/i.test(c.destino || '') || /COMPRA/i.test(c.tipo_saida || '') || soDigitos(c.destino_cnpj).startsWith('07356800');
+  const gfDestino = /GF MEDICAL/i.test(c.destino || '') || /COMPRA|DEVOLU[ÇC][ÃA]O DE REMESSA|RETORNO DE REMESSA/i.test(c.tipo_saida || '') || soDigitos(c.destino_cnpj).startsWith('07356800');
   const rem = soDigitos(c.remetente_cnpj), dest = soDigitos(c.destino_cnpj);
   const ok = d => d.length === 14 || d.length === 11;
   const t = [];
