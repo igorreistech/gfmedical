@@ -17,6 +17,7 @@ create table if not exists public.compras_estoque (
   importado_em  timestamptz not null default now()
 );
 create index if not exists compras_estoque_filial on public.compras_estoque (filial);
+alter table public.compras_estoque add column if not exists fabricante text;   -- vem do S013 filtrado por fabricante (ex.: JOTEC BRASIL)
 
 create table if not exists public.compras_consignado (
   id            uuid primary key default gen_random_uuid(),
