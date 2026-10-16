@@ -894,3 +894,13 @@ cross join (values ('CBA'), ('CGR')) f(filial);
 notify pgrst, 'reload schema';
 
 select filial, count(*) as linhas from public.frete_tabelas where transportadora = 'LH TRANSPORTES' group by 1 order by 1;
+
+-- ───────────── 20261029_fretes_meta_ocorrencias.sql ─────────────
+-- Controle de Fretes: meta de gasto mensal por transportadora e acompanhamento das ocorrências.
+-- Rodar no SQL Editor de CADA projeto (Cuiabá e Campo Grande). Pode rodar mais de uma vez.
+alter table public.frete_transportadoras
+  add column if not exists meta_mensal numeric(14,2);            -- meta de gasto no mês (R$)
+alter table public.frete_ctes
+  add column if not exists ocorrencia_status text,               -- Aberta | Em negociação | Resolvida | Indenizada
+  add column if not exists ocorrencia_prazo  date;               -- prazo de resposta da transportadora
+notify pgrst, 'reload schema';
