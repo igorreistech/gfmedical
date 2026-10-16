@@ -364,7 +364,6 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <a class="nav-item" data-view="cotacoes" href="#"><span class="nav-icon">💬</span> Cotações<span class="nbadge" id="nb-cot">0</span></a>
       <a class="nav-item" data-view="comparativo" href="#"><span class="nav-icon">⚖️</span> Comparativo</a>
       <a class="nav-item" data-view="transportadoras" href="#"><span class="nav-icon">🚚</span> Transportadoras<span class="nbadge" id="nb-transp">0</span></a>
-      <a class="nav-item" data-view="calculo" href="#"><span class="nav-icon">🧮</span> Cálculo de frete</a>
       <a class="nav-item" data-view="tabelas" href="#"><span class="nav-icon">📑</span> Tabelas de frete</a>
       <a class="nav-item" data-view="faturas" href="#"><span class="nav-icon">💳</span> Faturas<span class="nbadge" id="nb-fat">0</span></a>
       <a class="nav-item" data-view="cirurgias" href="#"><span class="nav-icon">🏥</span> Cirurgia / vendedor / cliente</a>
@@ -411,7 +410,6 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <div class="vtab" data-view="cotacoes">💬 Cotações</div>
       <div class="vtab" data-view="comparativo">⚖️ Comparativo</div>
       <div class="vtab" data-view="transportadoras">🚚 Transp.</div>
-      <div class="vtab" data-view="calculo">🧮 Cálculo</div>
       <div class="vtab" data-view="tabelas">📑 Tabelas</div>
       <div class="vtab" data-view="faturas">💳 Faturas</div>
       <div class="vtab" data-view="cirurgias">🏥 Cirurgias</div>
@@ -783,7 +781,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.10';
+const VERSAO = '2026-10-15.11';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
