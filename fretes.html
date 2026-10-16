@@ -189,6 +189,7 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.aud-cob{display:inline-flex;gap:2px}
 .ctes-filtros{margin-bottom:14px}.ctes-filtros .filters{margin-bottom:0}
 .op-venc{color:var(--crit-c);font-weight:700}
 .bk-aviso{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:9px 12px;border-radius:var(--radius);background:rgba(212,146,10,.08);border:1px solid rgba(212,146,10,.35);font-size:0.78rem}
@@ -796,7 +797,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.14';
+const VERSAO = '2026-10-15.15';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1764,10 +1765,10 @@ function auditoria(ctes) {
     const p = pctFrete(c), fr = num(c.valor_frete);
     // 0) acima da tabela combinada
     const tb = conferirTabela('cte', c);
-    if (tb?.preco != null && fr - tb.preco > TOLERANCIA_TABELA) { achados.push({ nivel: 'crit', txt: `Acima da tabela combinada: ${brl(fr)} × ${brl(tb.preco)} pela tabela${tb.linha.rota ? ' da rota' : ''}` }); contestar = Math.max(contestar, fr - tb.preco); }
+    if (tb?.preco != null && fr - tb.preco > TOLERANCIA_TABELA) { achados.push({ nivel: 'crit', tipo: 'tabela', esperado: tb.preco, txt: `Acima da tabela combinada: ${brl(fr)} × ${brl(tb.preco)} pela tabela${tb.linha.rota ? ' da rota' : ''}` }); contestar = Math.max(contestar, fr - tb.preco); }
     // 1) cotação vinculada com valor diferente
     const cot = c.numero_cotacao && data.cot.find(x => x.numero === c.numero_cotacao);
-    if (cot) { const conf = conferenciaCot(c, cot); if (conf && !conf.ok) { achados.push({ nivel: conf.dif > 0 ? 'crit' : 'warn', txt: `Cotação ${cot.numero}: cobrado ${conf.dif > 0 ? 'a mais' : 'a menos'} ${brl(Math.abs(conf.dif))} (cotado ${brl(custoCot(cot))})` }); if (conf.dif > 0) contestar = Math.max(contestar, conf.dif); } }
+    if (cot) { const conf = conferenciaCot(c, cot); if (conf && !conf.ok) { achados.push({ nivel: conf.dif > 0 ? 'crit' : 'warn', tipo: conf.dif > 0 ? 'cotacao' : 'cotacao_menos', esperado: custoCot(cot), cot: cot.numero, txt: `Cotação ${cot.numero}: cobrado ${conf.dif > 0 ? 'a mais' : 'a menos'} ${brl(Math.abs(conf.dif))} (cotado ${brl(custoCot(cot))})` }); if (conf.dif > 0) contestar = Math.max(contestar, conf.dif); } }
     // 2) % bem acima do usual da transportadora nessa rota (mediana dos outros, 3+)
     const temNf = num(c.valor_nfe) > 0; // sem valor de NF não dá para comparar % nem esperado
     if (temNf && p != null && c.origem) {
@@ -1775,18 +1776,18 @@ function auditoria(ctes) {
       if (outros.length >= 3) {
         const med = outros[Math.floor(outros.length / 2)];
         const dif = fr - med * num(c.valor_nfe);
-        if (p > med * 1.5 && dif > 30) { achados.push({ nivel: 'warn', txt: `${pctFmt(p)} nesta rota; o usual da ${c.transportadora} aqui é ${pctFmt(med)} (${outros.length} CT-es)` }); contestar = Math.max(contestar, dif); }
+        if (p > med * 1.5 && dif > 30) { achados.push({ nivel: 'warn', tipo: 'habitual', esperado: fr - dif, pct: p, pctUsual: med, txt: `${pctFmt(p)} nesta rota; o usual da ${c.transportadora} aqui é ${pctFmt(med)} (${outros.length} CT-es)` }); contestar = Math.max(contestar, dif); }
       }
     }
     // 3) acima do esperado pelo histórico da transportadora (quando não deu para comparar pela rota)
     if (temNf && !achados.some(a => /nesta rota/.test(a.txt))) {
       const m = modeloFrete(c.transportadora), esp = freteEsperado(m, num(c.valor_nfe));
-      if (m && m.n >= 5 && esp > 0 && fr > esp * 1.5 && fr - esp > 50) { achados.push({ nivel: 'warn', txt: `Frete ${brl(fr)}; pelo histórico da ${c.transportadora} o esperado para essa NF seria ~${brl(esp)}` }); contestar = Math.max(contestar, fr - esp); }
+      if (m && m.n >= 5 && esp > 0 && fr > esp * 1.5 && fr - esp > 50) { achados.push({ nivel: 'warn', tipo: 'habitual', esperado: esp, txt: `Frete ${brl(fr)}; pelo histórico da ${c.transportadora} o esperado para essa NF seria ~${brl(esp)}` }); contestar = Math.max(contestar, fr - esp); }
     }
     // 4) mesma NF cobrada em outro CT-e da mesma transportadora
     const outrosCte = [...new Set(nfsDe(c).flatMap(n => porNf.get(norm(c.transportadora) + '|' + n) || []))].filter(x => x !== c);
     if (outrosCte.length) {
-      achados.push({ nivel: 'crit', txt: `NF ${esc(c.numero_nfe)} também está no(s) CT-e(s) ${outrosCte.map(x => x.numero_cte).join(', ')} da mesma transportadora — possível cobrança em dobro` });
+      achados.push({ nivel: 'crit', tipo: 'dobro', outros: outrosCte.map(x => x.numero_cte), txt: `NF ${esc(c.numero_nfe)} também está no(s) CT-e(s) ${outrosCte.map(x => x.numero_cte).join(', ')} da mesma transportadora — possível cobrança em dobro` });
       // o valor a contestar fica só no CT-e mais recente (o primeiro é o legítimo)
       const primeiro = [c, ...outrosCte].sort((a, b) => (a.data_emissao || '').localeCompare(b.data_emissao || '') || String(a.numero_cte).localeCompare(String(b.numero_cte)))[0];
       if (primeiro !== c) contestar = Math.max(contestar, fr);
@@ -1805,7 +1806,7 @@ function renderAuditoria() {
   const porT = new Map();
   itens.forEach(x => { const k = x.c.transportadora || '—'; const g = porT.get(k) || { n: 0, v: 0 }; g.n++; g.v += x.contestar; porT.set(k, g); });
   $('aud-transp').innerHTML = itens.length ? [...porT.entries()].sort((a, b) => b[1].v - a[1].v).map(([t, g]) =>
-    `<button class="fchip" onclick="mensagemAuditoria(${JSON.stringify(t).replace(/"/g, '&quot;')})" title="Montar mensagem para a transportadora no WhatsApp">📲 ${esc(t)}: ${g.n} CT-e(s) · ${brl(g.v)}</button>`).join('') : '';
+    `<span class="aud-cob"><button class="fchip" onclick="mensagemAuditoria(${JSON.stringify(t).replace(/"/g, '&quot;')})" title="Cobrar/pedir revisão no WhatsApp">📲 ${esc(t)}: ${g.n} CT-e(s) · ${brl(g.v)}</button><button class="fchip" onclick="mensagemAuditoria(${JSON.stringify(t).replace(/"/g, '&quot;')}, 'email')" title="Cobrar/pedir revisão por e-mail">✉</button></span>`).join('') : '';
   $('aud-transp').style.display = itens.length ? '' : 'none';
   if (!itens.length) { $('tb-aud').innerHTML = '<tbody><tr><td><div class="empty-page">✔ Nenhuma divergência encontrada nos CT-es do período.</div></td></tr></tbody>'; return; }
   $('tb-aud').innerHTML = `<thead><tr><th>CT-e</th><th>Emissão</th><th>Transportadora</th><th>Rota</th><th class="num">Frete</th><th class="num">NF-e</th><th class="num">%</th><th>O que foi encontrado</th><th class="num">Desconto</th><th class="num">Valor correto</th></tr></thead><tbody>
@@ -1816,23 +1817,58 @@ function renderAuditoria() {
       <td class="num">${x.contestar > 0 ? `<b>${brl(x.contestar)}</b>` : '—'}</td><td class="num">${x.contestar > 0 ? brl(num(x.c.valor_frete) - x.contestar) : '—'}</td></tr>`).join('')}
     </tbody><tfoot><tr><td colspan="8">Total (${itens.length} CT-e(s))</td><td class="num">${brl(total)}</td><td class="num">${brl(itens.filter(x => x.contestar > 0).reduce((a, x) => a + num(x.c.valor_frete) - x.contestar, 0))}</td></tr></tfoot>`;
 }
-window.mensagemAuditoria = t => {
+// Cobrança/revisão para a transportadora, separada pelo tipo de problema:
+// 1) acima do combinado (tabela/cotação) → desconto; 2) NF em mais de um CT-e → confirmar/cancelar;
+// 3) acima do habitual (histórico) → pedir explicação/revisão, sem exigir valor.
+const assinaturaGF = () => `${_operador || (_user?.email || '').split('@')[0]} – GF Medical ${FILIAL_LABEL.replace(' · ', '/')}`;
+function textoAuditoria(t, email = false) {
   const itens = auditoria(ctesFiltrados({ ignorarFiltrosTabela: true })).filter(x => (x.c.transportadora || '—') === t);
-  if (!itens.length) return;
-  const L = [`Olá! Aqui é da GF Medical (${FILIAL_LABEL}). Na conferência dos CT-es encontramos estes pontos para revisão:`, ''];
-  let tCob = 0, tDesc = 0;
+  if (!itens.length) return null;
+  const b = x => email ? x : `*${x}*`;
+  const ct = c => `CT-e ${c.numero_cte} (${brCurto(c.data_emissao)}${c.numero_nfe ? `, NF ${c.numero_nfe}` : ''})`;
+  const tr = data.transp.find(x => norm(canonTransp(x.nome)) === norm(canonTransp(t)));
+  const combinados = [], dobros = [], habituais = [];
   itens.forEach(x => {
-    const cob = num(x.c.valor_frete), desc = Math.max(0, x.contestar), certo = cob - desc;
-    tCob += cob; tDesc += desc;
-    L.push(`*CT-e ${x.c.numero_cte}* (emissão ${dataBR(x.c.data_emissao)}, NF ${x.c.numero_nfe || '—'})`);
-    L.push(`  Frete cobrado: ${brl(cob)}${desc > 0 ? ` | Desconto: *${brl(desc)}* | Valor correto: *${brl(certo)}*` : ''}`);
-    x.achados.forEach(a => L.push('  - ' + a.txt.replace(/<[^>]+>/g, '')));
-    L.push('');
+    const a = x.achados, comb = a.filter(y => y.tipo === 'tabela' || y.tipo === 'cotacao').sort((p, q) => num(p.esperado) - num(q.esperado))[0];
+    const dob = a.find(y => y.tipo === 'dobro'), hab = a.find(y => y.tipo === 'habitual');
+    if (comb) combinados.push({ c: x.c, a: comb });
+    else if (dob && x.contestar > 0) dobros.push({ c: x.c, a: dob });
+    else if (hab) habituais.push({ c: x.c, a: hab });
   });
-  L.push(`*Total cobrado:* ${brl(tCob)}`, `*Desconto a conceder:* ${brl(tDesc)}`, `*Valor correto total:* ${brl(tCob - tDesc)}`, '', 'Podem verificar e nos enviar a correção (CT-e substituto ou desconto na próxima fatura), por favor?');
-  const texto = L.join('\n');
-  navigator.clipboard?.writeText(texto).catch(() => {});
-  window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
+  const L = [email ? (tr?.contato ? `Prezado(a) ${tr.contato},` : 'Prezados,') : `Olá${tr?.contato ? ', ' + tr.contato : ''}! Tudo bem?`, '',
+    `Aqui é da ${b('GF Medical – ' + FILIAL_LABEL.replace(' · ', '/'))}. Na conferência dos CT-es da ${b(t)}${ui.periodo ? ` (${ui.periodo.slice(5, 7)}/${ui.periodo.slice(0, 4)})` : ''}, encontramos os pontos abaixo:`];
+  let tDesc = 0, tDobro = 0, n = 0;
+  if (combinados.length) {
+    L.push('', b(`${++n}) Cobrados acima do combinado — pedimos o desconto`));
+    combinados.forEach(({ c, a }) => { const cob = num(c.valor_frete), certo = num(a.esperado), d = cob - certo; tDesc += d;
+      L.push(`• ${ct(c)}`, `   Cobrado: ${brl(cob)}  →  ${a.tipo === 'tabela' ? 'Tabela combinada' : 'Cotação ' + (a.cot || '')}: ${brl(certo)}  →  Desconto: ${b(brl(d))}`); });
+    L.push(`   Subtotal de desconto: ${b(brl(tDesc))}`);
+  }
+  if (dobros.length) {
+    L.push('', b(`${++n}) Possível cobrança em duplicidade — a mesma NF está em mais de um CT-e`));
+    dobros.forEach(({ c, a }) => { tDobro += num(c.valor_frete);
+      L.push(`• ${ct(c)} — ${brl(c.valor_frete)}`, `   A NF também consta no(s) CT-e(s) ${a.outros.join(', ')}. Podem confirmar e cancelar o que estiver em duplicidade?`); });
+  }
+  if (habituais.length) {
+    L.push('', b(`${++n}) Valores acima do habitual — podem nos explicar ou rever?`));
+    habituais.forEach(({ c, a }) => L.push(`• ${ct(c)}: cobrado ${brl(c.valor_frete)}${num(c.valor_nfe) ? ` (${pctFmt(num(c.valor_frete) / num(c.valor_nfe))} da NF)` : ''}; o habitual de vocês para essa carga/rota fica perto de ${brl(a.esperado)}${a.pctUsual ? ` (${pctFmt(a.pctUsual)})` : ''}.`));
+  }
+  L.push('', b('Resumo:'));
+  if (tDesc) L.push(`• Desconto solicitado: ${b(brl(tDesc))}`);
+  if (tDobro) L.push(`• CT-es em possível duplicidade: ${brl(tDobro)}`);
+  if (habituais.length) L.push(`• ${habituais.length} CT-e(s) para análise`);
+  L.push('', 'Podem nos retornar com o CT-e substituto ou o abatimento na próxima fatura?', '', email ? 'Atenciosamente,' : 'Obrigado!', assinaturaGF());
+  return { texto: L.join('\n'), tr, n: itens.length, tDesc, tDobro };
+}
+window.mensagemAuditoria = (t, canal = 'whatsapp') => {
+  const r = textoAuditoria(t, canal === 'email');
+  if (!r) return;
+  navigator.clipboard?.writeText(r.texto).catch(() => {});
+  registrarLog('cobrança de frete enviada', T.cte, t, { canal, origem: 'auditoria', desconto: r.tDesc, duplicidade: r.tDobro });
+  if (canal === 'email') {
+    if (!r.tr?.email) toast(`A ${t} está sem e-mail no cadastro — preencha o destinatário (o texto também foi copiado).`, 'info');
+    location.href = `mailto:${encodeURIComponent(r.tr?.email || '')}?subject=${encodeURIComponent(`Conferência de CT-es — ${t} — GF Medical ${FILIAL_LABEL}`)}&body=${encodeURIComponent(r.texto)}`;
+  } else window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(r.texto), '_blank');
 };
 
 // Valor de uma cotação/CT-e × tabela combinada (rota = "origem - destino" ou a rota do CT-e).
@@ -5306,12 +5342,12 @@ function textoCobranca(nome, itens, periodo) {
   const t = data.transp.find(x => norm(canonTransp(x.nome)) === norm(nome));
   const ctNf = c => `CT-e ${c.numero_cte} (${brCurto(c.data_emissao)}${c.numero_nfe ? `, NF ${c.numero_nfe}` : ''})`;
   const L = [`Olá${t?.contato ? ', ' + t.contato : ''}! Tudo bem?`, '',
-    `Aqui é da *GF Medical – ${FILIAL_LABEL.replace(' · ', '/')}*. Na conferência dos fretes de *${periodo}*, encontramos CT-es da *${nome}* cobrados acima da tabela combinada:`];
+    `Aqui é da *GF Medical – ${FILIAL_LABEL.replace(' · ', '/')}*. Na conferência dos fretes de *${periodo}*, encontramos CT-es da *${nome}* cobrados acima da tabela combinada — pedimos o desconto:`];
   let total = 0;
   L.push('');
   let tCob = 0;
-  itens.forEach(x => { L.push(`• ${ctNf(x.c)}: frete cobrado ${brl(x.c.valor_frete)} | desconto *${brl(x.cl.tabela.dif)}* | valor correto (tabela) *${brl(x.cl.tabela.preco)}*`); total += x.cl.tabela.dif; tCob += num(x.c.valor_frete); });
-  L.push('', `Total cobrado: ${brl(tCob)}`, `Desconto a conceder: *${brl(total)}*`, `Valor correto total: *${brl(tCob - total)}*`, '', 'Podem verificar e nos enviar a correção (CT-e substituto ou desconto na próxima fatura), por favor?', '', 'Obrigado!');
+  itens.forEach(x => { L.push(`• ${ctNf(x.c)}`, `   Cobrado: ${brl(x.c.valor_frete)}  →  Tabela combinada: ${brl(x.cl.tabela.preco)}  →  Desconto: *${brl(x.cl.tabela.dif)}*`); total += x.cl.tabela.dif; tCob += num(x.c.valor_frete); });
+  L.push('', '*Resumo:*', `• Total cobrado: ${brl(tCob)}`, `• Pela tabela combinada: ${brl(tCob - total)}`, `• Desconto solicitado: *${brl(total)}*`, '', 'Podem nos retornar com o CT-e substituto ou o abatimento na próxima fatura?', '', 'Obrigado!', assinaturaGF());
   return { texto: L.join('\n'), t, total };
 }
 window.linkCobranca = (nome, canal) => {
