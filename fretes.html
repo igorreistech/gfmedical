@@ -778,7 +778,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.7';
+const VERSAO = '2026-10-15.8';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1806,12 +1806,12 @@ function tabelaPara(tipo, v, transportadora = v.transportadora, opc = {}) {
 const TOLERANCIA_TABELA = 0.05;
 function conferirTabela(tipo, v) {
   if (!v.transportadora) return null;
-  const r = tabelaPara(tipo, v);
+  const r = tabelaPara(tipo, v, undefined, { coleta: !!v.coleta });
   const temTabela = data.tab.some(t => norm(t.transportadora) === norm(v.transportadora));
   if (!r) return { semTabela: !temTabela, faltaPeso: temTabela };
   if (!num(v.valor_frete)) return { ...r, semValor: true };
   const valor = tipo === 'cot' ? num(v.valor_frete) + num(v.ad_valorem) : num(v.valor_frete);
-  if (num(r.linha.coleta_valor) && !r.ctx?.coleta) {
+  if (num(r.linha.coleta_valor) && !r.ctx?.coleta && !v.coletaDefinida) { // (na cotação a caixa "com coleta" decide)
     const ctxC = { ...r.ctx, coleta: true }, comColeta = precoPorLinha(r.linha, r.peso, r.nf, ctxC);
     if (Math.abs(valor - comColeta) < Math.abs(valor - r.preco)) { r.preco = comColeta; r.ctx = ctxC; }
   }
@@ -1907,7 +1907,7 @@ function conferenciaTabelaHTML(chk, transportadora, { cot = false, v = null } = 
   let alt = '';
   if (cot && v) {
     const nomes = [...new Set(data.tab.map(t => t.transportadora).filter(n => n && norm(n) !== norm(transportadora)))];
-    _altTabela = nomes.map(n => ({ nome: n, r: tabelaPara('cot', v, n) })).filter(x => x.r).sort((a, b) => a.r.preco - b.r.preco).slice(0, 4);
+    _altTabela = nomes.map(n => ({ nome: n, r: tabelaPara('cot', v, n, { coleta: !!v.coleta }) })).filter(x => x.r).sort((a, b) => a.r.preco - b.r.preco).slice(0, 4);
     const ref = chk.preco ?? (chk.valor || num(v.valor_frete) + num(v.ad_valorem)) ?? 0;
     // ⭐ Recomendada: 60% preço pela tabela + 40% nota automática (pontualidade, custo, ocorrências)
     const cands = [...(chk.preco ? [{ nome: transportadora, preco: chk.preco, i: -1 }] : []), ..._altTabela.map((x, i) => ({ nome: x.nome, preco: x.r.preco, i }))];
@@ -2258,7 +2258,7 @@ window.colarTextoCot = () => {
   if (r.d) { pos('destino', r.d.cidade); pos('uf_destino', r.d.uf); }
   if (r.valor) pos('valor_mercadoria', r.valor.toFixed(2));
   if (r.peso) pos('peso_kg', r.peso);
-  if (r.m3) pos('volume_m3', +r.m3.toFixed(4));
+  if (r.m3) pos('volume_m3', +r.m3.toFixed(3)); // o campo aceita 3 casas (com 4 o navegador não deixava salvar)
   const obs = obsTextoPedido(r);
   if (obs && $('fm-observacoes')) { const atual = $('fm-observacoes').value.trim(); $('fm-observacoes').value = atual ? atual + ' · ' + obs : obs; $('fm-observacoes').classList.add('from-pdf'); }
   $('cot-lido').innerHTML = resumoTextoPedido(r) + '<br>Escolha a transportadora: a conferência abaixo mostra o valor pela tabela (e as outras transportadoras) — use “Usar valor da tabela”.';
@@ -2269,7 +2269,7 @@ window.simCotar = i => {
   const x = _simRes[i]; if (!x) return;
   const v = simDados();
   abrirModal('cot', null, { valores: { transportadora: x.t, origem: v.origem, uf_origem: v.uf_origem, destino: v.destino, uf_destino: v.uf_destino,
-    peso_kg: v.peso_kg, volume_m3: v.volume_m3 ? +v.volume_m3.toFixed(4) : null, valor_mercadoria: v.valor_mercadoria || null, valor_frete: +x.r.preco.toFixed(2),
+    peso_kg: v.peso_kg, volume_m3: v.volume_m3 ? +v.volume_m3.toFixed(3) : null, valor_mercadoria: v.valor_mercadoria || null, valor_frete: +x.r.preco.toFixed(2),
     data_cotacao: hojeISO(), observacoes: x.r.estimativa ? `Estimado pelo histórico (sem tabela combinada): mediana dos ${x.r.estimativa.n} CT-es mais parecidos, entre ${brl(x.r.estimativa.min)} e ${brl(x.r.estimativa.max)} — confirmar com a transportadora` + (_simTexto ? textoPedidoObs() : '')
       : `Calculado pela tabela combinada: ${descLinhaTabela(x.r.linha)}${x.r.cubado ? ` · peso cubado ${num(x.r.peso).toFixed(1)} kg` : ''}${x.r.ctx?.coleta && num(x.r.linha.coleta_valor) ? ` · com coleta ${brl(x.r.linha.coleta_valor)}` : ''}` + (_simTexto ? textoPedidoObs() : '') } });
   $('modal-title').textContent = x.r.estimativa ? '＋ Nova cotação — valor estimado pelo histórico' : '＋ Nova cotação — valor pela tabela combinada';
@@ -3458,6 +3458,8 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
   if (tipo === 'cot') $('fm-transportadora').addEventListener('change', autoContato);
   if (tipo === 'cot') $('fm-valor_frete').addEventListener('input', e => { _modal.freteManual = e.target.value !== ''; e.target.classList.remove('from-pdf'); });
   if (tipo === 'cot') ligarOrigemDestino('fm-', atualizarPreview);
+  if (tipo === 'cot') $('fpreview')?.insertAdjacentHTML('beforebegin', `<label class="fg s4 td-mono" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="checkbox" id="fm-coleta" ${/coleta no remetente/i.test(base.observacoes || '') ? 'checked' : ''} onchange="atualizarPreview()"> Com coleta no remetente (soma a taxa de coleta de quem cobra, ex.: Andorinha R$ 33,29)</label>`);
   if (tipo === 'cot' && !reg) $('modal-form').insertAdjacentHTML('afterbegin', `<details class="sim-colar fg s4" id="cot-colar-box">
       <summary>📋 Colar o texto do pedido (e-mail / WhatsApp) e preencher a cotação</summary>
       <textarea class="finput" id="cot-texto" rows="6" placeholder="Cole aqui o texto com origem, destino, volumes (ex.: 8 caixas – 74x69x74 cm – 160 kg), peso e valor total (R$)…"></textarea>
@@ -3548,7 +3550,8 @@ function atualizarPreview() {
     let total = v('valor_frete') + v('ad_valorem');
     const peso = v('peso_kg'), merc = v('valor_mercadoria');
     let p = merc > 0 && total > 0 ? total / merc : null;
-    let vf = lerFormParcial(), chk = conferirTabela('cot', vf);
+    const lerCot = () => ({ ...lerFormParcial(), coleta: !!$('fm-coleta')?.checked, coletaDefinida: !!$('fm-coleta') });
+    let vf = lerCot(), chk = conferirTabela('cot', vf);
     // Frete vazio (ou ainda com o valor automático) + transportadora com tabela → já preenche com o valor da tabela.
     const campoFrete = $('fm-valor_frete');
     if (campoFrete && !_modal.freteManual && (!campoFrete.value || +campoFrete.value === _modal.freteAuto)) {
@@ -3558,7 +3561,7 @@ function atualizarPreview() {
         _modal.freteAuto = novo;
         campoFrete.classList.toggle('from-pdf', novo != null);
         campoFrete.title = novo != null ? 'Preenchido pela tabela combinada — digite outro valor se a transportadora cotou diferente' : '';
-        vf = lerFormParcial(); chk = conferirTabela('cot', vf);
+        vf = lerCot(); chk = conferirTabela('cot', vf);
         total = v('valor_frete') + v('ad_valorem'); p = merc > 0 && total > 0 ? total / merc : null;
       }
     }
@@ -3613,6 +3616,11 @@ async function salvarModalInterno() {
   const form = $('modal-form');
   if (!form.reportValidity()) return;
   const row = lerForm(tipo);
+  if (tipo === 'cot' && $('fm-coleta')) {
+    const tem = /\s*·?\s*Com coleta no remetente/i;
+    row.observacoes = (row.observacoes || '').replace(tem, '').trim() || null;
+    if ($('fm-coleta').checked) row.observacoes = (row.observacoes ? row.observacoes + ' · ' : '') + 'Com coleta no remetente';
+  }
   // Cotação/CT-e acima da tabela combinada: pergunta antes de gravar.
   if (tipo === 'cot' || tipo === 'cte') {
     const chk = conferirTabela(tipo, row);
