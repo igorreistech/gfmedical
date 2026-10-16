@@ -799,7 +799,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.18';
+const VERSAO = '2026-10-15.19';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -2384,7 +2384,8 @@ function parseTextoPedido(bruto) {
   const blocoD = iD >= 0 ? linhas.slice(iD, fimBloco(iD)).join('\n') : '';
   const o = cidadeUfDe(blocoO), d = cidadeUfDe(blocoD);
   const cnpj = b => (/(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})/.exec(b) || [])[1] || null;
-  const nome = b => ((/^[^:\n]*:\s*(.+)$/m.exec(b) || [])[1] || '').trim() || null;
+  const limpa = x => String(x || '').replace(/[*_~]/g, '').replace(/^[\s•·\-–>]+/, '').replace(/\s+/g, ' ').trim(); // sem * / marcadores
+  const nome = b => limpa((/^[^:\n]*:\s*(.+)$/m.exec(b) || [])[1]) || null;
   // volumes: "8 caixas - 74x69x74 cm - 160 kg" | "1 cx 45 x 38 x 35" | "74x69x74 cm"
   const reVol = /(?:(\d+)\s*(?:caixas?|cxs?\.?|volumes?|vols?\.?|pacotes?|pallets?|paletes?|pe[çc]as?|unid\w*|embalage\w*|fardos?)\s*[-:,]?\s*)?(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*(cm|mm|m)?\b(?:\s*[-,|]\s*(\d+(?:[.,]\d+)?)\s*kg)?/gi;
   const vols = [];
@@ -2459,7 +2460,7 @@ window.lerPdfPedidoCot = async inp => {
 };
 function textoPedidoColeta(c) {
   const obs = c.observacoes || '';
-  const pega = rot => (new RegExp(rot + ':\\s*([^·]+)', 'i').exec(obs) || [])[1]?.trim() || '';
+  const pega = rot => ((new RegExp(rot + ':\\s*([^·]+)', 'i').exec(obs) || [])[1] || '').replace(/[*_~]/g, '').replace(/^[\s•·\-–>]+/, '').replace(/\s+/g, ' ').trim(); // sem * (negrito do WhatsApp)
   const vols = (/(\d+ volume\(s\)[^·]*)/.exec(obs) || [])[1] || '';
   return [`Olá! Aqui é da GF Medical ${FILIAL_LABEL}. Solicito a COLETA abaixo:`, '',
     `Transportadora: ${c.transportadora || '—'}${c.numero ? ` · cotação ${c.numero}` : ''}${num(c.valor_frete) ? ` · frete combinado ${brl(c.valor_frete)}` : ''}`,
