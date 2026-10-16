@@ -800,7 +800,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-16.2';
+const VERSAO = '2026-10-16.3';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -876,7 +876,7 @@ function msgErroBanco(error) {
 // a gravação tira a coluna que falta e grava o resto (avisando), em vez de falhar.
 const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte', 'remetente_cnpj', 'destino_cnpj',
   'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base', 'cubagem_kg_m3',
-  'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos', 'origens', 'meta_mensal', 'ocorrencia_status', 'ocorrencia_prazo'];
+  'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos', 'origens', 'meta_mensal', 'ocorrencia_status', 'ocorrencia_prazo', 'calculo', 'adicional_pct'];
 // Colunas que faltam, por banco (cliente) e tabela — descobertas ao abrir (detectarColunas)
 // ou na primeira gravação; depois são tiradas ANTES de enviar, numa tentativa só (antes era
 // uma tentativa por coluna faltando, o que deixava salvar lento, principalmente no celular).
@@ -887,7 +887,7 @@ const COLUNAS_POR_TABELA = {
   frete_ctes: ['remetente', 'previsao_entrega', 'numero_cotacao', 'remetente_cnpj', 'destino_cnpj', 'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'ocorrencia_status', 'ocorrencia_prazo'],
   frete_transportadoras: ['meta_mensal'],
   frete_cotacoes: ['valor_mercadoria', 'calculo_id', 'numero_cte'],
-  frete_tabelas: ['anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base', 'cubagem_kg_m3', 'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos', 'origens'],
+  frete_tabelas: ['anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base', 'cubagem_kg_m3', 'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos', 'origens', 'calculo', 'adicional_pct'],
 };
 async function detectarColunas(cli) {
   await Promise.all(Object.entries(COLUNAS_POR_TABELA).flatMap(([tab, cols]) => cols.map(async col => {
@@ -1921,6 +1921,17 @@ function conferirTabela(tipo, v) {
 }
 // "fixo R$ 14,00 + 5 kg × R$ 0,41 + 1,5% × NF R$ 10.400,00 (mínimo R$ 26,50 no frete peso)"
 function contaTabela(t, peso, nf, ctx = {}) {
+  if (t.calculo === 'maior') {
+    const opc = [['mínimo', num(t.frete_minimo)], [`${num(t.pct_nf).toLocaleString('pt-BR')}% × NF ${brl(nf)}`, num(t.pct_nf) / 100 * num(nf)], [`${num(peso).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg × ${brl(t.valor_kg)}`, num(t.valor_kg) * num(peso)]];
+    const m = opc.reduce((a, b) => b[1] > a[1] ? b : a);
+    const d = detalheTabela(t, peso, nf, ctx), x = [];
+    if (num(t.valor_fixo)) x.push(`taxa ${brl(t.valor_fixo)}`);
+    if (d.pedagio) x.push(`pedágio ${d.fracoes} × ${brl(t.pedagio_valor)}`);
+    if (d.gris) x.push(`GRIS ${brl(d.gris)}`);
+    if (d.coleta) x.push(`coleta ${brl(d.coleta)}`);
+    if (d.adicional) x.push(`adicional ${num(t.adicional_pct).toLocaleString('pt-BR')}% ${brl(d.adicional)}`);
+    return `maior entre ${opc.map(o => `${o[0]} ${brl(o[1])}`).join(' · ')} → <b>${m[0]}</b> ${brl(m[1])}${x.length ? ' + ' + x.join(' + ') : ''}${d.icms ? ` + ICMS ${d.icms.pct.toLocaleString('pt-BR')}% ${brl(d.icms.valor)}` : ''}`;
+  }
   const p = [];
   // fixo negativo + R$/kg = "R$/kg acima de X kg" (ex.: LH, 0,60/kg acima de 50 kg)
   const acimaDe = num(t.valor_fixo) < 0 && num(t.valor_kg) > 0 ? -num(t.valor_fixo) / num(t.valor_kg) : 0;
@@ -1939,6 +1950,7 @@ function contaTabela(t, peso, nf, ctx = {}) {
   if (d.pedagio) extra.push(`pedágio ${d.fracoes} × ${brl(t.pedagio_valor)} (a cada ${num(t.pedagio_fracao_kg) || 100} kg)`);
   if (d.gris) extra.push(`GRIS ${brl(d.gris)}${num(t.gris_min) && d.gris === num(t.gris_min) ? ' (mínimo)' : ` (${num(t.gris_pct).toLocaleString('pt-BR')}% NF)`}`);
   if (d.coleta) extra.push(`coleta ${brl(d.coleta)}`);
+  if (d.adicional) extra.push(`adicional ${num(t.adicional_pct).toLocaleString('pt-BR')}% ${brl(d.adicional)}`);
   if (extra.length) txt += ' + ' + extra.join(' + ');
   if (d.icms) txt += ` + ICMS ${d.icms.pct.toLocaleString('pt-BR')}% por dentro ${brl(d.icms.valor)} <span class="td-doc" style="display:inline">(${esc(d.icms.obs)})</span>`;
   if (num(t.coleta_valor) && !ctx.coleta) txt += ` <span class="td-doc" style="display:inline">(sem a coleta de ${brl(t.coleta_valor)})</span>`;
@@ -2134,7 +2146,10 @@ window.questionarTabela = () => {
 // frete = fixo + R$/kg × peso + % × NF, com o mínimo valendo para o total ou só para o frete peso;
 // depois os componentes da proposta (como vêm no PDF): pedágio por fração de peso, GRIS com mínimo,
 // coleta e, se a tabela é sem ICMS, o ICMS "por dentro" pela alíquota do sentido da viagem.
-const baseTabela = (t, peso, nf) => t.minimo_base === 'peso'
+// calculo 'maior': cobra o MAIOR entre frete mínimo, % da NF e R$/kg × peso (tabela "percentual", ex.: Carvalima) + taxa fixa
+const baseTabela = (t, peso, nf) => t.calculo === 'maior'
+  ? num(t.valor_fixo) + Math.max(num(t.frete_minimo), num(t.pct_nf) / 100 * num(nf), num(t.valor_kg) * num(peso))
+  : t.minimo_base === 'peso'
   ? num(t.valor_fixo) + Math.max(num(t.frete_minimo), num(t.valor_kg) * num(peso)) + num(t.pct_nf) / 100 * num(nf)
   : Math.max(num(t.frete_minimo), num(t.valor_fixo) + num(t.valor_kg) * num(peso) + num(t.pct_nf) / 100 * num(nf));
 // ICMS interestadual do transporte: 7% saindo de S/SE (menos ES) para N/NE/CO/ES; 12% nos demais.
@@ -2170,13 +2185,15 @@ function detalheTabela(t, peso, nf, ctx = {}) {
   const pedagio = fracoes * num(t.pedagio_valor);
   const gris = num(t.gris_pct) || num(t.gris_min) ? Math.max(num(t.gris_min), num(t.gris_pct) / 100 * num(nf)) : 0;
   const coleta = ctx.coleta ? num(t.coleta_valor) : 0;
-  const sub = base + pedagio + gris + coleta;
+  const sub0 = base + pedagio + gris + coleta;
+  const adicional = num(t.adicional_pct) > 0 && num(t.adicional_pct) < 100 ? sub0 / (1 - num(t.adicional_pct) / 100) - sub0 : 0;
+  const sub = sub0 + adicional;
   let icms = null;
   if (t.icms_modo === 'somar') {
     const a = t.icms_pct != null && t.icms_pct !== '' ? { pct: num(t.icms_pct), obs: 'alíquota da tabela' } : aliquotaIcms(ctx.ufO, ctx.ufD);
     icms = { ...a, valor: a.pct < 100 ? sub / (1 - a.pct / 100) - sub : 0 };
   }
-  return { base, fracoes, pedagio, gris, coleta, icms, total: sub + (icms?.valor || 0) };
+  return { base, fracoes, pedagio, gris, coleta, adicional, icms, total: sub + (icms?.valor || 0) };
 }
 const precoPorLinha = (t, peso, nf, ctx) => detalheTabela(t, peso, nf, ctx).total;
 // Rota da tabela × rota do CT-e/cotação: igual (3) > mesmo par de estados "MS - SP", em qualquer sentido (2) > geral (1).
@@ -3604,6 +3621,8 @@ const FORMS = {
     { k: 'peso_ate', l: 'Faixa: peso até (kg)', t: 'dec', s: 1, ph: 'sem limite' },
     { k: 'nf_ate', l: 'Faixa: NF até (R$)', t: 'money', s: 1, ph: 'sem limite' },
     { k: 'minimo_base', l: 'O mínimo vale para', o: ['total', 'peso'], ol: ['o frete total', 'só o frete peso'], s: 1, def: 'total' },
+    { k: 'calculo', l: 'Como combina mínimo / % NF / R$/kg', o: ['soma', 'maior'], ol: ['soma (% NF + R$/kg)', 'cobra o maior dos três'], s: 1, def: 'soma' },
+    { k: 'adicional_pct', l: 'Adicional sobre o frete (%)', t: 'dec', s: 1, ph: 'Ex.: 7,52' },
     { k: 'cubagem_kg_m3', l: 'Cubagem (kg por m³)', t: 'dec', s: 1, ph: 'Ex.: 300' },
     { k: 'valor_fixo', l: 'Taxa fixa por CT-e (R$)', t: 'money', s: 1 },
     { k: 'valor_kg', l: 'R$ por kg', t: 'dec', s: 1 },
