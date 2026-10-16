@@ -189,6 +189,10 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.cot-opcoes{margin-top:10px}.cot-opcoes table{width:100%}.cot-opcoes td,.cot-opcoes th{padding:5px 8px}
+.cot-op-atual td{background:rgba(42,159,191,.08)}
+.chk-coleta{display:flex!important;flex-direction:row!important;align-items:center;gap:6px;justify-content:flex-start;cursor:pointer}
+.chk-coleta input{width:auto;margin:0}
 .tab-dicas{margin-top:8px;padding:8px 10px;border-radius:var(--radius);background:rgba(42,159,191,.07);border:1px solid rgba(42,159,191,.3);font-size:0.74rem;line-height:1.55}
 .tab-dicas ul{margin:4px 0 0 16px;padding:0}.tab-dicas li{margin:3px 0}
 .sim-colar{margin-bottom:12px;border:1px dashed var(--border2);border-radius:var(--radius);padding:8px 10px;background:var(--surface)}
@@ -778,7 +782,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.8';
+const VERSAO = '2026-10-15.9';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1899,6 +1903,41 @@ window.pedirDescontoFrete = () => {
   // Sem número: o WhatsApp abre com o texto pronto e você escolhe para quem enviar.
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
 };
+// Cotação: todas as transportadoras para a carga preenchida (tabela combinada ou ≈ estimativa pelo
+// histórico), sem precisar escolher antes; "Usar" preenche a transportadora e o frete.
+let _opcoesCot = [];
+function opcoesFreteCotHTML(v) {
+  _opcoesCot = [];
+  if (!(num(v.valor_mercadoria) || num(v.peso_kg) || num(v.volume_m3)) || !(v.origem || v.destino || v.uf_destino)) return '';
+  const transps = [...new Set(data.tab.map(t => canonTransp(t.transportadora)).filter(Boolean))];
+  const res = transps.map(t => ({ t, r: tabelaPara('cot', v, t, { coleta: !!v.coleta }) })).filter(x => x.r);
+  const com = new Set(res.map(x => norm(x.t)));
+  [...new Set(data.cte.map(c => canonTransp(c.transportadora)).filter(Boolean))].filter(t => !com.has(norm(t)))
+    .forEach(t => { const r = estimativaHistorico(t, v); if (r && !r.semBase) res.push({ t, r }); });
+  if (!res.length) return `<div class="td-mono" style="margin-top:8px">Nenhuma transportadora com tabela ou histórico para essa rota/carga — confira origem e destino com UF e informe peso/volume e valor.</div>`;
+  res.sort((a, b) => a.r.preco - b.r.preco);
+  _opcoesCot = res;
+  const atual = norm(canonTransp($('fm-transportadora')?.value || ''));
+  const merc = num(v.valor_mercadoria);
+  return `<div class="cot-opcoes"><div class="flabel" style="margin-bottom:4px">🚚 Opções de frete para esta carga${v.coleta ? ' (com coleta)' : ''}</div>
+    <table><thead><tr><th>Transportadora</th><th class="num">Peso cobrado</th><th class="num">Frete</th><th class="num">% NF</th><th></th></tr></thead><tbody>
+    ${res.map((x, i) => `<tr${norm(x.t) === atual ? ' class="cot-op-atual"' : ''}><td>${i === 0 ? '<span class="calc-melhor">MAIS BARATA</span> ' : ''}<b>${esc(x.t)}</b>
+        ${x.r.estimativa ? ' <span class="badge b-warn" title="Sem tabela combinada: estimado pelos CT-es anteriores">≈ estimativa</span>' : tabelaAntiga(x.r.linha) ? ' <span class="badge b-warn" title="' + esc(tabelaAntiga(x.r.linha)) + '">⚠ tabela antiga</span>' : ''}</td>
+      <td class="num">${x.r.peso ? num(x.r.peso).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' kg' : '—'}${x.r.cubado ? '<div class="td-doc">cubado</div>' : ''}</td>
+      <td class="num"><b>${x.r.estimativa ? '≈ ' : ''}${brl(x.r.preco)}</b></td><td class="num">${merc > 0 ? pctHTML(x.r.preco / merc) : '—'}</td>
+      <td>${norm(x.t) === atual ? '<span class="badge b-ok">✓ escolhida</span>' : `<button type="button" class="fchip" onclick="usarOpcaoCot(${i})">Usar</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+}
+window.usarOpcaoCot = i => {
+  const x = _opcoesCot[i]; if (!x) return;
+  const sel = $('fm-transportadora');
+  if (sel.tagName === 'SELECT' && ![...sel.options].some(o => norm(o.value) === norm(x.t))) sel.add(new Option(x.t, x.t));
+  const opt = sel.tagName === 'SELECT' ? [...sel.options].find(o => norm(o.value) === norm(x.t)) : null;
+  sel.value = opt ? opt.value : x.t;
+  if ($('fm-contato')) $('fm-contato').value = ''; if ($('fm-telefone')) $('fm-telefone').value = ''; autoContato();
+  const v = +x.r.preco.toFixed(2);
+  $('fm-valor_frete').value = v.toFixed(2); _modal.freteAuto = v; _modal.freteManual = false;
+  atualizarPreview();
+};
 function conferenciaTabelaHTML(chk, transportadora, { cot = false, v = null } = {}) {
   _chkCot = cot ? chk : null;
   if (!chk) return '';
@@ -1918,7 +1957,7 @@ function conferenciaTabelaHTML(chk, transportadora, { cot = false, v = null } = 
       alt += `<div class="tab-rec">⭐ <b>Recomendada: ${esc(rec.nome)}</b> — ${brl(rec.preco)} pela tabela${rec.nt ? ` · nota ${rec.nt.nota.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}/5${rec.nt.pont != null ? ` · ${pctFmt(rec.nt.pont)} no prazo` : ''}` : ' · sem histórico suficiente'}
         ${rec.i >= 0 ? ` <button type="button" class="fchip" onclick="trocarPelaTabela(${rec.i})">trocar para ela</button>` : ' <span class="badge b-ok">é a escolhida</span>'}</div>`;
     }
-    if (_altTabela.length) alt += `<div class="tab-alt"><span class="flabel">Outras tabelas p/ esta carga</span> ${_altTabela.map((x, i) =>
+    if (false && _altTabela.length) alt += `<div class="tab-alt"><span class="flabel">Outras tabelas p/ esta carga</span> ${_altTabela.map((x, i) =>
       `<button type="button" class="fchip${ref && x.r.preco < ref - 1 ? ' on' : ''}" title="${esc(descLinhaTabela(x.r.linha))}" onclick="trocarPelaTabela(${i})">${esc(x.nome.split(' ').slice(0, 2).join(' '))} ${brl(x.r.preco)}</button>`).join('')}</div>`;
   }
   if (chk.semTabela) return `<br><span class="td-mono">Sem tabela combinada da ${esc(transportadora)} — cadastre/anexe em 📑 Tabelas de frete para conferir automaticamente.</span>${alt}`;
@@ -3458,7 +3497,7 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
   if (tipo === 'cot') $('fm-transportadora').addEventListener('change', autoContato);
   if (tipo === 'cot') $('fm-valor_frete').addEventListener('input', e => { _modal.freteManual = e.target.value !== ''; e.target.classList.remove('from-pdf'); });
   if (tipo === 'cot') ligarOrigemDestino('fm-', atualizarPreview);
-  if (tipo === 'cot') $('fpreview')?.insertAdjacentHTML('beforebegin', `<label class="fg s4 td-mono" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+  if (tipo === 'cot') $('fpreview')?.insertAdjacentHTML('beforebegin', `<label class="fg s4 td-mono chk-coleta">
       <input type="checkbox" id="fm-coleta" ${/coleta no remetente/i.test(base.observacoes || '') ? 'checked' : ''} onchange="atualizarPreview()"> Com coleta no remetente (soma a taxa de coleta de quem cobra, ex.: Andorinha R$ 33,29)</label>`);
   if (tipo === 'cot' && !reg) $('modal-form').insertAdjacentHTML('afterbegin', `<details class="sim-colar fg s4" id="cot-colar-box">
       <summary>📋 Colar o texto do pedido (e-mail / WhatsApp) e preencher a cotação</summary>
@@ -3572,6 +3611,7 @@ function atualizarPreview() {
       <span class="flabel" style="margin-left:10px">% s/ mercadoria</span> ${pctHTML(p)}
       ${p != null ? `<br><span>${veredito}</span>` : '<span class="td-mono">informe o valor da mercadoria e o frete para saber se vale a pena fechar</span>'}`;
     el.innerHTML += conferenciaTabelaHTML(chk, $('fm-transportadora')?.value, { cot: true, v: vf });
+    el.innerHTML += opcoesFreteCotHTML(vf);
   }
 }
 
