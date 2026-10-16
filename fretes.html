@@ -190,7 +190,11 @@ textarea.finput{resize:vertical;min-height:60px}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
 .cot-sug-cte{margin-bottom:8px;padding:6px 10px;border-radius:var(--radius);background:rgba(77,184,122,.1);border:1px solid rgba(77,184,122,.35);font-size:0.74rem;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.cot-opcoes{margin-top:10px}.cot-opcoes table{width:100%}.cot-opcoes td,.cot-opcoes th{padding:5px 8px}
+.cot-opcoes{margin-top:10px;width:100%;min-width:0}.cot-opcoes table{width:100%;table-layout:auto}.cot-opcoes td,.cot-opcoes th{padding:5px 8px}
+/* cotação: nada estica a janela para os lados (textos longos quebram linha) */
+#modal-form>*{min-width:0}.fpreview{min-width:0;overflow-wrap:anywhere}.fpreview>*{max-width:100%}
+.fpreview .td-mono,.cot-opcoes .td-mono,.tab-conta,.tab-dicas,.tab-rec{white-space:normal;overflow-wrap:anywhere}
+#modal .mbody{overflow-x:hidden}
 .cot-op-atual td{background:rgba(42,159,191,.08)}
 .chk-coleta{display:flex!important;flex-direction:row!important;align-items:center;gap:6px;justify-content:flex-start;cursor:pointer}
 .chk-coleta input{width:auto;margin:0}
@@ -781,7 +785,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.11';
+const VERSAO = '2026-10-15.12';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -2326,7 +2330,7 @@ window.colarTextoCot = () => {
   if (r.peso) pos('peso_kg', r.peso);
   if (r.m3) pos('volume_m3', +r.m3.toFixed(3)); // o campo aceita 3 casas (com 4 o navegador não deixava salvar)
   const obs = obsTextoPedido(r);
-  if (obs && $('fm-observacoes')) { const atual = $('fm-observacoes').value.trim(); $('fm-observacoes').value = atual ? atual + ' · ' + obs : obs; $('fm-observacoes').classList.add('from-pdf'); }
+  if (obs && $('fm-observacoes')) { const atual = $('fm-observacoes').value.trim(); if (!atual.includes(obs)) $('fm-observacoes').value = atual ? atual + ' · ' + obs : obs; $('fm-observacoes').classList.add('from-pdf'); }
   $('cot-lido').innerHTML = resumoTextoPedido(r) + '<br>Escolha a transportadora: a conferência abaixo mostra o valor pela tabela (e as outras transportadoras) — use “Usar valor da tabela”.';
   atualizarPreview();
 };
