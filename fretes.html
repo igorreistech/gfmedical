@@ -796,7 +796,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.13';
+const VERSAO = '2026-10-15.14';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1808,25 +1808,28 @@ function renderAuditoria() {
     `<button class="fchip" onclick="mensagemAuditoria(${JSON.stringify(t).replace(/"/g, '&quot;')})" title="Montar mensagem para a transportadora no WhatsApp">📲 ${esc(t)}: ${g.n} CT-e(s) · ${brl(g.v)}</button>`).join('') : '';
   $('aud-transp').style.display = itens.length ? '' : 'none';
   if (!itens.length) { $('tb-aud').innerHTML = '<tbody><tr><td><div class="empty-page">✔ Nenhuma divergência encontrada nos CT-es do período.</div></td></tr></tbody>'; return; }
-  $('tb-aud').innerHTML = `<thead><tr><th>CT-e</th><th>Emissão</th><th>Transportadora</th><th>Rota</th><th class="num">Frete</th><th class="num">NF-e</th><th class="num">%</th><th>O que foi encontrado</th><th class="num">A contestar</th></tr></thead><tbody>
+  $('tb-aud').innerHTML = `<thead><tr><th>CT-e</th><th>Emissão</th><th>Transportadora</th><th>Rota</th><th class="num">Frete</th><th class="num">NF-e</th><th class="num">%</th><th>O que foi encontrado</th><th class="num">Desconto</th><th class="num">Valor correto</th></tr></thead><tbody>
     ${itens.map(x => `<tr class="click" onclick="abrirModal('cte','${x.c.id}')">
       <td class="td-strong">${esc(x.c.numero_cte)}</td><td class="td-mono">${dataBR(x.c.data_emissao)}</td><td class="td-trunc">${esc(x.c.transportadora || '—')}</td><td class="td-trunc">${esc(x.c.origem || '—')}</td>
       <td class="num">${brl(x.c.valor_frete)}</td><td class="num">${brl(x.c.valor_nfe)}</td><td class="num">${pctHTML(pctFrete(x.c))}</td>
       <td class="aud-achado">${x.achados.map(a => `<div><span class="badge ${a.nivel === 'crit' ? 'b-crit' : 'b-warn'}">${a.nivel === 'crit' ? '■' : '▲'}</span> ${a.txt}</div>`).join('')}</td>
-      <td class="num">${x.contestar > 0 ? `<b>${brl(x.contestar)}</b>` : '—'}</td></tr>`).join('')}
-    </tbody><tfoot><tr><td colspan="8">Total (${itens.length} CT-e(s))</td><td class="num">${brl(total)}</td></tr></tfoot>`;
+      <td class="num">${x.contestar > 0 ? `<b>${brl(x.contestar)}</b>` : '—'}</td><td class="num">${x.contestar > 0 ? brl(num(x.c.valor_frete) - x.contestar) : '—'}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="8">Total (${itens.length} CT-e(s))</td><td class="num">${brl(total)}</td><td class="num">${brl(itens.filter(x => x.contestar > 0).reduce((a, x) => a + num(x.c.valor_frete) - x.contestar, 0))}</td></tr></tfoot>`;
 }
 window.mensagemAuditoria = t => {
   const itens = auditoria(ctesFiltrados({ ignorarFiltrosTabela: true })).filter(x => (x.c.transportadora || '—') === t);
   if (!itens.length) return;
   const L = [`Olá! Aqui é da GF Medical (${FILIAL_LABEL}). Na conferência dos CT-es encontramos estes pontos para revisão:`, ''];
+  let tCob = 0, tDesc = 0;
   itens.forEach(x => {
-    L.push(`*CT-e ${x.c.numero_cte}* (emissão ${dataBR(x.c.data_emissao)}, NF ${x.c.numero_nfe || '—'}): frete ${brl(x.c.valor_frete)}`);
-    x.achados.forEach(a => L.push('- ' + a.txt.replace(/<[^>]+>/g, '')));
-    if (x.contestar > 0) L.push(`  Diferença: ${brl(x.contestar)}`);
+    const cob = num(x.c.valor_frete), desc = Math.max(0, x.contestar), certo = cob - desc;
+    tCob += cob; tDesc += desc;
+    L.push(`*CT-e ${x.c.numero_cte}* (emissão ${dataBR(x.c.data_emissao)}, NF ${x.c.numero_nfe || '—'})`);
+    L.push(`  Frete cobrado: ${brl(cob)}${desc > 0 ? ` | Desconto: *${brl(desc)}* | Valor correto: *${brl(certo)}*` : ''}`);
+    x.achados.forEach(a => L.push('  - ' + a.txt.replace(/<[^>]+>/g, '')));
     L.push('');
   });
-  L.push(`Total para revisão: ${brl(itens.reduce((a, x) => a + x.contestar, 0))}. Pode verificar, por favor?`);
+  L.push(`*Total cobrado:* ${brl(tCob)}`, `*Desconto a conceder:* ${brl(tDesc)}`, `*Valor correto total:* ${brl(tCob - tDesc)}`, '', 'Podem verificar e nos enviar a correção (CT-e substituto ou desconto na próxima fatura), por favor?');
   const texto = L.join('\n');
   navigator.clipboard?.writeText(texto).catch(() => {});
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(texto), '_blank');
@@ -5306,8 +5309,9 @@ function textoCobranca(nome, itens, periodo) {
     `Aqui é da *GF Medical – ${FILIAL_LABEL.replace(' · ', '/')}*. Na conferência dos fretes de *${periodo}*, encontramos CT-es da *${nome}* cobrados acima da tabela combinada:`];
   let total = 0;
   L.push('');
-  itens.forEach(x => { L.push(`• ${ctNf(x.c)}: cobrado ${brl(x.c.valor_frete)} | pela tabela ${brl(x.cl.tabela.preco)} | diferença *${brl(x.cl.tabela.dif)}*`); total += x.cl.tabela.dif; });
-  L.push('', `Total cobrado a mais: *${brl(total)}*`, '', 'Podem verificar e nos enviar a correção (CT-e substituto ou desconto na próxima fatura), por favor?', '', 'Obrigado!');
+  let tCob = 0;
+  itens.forEach(x => { L.push(`• ${ctNf(x.c)}: frete cobrado ${brl(x.c.valor_frete)} | desconto *${brl(x.cl.tabela.dif)}* | valor correto (tabela) *${brl(x.cl.tabela.preco)}*`); total += x.cl.tabela.dif; tCob += num(x.c.valor_frete); });
+  L.push('', `Total cobrado: ${brl(tCob)}`, `Desconto a conceder: *${brl(total)}*`, `Valor correto total: *${brl(tCob - total)}*`, '', 'Podem verificar e nos enviar a correção (CT-e substituto ou desconto na próxima fatura), por favor?', '', 'Obrigado!');
   return { texto: L.join('\n'), t, total };
 }
 window.linkCobranca = (nome, canal) => {
