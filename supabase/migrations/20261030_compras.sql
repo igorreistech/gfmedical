@@ -106,3 +106,9 @@ begin
 end $$;
 
 notify pgrst, 'reload schema';
+
+-- Fabricante também no consumo (C1060) e no consignado (C457) quando o relatório vem filtrado por fabricante/fornecedor:
+-- a programação parte do consumo (venda) e precisa saber o fabricante mesmo dos itens zerados (fora do S013).
+alter table public.compras_consumo    add column if not exists fabricante text;
+alter table public.compras_consignado add column if not exists fabricante text;
+notify pgrst, 'reload schema';

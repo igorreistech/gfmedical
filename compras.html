@@ -434,12 +434,13 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
           <button class="fchip" data-prog="atencao">⚠ Atenção</button>
           <button class="fchip" data-prog="ok">✔ OK</button>
           <button class="fchip" data-prog="semconsumo">Sem consumo</button>
-          <button class="fchip" data-prog="fora" title="Têm consumo no C1060 mas não estão no S013 (sem estoque próprio — ex.: consignado do fornecedor ou zerado)">Fora do S013</button>
+          <button class="fchip" data-prog="zerado" title="Têm consumo (venda) e estão sem estoque próprio (fora do S013) — já entram em Comprar agora">Sem estoque</button>
           <button class="fchip" data-prog="">Todos</button>
           <span class="fdiv"></span>
           <select class="tsel" id="prog-fab" title="Mostrar só os produtos deste fabricante/fornecedor" onchange="filtrarFabricante(this.value)"></select>
           <span class="fdiv"></span>
           <button class="tbtn tbtn-g" onclick="listaCompraWhatsApp()">📲 Lista de compra no WhatsApp</button>
+          <button class="tbtn tbtn-p" onclick="planilhaCallisto()" title="Gera a planilha no layout 'Importação de Lotes NF de compra' do Callisto (versão 1.01) com os itens e quantidades a comprar">📄 Planilha Callisto (NF de compra)</button>
           <button class="tbtn tbtn-g" onclick="exportarExcel()">📤 Lista em Excel</button>
         </div></div></div>
         <div class="twrap">
@@ -531,7 +532,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-16.7';
+const VERSAO = '2026-10-16.9';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente' };
 
 const $ = id => document.getElementById(id);
@@ -632,6 +633,7 @@ function pendentesPorProduto() {
 function programacao() {
   const est = new Map(data.est.map(r => [norm(r.codigo), r])), cmo = new Map(data.cmo.map(r => [norm(r.codigo), r]));
   const cm = consMap(), pm = pendentesPorProduto(), somaPend = $('p-pend')?.checked !== false;
+  const fabConsignado = new Map(data.cons.filter(r => r.fabricante).flatMap(r => [[norm(r.codigo_alt), r.fabricante], [norm(r.codigo), r.fabricante]]));
   const codigos = new Set([...est.keys(), ...cmo.keys(), ...(somaPend ? pm.keys() : [])]);
   const mesAtual = new Date().getMonth() + 1;
   return [...codigos].map(k => {
@@ -640,9 +642,10 @@ function programacao() {
     const media = (mediaFat * (mediaFat > 0 ? nMeses : 0) + pendAno) / nMeses, disp = num(e?.estoque_disp), dia = media / 30;
     const ponto = dia * (cfg.prazo_dias + cfg.seguranca_dias), cobertura = dia > 0 ? disp / dia : null;
     const sugerido = dia > 0 ? Math.max(0, Math.ceil(dia * (cfg.prazo_dias + cfg.cobertura_dias) - disp)) : 0;
-    const situacao = !e ? 'fora' : media <= 0 ? 'semconsumo' : disp <= ponto ? 'comprar' : cobertura < cfg.prazo_dias + cfg.seguranca_dias + 15 ? 'atencao' : 'ok';
+    // Ponto de partida é o consumo (venda): sem estoque próprio (fora do S013) conta como estoque ZERO — e vira compra.
+    const situacao = media <= 0 ? 'semconsumo' : disp <= ponto ? 'comprar' : cobertura < cfg.prazo_dias + cfg.seguranca_dias + 15 ? 'atencao' : 'ok';
     return { codigo: e?.codigo || c?.codigo, descricao: e?.descricao || c?.descricao, disp, fisico: num(e?.estoque), media, total: num(c?.total), meses: c?.meses || [], ponto, cobertura,
-      sugerido, situacao, preco: num(e?.ultimo_preco), unidade: e?.unidade || '', consignado: cm.get(k)?.saldo || 0, semEstoqueCadastro: !e, fabricante: e?.fabricante || pd?.linhas[0]?.fabricante || '',
+      sugerido, situacao, preco: num(e?.ultimo_preco), unidade: e?.unidade || '', consignado: cm.get(k)?.saldo || 0, semEstoqueCadastro: !e, fabricante: e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || '',
       mediaFat, pendAno: num(pd?.ano), pendAntigo: num(pd?.antigo), nMeses, codigo: e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt, descricao: e?.descricao || c?.descricao || pd?.linhas[0]?.produto };
   });
 }
@@ -714,7 +717,7 @@ function fabricantesConhecidos() {
   return [...new Set([...data.est.map(r => r.fabricante), ...data.pen.map(r => r.fabricante)].filter(Boolean).map(f => String(f).trim()))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 }
 function listaProgramacao() {
-  return programacaoFab().filter(r => !ui.prog || r.situacao === ui.prog).filter(r => casa(r, ['codigo', 'descricao', 'fabricante']))
+  return programacaoFab().filter(r => !ui.prog || (ui.prog === 'zerado' ? r.semEstoqueCadastro && r.media > 0 : r.situacao === ui.prog)).filter(r => casa(r, ['codigo', 'descricao', 'fabricante']))
     .sort((a, b) => (a.cobertura ?? 1e9) - (b.cobertura ?? 1e9) || b.media - a.media);
 }
 const qtdComprar = r => _qtdEditada[norm(r.codigo)] ?? r.sugerido;
@@ -730,14 +733,14 @@ function renderProgramacao() {
   $('prog-stats').innerHTML = statCard('Comprar agora', comprar.length, 'no ponto de pedido ou abaixo', comprar.length ? 'crit' : '')
     + statCard('Valor sugerido', brl(valor), 'quantidade sugerida × último preço', 'info')
     + statCard('Atenção', todos.filter(r => r.situacao === 'atencao').length, 'perto do ponto de pedido', 'warn')
-    + statCard('Fora do S013', todos.filter(r => r.situacao === 'fora').length, 'com consumo e sem estoque próprio (ex.: consignado do fornecedor) — confira');
+    + statCard('Sem estoque', todos.filter(r => r.semEstoqueCadastro && r.media > 0).length, 'vendem e estão zerados (fora do S013) — já estão em Comprar agora', 'crit');
   if (!data.cmo.length) { $('tb-prog').innerHTML = '<tbody><tr><td><div class="empty-page">🛒 Para a programação, importe o PDF <b>C1060 - Consumo Mensal</b> (e o <b>S013 - Estoque</b>) em <b>📥 Importar</b>.</div></td></tr></tbody>'; $('cnt-prog').textContent = 0; return; }
   $('cnt-prog').textContent = lista.length;
   if (!lista.length) { $('tb-prog').innerHTML = '<tbody><tr><td><div class="empty-page">Nenhum produto com esse filtro.</div></td></tr></tbody>'; return; }
   const mesesNome = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
   $('tb-prog').innerHTML = `<thead><tr><th>Situação</th><th>Código</th><th>Produto</th><th class="num">Estoque Disp.</th><th class="num" title="Consumo médio mensal (C1060) + pendente de faturamento (C723)">Consumo/mês</th><th class="num">Cobertura</th><th class="num">Ponto de pedido</th><th class="num">Comprar</th><th class="num">Último preço</th><th class="num">Valor</th><th class="num">Em consignação</th></tr></thead><tbody>
     ${lista.map(r => { const k = norm(r.codigo); return `<tr><td><span class="badge ${SIT[r.situacao][0]}">${SIT[r.situacao][1]}</span></td><td class="td-mono">${esc(r.codigo)}</td>
-      <td>${esc(r.descricao)}${r.fabricante ? `<div class="td-doc">🏭 ${esc(r.fabricante)}</div>` : ''}${r.semEstoqueCadastro ? '<div class="td-doc">não está no S013 (sem estoque próprio)</div>' : ''}<div class="td-doc" title="Consumo por mês no C1060">${r.meses.map((q, i) => num(q) ? mesesNome[i] + ':' + qtd(q) : '').filter(Boolean).join(' ')}</div></td>
+      <td>${esc(r.descricao)}${r.fabricante ? `<div class="td-doc">🏭 ${esc(r.fabricante)}</div>` : ''}${r.semEstoqueCadastro ? `<div class="td-doc" style="color:var(--crit-c,#dc2626)">sem estoque próprio (fora do S013)${r.consignado ? ` · ${qtd(r.consignado)} em consignação` : ''}</div>` : ''}<div class="td-doc" title="Consumo por mês no C1060">${r.meses.map((q, i) => num(q) ? mesesNome[i] + ':' + qtd(q) : '').filter(Boolean).join(' ')}</div></td>
       <td class="num"><b>${qtd(r.disp)}</b></td><td class="num">${qtd(r.media)}${r.pendAno || r.pendAntigo ? `<div class="td-doc" title="Consumo médio = (faturado no C1060 + pendente de faturamento do ano) ÷ ${r.nMeses} mês(es)">faturado ${qtd(r.mediaFat)} + pendente ${qtd(r.pendAno)}${r.pendAntigo ? ` · ${qtd(r.pendAntigo)} pend. antigo` : ''}</div>` : ''}</td><td class="num">${r.cobertura == null ? '—' : Math.round(r.cobertura) + ' dias'}</td><td class="num">${r.media ? qtd(Math.ceil(r.ponto)) : '—'}</td>
       <td class="num"><input class="finput" type="number" min="0" step="1" value="${qtdComprar(r)}" style="width:76px;text-align:right" onchange="editarQtd(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.value)"></td>
       <td class="num">${r.preco ? brl(r.preco) : '—'}</td><td class="num">${brl(qtdComprar(r) * r.preco)}</td><td class="num">${r.consignado ? qtd(r.consignado) : '—'}</td></tr>`; }).join('')}</tbody>
@@ -985,11 +988,11 @@ async function importarArquivos(files) {
       if (filialPdf && filialPdf !== FILIAL && !confirm(`Este relatório é da filial ${filialPdf === 'CGR' ? 'Campo Grande' : 'Cuiabá'}, mas você está em ${BR.label}. Importar mesmo assim nesta filial?`)) continue;
       let tipo, rows;
       // S013 filtrado (ex.: "Fabricante: JOTEC BRASIL"): atualiza só esses produtos, o resto do estoque continua
-      const filtroS013 = /S013|C723/.test(texto) ? (/(Fabricante|Fornecedor|SubGrupo|Grupo):\s*([^.]+?)\s*\./i.exec(texto.replace(/\s+/g, ' ')) || null) : null;
+      const filtroS013 = /S013|C723|C1060|C457/.test(texto) ? (/(Fabricante|Fornecedor|SubGrupo|Grupo):\s*([^.]+?)\s*\./i.exec(texto.replace(/\s+/g, ' ')) || null) : null;
       const fabricante = filtroS013 && /Fabricante|Fornecedor/i.test(filtroS013[1]) ? filtroS013[2].trim() : null;
       if (/S013/.test(texto)) { tipo = 'S013'; rows = lerS013(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; }); }
-      else if (/C457/.test(texto)) { tipo = 'C457'; rows = lerC457(pags); }
-      else if (/C1060/.test(texto)) { tipo = 'C1060'; rows = lerC1060(pags); }
+      else if (/C457/.test(texto)) { tipo = 'C457'; rows = lerC457(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; }); }
+      else if (/C1060/.test(texto)) { tipo = 'C1060'; rows = lerC1060(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; }); }
       else if (/C723/.test(texto)) { tipo = 'C723'; rows = lerC723(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; });
         if (!/Pendente/i.test(texto.replace(/\s+/g, ' ')) && !confirm('Este C723 não parece estar filtrado por "Status dos Pedidos: Pendente". Importar mesmo assim como pendente de faturamento?')) continue; }
       else { toast(`${file.name}: não reconheci o relatório (esperado S013 - Estoque ou C457 - Itens Consignados).`, 'err'); continue; }
@@ -999,7 +1002,7 @@ async function importarArquivos(files) {
         : tipo === 'C457' ? `${rows.length} remessa(s), saldo atual ${qtd(rows.reduce((a, r) => a + num(r.saldo), 0))} unidade(s)`
         : tipo === 'C723' ? `${new Set(rows.map(r => r.pedido)).size} pedido(s), ${rows.length} item(ns), ${qtd(rows.reduce((a, r) => a + num(r.quantidade), 0))} unidade(s), ${brl(rows.reduce((a, r) => a + num(r.valor_total), 0))}`
         : `${rows.length} produto(s), consumo total ${qtd(rows.reduce((a, r) => a + num(r.total), 0))} unidade(s) no ano`;
-      const parcial = (tipo === 'S013' || tipo === 'C723') && filtroS013;
+      const parcial = (tipo === 'S013' || tipo === 'C723' || tipo === 'C1060') && filtroS013;
       if (!confirm(parcial ? `${NOMES[tipo]} filtrado por ${filtroS013[1]}: ${filtroS013[2].trim()} (${file.name}):\n${resumo}.\n\nAtualiza SÓ ${tipo === 'C723' ? 'os pendentes desse ' + filtroS013[1].toLowerCase() : 'esses produtos no estoque'} de ${BR.label}; o resto continua como está. Importar?`
         : `${NOMES[tipo]} de ${file.name}:\n${resumo}.\n\nIsso SUBSTITUI o ${ALVO[tipo]} atual de ${BR.label}. Importar?`)) continue;
       const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen }[tipo], agora = new Date().toISOString();
@@ -1007,7 +1010,7 @@ async function importarArquivos(files) {
       if (parcial) {
         if (fabricante) ui.fab = fabricante;
         // apaga os produtos deste PDF e os que eram deste fabricante (os que sumiram do relatório estão zerados)
-        const cods = tipo === 'S013' ? rows.map(r => r.codigo) : []; // C723: troca os pendentes do fabricante
+        const cods = tipo === 'S013' || tipo === 'C1060' ? rows.map(r => r.codigo) : []; // C723: troca os pendentes do fabricante
         for (let i = 0; i < cods.length; i += 100) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).in('codigo', cods.slice(i, i + 100)); if (d.error) throw d.error; }
         if (fabricante) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).eq('fabricante', fabricante); if (d.error && !/fabricante/i.test(d.error.message || '')) throw d.error; }
       } else {
@@ -1038,6 +1041,23 @@ const drop = $('imp-drop');
 ['dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); if (ev === 'drop' || e.target === document.documentElement) drop.classList.remove('sobre'); }));
 document.addEventListener('drop', e => { const fs = [...(e.dataTransfer?.files || [])].filter(f => /\.pdf$/i.test(f.name)); if (fs.length) importarArquivos(fs); });
 
+// Planilha no layout "Importação de Lotes NF de compra" do Callisto (versão 1.01), igual ao modelo
+// "Importacao Lotes NF COMPRA.xls": linha 1 Identificação/Versão, linha 2 cabeçalhos, depois um item por linha com
+// o código alternativo, a quantidade a comprar e o último preço. Lote, série e datas ficam em branco (só existem na chegada).
+window.planilhaCallisto = () => {
+  const itens = listaProgramacao().filter(r => qtdComprar(r) > 0);
+  if (!itens.length) { toast('Nenhum item com quantidade a comprar nesta lista (confira o filtro e as quantidades).', 'info'); return; }
+  const CAB = ['Código\nProduto', 'Código\nAlternativo\nProduto', 'Lote', 'Nº de\nSérie', 'Quantidade', 'Valor \nUnitário', 'Data de\nValidade', 'Data de\nFabricação',
+    'Observação', 'Método Esterilização', 'Data Esterilização', 'Validade Esterilização', 'Requisição de compra'];
+  const linhas = [['Identificação', '', '', '', '', '', '', '', 'Versão', '1.01', '', '', ''], CAB,
+    ...itens.map(r => ['', String(r.codigo || ''), '', '', qtdComprar(r), r.preco ? +num(r.preco).toFixed(2) : '', '', '', '', '', '', '', ''])];
+  const ws = XLSX.utils.aoa_to_sheet(linhas);
+  ws['!cols'] = [10, 16, 14, 10, 11, 11, 12, 12, 14, 14, 12, 12, 14].map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Planilha1');
+  const fab = ui.fab ? ' - ' + ui.fab.replace(/[\\/:*?"<>|]+/g, ' ').trim() : '';
+  XLSX.writeFile(wb, `Importacao Lotes NF COMPRA${fab} - ${new Date().toISOString().slice(0, 10)}.xls`, { bookType: 'biff8' });
+  toast(`✔ Planilha do Callisto gerada: ${itens.length} item(ns). Lote e validade você completa quando a mercadoria chegar.`);
+};
 window.exportarExcel = () => {
   let linhas, nome;
   if (ui.view === 'programacao') { nome = 'Lista_de_compra'; linhas = listaProgramacao().map(r => ({ Situação: SIT[r.situacao][1].replace(/^\S+ /, ''), Código: r.codigo, Produto: r.descricao, Fabricante: r.fabricante || '', 'Estoque Disp.': r.disp, 'Consumo médio/mês': r.media, 'Cobertura (dias)': r.cobertura == null ? null : Math.round(r.cobertura), 'Ponto de pedido': Math.ceil(r.ponto), Comprar: qtdComprar(r), Unidade: r.unidade, 'Último preço': r.preco, Valor: +(qtdComprar(r) * r.preco).toFixed(2), 'Em consignação': r.consignado })); }
