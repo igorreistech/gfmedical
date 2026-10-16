@@ -799,7 +799,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.22';
+const VERSAO = '2026-10-15.24';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -819,7 +819,7 @@ const STATUS_COT = ['Aprovado', 'Reprovado', 'Em análise', 'Aguardando'];
 const STATUS_CTE = ['Entregue', 'Em trânsito', 'Pendente', 'Atrasado'];
 // Em ordem alfabética nas listas.
 const TIPOS_SAIDA = ['COMPRA', 'VENDA', 'TRANSFERENCIA', 'REMESSA PARA CONSERTO', 'SAIDA DE MATERIAL PARA CIRURGIA', 'REMESSA EM COMODATO', 'REMESSA EM CONSIGNAÇÃO', 'DEVOLUÇÃO DE COMPRA',
-  'DEVOLUÇÃO DE REMESSA EM COMODATO', 'DEVOLUÇÃO DE REMESSA EM CONSIGNAÇÃO', 'DEVOLUÇÃO DE REMESSA DE RETORNO DE ITENS PARA CIRURGIA', 'RETORNO DE REMESSA ENVIADA PARA CONSERTO']
+  'DEVOLUÇÃO DE REMESSA EM COMODATO', 'DEVOLUÇÃO DE REMESSA EM CONSIGNAÇÃO', 'DEVOLUÇÃO DE REMESSA DE RETORNO DE ITENS PARA CIRURGIA', 'RETORNO DE REMESSA ENVIADA PARA CONSERTO', 'DEVOLUÇÃO DE VENDA']
   .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 const MODAIS = ['Rodoviário', 'Aéreo', 'Rodoviário e Aéreo'];
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
@@ -860,6 +860,8 @@ const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov'
 const mesLabel = ym => { const [y, m] = ym.split('-'); return MESES[+m - 1] + '/' + y.slice(2); };
 // Data local (não UTC): depois das 20h em MT o toISOString já daria o dia seguinte.
 const hojeISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+// Tipo de saída com um nome só: "REMESSA PARA/DE CONSIGNAÇÃO", "REMESSA EM CONSIGNACAO"… → REMESSA EM CONSIGNAÇÃO
+const canonTipoSaida = t => /^REMESSA (PARA|DE|EM) CONSIGNA/.test(norm(t)) ? 'REMESSA EM CONSIGNAÇÃO' : t;
 const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
 
 // Coluna nova ainda não criada no banco (PostgREST PGRST204) → diz qual migração rodar.
@@ -1130,6 +1132,7 @@ async function carregar(k) {
   }
   data[k] = rows;
   if (['transp', 'cte', 'cot', 'fat', 'tab'].includes(k)) canonizarTransportadoras();
+  if (k === 'cte') data.cte.forEach(c => { const t = canonTipoSaida(c.tipo_saida); if (t !== c.tipo_saida) c.tipo_saida = t; });
 }
 
 // Banco da filial sem as colunas/tabela das migrações novas: aviso fixo dizendo o que rodar
@@ -3105,7 +3108,7 @@ function tentativasRastreio(c) {
   if (ehGollog(c.transportadora)) { const cod = soDigitos(c.numero_cte); return cod ? [{ tipo: 'gollog', cnpj: '', nfs: [cod] }] : []; }
   const nfs = nfsDe(c);
   if (!nfs.length) return [];
-  const gfDestino = /GF MEDICAL/i.test(c.destino || '') || /COMPRA|DEVOLU[ÇC][ÃA]O DE REMESSA|RETORNO DE REMESSA/i.test(c.tipo_saida || '') || soDigitos(c.destino_cnpj).startsWith('07356800');
+  const gfDestino = /GF MEDICAL/i.test(c.destino || '') || /COMPRA|DEVOLU[ÇC][ÃA]O DE (REMESSA|VENDA)|RETORNO DE REMESSA/i.test(c.tipo_saida || '') || soDigitos(c.destino_cnpj).startsWith('07356800');
   const rem = soDigitos(c.remetente_cnpj), dest = soDigitos(c.destino_cnpj);
   const ok = d => d.length === 14 || d.length === 11;
   const t = [];
@@ -3920,6 +3923,7 @@ async function salvarModalInterno() {
   const form = $('modal-form');
   if (!form.reportValidity()) return;
   const row = lerForm(tipo);
+  if (tipo === 'cte' && row.tipo_saida) row.tipo_saida = canonTipoSaida(row.tipo_saida);
   if (tipo === 'cot') {
     if (row.numero_cte && ['Aguardando', 'Em análise'].includes(row.status)) row.status = 'Aprovado'; // CT-e vinculado = cotação fechada
     if (row.status === 'Aprovado' && precisaAprovacao(row) && _role !== 'admin') { row.status = 'Em análise'; toast('Acima de 5% da NF ou da tabela: salva como "Em análise" — um administrador precisa aprovar.', 'info'); }
@@ -4343,7 +4347,7 @@ function camposDoCte(doc, nomeArquivo) {
   put('remetente_cnpj', docsPartes.rem);
   put('destino', destinatario);
   put('destino_cnpj', docsPartes.dest);
-  put('tipo_saida', tipo);
+  put('tipo_saida', canonTipoSaida(tipo));
   put('valor_frete', valorFrete);
   put('valor_nfe', valorNf);
   put('prazo_dias', prazo);
@@ -4406,7 +4410,7 @@ function camposDoXml(xmlTexto, nomeArquivo) {
   put('transportadora', transportadora);
   put('remetente', remN); put('remetente_cnpj', docParte(rem));
   put('destino', destN); put('destino_cnpj', docParte(dest));
-  put('tipo_saida', tipo);
+  put('tipo_saida', canonTipoSaida(tipo));
   put('valor_frete', Number(t(inf, 'vTPrest')));
   put('valor_nfe', Number(t(inf, 'vCarga')));
   put('peso_kg', pesoQ ? pesoQ.q : null);
