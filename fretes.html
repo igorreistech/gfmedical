@@ -189,6 +189,7 @@ textarea.finput{resize:vertical;min-height:60px}
 .finput.from-pdf{border-color:var(--accent2);background:rgba(42,159,191,0.06)}
 .drop-ov{position:fixed;inset:0;z-index:300;background:rgba(42,159,191,0.18);border:3px dashed var(--accent2);display:none;align-items:center;justify-content:center;font-family:var(--display);font-size:1.2rem;font-weight:700;color:var(--accent2);pointer-events:none}
 .drop-ov.show{display:flex}
+.cot-sug-cte{margin-bottom:8px;padding:6px 10px;border-radius:var(--radius);background:rgba(77,184,122,.1);border:1px solid rgba(77,184,122,.35);font-size:0.74rem;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .cot-opcoes{margin-top:10px}.cot-opcoes table{width:100%}.cot-opcoes td,.cot-opcoes th{padding:5px 8px}
 .cot-op-atual td{background:rgba(42,159,191,.08)}
 .chk-coleta{display:flex!important;flex-direction:row!important;align-items:center;gap:6px;justify-content:flex-start;cursor:pointer}
@@ -739,7 +740,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 </div>
 
 <datalist id="dl-transp"></datalist>
-<datalist id="dl-rotas"></datalist><datalist id="dl-orig"></datalist><datalist id="dl-dest"></datalist>
+<datalist id="dl-rotas"></datalist><datalist id="dl-ctes-cot"></datalist><datalist id="dl-orig"></datalist><datalist id="dl-dest"></datalist>
 <datalist id="dl-tipo"></datalist>
 <datalist id="dl-carga"></datalist>
 <div class="toasts" id="toasts"></div>
@@ -782,7 +783,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.9';
+const VERSAO = '2026-10-15.10';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1914,9 +1915,15 @@ function opcoesFreteCotHTML(v) {
   const com = new Set(res.map(x => norm(x.t)));
   [...new Set(data.cte.map(c => canonTransp(c.transportadora)).filter(Boolean))].filter(t => !com.has(norm(t)))
     .forEach(t => { const r = estimativaHistorico(t, v); if (r && !r.semBase) res.push({ t, r }); });
-  if (!res.length) return `<div class="td-mono" style="margin-top:8px">Nenhuma transportadora com tabela ou histórico para essa rota/carga — confira origem e destino com UF e informe peso/volume e valor.</div>`;
+  if (!res.length) return `<div class="td-mono" style="margin-top:8px">Nenhuma transportadora com tabela ou histórico para essa rota/carga — confira origem e destino com UF e informe peso/volume e valor.${transps.length ? ' Tabelas cadastradas: ' + esc(transps.join(', ')) + '.' : ''}</div>`;
   res.sort((a, b) => a.r.preco - b.r.preco);
   _opcoesCot = res;
+  const naLista = new Set(res.map(x => norm(x.t)));
+  const parUf = v.uf_origem && v.uf_destino ? `${v.uf_origem}↔${v.uf_destino}` : 'essa rota';
+  const fora = transps.filter(t => !naLista.has(norm(t))).map(t => {
+    const rotas = [...new Set(data.tab.filter(x => norm(canonTransp(x.transportadora)) === norm(t)).map(x => { const u = ufsDaRota(x.rota || ''); return u.ufO ? `${u.ufO}-${u.ufD}` : (x.rota || 'geral'); }))].slice(0, 6);
+    return `${esc(t)} (tabela só para ${esc(rotas.join(', '))})`; });
+  const foraHTML = fora.length ? `<div class="td-mono" style="margin-top:6px">Sem tabela para ${esc(parUf)} (e sem CT-es suficientes nessa rota para estimar): ${fora.join(' · ')}.</div>` : '';
   const atual = norm(canonTransp($('fm-transportadora')?.value || ''));
   const merc = num(v.valor_mercadoria);
   return `<div class="cot-opcoes"><div class="flabel" style="margin-bottom:4px">🚚 Opções de frete para esta carga${v.coleta ? ' (com coleta)' : ''}</div>
@@ -1925,8 +1932,30 @@ function opcoesFreteCotHTML(v) {
         ${x.r.estimativa ? ' <span class="badge b-warn" title="Sem tabela combinada: estimado pelos CT-es anteriores">≈ estimativa</span>' : tabelaAntiga(x.r.linha) ? ' <span class="badge b-warn" title="' + esc(tabelaAntiga(x.r.linha)) + '">⚠ tabela antiga</span>' : ''}</td>
       <td class="num">${x.r.peso ? num(x.r.peso).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' kg' : '—'}${x.r.cubado ? '<div class="td-doc">cubado</div>' : ''}</td>
       <td class="num"><b>${x.r.estimativa ? '≈ ' : ''}${brl(x.r.preco)}</b></td><td class="num">${merc > 0 ? pctHTML(x.r.preco / merc) : '—'}</td>
-      <td>${norm(x.t) === atual ? '<span class="badge b-ok">✓ escolhida</span>' : `<button type="button" class="fchip" onclick="usarOpcaoCot(${i})">Usar</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+      <td>${norm(x.t) === atual ? '<span class="badge b-ok">✓ escolhida</span>' : `<button type="button" class="fchip" onclick="usarOpcaoCot(${i})">Usar</button>`}</td></tr>`).join('')}</tbody></table>${foraHTML}</div>`;
 }
+// CT-e vinculado: lista os CT-es já lançados (da transportadora escolhida primeiro) e sugere o que
+// parece ser desta cotação — mesma transportadora, emitido de 3 dias antes a 30 depois, valor parecido.
+function listaCtesCot() {
+  const tr = norm(canonTransp($('fm-transportadora')?.value || ''));
+  const cs = [...data.cte].filter(c => c.numero_cte).sort((a, b) => (norm(b.transportadora) === tr) - (norm(a.transportadora) === tr) || (b.data_emissao || '').localeCompare(a.data_emissao || '')).slice(0, 300);
+  $('dl-ctes-cot').innerHTML = cs.map(c => `<option value="${esc(c.numero_cte)}" label="${esc(`${c.transportadora || '—'} · ${dataBR(c.data_emissao)} · NF ${c.numero_nfe || '—'} · ${brl(c.valor_frete)}`)}">`).join('');
+}
+function sugestoesCteCot(v) {
+  if (v.numero_cte || !v.transportadora) return [];
+  const tr = norm(canonTransp(v.transportadora)), dc = v.data_cotacao || hojeISO();
+  const ja = new Set(data.cot.filter(c => c.id !== _modal.id && c.numero_cte).map(c => idCte(c.numero_cte)));
+  const dest = norm(v.destino || '').split(/\s+/).filter(w => w.length > 3);
+  return data.cte.filter(c => norm(canonTransp(c.transportadora)) === tr && c.data_emissao && !ja.has(idCte(c.numero_cte)))
+    .map(c => { const d = diasEntre(dc, c.data_emissao); if (d < -3 || d > 30) return null;
+      let sc = 1 - Math.abs(d) / 40;
+      if (num(v.valor_frete) && num(c.valor_frete)) sc += 1 - Math.min(1, Math.abs(num(c.valor_frete) - num(v.valor_frete)) / num(v.valor_frete));
+      if (num(v.valor_mercadoria) && num(c.valor_nfe)) sc += 1 - Math.min(1, Math.abs(num(c.valor_nfe) - num(v.valor_mercadoria)) / num(v.valor_mercadoria));
+      if (dest.some(w => norm(`${c.destino || ''} ${c.origem || ''} ${c.observacoes || ''}`).includes(w))) sc += 0.5;
+      return { c, sc }; })
+    .filter(Boolean).sort((a, b) => b.sc - a.sc).slice(0, 3).map(x => x.c);
+}
+window.vincularCteCot = n => { $('fm-numero_cte').value = n; $('fm-numero_cte').classList.add('from-pdf'); atualizarPreview(); toast(`🔗 CT-e ${n} vinculado — salve a cotação`, 'info'); };
 window.usarOpcaoCot = i => {
   const x = _opcoesCot[i]; if (!x) return;
   const sel = $('fm-transportadora');
@@ -3354,7 +3383,7 @@ const FORMS = {
     { k: 'valor_frete', l: 'Valor frete (R$)', t: 'money', s: 1 },
     { k: 'ad_valorem', l: 'Ad valorem (R$)', t: 'money', s: 1 },
     { k: 'prazo_dias', l: 'Prazo (dias)', t: 'int', s: 1 },
-    { k: 'numero_cte', l: 'CT-e vinculado', ph: 'preenchido ao importar o CT-e' },
+    { k: 'numero_cte', l: 'CT-e vinculado', ph: 'digite ou escolha um CT-e já lançado', dl: 'dl-ctes-cot' },
     { preview: 'cot' },
     { k: 'observacoes', l: 'Observações', t: 'textarea', s: 4 },
   ]},
@@ -3497,6 +3526,7 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
   if (tipo === 'cot') $('fm-transportadora').addEventListener('change', autoContato);
   if (tipo === 'cot') $('fm-valor_frete').addEventListener('input', e => { _modal.freteManual = e.target.value !== ''; e.target.classList.remove('from-pdf'); });
   if (tipo === 'cot') ligarOrigemDestino('fm-', atualizarPreview);
+  if (tipo === 'cot') listaCtesCot();
   if (tipo === 'cot') $('fpreview')?.insertAdjacentHTML('beforebegin', `<label class="fg s4 td-mono chk-coleta">
       <input type="checkbox" id="fm-coleta" ${/coleta no remetente/i.test(base.observacoes || '') ? 'checked' : ''} onchange="atualizarPreview()"> Com coleta no remetente (soma a taxa de coleta de quem cobra, ex.: Andorinha R$ 33,29)</label>`);
   if (tipo === 'cot' && !reg) $('modal-form').insertAdjacentHTML('afterbegin', `<details class="sim-colar fg s4" id="cot-colar-box">
@@ -3612,6 +3642,9 @@ function atualizarPreview() {
       ${p != null ? `<br><span>${veredito}</span>` : '<span class="td-mono">informe o valor da mercadoria e o frete para saber se vale a pena fechar</span>'}`;
     el.innerHTML += conferenciaTabelaHTML(chk, $('fm-transportadora')?.value, { cot: true, v: vf });
     el.innerHTML += opcoesFreteCotHTML(vf);
+    const sug = sugestoesCteCot(vf);
+    if (sug.length) el.insertAdjacentHTML('afterbegin', `<div class="cot-sug-cte">🔗 CT-e já lançado que parece ser desta cotação: ${sug.map(c => `<button type="button" class="fchip" onclick="vincularCteCot('${esc(c.numero_cte)}')" title="Vincular este CT-e à cotação">CT-e ${esc(c.numero_cte)} · ${dataBR(c.data_emissao)} · ${brl(c.valor_frete)}${c.numero_nfe ? ' · NF ' + esc(c.numero_nfe) : ''}</button>`).join(' ')}</div>`);
+    if (_modal.dlTr !== vf.transportadora) { _modal.dlTr = vf.transportadora; listaCtesCot(); }
   }
 }
 
