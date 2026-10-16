@@ -799,7 +799,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.20';
+const VERSAO = '2026-10-15.21';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1839,7 +1839,7 @@ function textoAuditoria(t, email = false) {
   });
   const L = [email ? (tr?.contato ? `Prezado(a) ${tr.contato},` : 'Prezados,') : `Olá${tr?.contato ? ', ' + tr.contato : ''}! Tudo bem?`, '',
     `Aqui é da ${b('GF Medical – ' + FILIAL_LABEL.replace(' · ', '/'))}. Na conferência dos CT-es da ${b(t)}${ui.periodo ? ` (${ui.periodo.slice(5, 7)}/${ui.periodo.slice(0, 4)})` : ''}, encontramos os pontos abaixo:`];
-  let tDesc = 0, tDobro = 0, n = 0;
+  let tDesc = 0, tDobro = 0, tHab = 0, n = 0;
   if (combinados.length) {
     L.push('', b(`${++n}) Cobrados acima do combinado — pedimos o desconto`));
     combinados.forEach(({ c, a }) => { const cob = num(c.valor_frete), certo = num(a.esperado), d = cob - certo; tDesc += d;
@@ -1852,13 +1852,16 @@ function textoAuditoria(t, email = false) {
       L.push(`• ${ct(c)} — ${brl(c.valor_frete)}`, `   A NF também consta no(s) CT-e(s) ${a.outros.join(', ')}. Podem confirmar e cancelar o que estiver em duplicidade?`); });
   }
   if (habituais.length) {
-    L.push('', b(`${++n}) Valores acima do habitual — podem nos explicar ou rever?`));
-    habituais.forEach(({ c, a }) => L.push(`• ${ct(c)}: cobrado ${brl(c.valor_frete)}${num(c.valor_nfe) ? ` (${pctFmt(num(c.valor_frete) / num(c.valor_nfe))} da NF)` : ''}; o habitual de vocês para essa carga/rota fica perto de ${brl(a.esperado)}${a.pctUsual ? ` (${pctFmt(a.pctUsual)})` : ''}.`));
+    L.push('', b(`${++n}) Valores acima do habitual — pedimos a revisão para o valor habitual`));
+    habituais.forEach(({ c, a }) => { const cob = num(c.valor_frete), certo = num(a.esperado), d = Math.max(0, cob - certo); tHab += d;
+      L.push(`• ${ct(c)}`, `   Cobrado: ${brl(cob)}${num(c.valor_nfe) ? ` (${pctFmt(cob / num(c.valor_nfe))} da NF)` : ''}  →  Desconto: ${b(brl(d))}  →  Valor com desconto: ${b(brl(certo))}${a.pctUsual ? ` (${pctFmt(a.pctUsual)}, o habitual de vocês nessa rota)` : ' (o habitual de vocês para essa carga/rota)'}`); });
+    L.push(`   Subtotal de desconto: ${b(brl(tHab))}`);
   }
   L.push('', b('Resumo:'));
-  if (tDesc) L.push(`• Desconto solicitado: ${b(brl(tDesc))}`);
+  if (tDesc) L.push(`• Desconto pelo combinado: ${b(brl(tDesc))}`);
+  if (tHab) L.push(`• Desconto pelo habitual: ${b(brl(tHab))}`);
+  if (tDesc && tHab) L.push(`• Desconto total solicitado: ${b(brl(tDesc + tHab))}`);
   if (tDobro) L.push(`• CT-es em possível duplicidade: ${brl(tDobro)}`);
-  if (habituais.length) L.push(`• ${habituais.length} CT-e(s) para análise`);
   L.push('', 'Podem nos retornar com o CT-e substituto ou o abatimento na próxima fatura?', '', email ? 'Atenciosamente,' : 'Obrigado!', assinaturaGF());
   return { texto: L.join('\n'), tr, n: itens.length, tDesc, tDobro };
 }
