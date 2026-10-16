@@ -799,7 +799,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-15.19';
+const VERSAO = '2026-10-15.20';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -3243,13 +3243,23 @@ function abrirSiteDireto(url, nome, copias) {
   if (!w) toast(`O navegador bloqueou a aba. Libere pop-ups deste site ou abra: ${url}`, 'err');
 }
 const SITE_RASTREIO = nome => ehGollog(nome) ? 'https://servicos.gollog.com.br/app/site/tracking' : rastreioSiteDe(nome)?.url || 'https://ssw.inf.br/2/rastreamento?';
+// Link para o cliente: no SSW abre direto o resultado da NF (GET em resultSSW / resultSSW_dest_nro);
+// Gollog, Azul e Brix não têm link direto — vai o site + o número para digitar.
+function linkRastreioCliente(c) {
+  if (ehGollog(c.transportadora) || /AZUL/i.test(c.transportadora || '')) return `${SITE_RASTREIO(c.transportadora)} — nº do conhecimento ${c.numero_cte}`;
+  if (rastreioSiteDe(c.transportadora)) return `${SITE_RASTREIO(c.transportadora)} — NF ${c.numero_nfe || '—'}`;
+  const t = tentativasRastreio(c)[0];
+  if (!t) return SITE_RASTREIO(c.transportadora);
+  const nr = encodeURIComponent(t.nfs.join('\n'));
+  return t.tipo === 'dest' ? `https://ssw.inf.br/2/resultSSW_dest_nro?cnpjdest=${t.cnpj}&NR=${nr}` : `https://ssw.inf.br/2/resultSSW?cnpj=${t.cnpj}&NR=${nr}`;
+}
 window.avisarCliente = id => {
   const c = data.cte.find(x => x.id === id); if (!c) return;
   const prev = previsaoEntrega(c);
   const t = [`Olá! Aqui é da GF Medical ${FILIAL_LABEL}.`,
     c.status_entrega === 'Entregue' ? `Sua mercadoria${c.numero_nfe ? ` (NF ${c.numero_nfe})` : ''} foi entregue${c.data_entrega ? ' em ' + dataBR(c.data_entrega) : ''}.`
       : `Sua mercadoria${c.numero_nfe ? ` (NF ${c.numero_nfe})` : ''} foi despachada${c.data_emissao ? ' em ' + dataBR(c.data_emissao) : ''} pela ${c.transportadora || 'transportadora'}${prev ? `, com previsão de entrega em ${dataBR(prev)}` : ''}.`,
-    `Rastreio: ${SITE_RASTREIO(c.transportadora)}${ehGollog(c.transportadora) || /AZUL/i.test(c.transportadora || '') ? ` — nº ${c.numero_cte}` : c.numero_nfe ? ` — NF ${c.numero_nfe}` : ''}`, 'Qualquer dúvida, estamos à disposição.'].join('\n');
+    `Rastreio: ${linkRastreioCliente(c)}`, 'Qualquer dúvida, estamos à disposição.'].join('\n');
   navigator.clipboard?.writeText(t).catch(() => {});
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(t), '_blank');
 };
