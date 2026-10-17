@@ -1,0 +1,63 @@
+-- ═══ Tabela combinada CARVALIMA (origem Cuiabá) — rodar no SQL Editor do projeto de CUIABÁ (gfcuiaba) ═══
+-- Completo: cria as colunas que a tabela usa (se faltarem) e grava as 34 rotas. Pode rodar mais de uma vez.
+alter table public.frete_tabelas
+  add column if not exists cubagem_kg_m3     numeric(8,2),
+  add column if not exists pedagio_valor     numeric(12,2),
+  add column if not exists pedagio_fracao_kg numeric(10,2),
+  add column if not exists gris_pct          numeric(8,4),
+  add column if not exists gris_min          numeric(12,2),
+  add column if not exists coleta_valor      numeric(12,2),
+  add column if not exists icms_modo         text not null default 'incluso',
+  add column if not exists icms_pct          numeric(5,2),
+  add column if not exists vigencia_fim      date,
+  add column if not exists origens           text,
+  add column if not exists destinos          text;
+alter table public.frete_tabelas add column if not exists calculo text not null default 'soma';   -- 'soma' | 'maior'
+alter table public.frete_tabelas add column if not exists adicional_pct numeric(6,3);             -- adicional % por dentro sobre o frete
+delete from public.frete_tabelas where transportadora = 'CARVALIMA' and filial = 'CBA';
+insert into public.frete_tabelas (transportadora, rota, origens, destinos, peso_ate, nf_ate, valor_fixo, valor_kg, pct_nf, frete_minimo, minimo_base, calculo, cubagem_kg_m3,
+  pedagio_valor, pedagio_fracao_kg, gris_pct, gris_min, coleta_valor, adicional_pct, icms_modo, icms_pct, vigencia_inicio, vigencia_fim, observacoes, filial)
+select 'CARVALIMA', v.rota, null, v.destinos, null, null, 1.80, v.kg::numeric, v.pct::numeric, v.minimo::numeric, 'total', 'maior', 300,
+       2.00, 100, 0.5, null, null, 7.516, v.icms, null, '2026-10-16'::date, null, v.obs, 'CBA'
+from (values
+  ('MT - AC CAPITAL', 'RIO BRANCO', 145.51, 3.00, 2.89, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> AC CAPITAL. Cobra o MAIOR entre minimo 145.51, 3.00% da NF e 2.89/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - AC INTERIOR', null, 174.61, 3.46, 3.46, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> AC INTERIOR. Cobra o MAIOR entre minimo 174.61, 3.46% da NF e 3.46/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - AM CAPITAL', 'MANAUS', 187.64, 4.54, 4.47, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> AM CAPITAL. Cobra o MAIOR entre minimo 187.64, 4.54% da NF e 4.47/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - AM INTERIOR', null, 225.17, 4.76, 5.36, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> AM INTERIOR. Cobra o MAIOR entre minimo 225.17, 4.76% da NF e 5.36/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - AP CAPITAL', 'MACAPA', 221.33, 5.25, 5.27, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> AP CAPITAL. Cobra o MAIOR entre minimo 221.33, 5.25% da NF e 5.27/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - AP INTERIOR', null, 265.59, 5.52, 6.32, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> AP INTERIOR. Cobra o MAIOR entre minimo 265.59, 5.52% da NF e 6.32/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - ES CAPITAL', 'VITORIA', 131.86, 3.23, 3.14, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> ES CAPITAL. Cobra o MAIOR entre minimo 131.86, 3.23% da NF e 3.14/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - ES INTERIOR', null, 158.23, 3.39, 3.77, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> ES INTERIOR. Cobra o MAIOR entre minimo 158.23, 3.39% da NF e 3.77/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - GO CAPITAL', 'GOIANIA', 100.11, 2.41, 2.38, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> GO CAPITAL. Cobra o MAIOR entre minimo 100.11, 2.41% da NF e 2.38/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - GO INTERIOR', null, 110.12, 2.53, 2.62, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> GO INTERIOR. Cobra o MAIOR entre minimo 110.12, 2.53% da NF e 2.62/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - MG CAPITAL', 'BELO HORIZONTE', 161.68, 4.12, 3.85, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> MG CAPITAL. Cobra o MAIOR entre minimo 161.68, 4.12% da NF e 3.85/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - MG INTERIOR', null, 177.85, 4.32, 4.23, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> MG INTERIOR. Cobra o MAIOR entre minimo 177.85, 4.32% da NF e 4.23/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - MS CAPITAL', 'CAMPO GRANDE', 78.60, 2.08, 2.25, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> MS CAPITAL. Cobra o MAIOR entre minimo 78.60, 2.08% da NF e 2.25/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - MS INTERIOR', null, 86.46, 2.18, 2.47, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> MS INTERIOR. Cobra o MAIOR entre minimo 86.46, 2.18% da NF e 2.47/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - MT CAPITAL', 'CUIABA, VARZEA GRANDE', 45.71, 0.80, 0.85, 'incluso', 'Tabela Carvalima (origem Cuiaba): MT -> MT CAPITAL. Cobra o MAIOR entre minimo 45.71, 0.80% da NF e 0.85/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS diferido dentro de MT.'),
+  ('MT - MT INTERIOR', null, 50.28, 0.90, 0.99, 'incluso', 'Tabela Carvalima (origem Cuiaba): MT -> MT INTERIOR. Cobra o MAIOR entre minimo 50.28, 0.90% da NF e 0.99/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS diferido dentro de MT.'),
+  ('MT - PA CAPITAL', 'BELEM', 195.37, 4.76, 4.65, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> PA CAPITAL. Cobra o MAIOR entre minimo 195.37, 4.76% da NF e 4.65/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - PA INTERIOR', null, 214.90, 5.00, 5.12, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> PA INTERIOR. Cobra o MAIOR entre minimo 214.90, 5.00% da NF e 5.12/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - PR CAPITAL', 'CURITIBA', 150.11, 3.56, 3.57, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> PR CAPITAL. Cobra o MAIOR entre minimo 150.11, 3.56% da NF e 3.57/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - PR INTERIOR', null, 165.12, 3.73, 3.93, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> PR INTERIOR. Cobra o MAIOR entre minimo 165.12, 3.73% da NF e 3.93/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - RJ CAPITAL', 'RIO DE JANEIRO', 157.82, 3.92, 3.76, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> RJ CAPITAL. Cobra o MAIOR entre minimo 157.82, 3.92% da NF e 3.76/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - RJ INTERIOR', null, 173.60, 4.12, 4.13, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> RJ INTERIOR. Cobra o MAIOR entre minimo 173.60, 4.12% da NF e 4.13/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - RO CAPITAL', 'PORTO VELHO', 100.21, 2.10, 1.95, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> RO CAPITAL. Cobra o MAIOR entre minimo 100.21, 2.10% da NF e 1.95/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - RO INTERIOR', null, 120.39, 3.12, 2.42, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> RO INTERIOR. Cobra o MAIOR entre minimo 120.39, 3.12% da NF e 2.42/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - RR CAPITAL', 'BOA VISTA', 239.58, 5.52, 5.70, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> RR CAPITAL. Cobra o MAIOR entre minimo 239.58, 5.52% da NF e 5.70/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - RR INTERIOR', null, 263.54, 5.79, 6.27, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> RR INTERIOR. Cobra o MAIOR entre minimo 263.54, 5.79% da NF e 6.27/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - RS CAPITAL', 'PORTO ALEGRE', 179.93, 4.32, 4.28, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> RS CAPITAL. Cobra o MAIOR entre minimo 179.93, 4.32% da NF e 4.28/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - RS INTERIOR', null, 197.92, 4.54, 4.71, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> RS INTERIOR. Cobra o MAIOR entre minimo 197.92, 4.54% da NF e 4.71/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - SC CAPITAL', 'FLORIANOPOLIS', 179.93, 4.32, 4.28, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> SC CAPITAL. Cobra o MAIOR entre minimo 179.93, 4.32% da NF e 4.28/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - SC INTERIOR', null, 197.92, 4.54, 4.71, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> SC INTERIOR. Cobra o MAIOR entre minimo 197.92, 4.54% da NF e 4.71/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - SP CAPITAL', 'SAO PAULO', 146.26, 3.39, 3.48, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> SP CAPITAL. Cobra o MAIOR entre minimo 146.26, 3.39% da NF e 3.48/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - SP INTERIOR', null, 160.88, 3.56, 3.83, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> SP INTERIOR. Cobra o MAIOR entre minimo 160.88, 3.56% da NF e 3.83/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - TO CAPITAL', 'PALMAS', 161.68, 4.12, 3.85, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> TO CAPITAL. Cobra o MAIOR entre minimo 161.68, 4.12% da NF e 3.85/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.'),
+  ('MT - TO INTERIOR', null, 177.85, 4.32, 4.23, 'somar', 'Tabela Carvalima (origem Cuiaba): MT -> TO INTERIOR. Cobra o MAIOR entre minimo 177.85, 4.32% da NF e 4.23/kg; + TAS 1,80; GRIS 0,5%; pedagio 2,00/100kg; adicional 7,52% (ADIC FRETE do CT-e); ICMS somado pela rota.')
+) v(rota, destinos, minimo, pct, kg, icms, obs);
+insert into public.frete_transportadoras (nome, modal, observacoes, filial)
+select 'CARVALIMA', 'Rodoviário', 'CARVALIMA TRANSPORTES LTDA', 'CBA'
+where not exists (select 1 from public.frete_transportadoras t where t.filial = 'CBA' and upper(t.nome) = 'CARVALIMA');
+notify pgrst, 'reload schema';
+
+select count(*) as linhas, count(*) filter (where destinos is not null) as capitais from public.frete_tabelas where transportadora = 'CARVALIMA' and filial = 'CBA';
