@@ -291,6 +291,21 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 .calc-melhor{font-family:var(--mono);font-size:0.56rem;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--accent);color:white;letter-spacing:0.05em}
 @media(max-width:860px){.calc-grid{grid-template-columns:1fr}}
 .modal.modal-lg{max-width:1200px}
+.par-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.par-box{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface)}
+.par-box label{font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.par-box input{width:76px;display:inline-block}
+.par-box .par-help{font-size:12px;color:var(--text-muted,#5b6b62);margin-top:6px;line-height:1.45}
+.par-presets{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.par-ex{border-radius:10px;padding:10px 12px;background:rgba(30,130,76,0.07);line-height:1.6;font-size:13px;margin-bottom:10px}
+.par-warn{border-radius:10px;padding:8px 12px;background:rgba(220,140,20,0.12);color:#8a5200;font-size:13px;margin-bottom:6px}
+.par-fabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px;margin-top:8px}
+.par-fabs label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px}
+.par-fabs input{width:64px}
+.lote{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--border);font-size:12.5px}
+.lote:last-child{border-bottom:0}
+.lote-tipo{font-weight:700;margin-top:10px}
+@media(max-width:900px){.par-grid{grid-template-columns:1fr}}
 .lote-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:0.76rem;color:var(--text2)}
 .lote-acts{margin-left:auto;display:flex;gap:6px}
 #tb-lote td{padding:7px 8px}
@@ -419,15 +434,31 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 
       <section class="view" id="view-programacao">
         <div class="stats-bar" id="prog-stats"></div>
-        <div class="dcard" style="margin-bottom:14px"><div class="dcard-head">⚙ Parâmetros da filial <small>valem para todos os produtos</small></div><div class="dcard-body">
-          <div class="filters" style="margin-bottom:8px">
-            <label class="td-mono">Prazo de entrega do fornecedor <input class="finput" id="p-prazo" type="number" min="0" step="1" style="width:70px;display:inline-block"> dias</label>
-            <label class="td-mono">Segurança <input class="finput" id="p-seg" type="number" min="0" step="1" style="width:70px;display:inline-block"> dias</label>
-            <label class="td-mono">Comprar para cobrir <input class="finput" id="p-cob" type="number" min="1" step="1" style="width:70px;display:inline-block"> dias</label>
-            <button class="tbtn tbtn-p" onclick="salvarParametros()">💾 Salvar parâmetros</button>
+        <div class="dcard" style="margin-bottom:14px"><div class="dcard-head">⚙ Parâmetros da filial <small>quando comprar e quanto comprar</small></div><div class="dcard-body">
+          <div class="par-presets"><span class="td-mono">Atalhos:</span>
+            <button class="fchip" onclick="presetParametros(7, 30)" title="Segurança 7 dias · cobre 30 dias">🪶 Enxuto</button>
+            <button class="fchip" onclick="presetParametros(15, 60)" title="Segurança 15 dias · cobre 60 dias">⚖ Equilibrado</button>
+            <button class="fchip" onclick="presetParametros(30, 90)" title="Segurança 30 dias · cobre 90 dias">🛡 Seguro (OPME)</button>
+            <span class="td-mono" style="opacity:.75">o prazo de entrega não muda</span>
+          </div>
+          <div class="par-grid">
+            <div class="par-box"><label>🚚 Prazo de entrega <input class="finput" id="p-prazo" type="number" min="0" step="1" oninput="previewParametros()"> dias</label>
+              <div class="par-help">Quantos dias o fornecedor leva entre o pedido e a mercadoria chegar. Dá para ajustar por fabricante logo abaixo.</div></div>
+            <div class="par-box"><label>🛟 Segurança <input class="finput" id="p-seg" type="number" min="0" step="1" oninput="previewParametros()"> dias</label>
+              <div class="par-help">Folga para atraso do fornecedor ou cirurgia a mais. É o estoque que deve sobrar quando o pedido chega.</div></div>
+            <div class="par-box"><label>📦 Comprar para cobrir <input class="finput" id="p-cob" type="number" min="1" step="1" oninput="previewParametros()"> dias</label>
+              <div class="par-help">Quando comprar, levar o suficiente para quantos dias de consumo depois da entrega. Precisa ser maior que a segurança.</div></div>
+          </div>
+          <div id="p-exemplo"></div>
+          <details style="margin:6px 0 10px"><summary class="td-mono" style="cursor:pointer">🏭 Prazo de entrega por fabricante <span id="p-fabs-n"></span></summary>
+            <div class="td-mono" style="white-space:normal;margin-top:6px;opacity:.8">Deixe em branco para usar o prazo geral.</div>
+            <div class="par-fabs" id="p-fabs"></div>
+          </details>
+          <div class="filters" style="margin-bottom:6px">
+            <button class="tbtn tbtn-p" onclick="salvarParametros()">💾 Salvar e recalcular</button>
             <label class="td-mono" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="p-pend" checked onchange="render()"> Somar o pendente de faturamento (C723) ao consumo</label>
           </div>
-          <div class="td-mono" style="white-space:normal;line-height:1.6">Ponto de pedido = consumo por dia × (prazo + segurança). Abaixo dele → <b>Comprar agora</b>. Sugestão = consumo por dia × (prazo + cobertura) − Estoque Disp. Consumo médio = coluna MÉDIA do C1060.</div>
+          <div class="td-mono" style="white-space:normal;line-height:1.6;opacity:.8">Ponto de pedido = consumo por dia × (prazo + segurança): chegou nele → <b>Comprar agora</b>. Quantidade sugerida = consumo por dia × (prazo + cobertura) − Estoque Disp. Consumo médio = MÉDIA do C1060 (+ pendente do C723, se marcado).</div>
         </div></div>
         <div class="dcard" style="margin-bottom:14px"><div class="dcard-head">🔎 Filtros</div><div class="dcard-body"><div class="filters" style="margin-bottom:0">
           <button class="fchip on" data-prog="comprar">🛒 Comprar agora</button>
@@ -507,6 +538,13 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
   </main>
 </div>
 
+<div id="modal-escolha" class="modal-ov">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="esc-title" style="max-width:560px">
+    <div class="mhead"><span class="mtitle" id="esc-title"></span></div>
+    <div class="mbody"><div id="esc-texto" style="white-space:pre-line;line-height:1.55"></div>
+      <div id="esc-botoes" style="display:flex;flex-direction:column;gap:8px;margin-top:14px"></div></div>
+  </div>
+</div>
 <div id="modal-sql" class="modal-ov">
   <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="sql-title">
     <div class="mhead"><span class="mtitle" id="sql-title">📋 SQL do sistema de compras</span><button class="mclose" onclick="document.getElementById('modal-sql').classList.remove('open')" aria-label="Fechar">✕</button></div>
@@ -532,7 +570,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-16.10';
+const VERSAO = '2026-10-16.11';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente' };
 
 const $ = id => document.getElementById(id);
@@ -586,7 +624,7 @@ auth.onAuthStateChange((_e, session) => {
 
 // ───────── Dados ─────────
 const data = { est: [], cons: [], imp: [], cmo: [], pen: [] };
-let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60 };
+let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60, prazos_fabricante: {} };
 let _bancoOk = true;
 async function selectTudo(tabela) {
   const out = [];
@@ -610,15 +648,55 @@ async function carregarTudo() {
     console.warn('[Compras]', e.message);
   }
   avisoBanco(); montarClientes();
-  $('p-prazo').value = cfg.prazo_dias; $('p-seg').value = cfg.seguranca_dias; $('p-cob').value = cfg.cobertura_dias;
+  if (!cfg.prazos_fabricante || typeof cfg.prazos_fabricante !== 'object') cfg.prazos_fabricante = {};
+  montarParametros();
   render();
 }
-window.salvarParametros = async () => {
+// Prazo de entrega do produto: o do fabricante (se cadastrado) ou o geral
+const prazoDe = fab => { const v = fab ? cfg.prazos_fabricante?.[norm(fab)] : null; return v != null && v !== '' ? num(v) : cfg.prazo_dias; };
+function lerParametrosTela() {
   const v = id => Math.max(0, Math.round(num($(id).value)));
-  cfg = { prazo_dias: v('p-prazo'), seguranca_dias: v('p-seg'), cobertura_dias: Math.max(1, v('p-cob')) };
-  render();
+  const prazos = {};
+  document.querySelectorAll('#p-fabs input[data-fab]').forEach(i => { if (i.value.trim() !== '') prazos[i.dataset.fab] = Math.max(0, Math.round(num(i.value))); });
+  return { prazo_dias: v('p-prazo'), seguranca_dias: v('p-seg'), cobertura_dias: Math.max(1, v('p-cob')), prazos_fabricante: prazos };
+}
+function montarParametros() {
+  $('p-prazo').value = cfg.prazo_dias; $('p-seg').value = cfg.seguranca_dias; $('p-cob').value = cfg.cobertura_dias;
+  const fabs = [...new Set([...data.est, ...data.cmo, ...data.pen, ...data.cons].map(r => r.fabricante).filter(Boolean).map(f => String(f).trim()))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const n = Object.keys(cfg.prazos_fabricante || {}).length;
+  $('p-fabs-n').textContent = fabs.length ? `(${fabs.length} fabricante(s)${n ? ` · ${n} com prazo próprio` : ''})` : '';
+  $('p-fabs').innerHTML = fabs.length ? fabs.map(f => { const v = cfg.prazos_fabricante?.[norm(f)];
+    return `<label>${esc(f)} <span><input class="finput" type="number" min="0" step="1" data-fab="${esc(norm(f))}" value="${v ?? ''}" placeholder="${cfg.prazo_dias}" oninput="previewParametros()"> dias</span></label>`; }).join('')
+    : '<div class="td-mono" style="opacity:.7">Nenhum fabricante ainda: importe os PDFs filtrados por fabricante (S013/C1060/C723).</div>';
+  previewParametros();
+}
+// Exemplo ao vivo com os números digitados + avisos de combinação estranha
+window.previewParametros = () => {
+  const c = lerParametrosTela(), P = c.prazo_dias, S = c.seguranca_dias, C = c.cobertura_dias, lote = C - S;
+  const avisos = [];
+  if (C <= S) avisos.push(`A cobertura (${C}) precisa ser MAIOR que a segurança (${S}). Do jeito que está, o sistema pede quase nada toda vez que o estoque encosta no ponto — vira compra picada, toda semana.`);
+  else if (lote < 15) avisos.push(`Cada pedido cobre só ~${lote} dias além da segurança: vai pedir com muita frequência. Aumente "comprar para cobrir" ou diminua a segurança.`);
+  if (S > 60) avisos.push(`Segurança de ${S} dias deixa muito dinheiro parado em estoque. Para OPME costuma bastar 15 a 30 dias.`);
+  if (P === 0) avisos.push('Prazo de entrega 0: o sistema vai supor que a mercadoria chega no mesmo dia do pedido.');
+  if (C > 180) avisos.push(`Cobrir ${C} dias é mais de 6 meses de consumo por compra.`);
+  const dPedido = P + S, estMedio = S + Math.max(lote, 0) / 2;
+  $('p-exemplo').innerHTML = `<div class="par-ex">📘 <b>Exemplo:</b> produto que sai <b>30 por mês</b> (1 por dia).<br>
+    • O sistema avisa <b>Comprar agora</b> quando o estoque disponível cair para <b>${dPedido} un</b> (${P} dias esperando a entrega + ${S} de folga).<br>
+    • Pede <b>${Math.max(lote, 0)} un</b> por vez${lote > 0 ? ` — um pedido a cada ~${lote} dias` : ''}; quando chega, ainda sobram ~${S} un de segurança.<br>
+    • Estoque médio parado: ~<b>${Math.round(estMedio)} dias</b> de consumo.</div>`
+    + avisos.map(a => `<div class="par-warn">⚠ ${a}</div>`).join('');
+};
+window.presetParametros = (seg, cob) => { $('p-seg').value = seg; $('p-cob').value = cob; previewParametros(); toast('Atalho aplicado na tela — clique em 💾 Salvar e recalcular.', 'info'); };
+window.salvarParametros = async () => {
+  cfg = lerParametrosTela();
+  render(); previewParametros();
   if (_readOnly) { toast('Parâmetros aplicados só nesta tela (usuário de visualização).', 'info'); return; }
-  const { error } = await supabase.from(T.cfg).upsert({ filial: FILIAL, ...cfg, atualizado_em: new Date().toISOString() });
+  const linha = { filial: FILIAL, ...cfg, atualizado_em: new Date().toISOString() };
+  let { error } = await supabase.from(T.cfg).upsert(linha);
+  if (error && /prazos_fabricante/i.test(error.message || '')) {
+    ({ error } = await supabase.from(T.cfg).upsert((({ prazos_fabricante, ...x }) => x)(linha)));
+    if (!error) { toast('Salvo, mas sem o prazo por fabricante: rode o SQL de atualização (coluna prazos_fabricante).', 'info'); return; }
+  }
   toast(error ? 'Não salvou no banco: ' + error.message : '✔ Parâmetros salvos para ' + BR.label, error ? 'err' : 'ok');
 };
 
@@ -640,12 +718,13 @@ function programacao() {
     const e = est.get(k), c = cmo.get(k), pd = pm.get(k), mediaFat = num(c?.media), pendAno = somaPend ? num(pd?.ano) : 0;
     const nMeses = mediaFat > 0 ? Math.max(1, Math.round(num(c.total) / mediaFat)) : mesAtual;
     const media = (mediaFat * (mediaFat > 0 ? nMeses : 0) + pendAno) / nMeses, disp = num(e?.estoque_disp), dia = media / 30;
-    const ponto = dia * (cfg.prazo_dias + cfg.seguranca_dias), cobertura = dia > 0 ? disp / dia : null;
-    const sugerido = dia > 0 ? Math.max(0, Math.ceil(dia * (cfg.prazo_dias + cfg.cobertura_dias) - disp)) : 0;
+    const fab = e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || '', prazo = prazoDe(fab);
+    const ponto = dia * (prazo + cfg.seguranca_dias), cobertura = dia > 0 ? disp / dia : null;
+    const sugerido = dia > 0 ? Math.max(0, Math.ceil(dia * (prazo + cfg.cobertura_dias) - disp)) : 0;
     // Ponto de partida é o consumo (venda): sem estoque próprio (fora do S013) conta como estoque ZERO — e vira compra.
-    const situacao = media <= 0 ? 'semconsumo' : disp <= ponto ? 'comprar' : cobertura < cfg.prazo_dias + cfg.seguranca_dias + 15 ? 'atencao' : 'ok';
+    const situacao = media <= 0 ? 'semconsumo' : disp <= ponto ? 'comprar' : cobertura < prazo + cfg.seguranca_dias + 15 ? 'atencao' : 'ok';
     return { codigo: e?.codigo || c?.codigo, descricao: e?.descricao || c?.descricao, disp, fisico: num(e?.estoque), media, total: num(c?.total), meses: c?.meses || [], ponto, cobertura,
-      sugerido, situacao, preco: num(e?.ultimo_preco), unidade: e?.unidade || '', consignado: cm.get(k)?.saldo || 0, semEstoqueCadastro: !e, fabricante: e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || '',
+      sugerido, situacao, preco: num(e?.ultimo_preco), unidade: e?.unidade || '', consignado: cm.get(k)?.saldo || 0, semEstoqueCadastro: !e, fabricante: fab, prazo,
       mediaFat, pendAno: num(pd?.ano), pendAntigo: num(pd?.antigo), nMeses, codigo: e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt, descricao: e?.descricao || c?.descricao || pd?.linhas[0]?.produto };
   });
 }
@@ -728,7 +807,9 @@ function renderProgramacao() {
   const todos = programacaoFab(), lista = listaProgramacao(), iC = ultImp('C1060');
   const comprar = todos.filter(r => r.situacao === 'comprar');
   $('nb-prog').textContent = comprar.length;
-  $('prog-info').textContent = iC ? `C1060 importado em ${dataHoraBR(iC.importado_em)}` : '';
+  const iE = ultImp('S013'), iP = ultImp('C723');
+  $('prog-info').innerHTML = [iE && `S013 ${dataHoraBR(iE.importado_em)}`, iC && `C1060 ${dataHoraBR(iC.importado_em)}`, iP && `C723 ${dataHoraBR(iP.importado_em)}`].filter(Boolean).join(' · ')
+    + (ui.fab ? ` · <b>filtro: ${esc(ui.fab)}</b> <button class="tbtn" onclick="filtrarFabricante('')">ver todos</button>` : '');
   const valor = comprar.reduce((a, r) => a + qtdComprar(r) * r.preco, 0);
   $('prog-stats').innerHTML = statCard('Comprar agora', comprar.length, 'no ponto de pedido ou abaixo', comprar.length ? 'crit' : '')
     + statCard('Valor sugerido', brl(valor), 'quantidade sugerida × último preço', 'info')
@@ -764,6 +845,42 @@ window.listaCompraWhatsApp = () => {
 function statCard(lbl, val, sub, cls = '') { return `<div class="stat-card ${cls}"><div class="stat-lbl">${lbl}</div><div class="stat-val">${val}</div><div class="stat-sub">${sub}</div></div>`; }
 const abaixoMin = r => num(r.est_minimo) > 0 && num(r.estoque_disp) < num(r.est_minimo);
 
+// Escolha com vários botões (Promise com a chave escolhida; null = cancelar)
+function escolher(titulo, texto, opcoes) {
+  return new Promise(res => {
+    $('esc-title').textContent = titulo; $('esc-texto').textContent = texto;
+    $('esc-botoes').innerHTML = '';
+    opcoes.forEach(([k, rot, cls]) => { const b = document.createElement('button'); b.className = 'tbtn ' + (cls || ''); b.style.textAlign = 'left'; b.textContent = rot;
+      b.onclick = () => { $('modal-escolha').classList.remove('open'); res(k); }; $('esc-botoes').appendChild(b); });
+    $('modal-escolha').classList.add('open');
+  });
+}
+// Linhas de cada relatório agrupadas pela importação que as gravou (mesmo importado_em)
+const LOTE_TAB = { S013: ['est', 'produto(s)'], C1060: ['cmo', 'produto(s)'], C457: ['cons', 'remessa(s)'], C723: ['pen', 'item(ns)'] };
+function lotes(tipo) {
+  const m = new Map();
+  data[LOTE_TAB[tipo][0]].forEach(r => { const k = r.importado_em || ''; m.set(k, (m.get(k) || 0) + 1); });
+  return [...m].map(([ts, n]) => { const t = new Date(ts).getTime();
+    const dif = i => Math.abs(new Date(i.importado_em).getTime() - t);
+    const imp = data.imp.filter(i => i.tipo === tipo && dif(i) < 60000).sort((x, y) => dif(x) - dif(y))[0];
+    return { ts, n, arquivo: imp?.arquivo || '' }; }).sort((a, b) => b.ts.localeCompare(a.ts));
+}
+function lotesHTML(tipo, nome) {
+  const ls = lotes(tipo);
+  if (!ls.length) return `<div class="lote-tipo">${nome}</div><div class="lote"><span class="td-mono" style="opacity:.7">nada importado ainda</span></div>`;
+  return `<div class="lote-tipo">${nome} <small class="td-mono" style="font-weight:400">${ls.reduce((a, l) => a + l.n, 0)} ${LOTE_TAB[tipo][1]}${ls.length > 1 ? ` de ${ls.length} importações somadas` : ''}</small></div>`
+    + ls.map((l, i) => `<div class="lote"><span class="td-mono">${i === 0 ? '🆕' : '🕘'} ${dataHoraBR(l.ts)} · ${l.n} ${LOTE_TAB[tipo][1]}${l.arquivo ? ' · ' + esc(l.arquivo) : ''}</span>${ls.length > 1 && !_readOnly ? `<button class="tbtn" title="Apagar só as linhas desta importação" onclick="removerLote('${tipo}','${esc(l.ts)}')">🗑</button>` : ''}</div>`).join('');
+}
+window.removerLote = async (tipo, ts) => {
+  const l = lotes(tipo).find(x => x.ts === ts); if (!l) return;
+  if (!confirm(`Apagar as ${l.n} linha(s) da importação de ${dataHoraBR(ts)}${l.arquivo ? ` (${l.arquivo})` : ''}?\n\nAs outras importações continuam.`)) return;
+  const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen }[tipo];
+  const { error } = await supabase.from(tabela).delete().eq('filial', FILIAL).eq('importado_em', ts);
+  if (error) { toast('Não apagou: ' + error.message, 'err'); return; }
+  toast(`✔ ${l.n} linha(s) antigas removidas`);
+  await carregarTudo();
+};
+
 function renderPainel() {
   const est = data.est, cons = consPorProduto(true), iE = ultImp('S013'), iC = ultImp('C457');
   const valorDisp = est.reduce((a, r) => a + num(r.estoque_disp) * num(r.ultimo_preco), 0);
@@ -772,7 +889,7 @@ function renderPainel() {
   const topCli = [...clientes].map(c => ({ c, v: data.cons.filter(r => r.cliente === c).reduce((a, r) => { const q = num(r.quantidade); return a + (q > 0 ? num(r.valor) / q * num(r.saldo) : 0); }, 0) })).sort((a, b) => b.v - a.v).slice(0, 8);
   $('view-painel').innerHTML = `
     <div class="stats-bar">
-      ${statCard('Itens com estoque disponível', est.filter(r => num(r.estoque_disp) > 0).length, `${est.length} produto(s) no S013`)}
+      ${statCard('Itens com estoque disponível', est.filter(r => num(r.estoque_disp) > 0).length, `${est.length} produto(s) no S013${lotes('S013').length > 1 ? ` · ${lotes('S013').length} importações somadas` : ''}`)}
       ${statCard('Valor do estoque disponível', brl(valorDisp), 'Estoque Disp. × último preço', 'info')}
       ${statCard('Abaixo do mínimo', min.length, min.length ? 'precisam de compra' : '✔ nenhum (ou mínimo não definido)', min.length ? 'crit' : '')}
       ${statCard('Em consignação', brl(valorCons), `${cons.length} produto(s) · ${clientes.size} cliente(s)`, 'warn')}
@@ -784,10 +901,9 @@ function renderPainel() {
       <div class="dcard"><div class="dcard-head">🏥 Consignado por cliente <small>valor do saldo</small></div><div class="dcard-body" style="padding:0">
         ${topCli.length ? `<table><thead><tr><th>Cliente</th><th class="num">Valor em consignação</th></tr></thead><tbody>${topCli.map(x => `<tr class="click" onclick="filtrarCliente(${JSON.stringify(x.c).replace(/"/g, '&quot;')})"><td>${esc(x.c)}</td><td class="num">${brl(x.v)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-mini">Importe o C457 para ver o consignado.</div>'}
       </div></div>
-      <div class="dcard"><div class="dcard-head">📥 Última importação</div><div class="dcard-body">
-        <div class="td-mono">S013 (estoque): ${iE ? `${dataHoraBR(iE.importado_em)} · ${iE.linhas} produto(s) · ${esc(iE.arquivo || '')}` : 'nenhuma ainda'}</div>
-        <div class="td-mono" style="margin-top:6px">C457 (consignado): ${iC ? `${dataHoraBR(iC.importado_em)} · ${iC.linhas} linha(s) · ${esc(iC.arquivo || '')}` : 'nenhuma ainda'}</div>
-        <div class="td-mono" style="margin-top:6px">C1060 (consumo): ${(() => { const i = ultImp('C1060'); return i ? `${dataHoraBR(i.importado_em)} · ${i.linhas} produto(s) · ${esc(i.arquivo || '')}` : 'nenhuma ainda'; })()}</div>
+      <div class="dcard"><div class="dcard-head">📥 O que está no banco <small>o painel soma todas as importações abaixo</small></div><div class="dcard-body">
+        ${['S013', 'C1060', 'C457', 'C723'].some(t => lotes(t).length > 1) ? '<div class="par-warn">Há relatórios com mais de uma importação somada (PDF filtrado só atualiza os produtos dele). Se quer o painel só com o PDF novo, apague as importações antigas no 🗑 — ou, ao importar, escolha <b>Substituir TUDO</b>.</div>' : ''}
+        ${lotesHTML('S013', '📦 S013 · estoque')}${lotesHTML('C1060', '📈 C1060 · consumo')}${lotesHTML('C457', '🏥 C457 · consignado')}${lotesHTML('C723', '⏳ C723 · pendente')}
         <button class="tbtn tbtn-p" style="margin-top:10px" onclick="goView('importar')">📥 Importar PDF do Callisto</button>
       </div></div>
       <div class="dcard"><div class="dcard-head">🛒 Comprar agora <small>Estoque Disp. no ponto de pedido ou abaixo</small></div><div class="dcard-body" style="padding:0">
@@ -979,6 +1095,8 @@ function lerC723(paginas) {
 async function importarArquivos(files) {
   if (_readOnly) { toast('Seu usuário é só de visualização.', 'err'); return; }
   if (!_bancoOk) { toast('Rode o SQL do sistema de compras antes de importar.', 'err'); mostrarSql(); return; }
+  // Depois de importar, a programação mostra o que veio nos PDFs: um fabricante só → filtra nele; senão → todos
+  const fabsImp = new Set(); let semFabImp = false;
   for (const file of files) {
     try {
       $('imp-status').textContent = `⏳ Lendo ${file.name}…`;
@@ -1002,13 +1120,19 @@ async function importarArquivos(files) {
         : tipo === 'C457' ? `${rows.length} remessa(s), saldo atual ${qtd(rows.reduce((a, r) => a + num(r.saldo), 0))} unidade(s)`
         : tipo === 'C723' ? `${new Set(rows.map(r => r.pedido)).size} pedido(s), ${rows.length} item(ns), ${qtd(rows.reduce((a, r) => a + num(r.quantidade), 0))} unidade(s), ${brl(rows.reduce((a, r) => a + num(r.valor_total), 0))}`
         : `${rows.length} produto(s), consumo total ${qtd(rows.reduce((a, r) => a + num(r.total), 0))} unidade(s) no ano`;
-      const parcial = (tipo === 'S013' || tipo === 'C723' || tipo === 'C1060') && filtroS013;
-      if (!confirm(parcial ? `${NOMES[tipo]} filtrado por ${filtroS013[1]}: ${filtroS013[2].trim()} (${file.name}):\n${resumo}.\n\nAtualiza SÓ ${tipo === 'C723' ? 'os pendentes desse ' + filtroS013[1].toLowerCase() : 'esses produtos no estoque'} de ${BR.label}; o resto continua como está. Importar?`
-        : `${NOMES[tipo]} de ${file.name}:\n${resumo}.\n\nIsso SUBSTITUI o ${ALVO[tipo]} atual de ${BR.label}. Importar?`)) continue;
+      let parcial = (tipo === 'S013' || tipo === 'C723' || tipo === 'C1060') && filtroS013;
+      if (parcial) {
+        const jaTem = data[{ S013: 'est', C1060: 'cmo', C723: 'pen' }[tipo]].length;
+        const op = await escolher(`📥 ${NOMES[tipo]} filtrado`, `${file.name}\nFiltro: ${filtroS013[1]}: ${filtroS013[2].trim()}\n${resumo}.\n\nO ${ALVO[tipo]} de ${BR.label} já tem ${jaTem} linha(s) de importações anteriores. O que fazer?`, [
+          ['somar', `➕ Atualizar só estes produtos e manter o resto (${jaTem} linha(s) antigas continuam)`, 'tbtn-p'],
+          ['tudo', `🔄 Substituir TUDO: apagar o ${ALVO[tipo]} antigo e ficar só com este PDF`, ''],
+          [null, 'Cancelar', '']]);
+        if (!op) continue;
+        if (op === 'tudo') parcial = null;
+      } else if (!confirm(`${NOMES[tipo]} de ${file.name}:\n${resumo}.\n\nIsso SUBSTITUI o ${ALVO[tipo]} atual de ${BR.label}. Importar?`)) continue;
       const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen }[tipo], agora = new Date().toISOString();
       $('imp-status').textContent = `⏳ Gravando ${rows.length} linha(s)…`;
       if (parcial) {
-        if (fabricante) ui.fab = fabricante;
         // apaga os produtos deste PDF e os que eram deste fabricante (os que sumiram do relatório estão zerados)
         const cods = tipo === 'S013' || tipo === 'C1060' ? rows.map(r => r.codigo) : []; // C723: troca os pendentes do fabricante
         for (let i = 0; i < cods.length; i += 100) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).in('codigo', cods.slice(i, i + 100)); if (d.error) throw d.error; }
@@ -1026,7 +1150,8 @@ async function importarArquivos(files) {
         $('imp-status').textContent = `⏳ Gravando… ${Math.min(i + 500, rows.length)} de ${rows.length}`;
       }
       if (semColunaFab) toast('Gravado sem o fabricante: rode o SQL de atualização (coluna fabricante) para guardar o fabricante de cada item.', 'info');
-      await supabase.from(T.imp).insert({ filial: FILIAL, tipo, arquivo: file.name + (parcial ? ` (${filtroS013[1]}: ${filtroS013[2].trim()})` : ''), linhas: rows.length, usuario: quemSou(), importado_em: agora });
+      await supabase.from(T.imp).insert({ filial: FILIAL, tipo, arquivo: file.name + (filtroS013 ? ` (${filtroS013[1]}: ${filtroS013[2].trim()})` : ''), linhas: rows.length, usuario: quemSou(), importado_em: agora });
+      if (fabricante) fabsImp.add(fabricante); else semFabImp = true;
       $('imp-status').textContent = `✔ ${file.name}: ${resumo}.`;
       toast(`✔ ${tipo} importado: ${resumo}`);
     } catch (e) {
@@ -1037,6 +1162,7 @@ async function importarArquivos(files) {
       } else { $('imp-status').textContent = `✖ ${file.name}: ${e.message || e}`; toast('Erro ao importar: ' + (e.message || e), 'err'); }
     }
   }
+  if (fabsImp.size || semFabImp) { ui.fab = fabsImp.size === 1 && !semFabImp ? [...fabsImp][0] : ''; _qtdEditada = {}; }
   await carregarTudo();
 }
 [$('f-pdf'), $('f-pdf2')].forEach(inp => inp.onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importarArquivos(fs); });

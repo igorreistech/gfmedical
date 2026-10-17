@@ -112,3 +112,7 @@ notify pgrst, 'reload schema';
 alter table public.compras_consumo    add column if not exists fabricante text;
 alter table public.compras_consignado add column if not exists fabricante text;
 notify pgrst, 'reload schema';
+
+-- Prazo de entrega por fabricante (Parâmetros da filial): {"JOTEC BRASIL": 30, ...}; vazio = usa o prazo geral
+alter table public.compras_config add column if not exists prazos_fabricante jsonb not null default '{}';
+notify pgrst, 'reload schema';
