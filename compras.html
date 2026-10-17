@@ -404,7 +404,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
     <div class="sidebar-footer">
       <div class="user-chip">
         <div class="user-avatar" id="user-av">?</div>
-        <div class="user-info"><strong id="user-nm">—</strong><span id="user-filial">—</span></div>
+        <div class="user-info"><strong id="user-nm" onclick="pedirOperador()" style="cursor:pointer">—</strong><span id="user-filial">—</span></div>
         <button class="logout" onclick="doLogout()" title="Sair">⏻</button>
       </div>
       <select class="filial-sel" id="sidebar-filial-sel" aria-label="Filial" onchange="trocarFilial(this.value)" title="Trocar filial"><option value="cgr">🟢 Campo Grande · MS</option><option value="cba">🔵 Cuiabá · MT</option></select>
@@ -566,6 +566,17 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
   </main>
 </div>
 
+<div id="modal-operador" class="modal-ov">
+  <div class="modal" style="max-width:400px" role="dialog" aria-modal="true" aria-labelledby="op-title">
+    <div class="mhead"><span class="mtitle" id="op-title">👤 Quem está operando?</span><button class="mclose" onclick="document.getElementById('modal-operador').classList.remove('open')" aria-label="Fechar">✕</button></div>
+    <div class="mbody">
+      <div class="td-mono" style="margin-bottom:10px;white-space:normal">Esta é uma conta compartilhada. Escolha seu nome — ele aparece nos pedidos de compra ("criado por" / "aprovado por") e nas importações.</div>
+      <select class="finput" id="op-sel" onchange="document.getElementById('op-outro').style.display = this.value === '__outro' ? '' : 'none'"></select>
+      <input class="finput" id="op-outro" placeholder="Seu nome" style="display:none;margin-top:8px">
+    </div>
+    <div class="mfoot"><button class="tbtn tbtn-p" onclick="confirmarOperador()">Confirmar</button></div>
+  </div>
+</div>
 <div id="modal-escolha" class="modal-ov">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="esc-title" style="max-width:560px">
     <div class="mhead"><span class="mtitle" id="esc-title"></span></div>
@@ -598,7 +609,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-16.16';
+const VERSAO = '2026-10-16.17';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos' };
 
 const $ = id => document.getElementById(id);
@@ -630,6 +641,34 @@ window.trocarFilial = code => {
 // ───────── Login (mesma conta do Monitor) ─────────
 let _user = null, _readOnly = false, _operador = null, _role = null;
 const contaCompartilhada = () => /^comercial(mt)?@gfmedical/i.test(_user?.email || '');
+// mesma lista do Controle de Fretes / Monitor
+const OPERADORES = {
+  CBA: ['Beatriz Helena Calil Barbosa', 'Cristina Luzia', 'Izabela Crozetta', 'Kauana da Silva Feitoza', 'Marcio Benedito Queiroz', 'Murilo Julio Sant Ana Pereira', 'Renata Franco de Lima', 'Roberto Alex Cândido', 'Starley Santos Silva', 'Wilson Cordeiro'],
+  CGR: ['Eva Diana de Araujo', 'Gabriely Amorim Dias', 'Gustavo Ovídio Mussi Faverão', 'Igor dos Reis Silva', 'Larissa Amanda Bernardo do Valle', 'Luis Felipe Moura Braga', 'Marcella Fernandes Ricci', 'Marcos Gonçalves da Silva', 'Paulo Vitor Leite da Silva', 'Regiane da Silva Ramos', 'Thayz Benites Leonel', 'Tiago da Silva Siqueira'],
+};
+function mostrarOperador() {
+  const nome = _operador || (_user?.email || '').split('@')[0];
+  $('user-nm').textContent = nome || '—';
+  $('user-av').textContent = (nome || '?').split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase();
+  $('user-nm').title = contaCompartilhada() ? `Conta ${_user?.email} — clique para trocar o operador` : (_user?.email || '');
+}
+window.pedirOperador = () => {
+  if (!contaCompartilhada()) return;
+  const nomes = [...new Set([...(OPERADORES[FILIAL] || []), ...Object.values(OPERADORES).flat()])];
+  $('op-sel').innerHTML = '<option value="">Selecione seu nome</option>' + nomes.map(n => `<option ${n === _operador ? 'selected' : ''}>${esc(n)}</option>`).join('') + '<option value="__outro">✏️ Outro (digitar)</option>';
+  $('op-outro').style.display = 'none'; $('op-outro').value = '';
+  $('modal-operador').classList.add('open');
+};
+window.confirmarOperador = () => {
+  let n = $('op-sel').value;
+  if (n === '__outro') n = $('op-outro').value.trim();
+  if (!n) { $('op-sel').focus(); return; }
+  _operador = n;
+  try { sessionStorage.setItem('gf_fretes_operador', n); } catch (e) {}
+  mostrarOperador();
+  $('modal-operador').classList.remove('open');
+  toast(`👤 Operando como ${n}`, 'info');
+};
 const quemSou = () => _operador ? `${_operador} (${_user?.email || ''})` : (_user?.email || null);
 window.doLogin = async () => {
   $('l-err').style.display = 'none';
@@ -643,9 +682,11 @@ auth.onAuthStateChange((_e, session) => {
   _user = u;
   if (!u) { $('login-screen').style.display = 'flex'; $('app-root').style.display = 'none'; return; }
   $('login-screen').style.display = 'none'; $('app-root').style.display = 'flex';
+  _operador = null;
   try { _operador = contaCompartilhada() ? (sessionStorage.getItem('gf_fretes_operador') || sessionStorage.getItem('_nomeComercialCGR')) : null; } catch (e) {}
-  const nome = _operador || (u.email || '').split('@')[0];
-  $('user-nm').textContent = nome; $('user-av').textContent = nome.split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase();
+  // conta compartilhada (comercial@ / comercialmt@): pergunta quem está operando ao entrar
+  if (contaCompartilhada() && !_operador) setTimeout(pedirOperador, 300);
+  mostrarOperador();
   supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => { _role = p?.role || null; _readOnly = p?.role === 'visualizacao'; document.body.classList.toggle('readonly', _readOnly); if (ui.view === 'pedidos') render(); });
   carregarTudo();
 });
@@ -654,6 +695,8 @@ auth.onAuthStateChange((_e, session) => {
 const data = { est: [], cons: [], imp: [], cmo: [], pen: [], ped: [], pedOk: false, raw: {}, reut: { est: 0, cmo: 0, pen: 0 } };
 // Merit · Coronária: quantidade por caixa — a compra sai em caixa fechada (arredonda para cima). No Callisto o código vem sem o "/BR".
 const CAIXAS_MERIT = {"RR811": 10, "RT913": 1, "RBX": 1, "AD18T71W": 25, "AD18T71WS": 25, "AD21T41W": 25, "PSI-4F-7-018": 5, "PSI-4F-11-018": 5, "PSI-5F-7-018": 5, "PSI-6F-7-018": 5, "PSI-5F-23-035": 5, "PSI-4F-11-035": 5, "PSI-5F-11-035": 5, "PSI-6F-11-035": 5, "PSI-6F-23-035": 5, "PSI-7F-23-035": 5, "PSI-7F-11-035": 5, "PSI-8F-11-035": 5, "7529-11/BR": 10, "7509-11/BR": 10, "7531-13/BR": 5, "7521-13/BR": 5, "7501-13/BR": 5, "7521-21/BR": 10, "7523-13/BR": 5, "7503-13/BR": 5, "7523-21/BR": 10, "7533-13/BR": 5, "7533-23/BR": 5, "7710-20": 5, "5576-33": 5, "7527-13": 5, "7507-13": 5, "7527-23": 5, "7507-23": 5, "7527-33": 5, "7507-33": 5, "7703-20": 5, "7528-13": 5, "7528-23": 5, "7508-23": 5, "7528-33": 5, "7508-33": 5, "7706-10": 5, "7511-13": 5, "7700-10": 5, "7700-20": 5, "7501-21": 10, "7521-F1": 10, "7501-H1": 10, "7521-33": 5, "7501-33": 5, "7521-43": 5, "7501-43": 5, "7701-10": 5, "7523-53": 5, "7701-20": 5, "7523-63": 5, "7503-21": 10, "7503-33": 5, "7523-33": 5, "7534-13": 5, "7708-10": 5, "7513-B3": 5, "7513-C3": 5, "7708-20": 5, "7513-23": 5, "7513-53": 5, "7533-33": 5, "7529-23": 5, "7529-33": 5, "7704-10": 5, "7704-70": 5, "7529-43": 5, "7776-11": 10, "510038ULT1": 5, "5100381ULT1": 5, "5100381ULT2": 5, "6100381ULT1": 5, "5592-13": 5, "5575-13": 5, "5594-13": 5, "5576-13": 5, "7717-20": 5, "7717-B0": 5, "5592-A3": 5, "7718-10": 5, "5592-B3": 5, "5584-D3": 5, "5584-A3": 5, "5584-B3": 5, "5584-53": 10, "5584-E3": 5, "5584-63": 5, "5584-43": 5, "5575-A3": 5, "5582-43": 5, "7602-41": 10, "5587-13": 5, "5576-A3": 5, "5576-23": 5, "7720-20": 5, "5576-B3": 5, "5576-C3": 5, "7673-21": 10, "5583-A3": 5, "5583-13": 5, "5585-B3": 5, "7602-20M": 1, "5587-A3": 5, "5584-13": 5, "EZ-REG": 5, "TD500": 10, "HPF480K": 25, "HPF300K": 25, "MSWSTDA35150": 5, "MSWSTDA35180": 5, "MSWSTDA35260EX": 5, "MSWSTFA35180": 5, "MSWSTFA35260EX": 5, "6680-23": 5, "IQ35F180J3": 10, "6682-21": 10, "IQ35F150J3": 10, "IQ35F150S": 10, "IQ35F260S": 10, "IQ38F150S": 10, "IQ35F260J3": 10, "IN7130": 5, "PSI-5F-11-035-18G/BR": 5, "PSI-6F-11-035-18G/BR": 5, "PSI-7F-11-035-18G/BR": 5, "PSI-8F-11-035-18G/BR": 5, "PSI-5F-11-018/BR": 5, "PSI-6F-11-018/BR": 5, "IN4530": 10, "IN4130": 10, "EN2006020": 1, "EN2007045": 1, "EN2006010": 1, "EN2006015": 1, "EN1003004": 1, "EN1003008": 1, "203HN-R": 25, "503HF-R": 25, "503HN-R": 25, "MSS111-LB": 25, "MSS121-LB": 25, "H1FLC": 50, "H3FLC": 50, "RB050": 1, "MAP351": 25, "MAP152": 25, "MAP222": 25};
+// Merit · segunda tabela (lote mínimo e múltiplo = caixa)
+Object.assign(CAIXAS_MERIT, {"S120GH": 5, "S220GH": 5, "S420GH": 5, "S620GH": 5, "S820GH": 5, "S1020GH": 5, "V100EP": 5, "V200EP": 5, "V300EP": 5, "V400EP": 5, "V600EP": 5, "V800EP": 5, "V125HS": 1, "V225HS": 1, "V325HS": 1, "TF14180S": 1, "TF14180A": 1, "28MC21150SN": 1, "28MC21150ST": 1, "29MC29130ST": 1, "29MC29150ST": 1, "28MC28150ST": 1, "28MC24130SN": 1, "28MC24150SN": 1, "28MC28150SN": 1, "29MC29150SN": 1, "28HC17150SNNS": 1, "28HC17150STNS": 1, "29HC20150SNNS": 1, "29HC20150STNS": 1, "26SN24125ST": 1, "26SN24150ST": 1, "ASAP100": 1, "ASAPLP": 1, "57538CARN10": 5, "57538CARN15": 5, "59038UAC": 5, "412535VER": 5, "510038SIM1": 5, "510038VER": 5, "512535VER": 5, "510038CB2": 5, "512538MPA1": 5, "PV412538MP1": 5, "PV412538U1": 5, "PV512538BERN": 5, "PV512538MP1": 5, "MAK-NV-001": 10, "MAK-NV-013": 10, "MAK-NV-017": 10, "PAKM4NPD7": 5, "RLCMB-NV-10": 1, "RLCMB-NV-12": 1, "RLCMB-NV-14": 1, "RBDC-8-038": 5, "RBDC-10-038": 5, "RBDC-12-038": 5, "RBDC-14-038": 5, "RLC-8-038MB": 5, "RLC-10-038MB": 5, "RLC-12-038MB": 5, "RLC-14-038MB": 5, "RML17-7-038MB": 5, "RML27-10-038MB": 5, "RML27-12-038MB": 5, "RML27-14-038MB": 5, "RML27-8-038MB": 5, "680ME": 25, "FZ624": 20, "OSC-5F-15LT": 5, "IS4-135-10": 5, "IS4-135-20": 5, "IS4-135-30": 5, "IS4-135-40": 5, "IS4-135-50": 5, "IS5-135-10": 5, "IS5-135-20": 5, "IS5-135-30": 5, "IS5-135-40": 5, "IS5-135-50": 5, "SC14150": 5, "SC18150": 5, "SC35150": 5, "SC35135": 5, "ONE1000": 1, "ONE1500": 1, "ONE2000": 1, "ONE2500": 1, "ONE3000": 1, "IQA502": 5, "IQA509": 5, "IQA526": 5, "MSWSTDA18260EX": 5, "MSWSTDS18260EX": 5, "EZ-REG": 5, "65-018-E4S-X": 5, "85-018-E140S-X": 5, "PG5F45S": 1, "PG5F45MP": 1, "PG5F45R": 1, "PG6F45S": 1, "PG6F45HS": 1, "PG6F45MP": 1, "PG6F45R": 1, "PG6F65S": 1, "PG6F65MP": 1, "PG6F65SX": 1, "PG6F90MP": 1, "PG6F90SX": 1, "PG6F90MPX": 1, "PG7F45S": 1, "PG7F45MP": 1, "PG7F45SX": 1, "PG7F45MPX": 1, "PG7F45RX": 1, "PG7F65SX": 1, "PG7F90SX": 1, "PG8F45S": 1, "PG8F45SX": 1, "PG8F45MPX": 1, "PG8F65SX": 1, "PG8F90SX": 1, "HST-085-00": 1, "HST-085-10": 1});
 const chaveCx = c => norm(c).replace(/\/BR$/, '');
 const CAIXAS = new Map(Object.entries(CAIXAS_MERIT).map(([k, v]) => [chaveCx(k), v]));
 const caixaDe = cod => CAIXAS.get(chaveCx(cod || '')) || 1;
