@@ -612,7 +612,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.1';
+const VERSAO = '2026-10-17.2';
 const T = { nf: 'transf_nf', it: 'transf_itens', bx: 'transf_baixas' };
 
 const $ = id => document.getElementById(id);
@@ -995,5 +995,6 @@ window.exportarExcel = () => {
 goView('aberto');
 
 </script>
+<script src="aviso-transferencias.js" defer></script>
 </body>
 </html>
