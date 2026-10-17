@@ -699,7 +699,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.7';
+const VERSAO = '2026-10-17.8';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1149,7 +1149,9 @@ window.excelReserva = () => {
     ['Reserva ideal = consumo do cliente por dia × ' + dias + ' dias.'],
     ['"Passar do Disp." já deixa no estoque o que os outros clientes usam até a próxima compra (prazo + segurança).'],
     ['A compra é a MESMA da Programação de compra — gere o pedido só lá para não duplicar.'],
-    ['Veja a aba "Legenda" para o significado de cada aba e de cada coluna.']];
+    ['Veja a aba "Legenda" para o significado de cada aba e de cada coluna.'],
+    ...(() => { const rv = l.filter(r => r.saldo > 0), se = rv.filter(r => r.semS013).length;
+      return rv.length && (!data.est.length || se / rv.length >= 0.5) ? [[], [`⚠ ATENÇÃO: ${!data.est.length ? 'nenhum S013 (estoque) importado' : `${se} de ${rv.length} produtos reservados não estão no S013 importado`} — o Estoque Disp. sai 0 e "SEPARAR AGORA" fica zerado. Importe o S013 desses produtos e gere de novo.`]] : []; })()];
   const wb = XLSX.utils.book_new();
   const ws0 = XLSX.utils.aoa_to_sheet(resumo); ws0['!cols'] = [{ wch: 52 }, { wch: 10 }, { wch: 10 }, { wch: 16 }];
   XLSX.utils.book_append_sheet(wb, ws0, 'Resumo');
@@ -1226,8 +1228,12 @@ function renderReserva() {
     + statCard('Consumo do cliente / mês', qtd(consTot), cmoCli.length ? `≈ ${brl(consVal)} por mês` : 'importe o C1060 filtrado pelo cliente', cmoCli.length ? '' : 'warn')
     + statCard('Cobertura da reserva', consTot > 0 ? Math.round(tot('saldo') / (consTot / 30)) + ' dias' : '—', `meta: ${cfg.reserva_dias || 30} dias`)
     + statCard('Ajustar reserva', st('abaixo') + st('semreserva'), `${st('semreserva')} sem reserva · ${st('abaixo')} abaixo · ${st('acima')} acima · ${st('parada')} parada(s)`, st('abaixo') + st('semreserva') ? 'warn' : 'ok');
+  const resv = l.filter(r => r.saldo > 0), semEst = resv.filter(r => r.semS013).length;
+  const avisoS013 = resv.length && (!data.est.length || semEst / resv.length >= 0.5)
+    ? `<div class="par-warn" style="grid-column:1/-1;margin-bottom:0">⚠ <b>${!data.est.length ? 'Nenhum S013 (estoque) importado' : `${semEst} de ${resv.length} produtos reservados não estão no S013 importado`}</b> — por isso o Estoque Disp. aparece 0 e "Separar" fica zerado.
+      Importe o <b>S013</b> com os produtos desta reserva (completo ou do mesmo fornecedor) escolhendo <b>➕ Manter</b>.</div>` : '';
   const card = (cls, f, t, n, d) => `<div class="acao ${cls} ${ui.res === f ? 'on' : ''}" onclick="filtroResChip('${f}')"><div class="t">${t}</div><div class="n">${n}</div><div class="d">${d}</div></div>`;
-  $('res-acoes').innerHTML = card('a1', 'falta', '1 · ✋ Separar agora', qtd(l.reduce((a, r) => a + num(r.sepAgora), 0)), `${nF('falta')} produto(s) já reservados no C904 e não separados`)
+  $('res-acoes').innerHTML = avisoS013 + card('a1', 'falta', '1 · ✋ Separar agora', qtd(l.reduce((a, r) => a + num(r.sepAgora), 0)), `${nF('falta')} produto(s) já reservados no C904 e não separados`)
     + card('a2', 'transferir', '2 · 🔁 Passar do Disp. → reserva', qtd(tot('transferir')), `${nF('transferir')} produto(s), sem faltar para os outros clientes`)
     + card('a3', 'comprar', '3 · 🛒 Comprar', qtd(tot('comprar')), `${qtd(tot('comprarReserva'))} p/ reserva · ${qtd(tot('comprarOutros'))} p/ outros — já na Programação`)
     + card('a0', 'semreserva', '❗ Consome sem reserva', st('semreserva'), 'produto(s) que o cliente usa e não estão no C904');
