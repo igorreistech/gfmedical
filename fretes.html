@@ -800,7 +800,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-16.3';
+const VERSAO = '2026-10-16.4';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1002,7 +1002,7 @@ window.doLogin = async () => {
     else carregarDestinoImport();
   }
 };
-window.doLogout = () => { if (IMPORTA_PARA) supaImport.auth.signOut().catch(() => {}); return auth.signOut(); };
+window.doLogout = () => { try { ['gf_fretes_operador', '_nomeComercialCGR'].forEach(k => sessionStorage.removeItem(k)); } catch (e) {} if (IMPORTA_PARA) supaImport.auth.signOut().catch(() => {}); return auth.signOut(); };
 
 // Sessão no destino da importação; sem ela, pede e-mail/senha de lá.
 async function garantirSessaoImport() {
@@ -1104,7 +1104,7 @@ window.confirmarOperador = () => {
   if (n === '__outro') n = $('op-outro').value.trim();
   if (!n) { $('op-sel').focus(); return; }
   _operador = n;
-  try { sessionStorage.setItem('gf_fretes_operador', n); } catch (e) {}
+  try { sessionStorage.setItem('gf_fretes_operador', n); sessionStorage.setItem('_nomeComercialCGR', n); } catch (e) {} // vale para Monitor e Compras também
   mostrarOperador();
   $('modal-operador').classList.remove('open');
   toast(`👤 Operando como ${n}`, 'info');

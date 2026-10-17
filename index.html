@@ -106,6 +106,7 @@
         localStorage.setItem('gf_force_picker', '1');
         sessionStorage.removeItem(brKey('nomeComercial'));
         sessionStorage.removeItem(brKey('comercialModoCompleto'));
+        sessionStorage.removeItem('gf_fretes_operador');
         location.reload();
       };
 
@@ -404,8 +405,26 @@
           if (window._resumoPendente && !_telaDeEntradaAberta()) { window._resumoPendente = false; mostrarResumoInicial(); }
         }).observe(lo, { attributes: true, attributeFilter: ['class'] });
       });
+      // ─── Operador da conta compartilhada (comercial@ / comercialmt@): escolhido UMA vez na entrada do GF Hub
+      // e válido em todos os acessos desta aba (Monitor, Controle de Fretes, Programação de Compras).
+      const _kOpGF = () => window._brKey ? window._brKey('nomeComercial') : '_nomeComercialCGR';
+      window._lerOperadorGF = () => { try { return sessionStorage.getItem(_kOpGF()) || sessionStorage.getItem('gf_fretes_operador') || null; } catch (e) { return null; } };
+      window._gravarOperadorGF = nome => {
+        if (!nome) return; window._operadorNome = nome;
+        try { sessionStorage.setItem(_kOpGF(), nome); sessionStorage.setItem('gf_fretes_operador', nome); sessionStorage.removeItem(window._brKey ? window._brKey('comercialModoCompleto') : '_comercialModoCompleto'); } catch (e) {}
+      };
+      window._limparOperadorGF = () => { try { sessionStorage.removeItem(_kOpGF()); sessionStorage.removeItem('gf_fretes_operador'); } catch (e) {} };
       window._abrirEscolhaDestino = function(email, pass) {
         _credsDestino = { email, pass };
+        // conta compartilhada: escolhe o operador antes de escolher o destino
+        const _emGF = String((typeof email !== 'undefined' && email) || document.getElementById('loginUser')?.value || '').toLowerCase();
+        const _opGF = window._lerOperadorGF();
+        if (/^comercial(mt)?@gfmedical/.test(_emGF) && !_opGF && window.pedirIdentificacaoComercial) {
+          const _ovGF = document.getElementById('identComercialOverlay'); if (_ovGF) _ovGF.style.zIndex = '10001';
+          window.pedirIdentificacaoComercial().then(nome => { if (nome) window._gravarOperadorGF(nome); document.getElementById('destinoOverlay').classList.remove('hidden'); });
+          return;
+        }
+        if (_opGF) window._operadorNome = _opGF;
         document.getElementById('destinoOverlay').classList.remove('hidden');
       };
       window._irPara = async function(destino) {
@@ -472,6 +491,7 @@
         if (confirm('Deseja sair do sistema?')) {
           sessionStorage.removeItem(brKey('nomeComercial'));
           sessionStorage.removeItem(brKey('comercialModoCompleto'));
+          sessionStorage.removeItem('gf_fretes_operador');
           window._isDemoUser = false;
           window._operadorNome = null;
           try { await auth.signOut(); } catch(e) {}
@@ -704,11 +724,11 @@
 
             const fabGroup = document.querySelector('.fab-group');
             if (isComercialUnico) {
-              let nomeOp = sessionStorage.getItem(brKey('nomeComercial'));
+              let nomeOp = window._lerOperadorGF();
               const modoCompleto = sessionStorage.getItem(brKey('comercialModoCompleto')) === '1';
               if (!nomeOp && !modoCompleto) {
                 nomeOp = window.pedirIdentificacaoComercial ? await window.pedirIdentificacaoComercial() : null;
-                if (nomeOp) sessionStorage.setItem(brKey('nomeComercial'), nomeOp);
+                if (nomeOp) window._gravarOperadorGF(nomeOp);
                 else sessionStorage.setItem(brKey('comercialModoCompleto'), '1');
               }
               if (nomeOp) window._operadorNome = nomeOp;
@@ -9403,6 +9423,18 @@ window.pedirIdentificacaoComercial = function() {
     });
 };
 
+// Uma pergunta só: se o login (GF Hub) e o Monitor pedirem o operador ao mesmo tempo, os dois recebem a mesma resposta;
+// e se o operador já foi escolhido nesta aba (em qualquer sistema), não pergunta de novo.
+(function () {
+    const _orig = window.pedirIdentificacaoComercial; let _pend = null;
+    window.pedirIdentificacaoComercial = function () {
+        const op = window._lerOperadorGF && window._lerOperadorGF();
+        if (op) return Promise.resolve(op);
+        if (!_pend) _pend = _orig().then(n => { if (n && window._gravarOperadorGF) window._gravarOperadorGF(n); return n; }).finally(() => { _pend = null; });
+        return _pend;
+    };
+})();
+
 function _precisaNomeOp() {
     if (!window._currentUser) return false;
     if (window._operadorNome) return false;
@@ -9427,6 +9459,7 @@ function selecionarNomeOp(nome) {
     if (!nome) return;
     _resolverNomeOperador(nome, nomeFinal => {
         window._operadorNome = nomeFinal;
+        if (window._gravarOperadorGF) window._gravarOperadorGF(nomeFinal);
         document.getElementById('modalNomeOp').classList.remove('open');
         if (_pendingOpenModal) { _pendingOpenModal(); _pendingOpenModal = null; }
     });

@@ -147,3 +147,28 @@ create policy compras_pedidos_write on public.compras_pedidos for all to authent
   using (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'))
   with check (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'));
 notify pgrst, 'reload schema';
+
+-- Reserva de estoque de segurança para cliente (C904 - Pedidos com saldo pendente analítico, filtrado pelo cliente)
+create table if not exists public.compras_reserva (
+  id            uuid primary key default gen_random_uuid(),
+  filial        text not null,
+  cliente       text,                          -- ex.: PEDIDO RESERVADO DO HOSPITAL UNIMED
+  pedido        text,
+  data_emissao  date,
+  data_entrega  date,
+  codigo        text,                          -- código alternativo (o mesmo do S013/C1060)
+  produto       text,
+  saldo         numeric(14,4),                 -- saldo a faturar = estoque que precisa ficar reservado
+  valor_unit    numeric(14,2),
+  valor_total   numeric(14,2),
+  importado_em  timestamptz not null default now()
+);
+create index if not exists compras_reserva_filial on public.compras_reserva (filial);
+alter table public.compras_reserva enable row level security;
+drop policy if exists compras_reserva_select on public.compras_reserva;
+drop policy if exists compras_reserva_write on public.compras_reserva;
+create policy compras_reserva_select on public.compras_reserva for select to authenticated using (true);
+create policy compras_reserva_write on public.compras_reserva for all to authenticated
+  using (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'))
+  with check (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'));
+notify pgrst, 'reload schema';
