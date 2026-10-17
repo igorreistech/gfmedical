@@ -601,6 +601,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
         <div class="dcard" style="margin-bottom:14px"><div class="dcard-body">
           <div class="frow"><span class="flabel">Cliente</span>
             <select class="tsel" id="res-cli" onchange="filtroRes(this.value)"></select>
+            <select class="tsel" id="res-fab" title="Mostrar só os produtos deste fornecedor/fabricante" onchange="filtroResFab(this.value)"></select>
             <label class="td-mono" style="display:flex;align-items:center;gap:6px;margin-left:8px">reserva deve cobrir <input class="finput" id="res-dias" type="number" min="1" step="1" style="width:64px"> dias do consumo do cliente</label>
             <button class="tbtn tbtn-p" onclick="salvarReservaDias()">💾 Salvar</button>
           </div>
@@ -699,7 +700,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.8';
+const VERSAO = '2026-10-17.9';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1090,6 +1091,8 @@ function reservaMap() {
   return m;
 }
 window.filtroRes = v => { ui.resCli = v; render(); };
+window.filtroResFab = v => { ui.resFab = v; render(); };
+const SEM_FAB = '__sem';
 // Consumo do cliente (C1060 filtrado pelo cliente) ligado à reserva (C904) pelo nome do cliente da reserva
 const consumoDoCliente = cli => data.cmoCli.filter(r => !cli || r.reserva_cliente === cli || r.cliente === cli);
 function listaReserva() {
@@ -1117,8 +1120,10 @@ function listaReserva() {
     const comprarReserva = num(pr?.paraReserva), comprarOutros = num(pr?.paraOutros), comprar = pr ? qtdComprar(pr) : 0;
     const sepAgora = pr ? num(pr.sepAgora) : Math.min(falta, Math.max(0, disp)), sepSemDisp = pr ? num(pr.sepSemDisp) : Math.max(0, falta - Math.max(0, disp));
     const status = g.media > 0 && g.saldo <= 0 ? 'semreserva' : g.saldo > 0 && venda6 <= 0 && g.media <= 0 ? 'parada' : g.saldo > 0 && g.media <= 0 ? 'parada' : ajuste > 0 ? 'abaixo' : ideal > 0 && g.saldo > ideal * 1.5 ? 'acima' : 'ok';
-    return { ...g, fisico, disp, separado, falta, sepAgora, sepSemDisp, comprar, comprarReserva, comprarOutros, transferir, protege, outrosMes, caixa, media3, venda6, cobertura, ideal, ajuste, unit, status, reposMes: Math.ceil(g.media), semS013: !e };
-  }).filter(r => !ui.res || (ui.res === 'falta' ? r.falta > 0 : ui.res === 'comprar' ? r.comprar > 0 : ui.res === 'transferir' ? r.transferir > 0 : r.status === ui.res)).filter(r => casa(r, ['codigo', 'produto']))
+    const fabricante = pr?.fabricante || '';
+    return { ...g, fabricante, fisico, disp, separado, falta, sepAgora, sepSemDisp, comprar, comprarReserva, comprarOutros, transferir, protege, outrosMes, caixa, media3, venda6, cobertura, ideal, ajuste, unit, status, reposMes: Math.ceil(g.media), semS013: !e };
+  }).filter(r => !ui.resFab || (ui.resFab === SEM_FAB ? !r.fabricante : norm(r.fabricante) === norm(ui.resFab)))
+    .filter(r => !ui.res || (ui.res === 'falta' ? r.falta > 0 : ui.res === 'comprar' ? r.comprar > 0 : ui.res === 'transferir' ? r.transferir > 0 : r.status === ui.res)).filter(r => casa(r, ['codigo', 'produto']))
     .sort((a, b) => ({ semreserva: 0, abaixo: 1, parada: 3, acima: 4, ok: 5 }[a.status] - { semreserva: 0, abaixo: 1, parada: 3, acima: 4, ok: 5 }[b.status]) || b.comprar - a.comprar || (a.cobertura ?? 1e9) - (b.cobertura ?? 1e9));
 }
 const RES_ST = { semreserva: ['b-crit', '❗ Consome sem reserva'], abaixo: ['b-warn', '📉 Abaixo do ideal'], acima: ['b-info', '📈 Acima do ideal'], parada: ['b-mute', '💤 Parada'], ok: ['b-ok', '✔ OK'] };
@@ -1127,9 +1132,9 @@ window.excelReserva = () => {
   const salva = ui.res; ui.res = '';
   let l; try { l = listaReserva(); } finally { ui.res = salva; }
   if (!l.length) { toast('Nada para exportar: importe o C904 (e o C1060 do cliente).', 'info'); return; }
-  const cli = ui.resCli || [...new Set(l.flatMap(r => [...r.clientes]))].join(', ') || 'Cliente';
+  const cli = (ui.resCli || [...new Set(l.flatMap(r => [...r.clientes]))].join(', ') || 'Cliente') + (ui.resFab ? ` — ${ui.resFab === SEM_FAB ? 'sem fornecedor' : ui.resFab}` : '');
   const dias = num(cfg.reserva_dias) || 30, hoje = new Date().toLocaleDateString('pt-BR');
-  const base = r => ({ Código: r.codigo, Produto: r.produto || '' });
+  const base = r => ({ Código: r.codigo, Produto: r.produto || '', Fornecedor: r.fabricante || '' });
   const reservar = l.filter(r => r.ajuste > 0).map(r => ({ ...base(r), 'Consumo cliente/mês': +r.media.toFixed(2), 'Reserva atual (C904)': r.saldo, [`Reserva ideal (${dias} dias)`]: r.ideal, 'Aumentar a reserva em': r.ajuste,
     'Dá para passar do Disp.': r.transferir, 'Comprar p/ reserva': r.comprarReserva, Situação: RES_ST[r.status][1].replace(/^\S+ /, '') }));
   const separar = l.filter(r => r.falta > 0).map(r => ({ ...base(r), 'Reserva (C904)': r.saldo, 'Estoque Disp.': r.disp, 'Já separado': r.separado,
@@ -1201,7 +1206,7 @@ window.excelReserva = () => {
 window.listaTransferencia = () => {
   const l = listaReserva().filter(r => r.transferir > 0);
   if (!l.length) { toast('Nada para passar do Estoque Disp. para a reserva agora (sem sobra depois de proteger os outros clientes).', 'info'); return; }
-  const cli = ui.resCli || [...new Set(l.flatMap(r => [...r.clientes]))].join(', ') || 'cliente';
+  const cli = (ui.resCli || [...new Set(l.flatMap(r => [...r.clientes]))].join(', ') || 'cliente') + (ui.resFab ? ` — ${ui.resFab === SEM_FAB ? 'sem fornecedor' : ui.resFab}` : '');
   const L = [`*Passar do Estoque Disp. para o pedido reservado — ${cli}*`, `GF Medical ${BR.cityLabel.replace(' · ', '/')} · ${new Date().toLocaleDateString('pt-BR')}`, ''];
   l.forEach(r => L.push(`• ${r.codigo} — ${r.produto}: *${qtd(r.transferir)}* (reserva ${qtd(r.saldo)} → ${qtd(r.saldo + r.transferir)}; fica ${qtd(Math.max(0, r.disp - r.sepAgora - r.transferir))} no Disp.)`));
   L.push('', `Total: *${qtd(l.reduce((a, r) => a + r.transferir, 0))}* unidade(s) em ${l.length} produto(s).`, 'O Disp. continua cobrindo os outros clientes até a próxima compra chegar.');
@@ -1217,6 +1222,11 @@ window.salvarReservaDias = async () => {
 function renderReserva() {
   const clientes = [...new Set(data.res.map(r => r.cliente).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   $('res-cli').innerHTML = '<option value="">Cliente: todos</option>' + clientes.map(c => `<option ${c === ui.resCli ? 'selected' : ''}>${esc(c)}</option>`).join('');
+  { const salvaF = ui.resFab, salvaR = ui.res; ui.resFab = ''; ui.res = ''; let todos; try { todos = listaReserva(); } finally { ui.resFab = salvaF; ui.res = salvaR; }
+    const cont = new Map(); todos.forEach(r => { const f = r.fabricante || SEM_FAB; cont.set(f, (cont.get(f) || 0) + 1); });
+    const fabs = [...cont.keys()].filter(f => f !== SEM_FAB).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    $('res-fab').innerHTML = '<option value="">🏭 Fornecedor: todos</option>' + fabs.map(f => `<option value="${esc(f)}" ${norm(f) === norm(ui.resFab) ? 'selected' : ''}>🏭 ${esc(f)} (${cont.get(f)})</option>`).join('')
+      + (cont.has(SEM_FAB) ? `<option value="${SEM_FAB}" ${ui.resFab === SEM_FAB ? 'selected' : ''}>Sem fornecedor informado (${cont.get(SEM_FAB)})</option>` : ''); }
   if (document.activeElement !== $('res-dias')) $('res-dias').value = cfg.reserva_dias || 30;
   const iR = ultImp('C904'), iC = ultImp('C1060C'), cmoCli = consumoDoCliente(ui.resCli);
   $('res-info').textContent = [iR && `C904 ${dataHoraBR(iR.importado_em)}`, iC && `C1060 do cliente ${dataHoraBR(iC.importado_em)}${cmoCli[0] ? ` (${cmoCli[0].cliente})` : ''}`].filter(Boolean).join(' · ') || '';
@@ -1244,7 +1254,7 @@ function renderReserva() {
   $('tb-res').innerHTML = `<thead><tr><th>Situação</th><th>Produto</th><th class="num" title="Reserva atual (C904) → reserva ideal pelo consumo do cliente">Reserva</th><th class="num" title="MÉDIA do C1060 filtrado pelo cliente">Consumo cliente</th><th class="num" title="Estoque Disp. no S013 · já separado para o cliente">Estoque</th><th class="num">✋ Separar</th><th class="num" title="Estoque Disp. que pode ir para o pedido reservado sem faltar para os outros clientes">🔁 Passar do Disp.</th><th class="num" title="Mesma quantidade da Programação de compra">🛒 Comprar</th></tr></thead><tbody>
     ${l.map(r => { const sepAgora = num(r.sepAgora), semEst = num(r.sepSemDisp), cxTxt = q => r.caixa > 1 && q ? `<div class="td-doc">${Math.ceil(q / r.caixa)} cx de ${r.caixa}</div>` : '';
       return `<tr class="rs-${r.status}"><td><span class="badge ${RES_ST[r.status][0]}">${RES_ST[r.status][1]}</span></td>
-      <td class="prod"><div class="cod">${esc(r.codigo)}${r.semS013 ? ' · não está no S013' : ''}</div><b>${esc(r.produto || '')}</b><div class="td-doc">${r.meses.some(q => q) ? r.meses.map((q, i) => q ? MES[i] + ':' + qtd(q) : '').filter(Boolean).join(' ') : 'sem consumo do cliente no C1060'}</div></td>
+      <td class="prod"><div class="cod">${esc(r.codigo)}${r.fabricante ? ` · 🏭 ${esc(r.fabricante)}` : ''}${r.semS013 ? ' · não está no S013' : ''}</div><b>${esc(r.produto || '')}</b><div class="td-doc">${r.meses.some(q => q) ? r.meses.map((q, i) => q ? MES[i] + ':' + qtd(q) : '').filter(Boolean).join(' ') : 'sem consumo do cliente no C1060'}</div></td>
       <td class="num"><span class="big">${qtd(r.saldo)}</span>${r.ideal ? `<span class="td-doc"> → ideal ${qtd(r.ideal)}</span>` : ''}<div>${r.ajuste > 0 ? `<span class="mini warn">+${qtd(r.ajuste)} aumentar</span>` : r.ajuste < 0 && r.ideal ? `<span class="mini info">${qtd(r.ajuste)} sobrando</span>` : ''}${r.cobertura != null ? `<span class="mini">${Math.round(r.cobertura)} dias</span>` : ''}</div>${r.valor ? `<div class="td-doc">${brl(r.valor)}</div>` : ''}</td>
       <td class="num"><span class="big">${r.media ? qtd(r.media) : '—'}</span><span class="td-doc">/mês</span><div>${tend(r)}${r.reposMes ? `<span class="mini">repor ~${qtd(r.reposMes)}/mês</span>` : ''}</div>${r.outrosMes ? `<div class="td-doc">outros clientes ${qtd(r.outrosMes)}/mês</div>` : ''}</td>
       <td class="num"><span class="big">${qtd(r.disp)}</span><span class="td-doc"> disp</span><div class="td-doc">separado ${qtd(r.separado)}</div>${r.protege ? `<div class="td-doc" title="Fica no Disp. para os outros clientes até a próxima compra">guardar p/ outros ${qtd(r.protege)}</div>` : ''}</td>
