@@ -703,7 +703,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.13';
+const VERSAO = '2026-10-17.14';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -794,6 +794,12 @@ Object.assign(CAIXAS_MERIT, {"S120GH": 5, "S220GH": 5, "S420GH": 5, "S620GH": 5,
 const chaveCx = c => norm(c).replace(/\/BR$/, '');
 const CAIXAS = new Map(Object.entries(CAIXAS_MERIT).map(([k, v]) => [chaveCx(k), v]));
 const caixaDe = cod => CAIXAS.get(chaveCx(cod || '')) || 1;
+// Fabricante de reserva: código que está na tabela de caixas da Merit é Merit, mesmo fora do S013/PDF filtrado.
+// Usa o mesmo nome que já veio nos PDFs filtrados (ex.: "MERIT MEDICAL"), para o filtro juntar tudo.
+const nomeMerit = () => { const todos = [...(data.raw.est || data.est), ...(data.raw.cmo || data.cmo), ...(data.raw.pen || data.pen), ...data.cons].map(r => r.fabricante).filter(f => f && /MERIT/i.test(f));
+  return todos.length ? String(todos[0]).trim() : 'MERIT MEDICAL'; };
+const fabPorTabela = cod => CAIXAS.has(chaveCx(cod || '')) ? nomeMerit() : '';
+const fabDe = r => (r.fabricante && String(r.fabricante).trim()) || fabPorTabela(r.codigo_alt || r.codigo);
 const emCaixas = (q, cx) => cx > 1 ? Math.ceil(q / cx) * cx : q;
 // Código terminando em "-0" = produto reutilizável: fica fora da contagem (estoque, consumo, pendente e programação)
 const reutilizavel = r => /-0$/.test(String(r.codigo_alt || r.codigo || '').trim());
@@ -911,7 +917,7 @@ function programacao() {
     const m3 = mesesN(3), media3 = m3.length ? somaMeses(m3) / m3.length : mediaAno, venda6 = somaMeses(mesesN(6));
     const tendencia = mediaAno > 0 ? media3 / mediaAno : (media3 > 0 ? 2 : 1);
     const media = cfg.base_consumo === '3m' ? media3 : cfg.base_consumo === 'maior' ? Math.max(media3, mediaAno) : mediaAno, dia = media / 30;
-    const fab = e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || '', prazo = prazoDe(fab);
+    const fab = e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || fabPorTabela(e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || k) || '', prazo = prazoDe(fab);
     // o que já foi pedido (aguardando aprovação ou aprovado e não recebido) conta como estoque a caminho
     // Reserva de cliente (C904): o Disp. já desconta o que está separado; o que falta separar sai do disponível
     const rs = rm.get(k), reserva = rs?.saldo || 0, separado = Math.min(reserva, Math.max(0, num(e?.estoque) - disp)), faltaSeparar = Math.max(0, reserva - separado);
@@ -1025,7 +1031,7 @@ const doFabricante = r => !ui.fab || norm(r.fabricante || '') === norm(ui.fab);
 const programacaoFab = () => programacao().filter(doFabricante);
 window.filtrarFabricante = v => { ui.fab = v; render(); };
 function fabricantesConhecidos() {
-  return [...new Set([...data.est.map(r => r.fabricante), ...data.pen.map(r => r.fabricante)].filter(Boolean).map(f => String(f).trim()))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return [...new Set([...data.est.map(fabDe), ...data.cmo.map(fabDe), ...data.pen.map(r => r.fabricante)].filter(Boolean).map(f => String(f).trim()))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 }
 function listaProgramacao() {
   const FILTRO = { zerado: r => r.semEstoqueCadastro && r.media > 0, parado: r => r.parado, reserva: r => r.reserva > 0 || r.mediaCli > 0, subindo: r => r.tendencia >= 1.25 && (r.media3 >= 0.5 || r.mediaAno >= 0.5), caindo: r => r.tendencia <= 0.75 && r.mediaAno >= 0.5 };
@@ -1638,13 +1644,13 @@ window.filtrarCliente = c => { ui.cliente = c; montarClientes(); goView('consign
 function listaEstoque() {
   const cm = consMap();
   return data.est.filter(r => casa(r, ['codigo', 'descricao', 'localizacao', 'fabricante']))
-    .filter(r => !ui.estFab || (ui.estFab === '__sem' ? !r.fabricante : norm(r.fabricante) === norm(ui.estFab)))
+    .filter(r => !ui.estFab || (ui.estFab === '__sem' ? !fabDe(r) : norm(fabDe(r)) === norm(ui.estFab)))
     .filter(r => !ui.est || (ui.est === 'disp' ? num(r.estoque_disp) > 0 : ui.est === 'min' ? abaixoMin(r) : ui.est === 'zero' ? num(r.estoque_disp) <= 0 : cm.has(norm(r.codigo))))
     .sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR'));
 }
 window.filtroEstFab = v => { ui.estFab = v; render(); };
 function renderEstoque() {
-  { const cont = new Map(); data.est.forEach(r => { const f = r.fabricante ? String(r.fabricante).trim() : '__sem'; cont.set(f, (cont.get(f) || 0) + 1); });
+  { const cont = new Map(); data.est.forEach(r => { const f = fabDe(r) || '__sem'; cont.set(f, (cont.get(f) || 0) + 1); });
     const fabs = [...cont.keys()].filter(f => f !== '__sem').sort((a, b) => a.localeCompare(b, 'pt-BR'));
     $('est-fab').innerHTML = '<option value="">🏭 Fabricante: todos</option>' + fabs.map(f => `<option value="${esc(f)}" ${norm(f) === norm(ui.estFab) ? 'selected' : ''}>🏭 ${esc(f)} (${cont.get(f)})</option>`).join('')
       + (cont.has('__sem') ? `<option value="__sem" ${ui.estFab === '__sem' ? 'selected' : ''}>Sem fabricante informado (${cont.get('__sem')})</option>` : ''); }
@@ -1658,7 +1664,7 @@ function renderEstoque() {
     + statCard('Abaixo do mínimo', lista.filter(abaixoMin).length, 'pelo Est. Mínimo do Callisto', lista.some(abaixoMin) ? 'crit' : '');
   if (!lista.length) { $('tb-est').innerHTML = `<tbody><tr><td><div class="empty-page">${data.est.length ? 'Nenhum produto com esses filtros.' : '📦 Nenhum estoque importado ainda.<br><br>Importe o PDF <b>S013 - Estoque</b> do Callisto em <b>📥 Importar</b>.'}</div></td></tr></tbody>`; return; }
   $('tb-est').innerHTML = `<thead><tr><th>Código</th><th>Produto</th><th class="num">Estoque Disp.</th><th>Unid.</th><th class="num">Est. mínimo</th><th class="num">Qt. reposição</th><th class="num">Último preço</th><th class="num">Valor disp.</th><th class="num">Em consignação</th></tr></thead><tbody>
-    ${lista.map(r => { const g = cm.get(norm(r.codigo)); return `<tr><td class="td-mono">${esc(r.codigo)}</td><td>${esc(r.descricao)}${abaixoMin(r) ? '<span class="tag-min">⚠ ABAIXO DO MÍNIMO</span>' : ''}${r.fabricante ? `<div class="td-doc">🏭 ${esc(r.fabricante)}</div>` : ''}</td>
+    ${lista.map(r => { const g = cm.get(norm(r.codigo)); return `<tr><td class="td-mono">${esc(r.codigo)}</td><td>${esc(r.descricao)}${abaixoMin(r) ? '<span class="tag-min">⚠ ABAIXO DO MÍNIMO</span>' : ''}${fabDe(r) ? `<div class="td-doc">🏭 ${esc(fabDe(r))}</div>` : ''}</td>
       <td class="num"><b>${qtd(r.estoque_disp)}</b></td><td class="td-mono">${esc(r.unidade || '')}</td><td class="num">${num(r.est_minimo) ? qtd(r.est_minimo) : '—'}</td>
       <td class="num">${num(r.qt_reposicao) ? qtd(r.qt_reposicao) : '—'}</td><td class="num">${num(r.ultimo_preco) ? brl(r.ultimo_preco) : '—'}</td><td class="num">${brl(num(r.estoque_disp) * num(r.ultimo_preco))}</td>
       <td class="num">${g ? `<a href="#" onclick="verConsignado(${JSON.stringify(r.codigo).replace(/"/g, '&quot;')});return false">${qtd(g.saldo)} em ${g.clientes.size} cliente(s)</a>` : '—'}</td></tr>`; }).join('')}</tbody>
@@ -2017,7 +2023,7 @@ window.exportarExcel = () => {
   else if (ui.view === 'consignado') { nome = 'Consignado'; linhas = consPorProduto(ui.cons === 'saldo').flatMap(g => g.linhas.filter(r => ui.cons !== 'saldo' || num(r.saldo) > 0).map(r => ({ 'Código alt.': r.codigo_alt, Código: r.codigo, Produto: r.produto, Cliente: r.cliente, Emissão: dataBR(r.data_emissao), Documento: r.documento, Pedido: r.pedido, 'Qtd enviada': num(r.quantidade), 'Saldo atual': num(r.saldo), 'Valor da remessa': num(r.valor) }))); }
   else if (ui.view === 'reserva') { nome = 'Reserva_cliente'; linhas = listaReserva().map(r => ({ Situação: RES_ST[r.status][1].replace(/^\S+ /, ''), Código: r.codigo, Produto: r.produto, Cliente: [...r.clientes].join(', '), 'Reserva (C904)': r.saldo, 'Consumo cliente/mês': +r.media.toFixed(2), 'Consumo 3 meses/mês': +r.media3.toFixed(2), 'Cobertura (dias)': r.cobertura == null ? '' : Math.round(r.cobertura), 'Reserva ideal': r.ideal, Ajuste: r.ajuste, 'Repor por mês': r.reposMes, 'Estoque Disp.': r.disp, 'Já separado': r.separado, 'Falta separar': r.falta, 'Passar do Disp. p/ reserva': r.transferir, 'Fica p/ outros clientes': r.protege, 'Comprar p/ reserva': r.comprarReserva, 'Comprar p/ outros': r.comprarOutros, 'Comprar (cx)': r.comprar, 'Valor reservado': +r.valor.toFixed(2) })); }
   else if (ui.view === 'pedidos') { nome = 'Pedidos_de_compra'; linhas = listaPedidos().flatMap(p => (p.itens || []).map(i => ({ Pedido: p.numero, Data: dataHoraBR(p.criado_em), Fabricante: p.fabricante, Situação: (PED_ST[p.status]?.[1] || p.status).replace(/^\S+ /, ''), Código: i.codigo, Produto: i.descricao, Sugerido: num(i.sugerido), Pedido_qtd: num(i.qtd), 'Caixa com': i.caixa > 1 ? i.caixa : '', Preço: num(i.preco), Valor: +(num(i.qtd) * num(i.preco)).toFixed(2), 'Criado por': p.criado_por || '', 'Aprovado por': p.aprovado_por || '', 'Recebido em': p.recebido_em ? dataHoraBR(p.recebido_em) : '' }))); }
-  else { nome = 'Estoque'; linhas = listaEstoque().map(r => ({ Código: r.codigo, Produto: r.descricao, Fabricante: r.fabricante || '', 'Estoque Disp.': num(r.estoque_disp), Unidade: r.unidade, 'Est. mínimo': num(r.est_minimo), 'Qt. reposição': num(r.qt_reposicao), 'Último preço': num(r.ultimo_preco), 'Valor disp.': +(num(r.estoque_disp) * num(r.ultimo_preco)).toFixed(2) })); }
+  else { nome = 'Estoque'; linhas = listaEstoque().map(r => ({ Código: r.codigo, Produto: r.descricao, Fabricante: fabDe(r), 'Estoque Disp.': num(r.estoque_disp), Unidade: r.unidade, 'Est. mínimo': num(r.est_minimo), 'Qt. reposição': num(r.qt_reposicao), 'Último preço': num(r.ultimo_preco), 'Valor disp.': +(num(r.estoque_disp) * num(r.ultimo_preco)).toFixed(2) })); }
   if (!linhas.length) { toast('Nada para exportar.', 'info'); return; }
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhas), nome);
   XLSX.writeFile(wb, `Compras_${nome}_${FILIAL}_${new Date().toISOString().slice(0, 10)}.xlsx`);
