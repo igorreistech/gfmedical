@@ -570,7 +570,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-16.11';
+const VERSAO = '2026-10-16.12';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente' };
 
 const $ = id => document.getElementById(id);
@@ -1121,7 +1121,20 @@ async function importarArquivos(files) {
         : tipo === 'C723' ? `${new Set(rows.map(r => r.pedido)).size} pedido(s), ${rows.length} item(ns), ${qtd(rows.reduce((a, r) => a + num(r.quantidade), 0))} unidade(s), ${brl(rows.reduce((a, r) => a + num(r.valor_total), 0))}`
         : `${rows.length} produto(s), consumo total ${qtd(rows.reduce((a, r) => a + num(r.total), 0))} unidade(s) no ano`;
       let parcial = (tipo === 'S013' || tipo === 'C723' || tipo === 'C1060') && filtroS013;
-      if (parcial) {
+      if (tipo === 'C457') {
+        // Consignado: sempre pergunta. Manter = troca só as remessas (documentos) que vieram neste PDF, as outras continuam.
+        const jaTem = data.cons.length, docs = new Set(rows.map(r => r.documento).filter(Boolean));
+        const op = await escolher(`📥 ${NOMES[tipo]}`, `${file.name}${filtroS013 ? `
+Filtro: ${filtroS013[1]}: ${filtroS013[2].trim()}` : ''}
+${resumo} (${docs.size} documento(s)).
+
+O consignado de ${BR.label} já tem ${jaTem} linha(s) de importações anteriores. O que fazer?`, [
+          ['tudo', `🔄 Apagar TUDO e ficar só com este PDF`, 'tbtn-p'],
+          ['somar', `➕ Manter o que já tem e atualizar só as remessas deste PDF (as mesmas remessas não duplicam)`, ''],
+          [null, 'Cancelar', '']]);
+        if (!op) continue;
+        parcial = op === 'somar' ? (filtroS013 || ['', '', '']) : null;
+      } else if (parcial) {
         const jaTem = data[{ S013: 'est', C1060: 'cmo', C723: 'pen' }[tipo]].length;
         const op = await escolher(`📥 ${NOMES[tipo]} filtrado`, `${file.name}\nFiltro: ${filtroS013[1]}: ${filtroS013[2].trim()}\n${resumo}.\n\nO ${ALVO[tipo]} de ${BR.label} já tem ${jaTem} linha(s) de importações anteriores. O que fazer?`, [
           ['somar', `➕ Atualizar só estes produtos e manter o resto (${jaTem} linha(s) antigas continuam)`, 'tbtn-p'],
@@ -1136,6 +1149,8 @@ async function importarArquivos(files) {
         // apaga os produtos deste PDF e os que eram deste fabricante (os que sumiram do relatório estão zerados)
         const cods = tipo === 'S013' || tipo === 'C1060' ? rows.map(r => r.codigo) : []; // C723: troca os pendentes do fabricante
         for (let i = 0; i < cods.length; i += 100) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).in('codigo', cods.slice(i, i + 100)); if (d.error) throw d.error; }
+        const docs = tipo === 'C457' ? [...new Set(rows.map(r => r.documento).filter(Boolean))] : []; // C457: troca as remessas deste PDF
+        for (let i = 0; i < docs.length; i += 100) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).in('documento', docs.slice(i, i + 100)); if (d.error) throw d.error; }
         if (fabricante) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).eq('fabricante', fabricante); if (d.error && !/fabricante/i.test(d.error.message || '')) throw d.error; }
       } else {
         const del = await supabase.from(tabela).delete().eq('filial', FILIAL);
