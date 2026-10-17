@@ -801,7 +801,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-16.6';
+const VERSAO = '2026-10-16.7';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -5590,5 +5590,6 @@ try { _viewInicial = localStorage.getItem('_fretesView') || 'dashboard'; } catch
 </script>
 <!-- Tarja "Projeto em andamento" (igual à do Monitor) -->
 <div style="position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,0.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;font-family:monospace;font-size:0.72rem;color:#8a9e97;z-index:50;letter-spacing:0.05em;text-align:center;"><span style="color:#f5a623;font-weight:700;">⚙ Projeto em andamento &mdash; em constante evolução</span><span>&middot;</span>&copy; 2025 <span style="color:#4db87a;font-weight:700;">GF Medical &middot;</span> Desenvolvido por <a href="https://igorreistech.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
+<script src="aviso-transferencias.js" defer></script>
 </body>
 </html>
