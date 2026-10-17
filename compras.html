@@ -1446,7 +1446,7 @@ async function preencherModelo(itens, oc) {
   const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   toast(`✔ ${nome}: ${nItens} item(ns), ${qtd(unid)} un${total ? ` · ${brl(total)}` : ''}`);
-  if (faltam.length) alert(`${faltam.length} item(ns) da lista NÃO estão no modelo "${mod.nome}" (provavelmente são de outra linha/fornecedor) e ficaram de fora:\n\n${faltam.slice(0, 40).map(i => `• ${i.codigo}${i.descricao ? ' — ' + i.descricao : ''}: ${qtd(i.qtd)}`).join('\n')}${faltam.length > 40 ? `\n… e mais ${faltam.length - 40}` : ''}\n\nGere de novo escolhendo o modelo da outra linha para eles.`);
+  if (faltam.length) alert(`${faltam.length} item(ns) da lista NÃO estão no modelo "${mod.nome}" (provavelmente são de outra linha/fornecedor) e ficaram de fora:\n\n${faltam.slice(0, 40).map(i => `• ${i.codigo}${i.descricao ? ' — ' + i.descricao : ''}: ${qtd(i.qtd)}`).join('\n')}${faltam.length > 40 ? `\n… e mais ${faltam.length - 40}` : ''}\n\nDica: filtre a Programação pelo fabricante (ex.: MERIT MEDICAL) antes de gerar; para os itens da outra linha, gere de novo escolhendo o outro modelo.`);
 }
 window.pedidoModeloProgramacao = () => {
   const itens = listaProgramacao().filter(r => qtdComprar(r) > 0).map(r => ({ codigo: r.codigo, descricao: r.descricao, qtd: qtdComprar(r) }));
