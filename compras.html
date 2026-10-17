@@ -699,7 +699,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.6';
+const VERSAO = '2026-10-17.7';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1630,6 +1630,28 @@ async function importarArquivos(files) {
   if (!_bancoOk) { toast('Rode o SQL do sistema de compras antes de importar.', 'err'); mostrarSql(); return; }
   // Depois de importar, a programação mostra o que veio nos PDFs: um fabricante só → filtra nele; senão → todos
   const fabsImp = new Set(); let semFabImp = false;
+  // Uma pergunta por importação: análise nova (apaga tudo que foi importado) ou manter e atualizar
+  const TABS_IMP = [['est', T.est, 'estoque (S013)'], ['cmo', T.cmo, 'consumo (C1060)'], ['pen', T.pen, 'pendente (C723)'], ['cons', T.cons, 'consignado (C457)'], ['res', T.res, 'reserva de cliente (C904)'], ['cmoCli', T.cmoCli, 'consumo do cliente']];
+  const existentes = TABS_IMP.filter(([k]) => (data.raw[k] || data[k] || []).length);
+  let novaAnalise = false;
+  if (existentes.length) {
+    const op = await escolher('📥 Importar ' + (files.length > 1 ? `${files.length} arquivos` : files[0].name),
+      `Já existem dados importados em ${BR.label}:\n${existentes.map(([k, , nome]) => `• ${nome}: ${(data.raw[k] || data[k]).length} linha(s)`).join('\n')}\n\nÉ uma análise nova (ex.: agora só da BARD) ou quer manter o que já tem?`, [
+        ['nova', '🆕 Nova análise: apagar TUDO o que foi importado e ficar só com estes PDFs (pedidos de compra e parâmetros continuam)', 'tbtn-p'],
+        ['manter', '➕ Manter o que já tem e atualizar (pergunta arquivo por arquivo)', ''],
+        [null, 'Cancelar', '']]);
+    if (!op) { $('imp-status').textContent = 'Importação cancelada.'; return; }
+    if (op === 'nova') {
+      novaAnalise = true;
+      $('imp-status').textContent = '⏳ Apagando a análise anterior…';
+      for (const [, tab] of TABS_IMP) {
+        const d = await supabase.from(tab).delete().eq('filial', FILIAL);
+        if (d.error && !/does not exist|schema cache|Could not find/i.test(d.error.message || '')) { toast('Não apagou ' + tab + ': ' + d.error.message, 'err'); return; }
+      }
+      _qtdEditada = {}; ui.fab = ''; ui.resCli = '';
+      Object.assign(data, { est: [], cmo: [], pen: [], cons: [], res: [], cmoCli: [] }); data.raw = {};
+    }
+  }
   for (const file of files) {
     try {
       $('imp-status').textContent = `⏳ Lendo ${file.name}…`;
@@ -1666,7 +1688,8 @@ async function importarArquivos(files) {
         : `${rows.length} produto(s), consumo total ${qtd(rows.reduce((a, r) => a + num(r.total), 0))} unidade(s) no ano`;
       let parcial = (tipo === 'S013' || tipo === 'C723' || tipo === 'C1060') && filtroS013;
       let modoCli = null; // C904 / C1060 do cliente: 'subst' (troca só os produtos deste PDF) | 'zero' (apaga tudo e fica só com este PDF)
-      if (tipo === 'C1060C' || tipo === 'C904') {
+      if (novaAnalise) { /* análise nova: as tabelas já foram zeradas — só grava, sem perguntar de novo */ }
+      else if (tipo === 'C1060C' || tipo === 'C904') {
         const clis = [...new Set(rows.map(r => r.cliente).filter(Boolean))], jaTem = data[tipo === 'C904' ? 'res' : 'cmoCli'].length;
         const oque = tipo === 'C904' ? 'a reserva' : 'o consumo do cliente';
         modoCli = await escolher(`📥 ${NOMES[tipo]}`, `${file.name}\n${resumo}.\n\n${jaTem ? `Já existem ${jaTem} linha(s) ${tipo === 'C904' ? 'da reserva' : 'do consumo do cliente'} em ${BR.label}.` : `Ainda não há ${oque} em ${BR.label}.`}${tipo === 'C1060C' ? ' O consumo geral (C1060 sem filtro) NÃO muda.' : ''} O que fazer?`, [
@@ -1698,7 +1721,8 @@ O consignado de ${BR.label} já tem ${jaTem} linha(s) de importações anteriore
       } else if (!confirm(`${NOMES[tipo]} de ${file.name}:\n${resumo}.\n\nIsso SUBSTITUI o ${ALVO[tipo]} atual de ${BR.label}. Importar?`)) continue;
       const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen, C904: T.res, C1060C: T.cmoCli }[tipo], agora = new Date().toISOString();
       $('imp-status').textContent = `⏳ Gravando ${rows.length} linha(s)…`;
-      if (parcial) {
+      if (novaAnalise) { /* nada a apagar: começou do zero */ }
+      else if (parcial) {
         // apaga os produtos deste PDF e os que eram deste fabricante (os que sumiram do relatório estão zerados)
         const cods = tipo === 'S013' || tipo === 'C1060' ? rows.map(r => r.codigo) : []; // C723: troca os pendentes do fabricante
         for (let i = 0; i < cods.length; i += 100) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).in('codigo', cods.slice(i, i + 100)); if (d.error) throw d.error; }
@@ -1742,6 +1766,13 @@ O consignado de ${BR.label} já tem ${jaTem} linha(s) de importações anteriore
   }
   if (fabsImp.size || semFabImp) { ui.fab = fabsImp.size === 1 && !semFabImp ? [...fabsImp][0] : ''; _qtdEditada = {}; }
   await carregarTudo();
+  // C1060 do cliente importado antes do C904: liga o consumo à reserva quando só existe um cliente reservado
+  const clisRes = [...new Set(data.res.map(r => r.cliente).filter(Boolean))];
+  const soltos = [...new Set(data.cmoCli.map(r => r.reserva_cliente).filter(c => c && !clisRes.includes(c)))];
+  if (clisRes.length === 1 && soltos.length) {
+    for (const c of soltos) await supabase.from(T.cmoCli).update({ reserva_cliente: clisRes[0] }).eq('filial', FILIAL).eq('reserva_cliente', c);
+    await carregarTudo();
+  }
 }
 [$('f-pdf'), $('f-pdf2')].forEach(inp => inp.onchange = e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importarArquivos(fs); });
 const drop = $('imp-drop');
