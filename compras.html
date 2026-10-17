@@ -570,7 +570,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-16.12';
+const VERSAO = '2026-10-16.13';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente' };
 
 const $ = id => document.getElementById(id);
@@ -623,7 +623,9 @@ auth.onAuthStateChange((_e, session) => {
 });
 
 // ───────── Dados ─────────
-const data = { est: [], cons: [], imp: [], cmo: [], pen: [] };
+const data = { est: [], cons: [], imp: [], cmo: [], pen: [], raw: {}, reut: { est: 0, cmo: 0, pen: 0 } };
+// Código terminando em "-0" = produto reutilizável: fica fora da contagem (estoque, consumo, pendente e programação)
+const reutilizavel = r => /-0$/.test(String(r.codigo_alt || r.codigo || '').trim());
 let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60, prazos_fabricante: {} };
 let _bancoOk = true;
 async function selectTudo(tabela) {
@@ -640,6 +642,7 @@ async function carregarTudo() {
   try {
     [data.est, data.cons, data.imp, data.cmo] = await Promise.all([selectTudo(T.est), selectTudo(T.cons), selectTudo(T.imp), selectTudo(T.cmo)]);
     try { data.pen = await selectTudo(T.pen); } catch (e) { data.pen = []; console.warn('[Compras] pendente:', e.message); }
+    ['est', 'cmo', 'pen'].forEach(k => { data.raw[k] = data[k]; data[k] = data.raw[k].filter(r => !reutilizavel(r)); data.reut[k] = data.raw[k].length - data[k].length; });
     const c = await supabase.from(T.cfg).select('*').eq('filial', FILIAL).maybeSingle();
     if (c.data) cfg = { ...cfg, ...Object.fromEntries(Object.entries(c.data).filter(([, v]) => v != null)) };
     _bancoOk = true;
@@ -809,6 +812,7 @@ function renderProgramacao() {
   $('nb-prog').textContent = comprar.length;
   const iE = ultImp('S013'), iP = ultImp('C723');
   $('prog-info').innerHTML = [iE && `S013 ${dataHoraBR(iE.importado_em)}`, iC && `C1060 ${dataHoraBR(iC.importado_em)}`, iP && `C723 ${dataHoraBR(iP.importado_em)}`].filter(Boolean).join(' · ')
+    + (data.reut.est + data.reut.cmo ? ` · ♻ reutilizáveis (-0) fora` : '')
     + (ui.fab ? ` · <b>filtro: ${esc(ui.fab)}</b> <button class="tbtn" onclick="filtrarFabricante('')">ver todos</button>` : '');
   const valor = comprar.reduce((a, r) => a + qtdComprar(r) * r.preco, 0);
   $('prog-stats').innerHTML = statCard('Comprar agora', comprar.length, 'no ponto de pedido ou abaixo', comprar.length ? 'crit' : '')
@@ -859,7 +863,7 @@ function escolher(titulo, texto, opcoes) {
 const LOTE_TAB = { S013: ['est', 'produto(s)'], C1060: ['cmo', 'produto(s)'], C457: ['cons', 'remessa(s)'], C723: ['pen', 'item(ns)'] };
 function lotes(tipo) {
   const m = new Map();
-  data[LOTE_TAB[tipo][0]].forEach(r => { const k = r.importado_em || ''; m.set(k, (m.get(k) || 0) + 1); });
+  (data.raw[LOTE_TAB[tipo][0]] || data[LOTE_TAB[tipo][0]]).forEach(r => { const k = r.importado_em || ''; m.set(k, (m.get(k) || 0) + 1); });
   return [...m].map(([ts, n]) => { const t = new Date(ts).getTime();
     const dif = i => Math.abs(new Date(i.importado_em).getTime() - t);
     const imp = data.imp.filter(i => i.tipo === tipo && dif(i) < 60000).sort((x, y) => dif(x) - dif(y))[0];
@@ -889,7 +893,7 @@ function renderPainel() {
   const topCli = [...clientes].map(c => ({ c, v: data.cons.filter(r => r.cliente === c).reduce((a, r) => { const q = num(r.quantidade); return a + (q > 0 ? num(r.valor) / q * num(r.saldo) : 0); }, 0) })).sort((a, b) => b.v - a.v).slice(0, 8);
   $('view-painel').innerHTML = `
     <div class="stats-bar">
-      ${statCard('Itens com estoque disponível', est.filter(r => num(r.estoque_disp) > 0).length, `${est.length} produto(s) no S013${lotes('S013').length > 1 ? ` · ${lotes('S013').length} importações somadas` : ''}`)}
+      ${statCard('Itens com estoque disponível', est.filter(r => num(r.estoque_disp) > 0).length, `${est.length} produto(s) no S013${data.reut.est ? ` · ♻ ${data.reut.est} reutilizáveis (-0) fora` : ''}${lotes('S013').length > 1 ? ` · ${lotes('S013').length} importações somadas` : ''}`)}
       ${statCard('Valor do estoque disponível', brl(valorDisp), 'Estoque Disp. × último preço', 'info')}
       ${statCard('Abaixo do mínimo', min.length, min.length ? 'precisam de compra' : '✔ nenhum (ou mínimo não definido)', min.length ? 'crit' : '')}
       ${statCard('Em consignação', brl(valorCons), `${cons.length} produto(s) · ${clientes.size} cliente(s)`, 'warn')}
@@ -923,7 +927,7 @@ function listaEstoque() {
 function renderEstoque() {
   const lista = listaEstoque(), cm = consMap(), iE = ultImp('S013');
   $('cnt-est').textContent = lista.length;
-  $('est-info').textContent = iE ? `S013 importado em ${dataHoraBR(iE.importado_em)}` : '';
+  $('est-info').textContent = (iE ? `S013 importado em ${dataHoraBR(iE.importado_em)}` : '') + (data.reut.est ? ` · ♻ ${data.reut.est} reutilizável(is) (código -0) fora da contagem` : '');
   const disp = lista.reduce((a, r) => a + num(r.estoque_disp), 0), valor = lista.reduce((a, r) => a + num(r.estoque_disp) * num(r.ultimo_preco), 0);
   $('est-stats').innerHTML = statCard('Produtos na lista', lista.length, `${lista.filter(r => num(r.estoque_disp) > 0).length} com disponível`)
     + statCard('Unidades disponíveis', qtd(disp), 'soma do Estoque Disp.', 'info')
