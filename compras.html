@@ -699,7 +699,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.5';
+const VERSAO = '2026-10-17.6';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -921,9 +921,13 @@ function programacao() {
     // Compra = falta para a reserva + reposição dos outros (prazo + cobertura) — a tela da Reserva mostra estes mesmos números.
     const mediaCli = ccm.get(k)?.media || 0, diaCli = mediaCli / 30, idealReserva = diaCli > 0 ? Math.ceil(diaCli * (num(cfg.reserva_dias) || 30)) : 0;
     const outrosMes = Math.max(0, media - mediaCli), diaOut = outrosMes / 30, protege = Math.ceil(diaOut * (prazo + cfg.seguranca_dias));
-    const d1 = disp - faltaSeparar, faltaSemDisp = Math.max(0, -d1), livre = Math.max(0, d1 - protege);
-    const ajusteMais = Math.max(0, idealReserva - reserva), transferir = Math.min(ajusteMais, livre);
-    const paraReserva = faltaSemDisp + (ajusteMais - transferir), fica = Math.max(0, d1) - transferir;
+    // Separar e passar do Disp. em caixas fechadas (mesmo múltiplo da compra): arredonda para cima o que precisa,
+    // mas nunca tira do Disp. mais caixas do que existem (para baixo); o que não fecha caixa vem da compra.
+    const cxS = caixa > 1 ? caixa : 1, cxCima = q => Math.ceil(q / cxS) * cxS, cxBaixo = q => Math.floor(Math.max(0, q) / cxS) * cxS;
+    const sepAgora = faltaSeparar > 0 ? Math.min(cxCima(faltaSeparar), cxBaixo(disp)) : 0, faltaSemDisp = Math.max(0, faltaSeparar - sepAgora);
+    const sepExtra = Math.max(0, sepAgora - faltaSeparar), d1 = Math.max(0, disp - sepAgora), livre = Math.max(0, d1 - protege);
+    const ajusteMais = Math.max(0, idealReserva - reserva - sepExtra), transferir = ajusteMais > 0 ? Math.min(cxCima(ajusteMais), cxBaixo(livre)) : 0;
+    const paraReserva = faltaSemDisp + Math.max(0, ajusteMais - transferir), fica = d1 - transferir;
     const paraOutros = diaOut > 0 ? Math.max(0, Math.ceil(diaOut * (prazo + cfg.cobertura_dias) - fica - emPedido)) : 0;
     const sugerido = paraReserva + paraOutros > 0 ? emCaixas(paraReserva + paraOutros, caixa) : 0;
     // Ponto de partida é o consumo (venda): sem estoque próprio (fora do S013) conta como estoque ZERO — e vira compra.
@@ -933,7 +937,7 @@ function programacao() {
       sugerido, situacao, preco: num(e?.ultimo_preco), unidade: e?.unidade || '', consignado: cm.get(k)?.saldo || 0, semEstoqueCadastro: !e, fabricante: fab, prazo,
       mediaFat, pendAno: num(pd?.ano), pendAntigo: num(pd?.antigo), nMeses, codigo: codigoRow, descricao: e?.descricao || c?.descricao || pd?.linhas[0]?.produto || rs?.produto || ccm.get(k)?.descricao,
       mediaAno, media3, tendencia, emPedido, caixa, reserva, separado, faltaSeparar, reservaClientes: rs ? [...rs.clientes] : [],
-      mediaCli, outrosMes, idealReserva, protege, transferir, paraReserva, paraOutros, parado: disp > 0 && venda6 <= 0 && !num(pd?.ano) };
+      mediaCli, outrosMes, idealReserva, protege, transferir, paraReserva, paraOutros, sepAgora, sepSemDisp: faltaSemDisp, parado: disp > 0 && venda6 <= 0 && !num(pd?.ano) };
   });
   // Curva ABC pelo valor consumido no ano (média do ano × 12 × último preço): A = 80% do valor, B = 15%, C = 5%
   const tot = lin.reduce((a, r) => a + r.mediaAno * 12 * r.preco, 0); let acc = 0;
@@ -1061,9 +1065,9 @@ function renderProgramacao() {
       <td class="prod"><div class="cod">${esc(r.codigo)}${r.fabricante ? ` · 🏭 ${esc(r.fabricante)}` : ''}</div><b>${esc(r.descricao || '')}</b>
         ${meses ? `<div class="td-doc" title="Consumo por mês no C1060">${meses}</div>` : ''}${r.semEstoqueCadastro ? '<div class="td-doc" style="color:#dc2626">sem estoque próprio (fora do S013)</div>' : ''}</td>
       <td class="num"><span class="big">${qtd(r.disp)}</span><div>${r.emPedido ? `<span class="mini info" title="Pedido de compra já feito (aguardando aprovação ou a caminho) — conta como estoque">+${qtd(r.emPedido)} em pedido de compra</span>` : ''}${r.consignado ? `<span class="mini" title="Em consignação nos clientes (C457) — não abate a compra">🏥 ${qtd(r.consignado)} consig.</span>` : ''}</div></td>
-      ${temRes ? (() => { const faltaRes = Math.max(0, num(r.idealReserva) - num(r.reserva)), semDisp = Math.max(0, num(r.faltaSeparar) - Math.max(0, r.disp)), compraFalta = Math.max(0, num(r.paraReserva) - semDisp);
-        return `<td class="num">${r.reserva ? `<span class="big">${qtd(r.reserva)}</span><div>${r.separado ? `<span class="mini ok">${qtd(r.separado)} separado</span>` : ''}${r.faltaSeparar ? `<span class="mini warn" title="Está no C904 mas ainda não foi separado do estoque">${qtd(r.faltaSeparar)} a separar</span>` : ''}${semDisp ? `<span class="mini crit" title="Não tem no Estoque Disp. para separar — entra na compra (coluna Comprar)">🛒 ${qtd(semDisp)} comprar</span>` : ''}</div>` : '<span class="td-doc">—</span>'}</td>
-      <td class="num">${faltaRes ? `<span class="big" style="color:#b45309">${qtd(faltaRes)}</span><div class="td-doc">ideal ${qtd(r.idealReserva)}</div><div>${r.transferir ? `<span class="mini ok" title="Passar do Estoque Disp. sem faltar para os outros clientes">🔁 ${qtd(r.transferir)} do Disp.</span>` : ''}${compraFalta ? `<span class="mini crit" title="Não dá para tirar do Disp. — entra na compra (coluna Comprar)">🛒 ${qtd(compraFalta)} comprar</span>` : ''}</div>` : (r.idealReserva ? '<span class="mini ok">✔ completa</span>' : '<span class="td-doc">—</span>')}</td>`; })() : ''}
+      ${temRes ? (() => { const faltaRes = Math.max(0, num(r.idealReserva) - num(r.reserva)), semDisp = num(r.sepSemDisp), compraFalta = Math.max(0, num(r.paraReserva) - semDisp);
+        return `<td class="num">${r.reserva ? `<span class="big">${qtd(r.reserva)}</span><div>${r.separado ? `<span class="mini ok">${qtd(r.separado)} separado</span>` : ''}${r.faltaSeparar ? `<span class="mini warn" title="Está no C904 mas ainda não foi separado do estoque — separar em caixas fechadas">${qtd(r.sepAgora || r.faltaSeparar)} a separar${r.caixa > 1 ? ` (${Math.ceil((r.sepAgora || r.faltaSeparar) / r.caixa)} cx)` : ''}</span>` : ''}${semDisp ? `<span class="mini crit" title="Não tem no Estoque Disp. para separar — entra na compra (coluna Comprar)">🛒 ${qtd(semDisp)} comprar</span>` : ''}</div>` : '<span class="td-doc">—</span>'}</td>
+      <td class="num">${faltaRes ? `<span class="big" style="color:#b45309">${qtd(faltaRes)}</span><div class="td-doc">ideal ${qtd(r.idealReserva)}</div><div>${r.transferir ? `<span class="mini ok" title="Passar do Estoque Disp. sem faltar para os outros clientes (caixas fechadas)">🔁 ${qtd(r.transferir)} do Disp.${r.caixa > 1 ? ` (${r.transferir / r.caixa} cx)` : ''}</span>` : ''}${compraFalta ? `<span class="mini crit" title="Não dá para tirar do Disp. — entra na compra (coluna Comprar)">🛒 ${qtd(compraFalta)} comprar</span>` : ''}</div>` : (r.idealReserva ? '<span class="mini ok">✔ completa</span>' : '<span class="td-doc">—</span>')}</td>`; })() : ''}
       <td class="num"><span class="big">${qtd(r.media)}</span>${tendenciaTag(r) ? `<div class="td-doc">${tendenciaTag(r)}</div>` : ''}${r.mediaCli ? `<div class="td-doc" title="Consumo do cliente com reserva (C1060 filtrado) × outros clientes">cliente ${qtd(r.mediaCli)} · outros ${qtd(r.outrosMes)}</div>` : ''}${cfg.base_consumo !== 'ano' ? `<div class="td-doc" title="Base do consumo nos parâmetros">ano ${qtd(r.mediaAno)} · 3m ${qtd(r.media3)}</div>` : ''}${r.pendAno || r.pendAntigo ? `<div class="td-doc" title="Consumo médio = (faturado no C1060 + pendente de faturamento do ano) ÷ ${r.nMeses} mês(es)">fat. ${qtd(r.mediaFat)} + pend. ${qtd(r.pendAno)}${r.pendAntigo ? ` · ${qtd(r.pendAntigo)} antigo` : ''}</div>` : ''}</td>
       <td class="num"><span class="big" style="${r.cobertura != null && r.cobertura < r.prazo ? 'color:#dc2626' : ''}">${r.cobertura == null ? '—' : Math.round(r.cobertura) + ' d'}</span>${r.media ? `<div class="td-doc" title="Ponto de pedido: consumo por dia × (prazo + segurança)">ponto ${qtd(Math.ceil(r.ponto))} · prazo ${r.prazo}d</div>` : ''}</td>
       <td class="num"><input class="finput" type="number" min="0" step="1" value="${q}" style="width:80px;text-align:right;font-weight:700" onchange="editarQtd(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.value, ${r.caixa})">
@@ -1111,8 +1115,9 @@ function listaReserva() {
     // números da Programação de compra (uma conta só — a compra é a mesma, só mostrada dividida)
     const outrosMes = num(pr?.outrosMes), protege = num(pr?.protege), transferir = num(pr?.transferir), caixa = pr?.caixa || caixaDe(g.codigo);
     const comprarReserva = num(pr?.paraReserva), comprarOutros = num(pr?.paraOutros), comprar = pr ? qtdComprar(pr) : 0;
+    const sepAgora = pr ? num(pr.sepAgora) : Math.min(falta, Math.max(0, disp)), sepSemDisp = pr ? num(pr.sepSemDisp) : Math.max(0, falta - Math.max(0, disp));
     const status = g.media > 0 && g.saldo <= 0 ? 'semreserva' : g.saldo > 0 && venda6 <= 0 && g.media <= 0 ? 'parada' : g.saldo > 0 && g.media <= 0 ? 'parada' : ajuste > 0 ? 'abaixo' : ideal > 0 && g.saldo > ideal * 1.5 ? 'acima' : 'ok';
-    return { ...g, fisico, disp, separado, falta, comprar, comprarReserva, comprarOutros, transferir, protege, outrosMes, caixa, media3, venda6, cobertura, ideal, ajuste, unit, status, reposMes: Math.ceil(g.media), semS013: !e };
+    return { ...g, fisico, disp, separado, falta, sepAgora, sepSemDisp, comprar, comprarReserva, comprarOutros, transferir, protege, outrosMes, caixa, media3, venda6, cobertura, ideal, ajuste, unit, status, reposMes: Math.ceil(g.media), semS013: !e };
   }).filter(r => !ui.res || (ui.res === 'falta' ? r.falta > 0 : ui.res === 'comprar' ? r.comprar > 0 : ui.res === 'transferir' ? r.transferir > 0 : r.status === ui.res)).filter(r => casa(r, ['codigo', 'produto']))
     .sort((a, b) => ({ semreserva: 0, abaixo: 1, parada: 3, acima: 4, ok: 5 }[a.status] - { semreserva: 0, abaixo: 1, parada: 3, acima: 4, ok: 5 }[b.status]) || b.comprar - a.comprar || (a.cobertura ?? 1e9) - (b.cobertura ?? 1e9));
 }
@@ -1128,9 +1133,9 @@ window.excelReserva = () => {
   const reservar = l.filter(r => r.ajuste > 0).map(r => ({ ...base(r), 'Consumo cliente/mês': +r.media.toFixed(2), 'Reserva atual (C904)': r.saldo, [`Reserva ideal (${dias} dias)`]: r.ideal, 'Aumentar a reserva em': r.ajuste,
     'Dá para passar do Disp.': r.transferir, 'Comprar p/ reserva': r.comprarReserva, Situação: RES_ST[r.status][1].replace(/^\S+ /, '') }));
   const separar = l.filter(r => r.falta > 0).map(r => ({ ...base(r), 'Reserva (C904)': r.saldo, 'Estoque Disp.': r.disp, 'Já separado': r.separado,
-    'SEPARAR AGORA': Math.min(r.falta, Math.max(0, r.disp)), 'Falta (sem estoque)': Math.max(0, r.falta - Math.max(0, r.disp)) }));
+    'SEPARAR AGORA': r.sepAgora, 'Caixas': r.caixa > 1 && r.sepAgora ? `${Math.ceil(r.sepAgora / r.caixa)} cx de ${r.caixa}` : '', 'Falta (sem estoque)': r.sepSemDisp }));
   const passar = l.filter(r => r.transferir > 0).map(r => ({ ...base(r), 'Estoque Disp.': r.disp, 'Falta separar (já reservado)': r.falta, 'Fica p/ outros clientes': r.protege,
-    'Outros clientes/mês': +num(r.outrosMes).toFixed(2), 'PASSAR P/ RESERVA': r.transferir, 'Reserva fica com': r.saldo + r.transferir, 'Disp. fica com': Math.max(0, r.disp - r.falta - r.transferir) }));
+    'Outros clientes/mês': +num(r.outrosMes).toFixed(2), 'PASSAR P/ RESERVA': r.transferir, 'Caixas': r.caixa > 1 ? `${r.transferir / r.caixa} cx de ${r.caixa}` : '', 'Reserva fica com': r.saldo + r.transferir, 'Disp. fica com': Math.max(0, r.disp - r.sepAgora - r.transferir) }));
   const comprar = l.filter(r => r.comprar > 0).map(r => ({ ...base(r), 'P/ reserva': r.comprarReserva, 'P/ outros clientes': r.comprarOutros, 'Caixa com': r.caixa > 1 ? r.caixa : '', 'COMPRAR': r.comprar,
     'Valor estimado': +(r.comprar * r.unit).toFixed(2) }));
   const soma = (a, k) => a.reduce((x, r) => x + num(r[k]), 0);
@@ -1165,12 +1170,13 @@ window.excelReserva = () => {
     ['Aumentar a reserva em', 'Reserva ideal − reserva atual'],
     ['Estoque Disp.', 'Estoque disponível no S013 (o que ainda não está separado para ninguém)'],
     ['Já separado', 'O que já foi tirado do Estoque Disp. para o cliente'],
-    ['SEPARAR AGORA', 'Quanto separar hoje, usando o Estoque Disp.'],
+    ['SEPARAR AGORA', 'Quanto separar hoje, usando o Estoque Disp. — em caixas fechadas (múltiplo da caixa)'],
+    ['Caixas', 'Quantas caixas fechadas separar ou passar (produtos vendidos em caixa)'],
     ['Falta (sem estoque)', 'Parte da reserva que não tem no estoque — entra na compra'],
     ['Falta separar (já reservado)', 'Reservado no C904 e ainda não separado (o Disp. cobre isso primeiro)'],
     ['Fica p/ outros clientes', 'Quantidade que precisa ficar no Estoque Disp. para os outros clientes até a próxima compra chegar (prazo + segurança)'],
     ['Outros clientes/mês', 'Consumo geral (C1060) − consumo do cliente'],
-    ['PASSAR P/ RESERVA', 'Quanto tirar do Estoque Disp. e colocar no pedido reservado, sem faltar para os outros'],
+    ['PASSAR P/ RESERVA', 'Quanto tirar do Estoque Disp. e colocar no pedido reservado, sem faltar para os outros — em caixas fechadas'],
     ['Reserva fica com / Disp. fica com', 'Como ficam a reserva e o Estoque Disp. depois de passar'],
     ['Dá para passar do Disp.', 'Da quantidade a aumentar, quanto sai do Estoque Disp.'],
     ['Comprar p/ reserva · P/ reserva', 'Parte da compra que vai para a reserva do cliente'],
@@ -1195,7 +1201,7 @@ window.listaTransferencia = () => {
   if (!l.length) { toast('Nada para passar do Estoque Disp. para a reserva agora (sem sobra depois de proteger os outros clientes).', 'info'); return; }
   const cli = ui.resCli || [...new Set(l.flatMap(r => [...r.clientes]))].join(', ') || 'cliente';
   const L = [`*Passar do Estoque Disp. para o pedido reservado — ${cli}*`, `GF Medical ${BR.cityLabel.replace(' · ', '/')} · ${new Date().toLocaleDateString('pt-BR')}`, ''];
-  l.forEach(r => L.push(`• ${r.codigo} — ${r.produto}: *${qtd(r.transferir)}* (reserva ${qtd(r.saldo)} → ${qtd(r.saldo + r.transferir)}; fica ${qtd(r.disp - r.falta - r.transferir)} no Disp.)`));
+  l.forEach(r => L.push(`• ${r.codigo} — ${r.produto}: *${qtd(r.transferir)}* (reserva ${qtd(r.saldo)} → ${qtd(r.saldo + r.transferir)}; fica ${qtd(Math.max(0, r.disp - r.sepAgora - r.transferir))} no Disp.)`));
   L.push('', `Total: *${qtd(l.reduce((a, r) => a + r.transferir, 0))}* unidade(s) em ${l.length} produto(s).`, 'O Disp. continua cobrindo os outros clientes até a próxima compra chegar.');
   const t = L.join('\n'); navigator.clipboard?.writeText(t).catch(() => {});
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(t), '_blank');
@@ -1221,7 +1227,7 @@ function renderReserva() {
     + statCard('Cobertura da reserva', consTot > 0 ? Math.round(tot('saldo') / (consTot / 30)) + ' dias' : '—', `meta: ${cfg.reserva_dias || 30} dias`)
     + statCard('Ajustar reserva', st('abaixo') + st('semreserva'), `${st('semreserva')} sem reserva · ${st('abaixo')} abaixo · ${st('acima')} acima · ${st('parada')} parada(s)`, st('abaixo') + st('semreserva') ? 'warn' : 'ok');
   const card = (cls, f, t, n, d) => `<div class="acao ${cls} ${ui.res === f ? 'on' : ''}" onclick="filtroResChip('${f}')"><div class="t">${t}</div><div class="n">${n}</div><div class="d">${d}</div></div>`;
-  $('res-acoes').innerHTML = card('a1', 'falta', '1 · ✋ Separar agora', qtd(l.reduce((a, r) => a + Math.min(r.falta, Math.max(0, r.disp)), 0)), `${nF('falta')} produto(s) já reservados no C904 e não separados`)
+  $('res-acoes').innerHTML = card('a1', 'falta', '1 · ✋ Separar agora', qtd(l.reduce((a, r) => a + num(r.sepAgora), 0)), `${nF('falta')} produto(s) já reservados no C904 e não separados`)
     + card('a2', 'transferir', '2 · 🔁 Passar do Disp. → reserva', qtd(tot('transferir')), `${nF('transferir')} produto(s), sem faltar para os outros clientes`)
     + card('a3', 'comprar', '3 · 🛒 Comprar', qtd(tot('comprar')), `${qtd(tot('comprarReserva'))} p/ reserva · ${qtd(tot('comprarOutros'))} p/ outros — já na Programação`)
     + card('a0', 'semreserva', '❗ Consome sem reserva', st('semreserva'), 'produto(s) que o cliente usa e não estão no C904');
@@ -1230,16 +1236,16 @@ function renderReserva() {
   const MES = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
   const tend = r => r.media < 0.5 && r.media3 < 0.5 ? '' : r.media > 0 && r.media3 / r.media >= 1.25 ? `<span class="mini warn">📈 3m ${qtd(r.media3)}/mês</span>` : r.media > 0 && r.media3 / r.media <= 0.75 ? `<span class="mini info">📉 3m ${qtd(r.media3)}/mês</span>` : '';
   $('tb-res').innerHTML = `<thead><tr><th>Situação</th><th>Produto</th><th class="num" title="Reserva atual (C904) → reserva ideal pelo consumo do cliente">Reserva</th><th class="num" title="MÉDIA do C1060 filtrado pelo cliente">Consumo cliente</th><th class="num" title="Estoque Disp. no S013 · já separado para o cliente">Estoque</th><th class="num">✋ Separar</th><th class="num" title="Estoque Disp. que pode ir para o pedido reservado sem faltar para os outros clientes">🔁 Passar do Disp.</th><th class="num" title="Mesma quantidade da Programação de compra">🛒 Comprar</th></tr></thead><tbody>
-    ${l.map(r => { const sepAgora = Math.min(r.falta, Math.max(0, r.disp)), semEst = Math.max(0, r.falta - Math.max(0, r.disp));
+    ${l.map(r => { const sepAgora = num(r.sepAgora), semEst = num(r.sepSemDisp), cxTxt = q => r.caixa > 1 && q ? `<div class="td-doc">${Math.ceil(q / r.caixa)} cx de ${r.caixa}</div>` : '';
       return `<tr class="rs-${r.status}"><td><span class="badge ${RES_ST[r.status][0]}">${RES_ST[r.status][1]}</span></td>
       <td class="prod"><div class="cod">${esc(r.codigo)}${r.semS013 ? ' · não está no S013' : ''}</div><b>${esc(r.produto || '')}</b><div class="td-doc">${r.meses.some(q => q) ? r.meses.map((q, i) => q ? MES[i] + ':' + qtd(q) : '').filter(Boolean).join(' ') : 'sem consumo do cliente no C1060'}</div></td>
       <td class="num"><span class="big">${qtd(r.saldo)}</span>${r.ideal ? `<span class="td-doc"> → ideal ${qtd(r.ideal)}</span>` : ''}<div>${r.ajuste > 0 ? `<span class="mini warn">+${qtd(r.ajuste)} aumentar</span>` : r.ajuste < 0 && r.ideal ? `<span class="mini info">${qtd(r.ajuste)} sobrando</span>` : ''}${r.cobertura != null ? `<span class="mini">${Math.round(r.cobertura)} dias</span>` : ''}</div>${r.valor ? `<div class="td-doc">${brl(r.valor)}</div>` : ''}</td>
       <td class="num"><span class="big">${r.media ? qtd(r.media) : '—'}</span><span class="td-doc">/mês</span><div>${tend(r)}${r.reposMes ? `<span class="mini">repor ~${qtd(r.reposMes)}/mês</span>` : ''}</div>${r.outrosMes ? `<div class="td-doc">outros clientes ${qtd(r.outrosMes)}/mês</div>` : ''}</td>
       <td class="num"><span class="big">${qtd(r.disp)}</span><span class="td-doc"> disp</span><div class="td-doc">separado ${qtd(r.separado)}</div>${r.protege ? `<div class="td-doc" title="Fica no Disp. para os outros clientes até a próxima compra">guardar p/ outros ${qtd(r.protege)}</div>` : ''}</td>
-      <td class="num">${r.falta ? `<span class="big" style="color:#b45309">${qtd(sepAgora)}</span>${semEst ? `<div><span class="mini crit">faltam ${qtd(semEst)} (sem estoque)</span></div>` : ''}` : (r.saldo ? '<span class="mini ok">✔ separada</span>' : '—')}</td>
-      <td class="num">${r.transferir ? `<span class="big" style="color:#15803d">${qtd(r.transferir)}</span><div class="td-doc">reserva → ${qtd(r.saldo + r.transferir)}</div>` : '—'}</td>
+      <td class="num">${r.falta ? `<span class="big" style="color:#b45309">${qtd(sepAgora)}</span>${cxTxt(sepAgora)}${semEst ? `<div><span class="mini crit">faltam ${qtd(semEst)} (sem estoque)</span></div>` : ''}` : (r.saldo ? '<span class="mini ok">✔ separada</span>' : '—')}</td>
+      <td class="num">${r.transferir ? `<span class="big" style="color:#15803d">${qtd(r.transferir)}</span>${cxTxt(r.transferir)}<div class="td-doc">reserva → ${qtd(r.saldo + r.transferir)}</div>` : '—'}</td>
       <td class="num">${r.comprar ? `<span class="big" style="color:#dc2626">${qtd(r.comprar)}</span><div>${r.comprarReserva ? `<span class="mini warn">${qtd(r.comprarReserva)} reserva</span>` : ''}${r.comprarOutros ? `<span class="mini">${qtd(r.comprarOutros)} outros</span>` : ''}${r.caixa > 1 ? `<span class="mini">cx ${r.caixa}</span>` : ''}</div>` : '—'}</td></tr>`; }).join('')}</tbody>
-    <tfoot><tr><td colspan="2">Total (${l.length})</td><td class="num">${qtd(tot('saldo'))}</td><td class="num">${qtd(consTot)}</td><td></td><td class="num">${qtd(l.reduce((a, r) => a + Math.min(r.falta, Math.max(0, r.disp)), 0))}</td><td class="num">${qtd(tot('transferir'))}</td><td class="num">${qtd(tot('comprar'))}</td></tr></tfoot>`;
+    <tfoot><tr><td colspan="2">Total (${l.length})</td><td class="num">${qtd(tot('saldo'))}</td><td class="num">${qtd(consTot)}</td><td></td><td class="num">${qtd(l.reduce((a, r) => a + num(r.sepAgora), 0))}</td><td class="num">${qtd(tot('transferir'))}</td><td class="num">${qtd(tot('comprar'))}</td></tr></tfoot>`;
 }
 window.filtroResChip = f => { ui.res = ui.res === f ? '' : f; document.querySelectorAll('[data-res]').forEach(x => x.classList.toggle('on', x.dataset.res === ui.res)); render(); };
 // Em pedido por produto: aguardando aprovação + aprovado (a caminho) — sai quando marca como recebido ou cancela
