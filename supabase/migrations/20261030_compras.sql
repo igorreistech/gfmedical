@@ -172,3 +172,30 @@ create policy compras_reserva_write on public.compras_reserva for all to authent
   using (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'))
   with check (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'));
 notify pgrst, 'reload schema';
+
+-- Consumo mensal de UM cliente (C1060 filtrado pelo cliente) para a análise da reserva (C904); não mexe no consumo geral
+create table if not exists public.compras_consumo_cliente (
+  id               uuid primary key default gen_random_uuid(),
+  filial           text not null,
+  cliente          text,                       -- cliente do C1060 (ex.: HOSPITAL UNIMED CAMPO GRANDE MS)
+  reserva_cliente  text,                       -- cliente da reserva no C904 (ex.: PEDIDO RESERVADO DO HOSPITAL UNIMED)
+  codigo           text not null,
+  descricao        text,
+  meses            jsonb not null default '[]',
+  total            numeric(14,4),
+  media            numeric(14,4),
+  ano              integer,
+  importado_em     timestamptz not null default now()
+);
+create index if not exists compras_consumo_cliente_filial on public.compras_consumo_cliente (filial);
+alter table public.compras_consumo_cliente enable row level security;
+drop policy if exists compras_consumo_cliente_select on public.compras_consumo_cliente;
+drop policy if exists compras_consumo_cliente_write on public.compras_consumo_cliente;
+create policy compras_consumo_cliente_select on public.compras_consumo_cliente for select to authenticated using (true);
+create policy compras_consumo_cliente_write on public.compras_consumo_cliente for all to authenticated
+  using (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'))
+  with check (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'));
+
+-- Quantos dias de consumo do cliente a reserva deve cobrir
+alter table public.compras_config add column if not exists reserva_dias integer;
+notify pgrst, 'reload schema';

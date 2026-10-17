@@ -548,14 +548,28 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 
       <section class="view" id="view-reserva">
         <div class="stats-bar" id="res-stats"></div>
-        <div class="dcard" style="margin-bottom:14px"><div class="dcard-head">🔒 Estoque de segurança reservado para cliente <small>C904 - Pedidos com saldo pendente analítico</small></div><div class="dcard-body">
-          <div class="td-mono" style="white-space:normal;line-height:1.6">O <b>saldo a faturar</b> do pedido reservado é o estoque que precisa ficar separado só para o cliente. O <b>Estoque Disp.</b> do S013 já desconta o que está separado
-          (físico − disponível). O que <b>falta separar</b> sai do disponível — e, se não tiver, vira compra na <b>Programação de compra</b>.</div>
-          <div class="filters" style="margin:10px 0 0">
-            <button class="fchip on" data-res="">Todos</button>
-            <button class="fchip" data-res="falta">⚠ Falta separar</button>
-            <button class="fchip" data-res="comprar">🛒 Precisa comprar</button>
+        <div class="dcard" style="margin-bottom:14px"><div class="dcard-head">🔒 Reserva do cliente × consumo do cliente <small>C904 (reserva) + C1060 filtrado pelo cliente (consumo mensal dele)</small></div><div class="dcard-body">
+          <div class="td-mono" style="white-space:normal;line-height:1.6">
+            <b>Reserva</b> = saldo a faturar do pedido reservado (C904). <b>Consumo do cliente</b> = MÉDIA do C1060 filtrado pelo cliente — é o que ele usa por mês e o que precisa ser <b>reposto todo mês</b>.
+            <b>Reserva ideal</b> = consumo do cliente por dia × dias de cobertura abaixo. <b>Ajuste</b> = ideal − reserva atual (＋ aumentar a reserva · − reserva acima do necessário).
+            O <b>Estoque Disp.</b> do S013 já desconta o que está separado (físico − disponível); o que <b>falta separar</b> sai do disponível e, se não tiver, vira compra.</div>
+          <div class="filters" style="margin:10px 0 0;align-items:center">
+            <label class="td-mono" style="display:flex;align-items:center;gap:6px">A reserva deve cobrir <input class="finput" id="res-dias" type="number" min="1" step="1" style="width:70px"> dias do consumo do cliente</label>
+            <button class="tbtn tbtn-p" onclick="salvarReservaDias()">💾 Salvar</button>
+            <span class="fdiv"></span>
             <select class="tsel" id="res-cli" onchange="filtroRes(this.value)"></select>
+          </div>
+          <div class="filters" style="margin:8px 0 0">
+            <button class="fchip on" data-res="">Todos</button>
+            <button class="fchip" data-res="abaixo" title="Reserva menor que a ideal pelo consumo do cliente">📉 Reserva abaixo do ideal</button>
+            <button class="fchip" data-res="semreserva" title="O cliente consome e não tem reserva no C904">❗ Consome sem reserva</button>
+            <button class="fchip" data-res="acima" title="Reserva maior que 1,5× a ideal">📈 Reserva acima</button>
+            <button class="fchip" data-res="parada" title="Tem reserva e o cliente não consumiu nos últimos 6 meses">💤 Reserva parada</button>
+            <button class="fchip" data-res="falta">⚠ Falta separar</button>
+            <button class="fchip" data-res="transferir" title="Tem Estoque Disp. sobrando para passar ao pedido reservado">🔁 Dá para passar do Disp.</button>
+            <button class="fchip" data-res="comprar">🛒 Comprar</button>
+            <span class="fdiv"></span>
+            <button class="tbtn tbtn-g" onclick="listaTransferencia()" title="Lista do que passar do Estoque Disp. para o pedido reservado (copia e abre o WhatsApp)">🔁 Lista de transferência</button>
           </div>
         </div></div>
         <div class="twrap">
@@ -571,6 +585,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <b>Arraste aqui ou clique para escolher o PDF</b><br><br>
             <b>S013 - Estoque</b> → lê o <b>Estoque Disp.</b> de cada produto (substitui o estoque próprio desta filial)<br>
             <b>C904 - Pedidos com saldo pendente analítico</b> (filtrado pelo cliente) → reserva de estoque de segurança do cliente (substitui só a reserva desse cliente)<br>
+            <b>C1060 - Consumo Mensal filtrado pelo cliente</b> (ex.: Cliente: HOSPITAL UNIMED) → consumo mensal só desse cliente, para a análise da reserva (não mexe no consumo geral)<br>
             <b>C457 - Itens Consignados</b> → lê o <b>Saldo</b> de cada remessa (substitui o consignado desta filial)<br>
             <b>C1060 - Consumo Mensal</b> → lê o consumo de JAN a DEZ e a <b>MÉDIA</b> de cada produto (substitui o consumo desta filial)<br>
             <b>C723 - Pedidos por Agenda de Cirurgia</b> (status Pendente) → pendente de faturamento, somado ao consumo no mês da cirurgia<br>
@@ -630,8 +645,8 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-16.18';
-const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva' };
+const VERSAO = '2026-10-16.19';
+const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -713,7 +728,7 @@ auth.onAuthStateChange((_e, session) => {
 });
 
 // ───────── Dados ─────────
-const data = { est: [], cons: [], imp: [], cmo: [], pen: [], ped: [], res: [], resOk: false, pedOk: false, raw: {}, reut: { est: 0, cmo: 0, pen: 0, res: 0 } };
+const data = { est: [], cons: [], imp: [], cmo: [], pen: [], ped: [], res: [], resOk: false, cmoCli: [], cmoCliOk: false, pedOk: false, raw: {}, reut: { est: 0, cmo: 0, pen: 0, res: 0, cmoCli: 0 } };
 // Merit · Coronária: quantidade por caixa — a compra sai em caixa fechada (arredonda para cima). No Callisto o código vem sem o "/BR".
 const CAIXAS_MERIT = {"RR811": 10, "RT913": 1, "RBX": 1, "AD18T71W": 25, "AD18T71WS": 25, "AD21T41W": 25, "PSI-4F-7-018": 5, "PSI-4F-11-018": 5, "PSI-5F-7-018": 5, "PSI-6F-7-018": 5, "PSI-5F-23-035": 5, "PSI-4F-11-035": 5, "PSI-5F-11-035": 5, "PSI-6F-11-035": 5, "PSI-6F-23-035": 5, "PSI-7F-23-035": 5, "PSI-7F-11-035": 5, "PSI-8F-11-035": 5, "7529-11/BR": 10, "7509-11/BR": 10, "7531-13/BR": 5, "7521-13/BR": 5, "7501-13/BR": 5, "7521-21/BR": 10, "7523-13/BR": 5, "7503-13/BR": 5, "7523-21/BR": 10, "7533-13/BR": 5, "7533-23/BR": 5, "7710-20": 5, "5576-33": 5, "7527-13": 5, "7507-13": 5, "7527-23": 5, "7507-23": 5, "7527-33": 5, "7507-33": 5, "7703-20": 5, "7528-13": 5, "7528-23": 5, "7508-23": 5, "7528-33": 5, "7508-33": 5, "7706-10": 5, "7511-13": 5, "7700-10": 5, "7700-20": 5, "7501-21": 10, "7521-F1": 10, "7501-H1": 10, "7521-33": 5, "7501-33": 5, "7521-43": 5, "7501-43": 5, "7701-10": 5, "7523-53": 5, "7701-20": 5, "7523-63": 5, "7503-21": 10, "7503-33": 5, "7523-33": 5, "7534-13": 5, "7708-10": 5, "7513-B3": 5, "7513-C3": 5, "7708-20": 5, "7513-23": 5, "7513-53": 5, "7533-33": 5, "7529-23": 5, "7529-33": 5, "7704-10": 5, "7704-70": 5, "7529-43": 5, "7776-11": 10, "510038ULT1": 5, "5100381ULT1": 5, "5100381ULT2": 5, "6100381ULT1": 5, "5592-13": 5, "5575-13": 5, "5594-13": 5, "5576-13": 5, "7717-20": 5, "7717-B0": 5, "5592-A3": 5, "7718-10": 5, "5592-B3": 5, "5584-D3": 5, "5584-A3": 5, "5584-B3": 5, "5584-53": 10, "5584-E3": 5, "5584-63": 5, "5584-43": 5, "5575-A3": 5, "5582-43": 5, "7602-41": 10, "5587-13": 5, "5576-A3": 5, "5576-23": 5, "7720-20": 5, "5576-B3": 5, "5576-C3": 5, "7673-21": 10, "5583-A3": 5, "5583-13": 5, "5585-B3": 5, "7602-20M": 1, "5587-A3": 5, "5584-13": 5, "EZ-REG": 5, "TD500": 10, "HPF480K": 25, "HPF300K": 25, "MSWSTDA35150": 5, "MSWSTDA35180": 5, "MSWSTDA35260EX": 5, "MSWSTFA35180": 5, "MSWSTFA35260EX": 5, "6680-23": 5, "IQ35F180J3": 10, "6682-21": 10, "IQ35F150J3": 10, "IQ35F150S": 10, "IQ35F260S": 10, "IQ38F150S": 10, "IQ35F260J3": 10, "IN7130": 5, "PSI-5F-11-035-18G/BR": 5, "PSI-6F-11-035-18G/BR": 5, "PSI-7F-11-035-18G/BR": 5, "PSI-8F-11-035-18G/BR": 5, "PSI-5F-11-018/BR": 5, "PSI-6F-11-018/BR": 5, "IN4530": 10, "IN4130": 10, "EN2006020": 1, "EN2007045": 1, "EN2006010": 1, "EN2006015": 1, "EN1003004": 1, "EN1003008": 1, "203HN-R": 25, "503HF-R": 25, "503HN-R": 25, "MSS111-LB": 25, "MSS121-LB": 25, "H1FLC": 50, "H3FLC": 50, "RB050": 1, "MAP351": 25, "MAP152": 25, "MAP222": 25};
 // Merit · segunda tabela (lote mínimo e múltiplo = caixa)
@@ -724,7 +739,7 @@ const caixaDe = cod => CAIXAS.get(chaveCx(cod || '')) || 1;
 const emCaixas = (q, cx) => cx > 1 ? Math.ceil(q / cx) * cx : q;
 // Código terminando em "-0" = produto reutilizável: fica fora da contagem (estoque, consumo, pendente e programação)
 const reutilizavel = r => /-0$/.test(String(r.codigo_alt || r.codigo || '').trim());
-let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60, prazos_fabricante: {}, base_consumo: 'ano' };
+let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60, prazos_fabricante: {}, base_consumo: 'ano', reserva_dias: 30 };
 let _bancoOk = true;
 async function selectTudo(tabela) {
   const out = [];
@@ -742,7 +757,8 @@ async function carregarTudo() {
     try { data.pen = await selectTudo(T.pen); } catch (e) { data.pen = []; console.warn('[Compras] pendente:', e.message); }
     try { data.ped = await selectTudo(T.ped); data.pedOk = true; } catch (e) { data.ped = []; data.pedOk = false; console.warn('[Compras] pedidos:', e.message); }
     try { data.res = await selectTudo(T.res); data.resOk = true; } catch (e) { data.res = []; data.resOk = false; console.warn('[Compras] reserva:', e.message); }
-    ['est', 'cmo', 'pen', 'res'].forEach(k => { data.raw[k] = data[k]; data[k] = data.raw[k].filter(r => !reutilizavel(r)); data.reut[k] = data.raw[k].length - data[k].length; });
+    try { data.cmoCli = await selectTudo(T.cmoCli); data.cmoCliOk = true; } catch (e) { data.cmoCli = []; data.cmoCliOk = false; console.warn('[Compras] consumo do cliente:', e.message); }
+    ['est', 'cmo', 'pen', 'res', 'cmoCli'].forEach(k => { data.raw[k] = data[k]; data[k] = data.raw[k].filter(r => !reutilizavel(r)); data.reut[k] = data.raw[k].length - data[k].length; });
     const c = await supabase.from(T.cfg).select('*').eq('filial', FILIAL).maybeSingle();
     if (c.data) cfg = { ...cfg, ...Object.fromEntries(Object.entries(c.data).filter(([, v]) => v != null)) };
     _bancoOk = true;
@@ -761,7 +777,7 @@ function lerParametrosTela() {
   const v = id => Math.max(0, Math.round(num($(id).value)));
   const prazos = {};
   document.querySelectorAll('#p-fabs input[data-fab]').forEach(i => { if (i.value.trim() !== '') prazos[i.dataset.fab] = Math.max(0, Math.round(num(i.value))); });
-  return { prazo_dias: v('p-prazo'), seguranca_dias: v('p-seg'), cobertura_dias: Math.max(1, v('p-cob')), prazos_fabricante: prazos, base_consumo: $('p-base').value || 'ano' };
+  return { prazo_dias: v('p-prazo'), seguranca_dias: v('p-seg'), cobertura_dias: Math.max(1, v('p-cob')), prazos_fabricante: prazos, base_consumo: $('p-base').value || 'ano', reserva_dias: cfg.reserva_dias || 30 };
 }
 function montarParametros() {
   $('p-prazo').value = cfg.prazo_dias; $('p-seg').value = cfg.seguranca_dias; $('p-cob').value = cfg.cobertura_dias; $('p-base').value = cfg.base_consumo || 'ano';
@@ -797,7 +813,7 @@ window.salvarParametros = async () => {
   const linha = { filial: FILIAL, ...cfg, atualizado_em: new Date().toISOString() }, faltou = [];
   let { error } = await supabase.from(T.cfg).upsert(linha);
   // banco sem as colunas novas: salva o resto e avisa
-  for (const col of ['prazos_fabricante', 'base_consumo']) {
+  for (const col of ['prazos_fabricante', 'base_consumo', 'reserva_dias']) {
     if (error && new RegExp(col, 'i').test(error.message || '')) { delete linha[col]; faltou.push(col); ({ error } = await supabase.from(T.cfg).upsert(linha)); }
   }
   if (!error && faltou.length) { toast(`Salvo, mas sem ${faltou.join(' e ')}: rode o SQL de atualização do sistema de compras.`, 'info'); return; }
@@ -981,33 +997,85 @@ function reservaMap() {
   return m;
 }
 window.filtroRes = v => { ui.resCli = v; render(); };
+// Consumo do cliente (C1060 filtrado pelo cliente) ligado à reserva (C904) pelo nome do cliente da reserva
+const consumoDoCliente = cli => data.cmoCli.filter(r => !cli || r.reserva_cliente === cli || r.cliente === cli);
 function listaReserva() {
   const est = new Map(data.est.map(r => [norm(r.codigo), r])), prog = new Map(programacao().map(r => [norm(r.codigo), r])), m = new Map();
-  data.res.filter(r => !ui.resCli || r.cliente === ui.resCli).forEach(r => { const k = norm(r.codigo); if (!m.has(k)) m.set(k, { codigo: r.codigo, produto: r.produto, saldo: 0, valor: 0, unit: num(r.valor_unit), clientes: new Set(), pedidos: new Set() });
-    const g = m.get(k); g.saldo += num(r.saldo); g.valor += num(r.valor_total); g.clientes.add(r.cliente); if (r.pedido) g.pedidos.add(r.pedido); });
-  return [...m.values()].map(g => { const e = est.get(norm(g.codigo)), pr = prog.get(norm(g.codigo)), fisico = num(e?.estoque), disp = num(e?.estoque_disp);
-    const separado = Math.min(g.saldo, Math.max(0, fisico - disp)), falta = Math.max(0, g.saldo - separado), comprar = Math.max(0, falta - disp - num(pr?.emPedido));
-    return { ...g, fisico, disp, separado, falta, comprar, sugerido: pr ? qtdComprar(pr) : 0, semS013: !e }; })
-    .filter(r => !ui.res || (ui.res === 'falta' ? r.falta > 0 : r.comprar > 0)).filter(r => casa(r, ['codigo', 'produto']))
-    .sort((a, b) => b.comprar - a.comprar || b.falta - a.falta || String(a.produto).localeCompare(String(b.produto), 'pt-BR'));
+  const novo = (codigo, produto) => ({ codigo, produto, saldo: 0, valor: 0, unit: 0, clientes: new Set(), pedidos: new Set(), media: 0, meses: Array(12).fill(0), ano: null });
+  data.res.filter(r => !ui.resCli || r.cliente === ui.resCli).forEach(r => { const k = norm(r.codigo); if (!m.has(k)) m.set(k, novo(r.codigo, r.produto));
+    const g = m.get(k); g.saldo += num(r.saldo); g.valor += num(r.valor_total); g.unit = num(r.valor_unit) || g.unit; g.clientes.add(r.cliente); if (r.pedido) g.pedidos.add(r.pedido); });
+  consumoDoCliente(ui.resCli).forEach(r => { const k = norm(r.codigo); if (!m.has(k)) m.set(k, novo(r.codigo, r.descricao));
+    const g = m.get(k); g.media += num(r.media); g.ano = num(r.ano) || g.ano; (r.meses || []).forEach((q, i) => { g.meses[i] += num(q); }); if (!g.produto) g.produto = r.descricao; });
+  const mesAtual = new Date().getMonth() + 1, anoAtual = new Date().getFullYear(), dias = Math.max(1, num(cfg.reserva_dias) || 30);
+  return [...m.values()].map(g => {
+    const e = est.get(norm(g.codigo)), pr = prog.get(norm(g.codigo)), fisico = num(e?.estoque), disp = num(e?.estoque_disp);
+    const separado = Math.min(g.saldo, Math.max(0, fisico - disp)), falta = Math.max(0, g.saldo - separado);
+    // tendência do cliente: últimos 3 meses fechados × média; parada = sem consumo nos últimos 6 meses
+    const ult = (g.ano || anoAtual) === anoAtual ? mesAtual - 1 : 12, ms = n => Array.from({ length: n }, (_, i) => ult - i).filter(x => x >= 1);
+    const m3 = ms(3), media3 = m3.length ? m3.reduce((a, x) => a + g.meses[x - 1], 0) / m3.length : g.media, venda6 = ms(6).reduce((a, x) => a + g.meses[x - 1], 0);
+    const dia = g.media / 30, cobertura = dia > 0 ? g.saldo / dia : null, ideal = dia > 0 ? Math.ceil(dia * dias) : 0, ajuste = ideal - g.saldo;
+    const unit = g.unit || num(e?.ultimo_preco);
+    // Do Disp. para o pedido reservado, sem faltar para os outros clientes:
+    // 1) o Disp. cobre primeiro o que já está reservado e não separado (falta separar);
+    // 2) fica no Disp. o que os OUTROS clientes usam até a próxima compra chegar: (consumo geral − consumo do cliente)/dia × (prazo + segurança);
+    // 3) o que sobra pode ir para a reserva, até o ajuste para a reserva ideal; o resto vira compra (reserva + reposição dos outros).
+    const prazo = pr?.prazo ?? cfg.prazo_dias, outrosMes = Math.max(0, num(pr?.media) - g.media), diaOut = outrosMes / 30;
+    const protege = Math.ceil(diaOut * (prazo + cfg.seguranca_dias)), d1 = disp - falta, faltaSemDisp = Math.max(0, -d1), livre = Math.max(0, d1 - protege);
+    const ajusteMais = Math.max(0, ideal - g.saldo), transferir = Math.min(ajusteMais, livre), comprarReserva = faltaSemDisp + (ajusteMais - transferir);
+    const fica = Math.max(0, d1) - transferir, comprarOutros = outrosMes > 0 ? Math.max(0, Math.ceil(diaOut * (prazo + cfg.cobertura_dias)) - fica - num(pr?.emPedido)) : 0;
+    const caixa = pr?.caixa || caixaDe(g.codigo), comprar = comprarReserva + comprarOutros ? emCaixas(comprarReserva + comprarOutros, caixa) : 0;
+    const status = g.media > 0 && g.saldo <= 0 ? 'semreserva' : g.saldo > 0 && venda6 <= 0 && g.media <= 0 ? 'parada' : g.saldo > 0 && g.media <= 0 ? 'parada' : ajuste > 0 ? 'abaixo' : ideal > 0 && g.saldo > ideal * 1.5 ? 'acima' : 'ok';
+    return { ...g, fisico, disp, separado, falta, comprar, comprarReserva, comprarOutros, transferir, protege, outrosMes, caixa, media3, venda6, cobertura, ideal, ajuste, unit, status, reposMes: Math.ceil(g.media), semS013: !e };
+  }).filter(r => !ui.res || (ui.res === 'falta' ? r.falta > 0 : ui.res === 'comprar' ? r.comprar > 0 : ui.res === 'transferir' ? r.transferir > 0 : r.status === ui.res)).filter(r => casa(r, ['codigo', 'produto']))
+    .sort((a, b) => ({ semreserva: 0, abaixo: 1, parada: 3, acima: 4, ok: 5 }[a.status] - { semreserva: 0, abaixo: 1, parada: 3, acima: 4, ok: 5 }[b.status]) || b.comprar - a.comprar || (a.cobertura ?? 1e9) - (b.cobertura ?? 1e9));
 }
+const RES_ST = { semreserva: ['b-crit', '❗ Consome sem reserva'], abaixo: ['b-warn', '📉 Abaixo do ideal'], acima: ['b-info', '📈 Acima do ideal'], parada: ['b-mute', '💤 Parada'], ok: ['b-ok', '✔ OK'] };
+window.listaTransferencia = () => {
+  const l = listaReserva().filter(r => r.transferir > 0);
+  if (!l.length) { toast('Nada para passar do Estoque Disp. para a reserva agora (sem sobra depois de proteger os outros clientes).', 'info'); return; }
+  const cli = ui.resCli || [...new Set(l.flatMap(r => [...r.clientes]))].join(', ') || 'cliente';
+  const L = [`*Passar do Estoque Disp. para o pedido reservado — ${cli}*`, `GF Medical ${BR.cityLabel.replace(' · ', '/')} · ${new Date().toLocaleDateString('pt-BR')}`, ''];
+  l.forEach(r => L.push(`• ${r.codigo} — ${r.produto}: *${qtd(r.transferir)}* (reserva ${qtd(r.saldo)} → ${qtd(r.saldo + r.transferir)}; fica ${qtd(r.disp - r.falta - r.transferir)} no Disp.)`));
+  L.push('', `Total: *${qtd(l.reduce((a, r) => a + r.transferir, 0))}* unidade(s) em ${l.length} produto(s).`, 'O Disp. continua cobrindo os outros clientes até a próxima compra chegar.');
+  const t = L.join('\n'); navigator.clipboard?.writeText(t).catch(() => {});
+  window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(t), '_blank');
+};
+window.salvarReservaDias = async () => {
+  cfg.reserva_dias = Math.max(1, Math.round(num($('res-dias').value) || 30)); render();
+  if (_readOnly) { toast('Aplicado só nesta tela (usuário de visualização).', 'info'); return; }
+  const { error } = await supabase.from(T.cfg).upsert({ filial: FILIAL, reserva_dias: cfg.reserva_dias, atualizado_em: new Date().toISOString() });
+  toast(error ? (/reserva_dias/i.test(error.message || '') ? 'Aplicado na tela, mas falta rodar o SQL de atualização (coluna reserva_dias).' : 'Não salvou: ' + error.message) : '✔ Cobertura da reserva salva', error ? 'info' : 'ok');
+};
 function renderReserva() {
   const clientes = [...new Set(data.res.map(r => r.cliente).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   $('res-cli').innerHTML = '<option value="">Cliente: todos</option>' + clientes.map(c => `<option ${c === ui.resCli ? 'selected' : ''}>${esc(c)}</option>`).join('');
-  const iR = ultImp('C904'); $('res-info').textContent = iR ? `C904 importado em ${dataHoraBR(iR.importado_em)}` : '';
+  if (document.activeElement !== $('res-dias')) $('res-dias').value = cfg.reserva_dias || 30;
+  const iR = ultImp('C904'), iC = ultImp('C1060C'), cmoCli = consumoDoCliente(ui.resCli);
+  $('res-info').textContent = [iR && `C904 ${dataHoraBR(iR.importado_em)}`, iC && `C1060 do cliente ${dataHoraBR(iC.importado_em)}${cmoCli[0] ? ` (${cmoCli[0].cliente})` : ''}`].filter(Boolean).join(' · ') || '';
   const l = listaReserva(); $('cnt-res').textContent = l.length;
-  const tot = k => l.reduce((a, r) => a + num(r[k]), 0);
-  $('res-stats').innerHTML = statCard('Reservado para cliente', qtd(tot('saldo')), `${l.length} produto(s) · ${brl(tot('valor'))}`, 'info')
-    + statCard('Já separado', qtd(tot('separado')), 'físico − disponível no S013', 'ok')
-    + statCard('Falta separar', qtd(tot('falta')), `${l.filter(r => r.falta > 0).length} produto(s) — sai do disponível`, tot('falta') ? 'warn' : '')
-    + statCard('Precisa comprar', qtd(tot('comprar')), `${l.filter(r => r.comprar > 0).length} produto(s) sem disponível para completar a reserva`, tot('comprar') ? 'crit' : '');
+  const tot = k => l.reduce((a, r) => a + num(r[k]), 0), consTot = tot('media'), consVal = l.reduce((a, r) => a + r.media * r.unit, 0);
+  const st = k => l.filter(r => r.status === k).length;
+  $('res-stats').innerHTML = statCard('Reservado para cliente', qtd(tot('saldo')), `${l.filter(r => r.saldo > 0).length} produto(s) · ${brl(tot('valor'))}`, 'info')
+    + statCard('Consumo do cliente / mês', qtd(consTot), cmoCli.length ? `≈ ${brl(consVal)} por mês — repor todo mês` : 'importe o C1060 filtrado pelo cliente', cmoCli.length ? '' : 'warn')
+    + statCard('Cobertura da reserva', consTot > 0 ? Math.round(tot('saldo') / (consTot / 30)) + ' dias' : '—', `meta: ${cfg.reserva_dias || 30} dias de consumo do cliente`)
+    + statCard('Ajustar reserva', st('abaixo') + st('semreserva'), `${st('abaixo')} abaixo do ideal · ${st('semreserva')} sem reserva · ${st('parada')} parada(s)`, st('abaixo') + st('semreserva') ? 'warn' : 'ok')
+    + statCard('Dá para passar do Disp.', qtd(tot('transferir')), `${l.filter(r => r.transferir > 0).length} produto(s) → pedido reservado, sem faltar p/ outros clientes`, tot('transferir') ? 'ok' : '')
+    + statCard('Comprar', qtd(tot('comprar')), `${qtd(tot('comprarReserva'))} p/ reserva · ${qtd(tot('comprarOutros'))} p/ outros clientes`, tot('comprar') ? 'crit' : '');
   if (!data.resOk) { $('tb-res').innerHTML = `<tbody><tr><td><div class="empty-page">🔒 Para usar a reserva de cliente, rode o SQL de atualização do sistema de compras (cria a tabela da reserva).<br><br><button class="tbtn tbtn-p" onclick="mostrarSql()">📋 Ver e copiar o SQL</button></div></td></tr></tbody>`; return; }
-  if (!l.length) { $('tb-res').innerHTML = `<tbody><tr><td><div class="empty-page">${data.res.length ? 'Nada com esse filtro.' : '🔒 Nenhuma reserva importada.<br><br>No Callisto, gere o <b>C904 - Pedidos com saldo pendente analítico</b> filtrado pelo cliente e importe em <b>📥 Importar</b>.'}</div></td></tr></tbody>`; return; }
-  $('tb-res').innerHTML = `<thead><tr><th>Código</th><th>Produto</th><th class="num">Reserva (saldo)</th><th class="num">Físico</th><th class="num">Disp.</th><th class="num">Já separado</th><th class="num">Falta separar</th><th class="num">Precisa comprar</th><th class="num">Valor reservado</th></tr></thead><tbody>
-    ${l.map(r => `<tr><td class="td-mono">${esc(r.codigo)}</td><td>${esc(r.produto || '')}<div class="td-doc">${esc([...r.clientes].join(', '))}${r.pedidos.size ? ' · pedido ' + esc([...r.pedidos].join(', ')) : ''}${r.semS013 ? ' · não está no S013' : ''}</div></td>
-      <td class="num"><b>${qtd(r.saldo)}</b></td><td class="num">${qtd(r.fisico)}</td><td class="num">${qtd(r.disp)}</td><td class="num">${qtd(r.separado)}</td>
-      <td class="num" style="${r.falta ? 'color:#b45309;font-weight:700' : ''}">${r.falta ? qtd(r.falta) : '✔'}</td><td class="num" style="${r.comprar ? 'color:#dc2626;font-weight:700' : ''}">${r.comprar ? qtd(r.comprar) : '—'}</td><td class="num">${brl(r.valor)}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="2">Total (${l.length})</td><td class="num">${qtd(tot('saldo'))}</td><td></td><td></td><td class="num">${qtd(tot('separado'))}</td><td class="num">${qtd(tot('falta'))}</td><td class="num">${qtd(tot('comprar'))}</td><td class="num">${brl(tot('valor'))}</td></tr></tfoot>`;
+  if (!l.length) { $('tb-res').innerHTML = `<tbody><tr><td><div class="empty-page">${data.res.length || data.cmoCli.length ? 'Nada com esse filtro.' : '🔒 Nenhuma reserva importada.<br><br>No Callisto, gere o <b>C904 - Pedidos com saldo pendente analítico</b> e o <b>C1060 - Consumo Mensal</b>, os dois filtrados pelo cliente, e importe em <b>📥 Importar</b>.'}</div></td></tr></tbody>`; return; }
+  const MES = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+  const tend = r => r.media < 0.5 && r.media3 < 0.5 ? '' : r.media > 0 && r.media3 / r.media >= 1.25 ? `<div class="td-doc" style="color:#b45309">📈 3m ${qtd(r.media3)}/mês</div>` : r.media > 0 && r.media3 / r.media <= 0.75 ? `<div class="td-doc" style="color:#2563eb">📉 3m ${qtd(r.media3)}/mês</div>` : '';
+  $('tb-res').innerHTML = `<thead><tr><th>Situação</th><th>Código</th><th>Produto</th><th class="num">Reserva (C904)</th><th class="num" title="MÉDIA do C1060 filtrado pelo cliente">Consumo cliente/mês</th><th class="num" title="Reserva ÷ consumo do cliente por dia">Cobertura</th><th class="num" title="Consumo do cliente por dia × dias de cobertura">Reserva ideal</th><th class="num" title="Ideal − reserva atual">Ajuste</th><th class="num" title="Físico − disponível no S013">Já separado</th><th class="num">Falta separar</th><th class="num" title="Estoque Disp. que pode ir para o pedido reservado sem faltar para os outros clientes">Passar do Disp. → reserva</th><th class="num" title="Fica no Disp. para os outros clientes até a próxima compra chegar: (consumo geral − consumo do cliente)/dia × (prazo + segurança)">Fica p/ outros</th><th class="num">Comprar</th><th class="num">Valor reservado</th></tr></thead><tbody>
+    ${l.map(r => `<tr><td><span class="badge ${RES_ST[r.status][0]}">${RES_ST[r.status][1]}</span></td><td class="td-mono">${esc(r.codigo)}</td>
+      <td>${esc(r.produto || '')}<div class="td-doc">${r.meses.some(q => q) ? r.meses.map((q, i) => q ? MES[i] + ':' + qtd(q) : '').filter(Boolean).join(' ') : 'sem consumo do cliente no C1060'}${r.semS013 ? ' · não está no S013' : ''}</div></td>
+      <td class="num"><b>${qtd(r.saldo)}</b></td><td class="num">${r.media ? qtd(r.media) : '—'}${tend(r)}${r.reposMes ? `<div class="td-doc">repor ~${qtd(r.reposMes)}/mês</div>` : ''}</td>
+      <td class="num">${r.cobertura == null ? (r.saldo ? '∞' : '—') : Math.round(r.cobertura) + ' dias'}</td><td class="num">${r.ideal ? qtd(r.ideal) : '—'}</td>
+      <td class="num" style="font-weight:700;color:${r.ajuste > 0 ? '#b45309' : r.ajuste < 0 ? '#2563eb' : 'inherit'}">${r.ajuste > 0 ? '+' + qtd(r.ajuste) : r.ajuste < 0 && r.ideal ? qtd(r.ajuste) : '—'}</td>
+      <td class="num">${qtd(r.separado)}<div class="td-doc">fís ${qtd(r.fisico)} · disp ${qtd(r.disp)}</div></td>
+      <td class="num" style="${r.falta ? 'color:#b45309;font-weight:700' : ''}">${r.falta ? qtd(r.falta) : (r.saldo ? '✔' : '—')}</td><td class="num" style="${r.transferir ? 'color:#15803d;font-weight:700' : ''}">${r.transferir ? '🔁 ' + qtd(r.transferir) : '—'}</td>
+      <td class="num">${r.protege ? qtd(r.protege) : '—'}${r.outrosMes ? `<div class="td-doc">outros ${qtd(r.outrosMes)}/mês</div>` : ''}</td>
+      <td class="num" style="${r.comprar ? 'color:#dc2626;font-weight:700' : ''}">${r.comprar ? qtd(r.comprar) : '—'}${r.comprar ? `<div class="td-doc">${[r.comprarReserva && `reserva ${qtd(r.comprarReserva)}`, r.comprarOutros && `outros ${qtd(r.comprarOutros)}`, r.caixa > 1 && `cx c/ ${r.caixa}`].filter(Boolean).join(' · ')}</div>` : ''}</td><td class="num">${brl(r.valor)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="3">Total (${l.length})</td><td class="num">${qtd(tot('saldo'))}</td><td class="num">${qtd(consTot)}</td><td></td><td class="num">${qtd(tot('ideal'))}</td><td></td><td class="num">${qtd(tot('separado'))}</td><td class="num">${qtd(tot('falta'))}</td><td class="num">${qtd(tot('transferir'))}</td><td class="num">${qtd(tot('protege'))}</td><td class="num">${qtd(tot('comprar'))}</td><td class="num">${brl(tot('valor'))}</td></tr></tfoot>`;
 }
 // Em pedido por produto: aguardando aprovação + aprovado (a caminho) — sai quando marca como recebido ou cancela
 function emPedidoMap() {
@@ -1122,7 +1190,7 @@ function escolher(titulo, texto, opcoes) {
   });
 }
 // Linhas de cada relatório agrupadas pela importação que as gravou (mesmo importado_em)
-const LOTE_TAB = { S013: ['est', 'produto(s)'], C1060: ['cmo', 'produto(s)'], C457: ['cons', 'remessa(s)'], C723: ['pen', 'item(ns)'], C904: ['res', 'item(ns)'] };
+const LOTE_TAB = { S013: ['est', 'produto(s)'], C1060: ['cmo', 'produto(s)'], C457: ['cons', 'remessa(s)'], C723: ['pen', 'item(ns)'], C904: ['res', 'item(ns)'], C1060C: ['cmoCli', 'produto(s)'] };
 function lotes(tipo) {
   const m = new Map();
   (data.raw[LOTE_TAB[tipo][0]] || data[LOTE_TAB[tipo][0]]).forEach(r => { const k = r.importado_em || ''; m.set(k, (m.get(k) || 0) + 1); });
@@ -1140,7 +1208,7 @@ function lotesHTML(tipo, nome) {
 window.removerLote = async (tipo, ts) => {
   const l = lotes(tipo).find(x => x.ts === ts); if (!l) return;
   if (!confirm(`Apagar as ${l.n} linha(s) da importação de ${dataHoraBR(ts)}${l.arquivo ? ` (${l.arquivo})` : ''}?\n\nAs outras importações continuam.`)) return;
-  const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen, C904: T.res }[tipo];
+  const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen, C904: T.res, C1060C: T.cmoCli }[tipo];
   const { error } = await supabase.from(tabela).delete().eq('filial', FILIAL).eq('importado_em', ts);
   if (error) { toast('Não apagou: ' + error.message, 'err'); return; }
   toast(`✔ ${l.n} linha(s) antigas removidas`);
@@ -1169,7 +1237,7 @@ function renderPainel() {
       </div></div>
       <div class="dcard"><div class="dcard-head">📥 O que está no banco <small>o painel soma todas as importações abaixo</small></div><div class="dcard-body">
         ${['S013', 'C1060', 'C457', 'C723'].some(t => lotes(t).length > 1) ? '<div class="par-warn">Há relatórios com mais de uma importação somada (PDF filtrado só atualiza os produtos dele). Se quer o painel só com o PDF novo, apague as importações antigas no 🗑 — ou, ao importar, escolha <b>Substituir TUDO</b>.</div>' : ''}
-        ${lotesHTML('S013', '📦 S013 · estoque')}${lotesHTML('C1060', '📈 C1060 · consumo')}${lotesHTML('C457', '🏥 C457 · consignado')}${lotesHTML('C723', '⏳ C723 · pendente')}${lotesHTML('C904', '🔒 C904 · reserva de cliente')}
+        ${lotesHTML('S013', '📦 S013 · estoque')}${lotesHTML('C1060', '📈 C1060 · consumo')}${lotesHTML('C457', '🏥 C457 · consignado')}${lotesHTML('C723', '⏳ C723 · pendente')}${lotesHTML('C904', '🔒 C904 · reserva de cliente')}${lotesHTML('C1060C', '👤 C1060 · consumo do cliente')}
         <button class="tbtn tbtn-p" style="margin-top:10px" onclick="goView('importar')">📥 Importar PDF do Callisto</button>
       </div></div>
       ${data.cmo.length ? (() => { const pr = programacao(), par = pr.filter(r => r.parado).sort((a, b) => b.disp * b.preco - a.disp * a.preco), vPar = par.reduce((a, r) => a + r.disp * r.preco, 0);
@@ -1258,7 +1326,7 @@ function renderImportar() {
   const l = [...data.imp].sort((a, b) => (b.importado_em || '').localeCompare(a.importado_em || ''));
   $('cnt-imp').textContent = l.length;
   $('tb-imp').innerHTML = l.length ? `<thead><tr><th>Quando</th><th>Relatório</th><th>Arquivo</th><th class="num">Linhas</th><th>Quem</th></tr></thead><tbody>
-    ${l.map(i => `<tr><td class="td-mono">${dataHoraBR(i.importado_em)}</td><td>${{ S013: '📦 S013 - Estoque', C457: '🏥 C457 - Itens Consignados', C1060: '📈 C1060 - Consumo Mensal', C723: '⏳ C723 - Pendentes por cirurgia', C904: '🔒 C904 - Reserva de cliente' }[i.tipo] || i.tipo}</td><td>${esc(i.arquivo || '')}</td><td class="num">${i.linhas}</td><td class="td-mono">${esc((i.usuario || '').split(' (')[0].split('@')[0])}</td></tr>`).join('')}</tbody>`
+    ${l.map(i => `<tr><td class="td-mono">${dataHoraBR(i.importado_em)}</td><td>${{ S013: '📦 S013 - Estoque', C457: '🏥 C457 - Itens Consignados', C1060: '📈 C1060 - Consumo Mensal', C723: '⏳ C723 - Pendentes por cirurgia', C904: '🔒 C904 - Reserva de cliente', C1060C: '👤 C1060 - Consumo do cliente' }[i.tipo] || i.tipo}</td><td>${esc(i.arquivo || '')}</td><td class="num">${i.linhas}</td><td class="td-mono">${esc((i.usuario || '').split(' (')[0].split('@')[0])}</td></tr>`).join('')}</tbody>`
     : '<tbody><tr><td><div class="empty-mini">Nenhuma importação ainda.</div></td></tr></tbody>';
 }
 
@@ -1405,19 +1473,30 @@ async function importarArquivos(files) {
       if (/C904/.test(texto)) { tipo = 'C904'; rows = lerC904(pags); }
       else if (/S013/.test(texto)) { tipo = 'S013'; rows = lerS013(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; }); }
       else if (/C457/.test(texto)) { tipo = 'C457'; rows = lerC457(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; }); }
+      else if (/C1060/.test(texto) && /Cliente:\s*[^.]+\./.test(texto.replace(/\s+/g, ' '))) { tipo = 'C1060C'; rows = lerC1060(pags);
+        const cliC = /Cliente:\s*([^.]+?)\s*\./.exec(texto.replace(/\s+/g, ' '))[1].trim();
+        // liga à reserva (C904): um cliente só → automático; vários → pergunta; nenhum → fica com o nome do C1060
+        const clisRes = [...new Set(data.res.map(r => r.cliente).filter(Boolean))];
+        const pal = t => norm(t).split(/[^A-Z0-9]+/).filter(w => w.length > 3 && !/^(PEDIDO|RESERVADO|HOSPITAL|CAMPO|GRANDE|CUIABA|CLINICA|LTDA)$/.test(w));
+        let resCli = clisRes.length === 1 ? clisRes[0] : clisRes.find(c => pal(c).some(w => pal(cliC).includes(w))) || null;
+        if (clisRes.length > 1) { const op = await escolher('🔗 Ligar o consumo à reserva', `C1060 do cliente: ${cliC}\n\nDe qual reserva (C904) é este consumo?`, [...clisRes.map(c => [c, (c === resCli ? '✔ ' : '') + c, c === resCli ? 'tbtn-p' : '']), ['__nenhum', 'Nenhuma (guardar só o consumo)', ''], [null, 'Cancelar', '']]); if (!op) continue; resCli = op === '__nenhum' ? null : op; }
+        rows.forEach(r => { r.cliente = cliC; r.reserva_cliente = resCli || cliC; }); }
       else if (/C1060/.test(texto)) { tipo = 'C1060'; rows = lerC1060(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; }); }
       else if (/C723/.test(texto)) { tipo = 'C723'; rows = lerC723(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; });
         if (!/Pendente/i.test(texto.replace(/\s+/g, ' ')) && !confirm('Este C723 não parece estar filtrado por "Status dos Pedidos: Pendente". Importar mesmo assim como pendente de faturamento?')) continue; }
       else { toast(`${file.name}: não reconheci o relatório (esperado S013 - Estoque ou C457 - Itens Consignados).`, 'err'); continue; }
       if (!rows.length) { toast(`${file.name}: nenhuma linha encontrada.`, 'err'); continue; }
-      const NOMES = { S013: 'S013 - Estoque', C457: 'C457 - Itens Consignados', C1060: 'C1060 - Consumo Mensal', C723: 'C723 - Pedidos pendentes por cirurgia', C904: 'C904 - Pedidos com saldo pendente' }, ALVO = { S013: 'estoque próprio', C457: 'consignado', C1060: 'consumo', C723: 'pendente de faturamento', C904: 'reserva de cliente' };
+      const NOMES = { S013: 'S013 - Estoque', C457: 'C457 - Itens Consignados', C1060: 'C1060 - Consumo Mensal', C723: 'C723 - Pedidos pendentes por cirurgia', C904: 'C904 - Pedidos com saldo pendente', C1060C: 'C1060 - Consumo Mensal do cliente' }, ALVO = { S013: 'estoque próprio', C457: 'consignado', C1060: 'consumo', C723: 'pendente de faturamento', C904: 'reserva de cliente', C1060C: 'consumo do cliente' };
       const resumo = tipo === 'S013' ? `${rows.length} produto(s), ${qtd(rows.reduce((a, r) => a + num(r.estoque_disp), 0))} unidade(s) disponíveis`
         : tipo === 'C457' ? `${rows.length} remessa(s), saldo atual ${qtd(rows.reduce((a, r) => a + num(r.saldo), 0))} unidade(s)`
+        : tipo === 'C1060C' ? `${rows.length} produto(s) consumidos por ${rows[0]?.cliente}, ${qtd(rows.reduce((a, r) => a + num(r.total), 0))} unidade(s) no ano, ${qtd(rows.reduce((a, r) => a + num(r.media), 0))}/mês${rows[0]?.reserva_cliente !== rows[0]?.cliente ? ` — ligado à reserva ${rows[0]?.reserva_cliente}` : ''}`
         : tipo === 'C904' ? `${rows.length} item(ns) reservado(s) para ${[...new Set(rows.map(r => r.cliente))].join(', ')}, saldo ${qtd(rows.reduce((a, r) => a + num(r.saldo), 0))} unidade(s), ${brl(rows.reduce((a, r) => a + num(r.valor_total), 0))}`
         : tipo === 'C723' ? `${new Set(rows.map(r => r.pedido)).size} pedido(s), ${rows.length} item(ns), ${qtd(rows.reduce((a, r) => a + num(r.quantidade), 0))} unidade(s), ${brl(rows.reduce((a, r) => a + num(r.valor_total), 0))}`
         : `${rows.length} produto(s), consumo total ${qtd(rows.reduce((a, r) => a + num(r.total), 0))} unidade(s) no ano`;
       let parcial = (tipo === 'S013' || tipo === 'C723' || tipo === 'C1060') && filtroS013;
-      if (tipo === 'C904') {
+      if (tipo === 'C1060C') {
+        if (!confirm(`${NOMES[tipo]} de ${file.name}:\n${resumo}.\n\nSubstitui o consumo deste cliente em ${BR.label}. O consumo geral (C1060 sem filtro) NÃO muda. Importar?`)) continue;
+      } else if (tipo === 'C904') {
         const clis = [...new Set(rows.map(r => r.cliente).filter(Boolean))];
         if (!confirm(`${NOMES[tipo]} de ${file.name}:\n${resumo}.\n\nSubstitui a reserva de ${clis.join(', ') || 'cliente'} em ${BR.label} (as reservas de outros clientes continuam). Importar?`)) continue;
       } else if (tipo === 'C457') {
@@ -1442,7 +1521,7 @@ O consignado de ${BR.label} já tem ${jaTem} linha(s) de importações anteriore
         if (!op) continue;
         if (op === 'tudo') parcial = null;
       } else if (!confirm(`${NOMES[tipo]} de ${file.name}:\n${resumo}.\n\nIsso SUBSTITUI o ${ALVO[tipo]} atual de ${BR.label}. Importar?`)) continue;
-      const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen, C904: T.res }[tipo], agora = new Date().toISOString();
+      const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen, C904: T.res, C1060C: T.cmoCli }[tipo], agora = new Date().toISOString();
       $('imp-status').textContent = `⏳ Gravando ${rows.length} linha(s)…`;
       if (parcial) {
         // apaga os produtos deste PDF e os que eram deste fabricante (os que sumiram do relatório estão zerados)
@@ -1453,7 +1532,7 @@ O consignado de ${BR.label} já tem ${jaTem} linha(s) de importações anteriore
         if (fabricante) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).eq('fabricante', fabricante); if (d.error && !/fabricante/i.test(d.error.message || '')) throw d.error; }
       } else {
         let qDel = supabase.from(tabela).delete().eq('filial', FILIAL);
-        const clisRes = tipo === 'C904' ? [...new Set(rows.map(r => r.cliente).filter(Boolean))] : [];
+        const clisRes = tipo === 'C904' || tipo === 'C1060C' ? [...new Set(rows.map(r => r.cliente).filter(Boolean))] : [];
         if (clisRes.length) qDel = qDel.in('cliente', clisRes); // C904: troca só a reserva desse(s) cliente(s)
         const del = await qDel;
         if (del.error) throw del.error;
@@ -1510,7 +1589,7 @@ window.exportarExcel = () => {
   if (ui.view === 'programacao') { nome = 'Lista_de_compra'; linhas = listaProgramacao().map(r => ({ Situação: SIT[r.situacao][1].replace(/^\S+ /, ''), Código: r.codigo, Produto: r.descricao, Fabricante: r.fabricante || '', 'Estoque Disp.': r.disp, 'Consumo médio/mês': r.media, 'Cobertura (dias)': r.cobertura == null ? null : Math.round(r.cobertura), 'Ponto de pedido': Math.ceil(r.ponto), Comprar: qtdComprar(r), 'Caixa com': r.caixa > 1 ? r.caixa : '', 'Em pedido': r.emPedido || 0, 'Reserva cliente (C904)': r.reserva || 0, 'Falta separar': r.faltaSeparar || 0, 'Saldo após compra': saldoApos(r), Curva: r.abc, 'Consumo 3 meses/mês': +r.media3.toFixed(2), 'Tendência %': r.mediaAno > 0 ? Math.round((r.tendencia - 1) * 100) : '', Parado: r.parado ? 'sim' : '', Unidade: r.unidade, 'Último preço': r.preco, Valor: +(qtdComprar(r) * r.preco).toFixed(2), 'Em consignação': r.consignado })); }
   else if (ui.view === 'pendente') { nome = 'Pendente_faturamento'; linhas = data.pen.map(r => ({ Pedido: r.pedido, NF: r.nf, 'Data cirurgia': dataBR(r.data_cirurgia), Cliente: r.cliente, Paciente: r.paciente, Convênio: r.convenio, Médico: r.medico, 'Código alt.': r.codigo_alt, Produto: r.produto, Fabricante: r.fabricante || '', Qtd: num(r.quantidade), 'Valor unit.': num(r.valor_unit), 'Valor total': num(r.valor_total) })); }
   else if (ui.view === 'consignado') { nome = 'Consignado'; linhas = consPorProduto(ui.cons === 'saldo').flatMap(g => g.linhas.filter(r => ui.cons !== 'saldo' || num(r.saldo) > 0).map(r => ({ 'Código alt.': r.codigo_alt, Código: r.codigo, Produto: r.produto, Cliente: r.cliente, Emissão: dataBR(r.data_emissao), Documento: r.documento, Pedido: r.pedido, 'Qtd enviada': num(r.quantidade), 'Saldo atual': num(r.saldo), 'Valor da remessa': num(r.valor) }))); }
-  else if (ui.view === 'reserva') { nome = 'Reserva_cliente_C904'; linhas = listaReserva().map(r => ({ Código: r.codigo, Produto: r.produto, Cliente: [...r.clientes].join(', '), 'Reserva (saldo)': r.saldo, Físico: r.fisico, Disp: r.disp, 'Já separado': r.separado, 'Falta separar': r.falta, 'Precisa comprar': r.comprar, 'Valor reservado': +r.valor.toFixed(2) })); }
+  else if (ui.view === 'reserva') { nome = 'Reserva_cliente'; linhas = listaReserva().map(r => ({ Situação: RES_ST[r.status][1].replace(/^\S+ /, ''), Código: r.codigo, Produto: r.produto, Cliente: [...r.clientes].join(', '), 'Reserva (C904)': r.saldo, 'Consumo cliente/mês': +r.media.toFixed(2), 'Consumo 3 meses/mês': +r.media3.toFixed(2), 'Cobertura (dias)': r.cobertura == null ? '' : Math.round(r.cobertura), 'Reserva ideal': r.ideal, Ajuste: r.ajuste, 'Repor por mês': r.reposMes, Físico: r.fisico, Disp: r.disp, 'Já separado': r.separado, 'Falta separar': r.falta, 'Passar do Disp. p/ reserva': r.transferir, 'Fica p/ outros clientes': r.protege, 'Comprar p/ reserva': r.comprarReserva, 'Comprar p/ outros': r.comprarOutros, 'Comprar (cx)': r.comprar, 'Valor reservado': +r.valor.toFixed(2) })); }
   else if (ui.view === 'pedidos') { nome = 'Pedidos_de_compra'; linhas = listaPedidos().flatMap(p => (p.itens || []).map(i => ({ Pedido: p.numero, Data: dataHoraBR(p.criado_em), Fabricante: p.fabricante, Situação: (PED_ST[p.status]?.[1] || p.status).replace(/^\S+ /, ''), Código: i.codigo, Produto: i.descricao, Sugerido: num(i.sugerido), Pedido_qtd: num(i.qtd), 'Caixa com': i.caixa > 1 ? i.caixa : '', Preço: num(i.preco), Valor: +(num(i.qtd) * num(i.preco)).toFixed(2), 'Criado por': p.criado_por || '', 'Aprovado por': p.aprovado_por || '', 'Recebido em': p.recebido_em ? dataHoraBR(p.recebido_em) : '' }))); }
   else { nome = 'Estoque'; linhas = listaEstoque().map(r => ({ Código: r.codigo, Produto: r.descricao, Fabricante: r.fabricante || '', 'Estoque Disp.': num(r.estoque_disp), 'Estoque físico': num(r.estoque), Unidade: r.unidade, 'Est. mínimo': num(r.est_minimo), 'Qt. reposição': num(r.qt_reposicao), 'Último preço': num(r.ultimo_preco), 'Valor disp.': +(num(r.estoque_disp) * num(r.ultimo_preco)).toFixed(2) })); }
   if (!linhas.length) { toast('Nada para exportar.', 'info'); return; }
