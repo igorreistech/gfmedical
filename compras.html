@@ -703,7 +703,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.12';
+const VERSAO = '2026-10-17.13';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1275,6 +1275,53 @@ function emPedidoMap() {
   data.ped.filter(p => p.status === 'aguardando' || p.status === 'aprovado').forEach(p => (p.itens || []).forEach(i => { const k = norm(i.codigo); m.set(k, (m.get(k) || 0) + num(i.qtd)); }));
   return m;
 }
+// Forecast do pedido: estoque hoje + o que já está pedido − reserva a separar, a compra chegando no mês do prazo,
+// e a venda prevista (consumo/mês da programação) saindo todo mês → saldo projetado por 6 meses.
+const MESES_N = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+function forecast(itens, pedidoId) {
+  const prog = new Map(programacao().map(r => [norm(r.codigo), r])), proprio = new Map();
+  const ped = pedidoId && data.ped.find(x => x.id === pedidoId);
+  if (ped && (ped.status === 'aguardando' || ped.status === 'aprovado')) (ped.itens || []).forEach(i => proprio.set(norm(i.codigo), (proprio.get(norm(i.codigo)) || 0) + num(i.qtd)));
+  const h = new Date(), meses = Array.from({ length: 6 }, (_, i) => { const d = new Date(h.getFullYear(), h.getMonth() + i, 1); return MESES_N[d.getMonth()] + '/' + String(d.getFullYear()).slice(2); });
+  const linhas = itens.filter(i => num(i.qtd) > 0).map(i => {
+    const k = norm(i.codigo), r = prog.get(k), compra = num(i.qtd), venda = num(r?.media), preco = num(i.preco) || num(r?.preco);
+    const disp = num(r?.disp), outros = Math.max(0, num(r?.emPedido) - (proprio.get(k) || 0)), reserva = num(r?.faltaSeparar);
+    const prazo = r?.prazo ?? cfg.prazo_dias, chega = Math.min(5, Math.floor(prazo / 30)), hoje = disp + outros - reserva;
+    let saldo = hoje, semCompra = hoje, rupCom = null, rupSem = null; const proj = [];
+    for (let m = 0; m < 6; m++) {
+      if (m === chega) saldo += compra;
+      saldo -= venda; semCompra -= venda; proj.push(Math.round(saldo * 10) / 10);
+      if (saldo < 0 && rupCom == null) rupCom = m; if (semCompra < 0 && rupSem == null) rupSem = m;
+    }
+    const dia = venda / 30, cobHoje = dia > 0 ? hoje / dia : null, cobDepois = dia > 0 ? (hoje + compra) / dia : null, mesesCompra = venda > 0 ? compra / venda : null;
+    // falta antes de a compra chegar · compra não cobre o período planejado · compra acima de 6 meses · ok
+    const proxCompra = rupCom != null ? Math.max(0, rupCom - Math.ceil(prazo / 30)) : null;
+    const sit = venda <= 0 ? 'semvenda' : hoje / (venda / 30) < prazo ? 'antes'
+      : cobDepois < cfg.cobertura_dias ? 'curto' : cobDepois > 180 ? 'excesso' : 'ok';
+    return { codigo: i.codigo, descricao: i.descricao || r?.descricao || '', compra, venda, preco, disp, outros, reserva, hoje, prazo, chega, proj, rupCom, rupSem, proxCompra, cobHoje, cobDepois, mesesCompra, sit, tend: r?.tendencia, mediaAno: r?.mediaAno, media3: r?.media3 };
+  });
+  const soma = f => linhas.reduce((a, l) => a + f(l), 0);
+  return { meses, linhas, tot: { compraUn: soma(l => l.compra), compraRs: soma(l => l.compra * l.preco), vendaMesUn: soma(l => l.venda), vendaMesRs: soma(l => l.venda * l.preco),
+    ruptura: linhas.filter(l => l.sit === 'antes').length, curto: linhas.filter(l => l.sit === 'curto').length, excesso: linhas.filter(l => l.sit === 'excesso').length, semvenda: linhas.filter(l => l.sit === 'semvenda').length } };
+}
+const FC_ST = { antes: ['b-crit', '⚠ falta antes de chegar'], curto: ['b-warn', '📉 compra curta'], excesso: ['b-info', '📦 acima de 6 meses'], semvenda: ['b-mute', 'sem venda'], ok: ['b-ok', '✔ cobre'] };
+const fcQuando = (l, meses) => l.rupCom == null ? 'cobre os 6 meses' : `cobre até ${meses[Math.max(0, l.rupCom - 1)]}${l.proxCompra != null ? ` · próxima compra até ${meses[l.proxCompra]}` : ''}`;
+function forecastHTML(fc) {
+  const t = fc.tot, cobre = t.vendaMesUn > 0 ? t.compraUn / t.vendaMesUn : null;
+  return `<div style="margin:10px 0 4px;font-weight:700">📈 Forecast — compra × venda (próximos 6 meses)</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+      <span class="mini info">compra ${qtd(t.compraUn)} un · ${brl(t.compraRs)}</span><span class="mini">venda prevista ${qtd(t.vendaMesUn)} un/mês · ${brl(t.vendaMesRs)}/mês</span>
+      ${cobre != null ? `<span class="mini ${cobre > 6 ? 'info' : 'ok'}">a compra cobre ~${qtd(cobre)} mês(es) de venda</span>` : ''}
+      ${t.ruptura ? `<span class="mini crit">${t.ruptura} item(ns) faltam antes de a compra chegar</span>` : ''}${t.curto ? `<span class="mini warn">${t.curto} com compra curta (cobre menos que ${cfg.cobertura_dias} dias)</span>` : ''}${t.excesso ? `<span class="mini info">${t.excesso} com compra acima de 6 meses</span>` : ''}${t.semvenda ? `<span class="mini">${t.semvenda} sem venda</span>` : ''}</div>
+    <div class="tscroll"><table class="tb-grande"><thead><tr><th>Situação</th><th>Produto</th><th class="num" title="Estoque Disp. + outros pedidos já feitos − reserva a separar">Estoque hoje</th><th class="num">Compra</th><th class="num" title="Consumo/mês da programação (faturado + pendente)">Venda/mês</th><th class="num" title="Dias de venda que o estoque cobre: hoje → depois da compra">Cobertura</th>${fc.meses.map((m, i) => `<th class="num" title="Saldo projetado no fim do mês">${m}</th>`).join('')}</tr></thead><tbody>
+    ${fc.linhas.map(l => `<tr><td><span class="badge ${FC_ST[l.sit][0]}">${FC_ST[l.sit][1]}</span>${l.venda > 0 ? `<div class="td-doc">${fcQuando(l, fc.meses)}</div>` : ''}${l.rupSem != null ? `<div class="td-doc">sem a compra faltaria em ${fc.meses[l.rupSem]}</div>` : ''}</td>
+      <td class="prod"><div class="cod">${esc(l.codigo)}</div><b>${esc(l.descricao)}</b></td>
+      <td class="num"><span class="big">${qtd(l.hoje)}</span><div class="td-doc">disp ${qtd(l.disp)}${l.outros ? ` + ${qtd(l.outros)} pedido` : ''}${l.reserva ? ` − ${qtd(l.reserva)} reserva` : ''}</div></td>
+      <td class="num"><span class="big">${qtd(l.compra)}</span><div class="td-doc">chega em ${fc.meses[l.chega]}</div></td>
+      <td class="num"><span class="big">${qtd(l.venda)}</span>${l.mesesCompra != null ? `<div class="td-doc">compra = ${qtd(l.mesesCompra)} mês(es)</div>` : ''}</td>
+      <td class="num">${l.cobHoje == null ? '—' : `${Math.round(l.cobHoje)} → <b>${Math.round(l.cobDepois)}</b> dias`}</td>
+      ${l.proj.map((v, i) => `<td class="num" style="${v < 0 ? 'color:#dc2626;font-weight:700' : i === l.chega ? 'font-weight:700' : ''}">${qtd(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
 const PED_ST = { aguardando: ['b-warn', '⏳ Aguardando aprovação'], aprovado: ['b-info', '✔ Aprovado · a caminho'], recebido: ['b-ok', '📦 Recebido'], cancelado: ['b-mute', '✖ Cancelado'] };
 const ehAprovador = () => _role === 'admin';
 const semTabelaPedidos = () => { toast('Falta a tabela de pedidos: rode o SQL de atualização do sistema de compras.', 'err'); mostrarSql(); };
@@ -1353,7 +1400,7 @@ function renderPedidos() {
         ${aberto ? `<tr><td colspan="9" style="background:var(--surface2,#f6faf7)"><table><thead><tr><th>Código</th><th>Produto</th><th class="num">Estoque na hora</th><th class="num">Consumo/mês</th><th class="num">Sugerido</th><th class="num">Pedido</th><th class="num">Preço</th><th class="num">Valor</th></tr></thead><tbody>
           ${its.map(i => `<tr><td class="td-mono">${esc(i.codigo)}</td><td>${esc(i.descricao || '')}${i.caixa > 1 ? `<div class="td-doc">📦 ${Math.ceil(num(i.qtd) / i.caixa)} cx c/ ${i.caixa}</div>` : ''}${i.para_reserva ? `<div class="td-doc">🔒 reserva ${qtd(i.para_reserva)} · outros ${qtd(i.para_outros)}</div>` : ''}</td><td class="num">${qtd(i.disp)}</td><td class="num">${qtd(i.consumo)}</td><td class="num">${qtd(i.sugerido)}</td>
             <td class="num"><b>${qtd(i.qtd)}</b>${num(i.qtd) !== num(i.sugerido) ? `<div class="td-doc">${num(i.qtd) > num(i.sugerido) ? '+' : ''}${qtd(num(i.qtd) - num(i.sugerido))} vs sugerido</div>` : ''}</td><td class="num">${i.preco ? brl(i.preco) : '—'}</td><td class="num">${brl(num(i.qtd) * num(i.preco))}</td></tr>`).join('')}
-          </tbody></table></td></tr>` : ''}`; }).join('')}</tbody>`;
+          </tbody></table>${forecastHTML(forecast(its, p.id))}</td></tr>` : ''}`; }).join('')}</tbody>`;
 }
 // ───────── Pedido no modelo do fornecedor (ex.: "Pedido GF_Medical Matriz x Merit CORONÁRIA.xlsx") ─────────
 // Abre a planilha modelo e mexe SÓ em: QTDE (pelo Part Number), PREÇO TOTAL (QTDE × preço), DATA e Nº da OC.
@@ -1384,7 +1431,40 @@ async function pegarModelo() {
   const f = await escolherXlsx(); if (!f) return null;
   const ab = await f.arrayBuffer(); guardarModelo(f.name, abParaB64(ab)); return { nome: f.name, ab };
 }
-async function preencherModelo(itens, oc) {
+// Monta uma aba nova (XML puro, só valores) e liga no arquivo do modelo, sem tocar nas outras abas
+async function abaForecast(zip, wbDoc, rels, fc, estiloCab) {
+  const xe = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const letra = n => { let s = ''; for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s; return s; };
+  const r2 = v => Math.round(num(v) * 100) / 100;
+  const linhas = [
+    [{ v: 'FORECAST — compra × venda (próximos 6 meses)', cab: true }], [`GF Medical ${BR.cityLabel} · gerado em ${new Date().toLocaleDateString('pt-BR')} por ${quemSou() || ''}`], [],
+    ['Compra (un)', r2(fc.tot.compraUn), 'Compra (R$)', r2(fc.tot.compraRs)],
+    ['Venda prevista (un/mês)', r2(fc.tot.vendaMesUn), 'Venda prevista (R$/mês, a custo)', r2(fc.tot.vendaMesRs)],
+    ['A compra cobre (meses de venda)', fc.tot.vendaMesUn > 0 ? r2(fc.tot.compraUn / fc.tot.vendaMesUn) : '', 'Faltam antes de a compra chegar', fc.tot.ruptura], ['', '', 'Compra curta (menos que ' + cfg.cobertura_dias + ' dias)', fc.tot.curto], [],
+    ['Código', 'Produto', 'Estoque Disp.', 'Outros pedidos', 'Reserva a separar', 'Estoque hoje', 'COMPRA', 'Chega em', 'Venda/mês (forecast)', 'Compra = meses de venda', 'Cobertura hoje (dias)', 'Cobertura após compra (dias)', ...fc.meses.map(m => 'Saldo ' + m), 'Situação'].map(v => ({ v, cab: true })),
+    ...fc.linhas.map(l => [l.codigo, l.descricao, r2(l.disp), r2(l.outros), r2(l.reserva), r2(l.hoje), r2(l.compra), fc.meses[l.chega], r2(l.venda), l.mesesCompra == null ? '' : r2(l.mesesCompra),
+      l.cobHoje == null ? '' : Math.round(l.cobHoje), l.cobDepois == null ? '' : Math.round(l.cobDepois), ...l.proj.map(r2),
+      (l.sit === 'antes' ? 'FALTA ANTES DE A COMPRA CHEGAR · ' : l.sit === 'curto' ? 'Compra curta · ' : l.sit === 'excesso' ? 'Compra acima de 6 meses · ' : l.sit === 'semvenda' ? 'Sem venda' : '') + (l.venda > 0 ? fcQuando(l, fc.meses) : '')]), [],
+    ['Como ler:'], ['Estoque hoje = Estoque Disp. + outros pedidos de compra já feitos − reserva de cliente ainda não separada.'],
+    ['Venda/mês = consumo médio da programação (C1060 faturado + pendente do C723).'], ['Saldo do mês = saldo anterior + compra (no mês em que chega, pelo prazo do fornecedor) − venda/mês. Negativo = acabou: a próxima compra precisa chegar antes.'],
+    ['"Próxima compra até" = mês em que é preciso pedir de novo (mês em que acaba − prazo do fornecedor).']];
+  const xmlLinhas = linhas.map((cols, ri) => `<row r="${ri + 1}">${cols.map((c, ci) => { const o = c && typeof c === 'object' ? c : { v: c }; if (o.v === '' || o.v == null) return '';
+    const ref = letra(ci) + (ri + 1), st = o.cab && estiloCab ? ` s="${estiloCab}"` : '';
+    return typeof o.v === 'number' ? `<c r="${ref}"${st}><v>${o.v}</v></c>` : `<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${xe(o.v)}</t></is></c>`; }).join('')}</row>`).join('');
+  const larg = [18, 60, 12, 12, 14, 12, 10, 10, 16, 16, 16, 18, 11, 11, 11, 11, 11, 11, 40];
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${NS_X}" xmlns:r="${NS_R}"><sheetViews><sheetView workbookViewId="0"/></sheetViews><cols>${larg.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${xmlLinhas}</sheetData></worksheet>`;
+  const nomes = Object.keys(zip.files), n = Math.max(0, ...nomes.map(f => +(/^xl\/worksheets\/sheet(\d+)\.xml$/.exec(f) || [])[1] || 0)) + 1, path = `xl/worksheets/sheet${n}.xml`;
+  zip.file(path, sheet);
+  const sheetsEl = wbDoc.getElementsByTagNameNS(NS_X, 'sheets')[0], existentes = [...sheetsEl.getElementsByTagNameNS(NS_X, 'sheet')];
+  const el = wbDoc.createElementNS(NS_X, 'sheet'), rid = 'rIdFc' + n;
+  el.setAttribute('name', 'Forecast'); el.setAttribute('sheetId', String(Math.max(...existentes.map(x => +x.getAttribute('sheetId'))) + 1)); el.setAttributeNS(NS_R, 'r:id', rid); sheetsEl.appendChild(el);
+  const relsRoot = rels.documentElement, rel = rels.createElementNS(relsRoot.namespaceURI, 'Relationship');
+  rel.setAttribute('Id', rid); rel.setAttribute('Type', NS_R + '/worksheet'); rel.setAttribute('Target', `worksheets/sheet${n}.xml`); relsRoot.appendChild(rel);
+  const ctF = zip.file('[Content_Types].xml'), ct = new DOMParser().parseFromString(await ctF.async('string'), 'application/xml'), ov = ct.createElementNS(ct.documentElement.namespaceURI, 'Override');
+  ov.setAttribute('PartName', '/' + path); ov.setAttribute('ContentType', 'application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml'); ct.documentElement.appendChild(ov);
+  zip.file('[Content_Types].xml', new XMLSerializer().serializeToString(ct));
+}
+async function preencherModelo(itens, oc, pedidoId) {
   const mod = await pegarModelo(); if (!mod) return;
   try { await carregarJSZip(); } catch (e) { toast(e.message, 'err'); return; }
   let zip; try { zip = await JSZip.loadAsync(mod.ab); } catch (e) { toast('Esse arquivo não é uma planilha .xlsx válida.', 'err'); return; }
@@ -1439,6 +1519,12 @@ async function preencherModelo(itens, oc) {
     }
   }
   zip.file(A.path, str(doc));
+  // aba Forecast (compra × venda) com os itens que entraram neste modelo
+  try {
+    const hdrRow = rows.find(r => +r.getAttribute('r') === hdr), estiloCab = hdrRow ? cel(hdrRow, A.pn)?.getAttribute('s') : null;
+    const noModelo = itens.filter(i => usados.has(chaveCx(i.codigo)));
+    if (noModelo.length) { await abaForecast(zip, wbDoc, rels, forecast(noModelo, pedidoId), estiloCab); zip.file('xl/workbook.xml', str(wbDoc)); zip.file('xl/_rels/workbook.xml.rels', str(rels)); }
+  } catch (e) { console.warn('[forecast]', e); toast('Pedido gerado, mas sem a aba Forecast: ' + e.message, 'info'); }
   const faltam = itens.filter(i => num(i.qtd) > 0 && !usados.has(chaveCx(i.codigo)));
   if (!nItens) { toast(`Nenhum item da lista está neste modelo (${mod.nome}). Escolha o modelo da outra linha.`, 'err'); return; }
   const hoje = new Date(), dd = String(hoje.getDate()).padStart(2, '0'), mm = String(hoje.getMonth() + 1).padStart(2, '0'), aa = String(hoje.getFullYear()).slice(2);
@@ -1453,7 +1539,7 @@ window.pedidoModeloProgramacao = () => {
   if (!itens.length) { toast('Nenhum item com quantidade a comprar nesta lista (confira os filtros e as quantidades).', 'info'); return; }
   preencherModelo(itens);
 };
-window.pedidoModelo = id => { const p = data.ped.find(x => x.id === id); if (p) preencherModelo((p.itens || []).map(i => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.qtd })), p.numero); };
+window.pedidoModelo = id => { const p = data.ped.find(x => x.id === id); if (p) preencherModelo((p.itens || []).map(i => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.qtd, preco: i.preco })), p.numero, p.id); };
 window.listaCompraWhatsApp = () => {
   const itens = listaProgramacao().filter(r => qtdComprar(r) > 0);
   if (!itens.length) { toast('Nenhum item com quantidade a comprar nesta lista.', 'info'); return; }
