@@ -567,6 +567,8 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
           <button class="fchip" data-est="min">⚠ Abaixo do mínimo</button>
           <button class="fchip" data-est="zero">Sem disponível</button>
           <button class="fchip" data-est="cons">Também em consignação</button>
+          <span class="fdiv"></span>
+          <select class="tsel" id="est-fab" title="Mostrar só os produtos deste fabricante/fornecedor" onchange="filtroEstFab(this.value)"></select>
         </div></div></div>
         <div class="twrap">
           <div class="thead-bar"><span class="thead-title">📦 Estoque próprio — S013 (Estoque Disp.)</span><span class="tcount" id="cnt-est">0</span><span class="td-mono" style="margin-left:auto" id="est-info"></span></div>
@@ -700,7 +702,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.9';
+const VERSAO = '2026-10-17.10';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1447,10 +1449,16 @@ window.filtrarCliente = c => { ui.cliente = c; montarClientes(); goView('consign
 function listaEstoque() {
   const cm = consMap();
   return data.est.filter(r => casa(r, ['codigo', 'descricao', 'localizacao', 'fabricante']))
+    .filter(r => !ui.estFab || (ui.estFab === '__sem' ? !r.fabricante : norm(r.fabricante) === norm(ui.estFab)))
     .filter(r => !ui.est || (ui.est === 'disp' ? num(r.estoque_disp) > 0 : ui.est === 'min' ? abaixoMin(r) : ui.est === 'zero' ? num(r.estoque_disp) <= 0 : cm.has(norm(r.codigo))))
     .sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR'));
 }
+window.filtroEstFab = v => { ui.estFab = v; render(); };
 function renderEstoque() {
+  { const cont = new Map(); data.est.forEach(r => { const f = r.fabricante ? String(r.fabricante).trim() : '__sem'; cont.set(f, (cont.get(f) || 0) + 1); });
+    const fabs = [...cont.keys()].filter(f => f !== '__sem').sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    $('est-fab').innerHTML = '<option value="">🏭 Fabricante: todos</option>' + fabs.map(f => `<option value="${esc(f)}" ${norm(f) === norm(ui.estFab) ? 'selected' : ''}>🏭 ${esc(f)} (${cont.get(f)})</option>`).join('')
+      + (cont.has('__sem') ? `<option value="__sem" ${ui.estFab === '__sem' ? 'selected' : ''}>Sem fabricante informado (${cont.get('__sem')})</option>` : ''); }
   const lista = listaEstoque(), cm = consMap(), iE = ultImp('S013');
   $('cnt-est').textContent = lista.length;
   $('est-info').textContent = (iE ? `S013 importado em ${dataHoraBR(iE.importado_em)}` : '') + (data.reut.est ? ` · ♻ ${data.reut.est} reutilizável(is) (código -0) fora da contagem` : '');
