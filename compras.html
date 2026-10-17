@@ -646,7 +646,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.1';
+const VERSAO = '2026-10-17.2';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1507,11 +1507,15 @@ async function importarArquivos(files) {
         : tipo === 'C723' ? `${new Set(rows.map(r => r.pedido)).size} pedido(s), ${rows.length} item(ns), ${qtd(rows.reduce((a, r) => a + num(r.quantidade), 0))} unidade(s), ${brl(rows.reduce((a, r) => a + num(r.valor_total), 0))}`
         : `${rows.length} produto(s), consumo total ${qtd(rows.reduce((a, r) => a + num(r.total), 0))} unidade(s) no ano`;
       let parcial = (tipo === 'S013' || tipo === 'C723' || tipo === 'C1060') && filtroS013;
-      if (tipo === 'C1060C') {
-        if (!confirm(`${NOMES[tipo]} de ${file.name}:\n${resumo}.\n\nSubstitui o consumo deste cliente em ${BR.label}. O consumo geral (C1060 sem filtro) NÃO muda. Importar?`)) continue;
-      } else if (tipo === 'C904') {
-        const clis = [...new Set(rows.map(r => r.cliente).filter(Boolean))];
-        if (!confirm(`${NOMES[tipo]} de ${file.name}:\n${resumo}.\n\nSubstitui a reserva de ${clis.join(', ') || 'cliente'} em ${BR.label} (as reservas de outros clientes continuam). Importar?`)) continue;
+      let modoCli = null; // C904 / C1060 do cliente: 'subst' (troca só os produtos deste PDF) | 'zero' (apaga tudo e fica só com este PDF)
+      if (tipo === 'C1060C' || tipo === 'C904') {
+        const clis = [...new Set(rows.map(r => r.cliente).filter(Boolean))], jaTem = data[tipo === 'C904' ? 'res' : 'cmoCli'].length;
+        const oque = tipo === 'C904' ? 'a reserva' : 'o consumo do cliente';
+        modoCli = await escolher(`📥 ${NOMES[tipo]}`, `${file.name}\n${resumo}.\n\n${jaTem ? `Já existem ${jaTem} linha(s) ${tipo === 'C904' ? 'da reserva' : 'do consumo do cliente'} em ${BR.label}.` : `Ainda não há ${oque} em ${BR.label}.`}${tipo === 'C1060C' ? ' O consumo geral (C1060 sem filtro) NÃO muda.' : ''} O que fazer?`, [
+          ['subst', `🔄 Substituir: atualizar só os produtos deste PDF de ${clis.join(', ') || 'cliente'} (o resto continua)`, 'tbtn-p'],
+          ['zero', `🧹 Começar do zero: apagar ${oque} que já existe e ficar só com este PDF`, ''],
+          [null, 'Cancelar', '']]);
+        if (!modoCli) continue;
       } else if (tipo === 'C457') {
         // Consignado: sempre pergunta. Manter = troca só as remessas (documentos) que vieram neste PDF, as outras continuam.
         const jaTem = data.cons.length, docs = new Set(rows.map(r => r.documento).filter(Boolean));
@@ -1544,11 +1548,18 @@ O consignado de ${BR.label} já tem ${jaTem} linha(s) de importações anteriore
         for (let i = 0; i < docs.length; i += 100) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).in('documento', docs.slice(i, i + 100)); if (d.error) throw d.error; }
         if (fabricante) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).eq('fabricante', fabricante); if (d.error && !/fabricante/i.test(d.error.message || '')) throw d.error; }
       } else {
-        let qDel = supabase.from(tabela).delete().eq('filial', FILIAL);
-        const clisRes = tipo === 'C904' || tipo === 'C1060C' ? [...new Set(rows.map(r => r.cliente).filter(Boolean))] : [];
-        if (clisRes.length) qDel = qDel.in('cliente', clisRes); // C904: troca só a reserva desse(s) cliente(s)
-        const del = await qDel;
-        if (del.error) throw del.error;
+        if (modoCli === 'subst') {
+          // troca só os produtos deste PDF, do(s) cliente(s) do PDF — o resto continua
+          const clisRes = [...new Set(rows.map(r => r.cliente).filter(Boolean))], cods = [...new Set(rows.map(r => r.codigo).filter(Boolean))];
+          for (let i = 0; i < cods.length; i += 100) {
+            let q = supabase.from(tabela).delete().eq('filial', FILIAL).in('codigo', cods.slice(i, i + 100));
+            if (clisRes.length) q = q.in('cliente', clisRes);
+            const d = await q; if (d.error) throw d.error;
+          }
+        } else {
+          const del = await supabase.from(tabela).delete().eq('filial', FILIAL);
+          if (del.error) throw del.error;
+        }
       }
       let semColunaFab = false;
       for (let i = 0; i < rows.length; i += 500) {
