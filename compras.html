@@ -337,7 +337,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 }
 </style>
 <style>
-.imp-drop{border:2px dashed var(--border2);border-radius:var(--radius);padding:26px;text-align:center;background:var(--surface);cursor:pointer;font-size:0.84rem;color:var(--text2)}
+.imp-drop{display:block;line-height:1.7;border:2px dashed var(--border2);border-radius:var(--radius);padding:26px;text-align:center;background:var(--surface);cursor:pointer;font-size:0.84rem;color:var(--text2)}
 .imp-drop.sobre{background:var(--surface2);border-color:var(--accent)}
 .imp-log td{font-size:0.74rem}
 .cons-det td{background:var(--surface);font-size:0.72rem}
@@ -532,7 +532,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-16.9';
+const VERSAO = '2026-10-16.10';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente' };
 
 const $ = id => document.getElementById(id);
@@ -1030,7 +1030,11 @@ async function importarArquivos(files) {
       $('imp-status').textContent = `✔ ${file.name}: ${resumo}.`;
       toast(`✔ ${tipo} importado: ${resumo}`);
     } catch (e) {
-      console.error(e); $('imp-status').textContent = `✖ ${file.name}: ${e.message || e}`; toast('Erro ao importar: ' + (e.message || e), 'err');
+      console.error(e);
+      if (/Could not find the table|does not exist|schema cache/i.test(e.message || '')) {
+        $('imp-status').innerHTML = `✖ ${esc(file.name)}: o banco de ${esc(BR.label)} ainda não tem a tabela deste relatório — rode o SQL do sistema de compras (é só rodar de novo, não apaga nada). <button class="tbtn tbtn-p" onclick="mostrarSql()">📋 Ver e copiar o SQL</button>`;
+        toast('Falta rodar o SQL de atualização do sistema de compras.', 'err');
+      } else { $('imp-status').textContent = `✖ ${file.name}: ${e.message || e}`; toast('Erro ao importar: ' + (e.message || e), 'err'); }
     }
   }
   await carregarTudo();
