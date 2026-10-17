@@ -570,6 +570,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <button class="fchip" data-res="transferir" title="Tem Estoque Disp. sobrando para passar ao pedido reservado">🔁 Dá para passar do Disp.</button>
             <button class="fchip" data-res="comprar">🛒 Comprar</button>
             <span class="fdiv"></span>
+            <button class="tbtn tbtn-p" onclick="excelReserva()" title="Planilha com abas: Resumo, Reservar, Separar, Passar do Disp. e Comprar">📊 Excel da reserva</button>
             <button class="tbtn tbtn-g" onclick="listaTransferencia()" title="Lista do que passar do Estoque Disp. para o pedido reservado (copia e abre o WhatsApp)">🔁 Lista de transferência</button>
           </div>
         </div></div>
@@ -646,7 +647,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.2';
+const VERSAO = '2026-10-17.3';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1043,6 +1044,45 @@ function listaReserva() {
     .sort((a, b) => ({ semreserva: 0, abaixo: 1, parada: 3, acima: 4, ok: 5 }[a.status] - { semreserva: 0, abaixo: 1, parada: 3, acima: 4, ok: 5 }[b.status]) || b.comprar - a.comprar || (a.cobertura ?? 1e9) - (b.cobertura ?? 1e9));
 }
 const RES_ST = { semreserva: ['b-crit', '❗ Consome sem reserva'], abaixo: ['b-warn', '📉 Abaixo do ideal'], acima: ['b-info', '📈 Acima do ideal'], parada: ['b-mute', '💤 Parada'], ok: ['b-ok', '✔ OK'] };
+// Excel da reserva: uma aba para cada ação (respeita o cliente escolhido; ignora os chips de filtro)
+window.excelReserva = () => {
+  const salva = ui.res; ui.res = '';
+  let l; try { l = listaReserva(); } finally { ui.res = salva; }
+  if (!l.length) { toast('Nada para exportar: importe o C904 (e o C1060 do cliente).', 'info'); return; }
+  const cli = ui.resCli || [...new Set(l.flatMap(r => [...r.clientes]))].join(', ') || 'Cliente';
+  const dias = num(cfg.reserva_dias) || 30, hoje = new Date().toLocaleDateString('pt-BR');
+  const base = r => ({ Código: r.codigo, Produto: r.produto || '' });
+  const reservar = l.filter(r => r.ajuste > 0).map(r => ({ ...base(r), 'Consumo cliente/mês': +r.media.toFixed(2), 'Reserva atual (C904)': r.saldo, [`Reserva ideal (${dias} dias)`]: r.ideal, 'Aumentar a reserva em': r.ajuste,
+    'Dá para passar do Disp.': r.transferir, 'Comprar p/ reserva': r.comprarReserva, Situação: RES_ST[r.status][1].replace(/^\S+ /, '') }));
+  const separar = l.filter(r => r.falta > 0).map(r => ({ ...base(r), 'Reserva (C904)': r.saldo, 'Estoque físico': r.fisico, 'Estoque Disp.': r.disp, 'Já separado': r.separado,
+    'SEPARAR AGORA': Math.min(r.falta, Math.max(0, r.disp)), 'Falta (sem estoque)': Math.max(0, r.falta - Math.max(0, r.disp)) }));
+  const passar = l.filter(r => r.transferir > 0).map(r => ({ ...base(r), 'Estoque Disp.': r.disp, 'Falta separar (já reservado)': r.falta, 'Fica p/ outros clientes': r.protege,
+    'Outros clientes/mês': +num(r.outrosMes).toFixed(2), 'PASSAR P/ RESERVA': r.transferir, 'Reserva fica com': r.saldo + r.transferir, 'Disp. fica com': Math.max(0, r.disp - r.falta - r.transferir) }));
+  const comprar = l.filter(r => r.comprar > 0).map(r => ({ ...base(r), 'P/ reserva': r.comprarReserva, 'P/ outros clientes': r.comprarOutros, 'Caixa com': r.caixa > 1 ? r.caixa : '', 'COMPRAR': r.comprar,
+    'Valor estimado': +(r.comprar * r.unit).toFixed(2) }));
+  const soma = (a, k) => a.reduce((x, r) => x + num(r[k]), 0);
+  const resumo = [
+    ['Reserva de cliente — ' + cli], [`GF Medical ${BR.cityLabel} · gerado em ${hoje} por ${quemSou() || ''}`], [],
+    ['Ação', 'Produtos', 'Unidades', 'Aba'],
+    ['Aumentar a reserva (abaixo do ideal / sem reserva)', reservar.length, soma(reservar, 'Aumentar a reserva em'), 'Reservar'],
+    ['Separar fisicamente (já está no C904)', separar.length, soma(separar, 'SEPARAR AGORA'), 'Separar'],
+    ['Passar do Estoque Disp. para a reserva', passar.length, soma(passar, 'PASSAR P/ RESERVA'), 'Passar do Disp'],
+    ['Comprar (reserva + outros clientes)', comprar.length, soma(comprar, 'COMPRAR'), 'Comprar'], [],
+    ['Reserva ideal = consumo do cliente por dia × ' + dias + ' dias.'],
+    ['"Passar do Disp." já deixa no estoque o que os outros clientes usam até a próxima compra (prazo + segurança).'],
+    ['A compra é a MESMA da Programação de compra — gere o pedido só lá para não duplicar.']];
+  const wb = XLSX.utils.book_new();
+  const ws0 = XLSX.utils.aoa_to_sheet(resumo); ws0['!cols'] = [{ wch: 52 }, { wch: 10 }, { wch: 10 }, { wch: 16 }];
+  XLSX.utils.book_append_sheet(wb, ws0, 'Resumo');
+  const aba = (rows, nome, vazio) => { const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: vazio }]);
+    ws['!cols'] = Object.keys(rows[0] || { Aviso: '' }).map((k, i) => ({ wch: i === 1 ? 46 : Math.max(12, k.length + 2) })); XLSX.utils.book_append_sheet(wb, ws, nome); };
+  aba(reservar, 'Reservar', 'Nenhuma reserva abaixo do ideal.');
+  aba(separar, 'Separar', 'Nada a separar: a reserva já está toda separada.');
+  aba(passar, 'Passar do Disp', 'Nada sobrando no Disp. para passar sem faltar para os outros clientes.');
+  aba(comprar, 'Comprar', 'Nada a comprar.');
+  XLSX.writeFile(wb, `Reserva_${cli.replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 40)}_${FILIAL}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  toast(`✔ Excel gerado: ${reservar.length} a reservar · ${separar.length} a separar · ${passar.length} a passar do Disp. · ${comprar.length} a comprar`);
+};
 window.listaTransferencia = () => {
   const l = listaReserva().filter(r => r.transferir > 0);
   if (!l.length) { toast('Nada para passar do Estoque Disp. para a reserva agora (sem sobra depois de proteger os outros clientes).', 'info'); return; }
