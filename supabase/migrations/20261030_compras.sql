@@ -116,3 +116,34 @@ notify pgrst, 'reload schema';
 -- Prazo de entrega por fabricante (Parâmetros da filial): {"JOTEC BRASIL": 30, ...}; vazio = usa o prazo geral
 alter table public.compras_config add column if not exists prazos_fabricante jsonb not null default '{}';
 notify pgrst, 'reload schema';
+
+-- Base do consumo da programação: 'ano' (média do C1060) | '3m' (últimos 3 meses) | 'maior' (o maior dos dois)
+alter table public.compras_config add column if not exists base_consumo text;
+
+-- Pedidos de compra: gerados na programação, um por fabricante; o aprovador (admin) aprova.
+-- Aguardando/aprovado e não recebido contam como "em pedido" (estoque a caminho) na programação.
+create table if not exists public.compras_pedidos (
+  id            uuid primary key default gen_random_uuid(),
+  numero        bigint generated always as identity,
+  filial        text not null,
+  fabricante    text,
+  status        text not null default 'aguardando',   -- aguardando | aprovado | recebido | cancelado
+  itens         jsonb not null default '[]',           -- [{codigo, descricao, unidade, sugerido, qtd, caixa, preco, disp, consumo}]
+  valor         numeric(14,2),
+  obs           text,
+  criado_por    text,
+  criado_em     timestamptz not null default now(),
+  aprovado_por  text,
+  aprovado_em   timestamptz,
+  recebido_em   timestamptz,
+  cancelado_em  timestamptz
+);
+create index if not exists compras_pedidos_filial on public.compras_pedidos (filial);
+alter table public.compras_pedidos enable row level security;
+drop policy if exists compras_pedidos_select on public.compras_pedidos;
+drop policy if exists compras_pedidos_write on public.compras_pedidos;
+create policy compras_pedidos_select on public.compras_pedidos for select to authenticated using (true);
+create policy compras_pedidos_write on public.compras_pedidos for all to authenticated
+  using (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'))
+  with check (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'));
+notify pgrst, 'reload schema';
