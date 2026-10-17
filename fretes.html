@@ -800,7 +800,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-16.4';
+const VERSAO = '2026-10-16.5';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261025';
@@ -1463,7 +1463,7 @@ function renderDashboard() {
   </div></div>`;
   const sb = document.querySelector('#view-dashboard .stats-bar');
   if (sb) sb.insertAdjacentHTML('afterend', html + metaTranspHTML());
-  const bk = avisoBackupHTML(); if (bk) $('view-dashboard').insertAdjacentHTML('afterbegin', bk);
+  // sem lembrete de backup: os dados já ficam no banco (Supabase); o botão 💾 Backup continua para quem quiser a planilha
 }
 // 🎯 Gasto do mês × meta de cada transportadora (cadastro da transportadora)
 function gastoMetas() {
