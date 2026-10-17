@@ -537,6 +537,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
         <div class="prog-acoes">
           <span class="tot" id="prog-tot"></span>
           <button class="tbtn tbtn-p" onclick="gerarPedido()" title="Cria o pedido de compra (um por fabricante) com os itens e quantidades da lista — você aprova em 📝 Pedidos de compra">📝 Gerar pedido de compra</button>
+          <button class="tbtn tbtn-g" onclick="pedidoModeloProgramacao()" title="Preenche a planilha de pedido do fornecedor (ex.: Merit Coronária / Periférica) com as quantidades desta lista — o resto do modelo fica igual">📄 Pedido no modelo do fornecedor</button>
           <button class="tbtn tbtn-g" onclick="listaCompraWhatsApp()">📲 WhatsApp</button>
           <button class="tbtn tbtn-g" onclick="planilhaCallisto()" title="Planilha no layout 'Importação de Lotes NF de compra' do Callisto (versão 1.01)">📄 Planilha Callisto</button>
           <button class="tbtn tbtn-g" onclick="exportarExcel()">📤 Excel</button>
@@ -702,7 +703,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.11';
+const VERSAO = '2026-10-17.12';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1345,6 +1346,7 @@ function renderPedidos() {
           ${p.status === 'aguardando' && apr ? `<button class="tbtn tbtn-p" onclick="mudarPedido('${p.id}','aprovado')">✔ Aprovar</button>` : ''}
           ${p.status === 'aguardando' && !apr ? '<span class="td-doc">aguardando o aprovador</span>' : ''}
           ${p.status === 'aprovado' && pode ? `<button class="tbtn tbtn-g" onclick="mudarPedido('${p.id}','recebido')">📦 Recebido</button>` : ''}
+          <button class="tbtn" onclick="pedidoModelo('${p.id}')" title="Planilha no modelo do fornecedor (Merit etc.)">📄</button>
           <button class="tbtn" onclick="pedidoWhatsApp('${p.id}')" title="Mandar o pedido no WhatsApp">📲</button>
           ${(p.status === 'aguardando' || p.status === 'aprovado') && pode ? `<button class="tbtn" onclick="mudarPedido('${p.id}','cancelado')" title="Cancelar pedido">✖</button>` : ''}
         </div></td></tr>
@@ -1353,6 +1355,105 @@ function renderPedidos() {
             <td class="num"><b>${qtd(i.qtd)}</b>${num(i.qtd) !== num(i.sugerido) ? `<div class="td-doc">${num(i.qtd) > num(i.sugerido) ? '+' : ''}${qtd(num(i.qtd) - num(i.sugerido))} vs sugerido</div>` : ''}</td><td class="num">${i.preco ? brl(i.preco) : '—'}</td><td class="num">${brl(num(i.qtd) * num(i.preco))}</td></tr>`).join('')}
           </tbody></table></td></tr>` : ''}`; }).join('')}</tbody>`;
 }
+// ───────── Pedido no modelo do fornecedor (ex.: "Pedido GF_Medical Matriz x Merit CORONÁRIA.xlsx") ─────────
+// Abre a planilha modelo e mexe SÓ em: QTDE (pelo Part Number), PREÇO TOTAL (QTDE × preço), DATA e Nº da OC.
+// Logo, cabeçalho, impostos, preços e condições ficam idênticos ao modelo. O modelo fica guardado só neste navegador.
+const NS_X = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const MODELOS_KEY = 'gf_modelos_pedido';
+const colNum = l => l.split('').reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0), colDe = ref => ref.replace(/\d+/g, '');
+function modelosSalvos() { try { return JSON.parse(localStorage.getItem(MODELOS_KEY) || '[]'); } catch (e) { return []; } }
+function guardarModelo(nome, b64) {
+  try { const l = modelosSalvos().filter(m => m.nome !== nome); l.unshift({ nome, b64, em: new Date().toISOString() }); localStorage.setItem(MODELOS_KEY, JSON.stringify(l.slice(0, 6))); }
+  catch (e) { toast('Modelo usado, mas não coube para guardar no navegador — da próxima vez escolha o arquivo de novo.', 'info'); }
+}
+const abParaB64 = ab => { let s = ''; const b = new Uint8Array(ab); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+const b64ParaAb = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+const escolherXlsx = () => new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.xlsx'; i.onchange = () => res(i.files[0] || null); i.click(); });
+async function carregarJSZip() {
+  if (window.JSZip) return;
+  await new Promise((ok, erro) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; sc.onload = ok; sc.onerror = () => erro(new Error('não carregou o leitor de planilhas')); document.head.appendChild(sc); });
+}
+async function pegarModelo() {
+  const salvos = modelosSalvos(); let op = '__novo';
+  if (salvos.length) {
+    op = await escolher('📄 Modelo de pedido do fornecedor', 'Qual planilha usar como modelo?\nO sistema preenche só QTDE (pelo Part Number), PREÇO TOTAL e a data — o resto fica igual ao modelo.\nItens que não estão no modelo escolhido (ex.: da outra linha) são avisados no fim.',
+      [...salvos.map((m, i) => [String(i), '📄 ' + m.nome, i ? '' : 'tbtn-p']), ['__novo', '📂 Escolher outro arquivo do computador…', ''], [null, 'Cancelar', '']]);
+    if (!op) return null;
+  }
+  if (op !== '__novo') { const m = salvos[+op]; guardarModelo(m.nome, m.b64); return { nome: m.nome, ab: b64ParaAb(m.b64) }; }
+  const f = await escolherXlsx(); if (!f) return null;
+  const ab = await f.arrayBuffer(); guardarModelo(f.name, abParaB64(ab)); return { nome: f.name, ab };
+}
+async function preencherModelo(itens, oc) {
+  const mod = await pegarModelo(); if (!mod) return;
+  try { await carregarJSZip(); } catch (e) { toast(e.message, 'err'); return; }
+  let zip; try { zip = await JSZip.loadAsync(mod.ab); } catch (e) { toast('Esse arquivo não é uma planilha .xlsx válida.', 'err'); return; }
+  const xml = x => new DOMParser().parseFromString(x, 'application/xml'), str = d => new XMLSerializer().serializeToString(d);
+  const wbDoc = xml(await zip.file('xl/workbook.xml').async('string')), rels = xml(await zip.file('xl/_rels/workbook.xml.rels').async('string'));
+  const ssF = zip.file('xl/sharedStrings.xml');
+  const ss = ssF ? [...xml(await ssF.async('string')).getElementsByTagNameNS(NS_X, 'si')].map(si => [...si.getElementsByTagNameNS(NS_X, 't')].map(t => t.textContent).join('')) : [];
+  const txt = c => { if (!c) return ''; const t = c.getAttribute('t'), v = c.getElementsByTagNameNS(NS_X, 'v')[0];
+    if (t === 's') return v ? ss[+v.textContent] || '' : ''; if (t === 'inlineStr') return [...c.getElementsByTagNameNS(NS_X, 't')].map(x => x.textContent).join(''); return v ? v.textContent : ''; };
+  const caminho = rid => { const r = [...rels.getElementsByTagName('Relationship')].find(x => x.getAttribute('Id') === rid); if (!r) return null; const t = r.getAttribute('Target'); return t.startsWith('/') ? t.slice(1) : 'xl/' + t.replace(/^\.\//, ''); };
+  // acha a aba com o cabeçalho "Part Number" … "QTDE"
+  let A = null;
+  for (const sh of wbDoc.getElementsByTagNameNS(NS_X, 'sheet')) {
+    const path = caminho(sh.getAttributeNS(NS_R, 'id')), f = path && zip.file(path); if (!f) continue;
+    const doc = xml(await f.async('string')), rows = [...doc.getElementsByTagNameNS(NS_X, 'row')];
+    for (const row of rows) {
+      const cs = [...row.getElementsByTagNameNS(NS_X, 'c')], col = re => { const c = cs.find(c => re.test(txt(c).trim())); return c ? colDe(c.getAttribute('r')) : null; };
+      const pn = col(/^part\s*number$/i), qt = col(/^qtde?\.?$|^quantidade$/i);
+      if (pn && qt) { A = { path, doc, rows, hdr: +row.getAttribute('r'), pn, qt, preco: col(/^pre[çc]o(?!.*total)/i), total: col(/total/i) }; break; }
+    }
+    if (A) break;
+  }
+  if (!A) { toast('Não achei as colunas "Part Number" e "QTDE" nesse modelo.', 'err'); return; }
+  const { doc, rows, hdr } = A;
+  const cel = (row, col) => [...row.getElementsByTagNameNS(NS_X, 'c')].find(c => colDe(c.getAttribute('r')) === col);
+  const gravar = (row, col, val, texto) => {   // mantém o estilo da célula (atributo s) e a fórmula, troca só o valor
+    let c = cel(row, col);
+    if (!c) { c = doc.createElementNS(NS_X, 'c'); c.setAttribute('r', col + row.getAttribute('r')); row.insertBefore(c, [...row.getElementsByTagNameNS(NS_X, 'c')].find(x => colNum(colDe(x.getAttribute('r'))) > colNum(col)) || null); }
+    const f = c.getElementsByTagNameNS(NS_X, 'f')[0];
+    [...c.childNodes].forEach(n => { if (n !== f) c.removeChild(n); }); c.removeAttribute('t');
+    if (val == null) return;
+    if (texto) { c.setAttribute('t', 'inlineStr'); const is = doc.createElementNS(NS_X, 'is'), t = doc.createElementNS(NS_X, 't'); t.textContent = val; is.appendChild(t); c.appendChild(is); }
+    else { const v = doc.createElementNS(NS_X, 'v'); v.textContent = String(val); c.appendChild(v); }
+  };
+  const pedir = new Map(); itens.forEach(i => { const k = chaveCx(i.codigo); if (k && num(i.qtd) > 0) pedir.set(k, (pedir.get(k) || 0) + num(i.qtd)); });
+  const usados = new Set(); let nItens = 0, unid = 0, total = 0;
+  for (const row of rows) {
+    if (+row.getAttribute('r') <= hdr) continue;
+    const cod = txt(cel(row, A.pn)).trim(); if (!cod || cod.length > 40 || /\s{2,}|[.:]$/.test(cod)) continue;
+    const k = chaveCx(cod), q = pedir.get(k) || 0, preco = A.preco ? num(txt(cel(row, A.preco))) : 0;
+    if (q) { gravar(row, A.qt, q); usados.add(k); nItens++; unid += q; total += q * preco; }
+    else if (txt(cel(row, A.qt)) !== '') gravar(row, A.qt, null);   // tira a quantidade do pedido anterior
+    if (A.total && cel(row, A.total)?.getElementsByTagNameNS(NS_X, 'f')[0]) gravar(row, A.total, +(q * preco).toFixed(2));
+  }
+  // data e número da OC (célula à direita do rótulo, no cabeçalho)
+  for (const row of rows) {
+    if (+row.getAttribute('r') >= hdr) break;
+    for (const c of [...row.getElementsByTagNameNS(NS_X, 'c')]) {
+      const t = txt(c).trim(), prox = () => { const n = colNum(colDe(c.getAttribute('r'))) + 1; return String.fromCharCode(64 + n); };
+      if (/^data:?$/i.test(t)) { const h = new Date(); gravar(row, prox(), Math.round((Date.UTC(h.getFullYear(), h.getMonth(), h.getDate()) - Date.UTC(1899, 11, 30)) / 864e5)); }
+      if (oc && /^n[úu]mero da oc:?$/i.test(t)) gravar(row, prox(), String(oc), true);
+    }
+  }
+  zip.file(A.path, str(doc));
+  const faltam = itens.filter(i => num(i.qtd) > 0 && !usados.has(chaveCx(i.codigo)));
+  if (!nItens) { toast(`Nenhum item da lista está neste modelo (${mod.nome}). Escolha o modelo da outra linha.`, 'err'); return; }
+  const hoje = new Date(), dd = String(hoje.getDate()).padStart(2, '0'), mm = String(hoje.getMonth() + 1).padStart(2, '0'), aa = String(hoje.getFullYear()).slice(2);
+  const base = mod.nome.replace(/\.xlsx$/i, ''), nome = (/\d{2}-\d{2}-\d{2}/.test(base) ? base.replace(/\d{2}-\d{2}-\d{2}/, `${dd}-${mm}-${aa}`) : `${base} - ${dd}-${mm}-${aa}`) + '.xlsx';
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast(`✔ ${nome}: ${nItens} item(ns), ${qtd(unid)} un${total ? ` · ${brl(total)}` : ''}`);
+  if (faltam.length) alert(`${faltam.length} item(ns) da lista NÃO estão no modelo "${mod.nome}" (provavelmente são de outra linha/fornecedor) e ficaram de fora:\n\n${faltam.slice(0, 40).map(i => `• ${i.codigo}${i.descricao ? ' — ' + i.descricao : ''}: ${qtd(i.qtd)}`).join('\n')}${faltam.length > 40 ? `\n… e mais ${faltam.length - 40}` : ''}\n\nGere de novo escolhendo o modelo da outra linha para eles.`);
+}
+window.pedidoModeloProgramacao = () => {
+  const itens = listaProgramacao().filter(r => qtdComprar(r) > 0).map(r => ({ codigo: r.codigo, descricao: r.descricao, qtd: qtdComprar(r) }));
+  if (!itens.length) { toast('Nenhum item com quantidade a comprar nesta lista (confira os filtros e as quantidades).', 'info'); return; }
+  preencherModelo(itens);
+};
+window.pedidoModelo = id => { const p = data.ped.find(x => x.id === id); if (p) preencherModelo((p.itens || []).map(i => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.qtd })), p.numero); };
 window.listaCompraWhatsApp = () => {
   const itens = listaProgramacao().filter(r => qtdComprar(r) > 0);
   if (!itens.length) { toast('Nenhum item com quantidade a comprar nesta lista.', 'info'); return; }
