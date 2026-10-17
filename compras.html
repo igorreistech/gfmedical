@@ -460,7 +460,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
           </div>
           <div class="td-mono" style="white-space:normal;line-height:1.6;opacity:.8">Ponto de pedido = consumo por dia × (prazo + segurança): chegou nele → <b>Comprar agora</b>. Quantidade sugerida = consumo por dia × (prazo + cobertura) − Estoque Disp. Consumo médio = MÉDIA do C1060 (+ pendente do C723, se marcado).</div>
         </div></div>
-        <div class="dcard" style="margin-bottom:14px"><div class="dcard-head">🔎 Filtros</div><div class="dcard-body"><div class="filters" style="margin-bottom:0">
+        <div class="dcard" style="margin-bottom:14px"><div class="dcard-head">🔎 Filtros <small>clique em mais de um para somar</small></div><div class="dcard-body"><div class="filters" style="margin-bottom:0">
           <button class="fchip on" data-prog="comprar">🛒 Comprar agora</button>
           <button class="fchip" data-prog="atencao">⚠ Atenção</button>
           <button class="fchip" data-prog="ok">✔ OK</button>
@@ -570,7 +570,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-16.14';
+const VERSAO = '2026-10-16.15';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente' };
 
 const $ = id => document.getElementById(id);
@@ -760,7 +760,7 @@ function consPorProduto(soSaldo = true) {
 const consMap = () => new Map(consPorProduto(true).map(g => [norm(g.codigo_alt), g]));
 
 // ───────── Navegação ─────────
-const ui = { view: 'painel', busca: '', est: '', cons: 'saldo', cliente: '', abertos: new Set(), prog: 'comprar', fab: '' };
+const ui = { view: 'painel', busca: '', est: '', cons: 'saldo', cliente: '', abertos: new Set(), prog: new Set(['comprar']), fab: '' };
 const TITULOS = { painel: 'Painel — Programação de Compras', programacao: 'Programação de compra', pendente: 'Pendente de faturamento', estoque: 'Estoque próprio', consignado: 'Consignado', importar: 'Importar do Callisto' };
 window.goView = v => {
   ui.view = v;
@@ -771,7 +771,13 @@ window.goView = v => {
 document.querySelectorAll('.nav-item[data-view], .vtab').forEach(a => a.addEventListener('click', e => { e.preventDefault(); goView(a.dataset.view); }));
 $('f-busca').oninput = e => { ui.busca = e.target.value; if (ui.view === 'painel' || ui.view === 'importar') goView('estoque'); else render(); };
 document.querySelectorAll('[data-est]').forEach(b => b.onclick = () => { ui.est = b.dataset.est; document.querySelectorAll('[data-est]').forEach(x => x.classList.toggle('on', x === b)); render(); });
-document.querySelectorAll('[data-prog]').forEach(b => b.onclick = () => { ui.prog = b.dataset.prog; document.querySelectorAll('[data-prog]').forEach(x => x.classList.toggle('on', x === b)); render(); });
+// Filtros da programação: dá para marcar vários (soma as situações); "Todos" limpa
+document.querySelectorAll('[data-prog]').forEach(b => b.onclick = () => {
+  const v = b.dataset.prog;
+  if (!v) ui.prog.clear(); else if (ui.prog.has(v)) ui.prog.delete(v); else ui.prog.add(v);
+  document.querySelectorAll('[data-prog]').forEach(x => x.classList.toggle('on', x.dataset.prog ? ui.prog.has(x.dataset.prog) : !ui.prog.size));
+  render();
+});
 document.querySelectorAll('[data-cons]').forEach(b => b.onclick = () => { ui.cons = b.dataset.cons; document.querySelectorAll('[data-cons]').forEach(x => x.classList.toggle('on', x === b)); render(); });
 $('f-cliente').onchange = e => { ui.cliente = e.target.value; render(); };
 function montarClientes() {
@@ -799,7 +805,7 @@ function fabricantesConhecidos() {
   return [...new Set([...data.est.map(r => r.fabricante), ...data.pen.map(r => r.fabricante)].filter(Boolean).map(f => String(f).trim()))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 }
 function listaProgramacao() {
-  return programacaoFab().filter(r => !ui.prog || (ui.prog === 'zerado' ? r.semEstoqueCadastro && r.media > 0 : r.situacao === ui.prog)).filter(r => casa(r, ['codigo', 'descricao', 'fabricante']))
+  return programacaoFab().filter(r => !ui.prog.size || [...ui.prog].some(p => p === 'zerado' ? r.semEstoqueCadastro && r.media > 0 : r.situacao === p)).filter(r => casa(r, ['codigo', 'descricao', 'fabricante']))
     .sort((a, b) => (a.cobertura ?? 1e9) - (b.cobertura ?? 1e9) || b.media - a.media);
 }
 const qtdComprar = r => _qtdEditada[norm(r.codigo)] ?? r.sugerido;
