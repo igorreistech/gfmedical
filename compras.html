@@ -525,6 +525,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <button class="fchip" data-prog="parado" title="Têm estoque disponível e não venderam nos últimos 6 meses">💤 Parado</button>
           </div>
           <div class="frow"><span class="flabel">Refinar</span>
+            <select class="tsel" id="prog-grupo" title="Linha do produto (Grupo do Callisto)" onchange="filtroProg('grupo', this.value)"></select>
             <select class="tsel" id="prog-fab" title="Mostrar só os produtos deste fabricante/fornecedor" onchange="filtrarFabricante(this.value)"></select>
             <select class="tsel" id="prog-abc" title="Curva ABC pelo valor consumido no ano" onchange="filtroProg('abc', this.value)"><option value="">Curva: todas</option><option value="A">Curva A (80% do valor)</option><option value="B">Curva B (15%)</option><option value="C">Curva C (5%)</option></select>
             <select class="tsel" id="prog-valor" title="Valor da compra do item (quantidade × último preço)" onchange="filtroProg('valor', +this.value)"><option value="0">Valor: qualquer</option><option value="1000">Compra ≥ R$ 1.000</option><option value="5000">Compra ≥ R$ 5.000</option><option value="10000">Compra ≥ R$ 10.000</option></select>
@@ -704,7 +705,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.18';
+const VERSAO = '2026-10-17.19';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -791,6 +792,8 @@ const data = { est: [], cons: [], imp: [], cmo: [], pen: [], ped: [], res: [], r
 // Merit · Coronária: quantidade por caixa — a compra sai em caixa fechada (arredonda para cima). No Callisto o código vem sem o "/BR".
 const CAIXAS_MERIT = {"RR811": 10, "RT913": 1, "RBX": 1, "AD18T71W": 25, "AD18T71WS": 25, "AD21T41W": 25, "PSI-4F-7-018": 5, "PSI-4F-11-018": 5, "PSI-5F-7-018": 5, "PSI-6F-7-018": 5, "PSI-5F-23-035": 5, "PSI-4F-11-035": 5, "PSI-5F-11-035": 5, "PSI-6F-11-035": 5, "PSI-6F-23-035": 5, "PSI-7F-23-035": 5, "PSI-7F-11-035": 5, "PSI-8F-11-035": 5, "7529-11/BR": 10, "7509-11/BR": 10, "7531-13/BR": 5, "7521-13/BR": 5, "7501-13/BR": 5, "7521-21/BR": 10, "7523-13/BR": 5, "7503-13/BR": 5, "7523-21/BR": 10, "7533-13/BR": 5, "7533-23/BR": 5, "7710-20": 5, "5576-33": 5, "7527-13": 5, "7507-13": 5, "7527-23": 5, "7507-23": 5, "7527-33": 5, "7507-33": 5, "7703-20": 5, "7528-13": 5, "7528-23": 5, "7508-23": 5, "7528-33": 5, "7508-33": 5, "7706-10": 5, "7511-13": 5, "7700-10": 5, "7700-20": 5, "7501-21": 10, "7521-F1": 10, "7501-H1": 10, "7521-33": 5, "7501-33": 5, "7521-43": 5, "7501-43": 5, "7701-10": 5, "7523-53": 5, "7701-20": 5, "7523-63": 5, "7503-21": 10, "7503-33": 5, "7523-33": 5, "7534-13": 5, "7708-10": 5, "7513-B3": 5, "7513-C3": 5, "7708-20": 5, "7513-23": 5, "7513-53": 5, "7533-33": 5, "7529-23": 5, "7529-33": 5, "7704-10": 5, "7704-70": 5, "7529-43": 5, "7776-11": 10, "510038ULT1": 5, "5100381ULT1": 5, "5100381ULT2": 5, "6100381ULT1": 5, "5592-13": 5, "5575-13": 5, "5594-13": 5, "5576-13": 5, "7717-20": 5, "7717-B0": 5, "5592-A3": 5, "7718-10": 5, "5592-B3": 5, "5584-D3": 5, "5584-A3": 5, "5584-B3": 5, "5584-53": 10, "5584-E3": 5, "5584-63": 5, "5584-43": 5, "5575-A3": 5, "5582-43": 5, "7602-41": 10, "5587-13": 5, "5576-A3": 5, "5576-23": 5, "7720-20": 5, "5576-B3": 5, "5576-C3": 5, "7673-21": 10, "5583-A3": 5, "5583-13": 5, "5585-B3": 5, "7602-20M": 1, "5587-A3": 5, "5584-13": 5, "EZ-REG": 5, "TD500": 10, "HPF480K": 25, "HPF300K": 25, "MSWSTDA35150": 5, "MSWSTDA35180": 5, "MSWSTDA35260EX": 5, "MSWSTFA35180": 5, "MSWSTFA35260EX": 5, "6680-23": 5, "IQ35F180J3": 10, "6682-21": 10, "IQ35F150J3": 10, "IQ35F150S": 10, "IQ35F260S": 10, "IQ38F150S": 10, "IQ35F260J3": 10, "IN7130": 5, "PSI-5F-11-035-18G/BR": 5, "PSI-6F-11-035-18G/BR": 5, "PSI-7F-11-035-18G/BR": 5, "PSI-8F-11-035-18G/BR": 5, "PSI-5F-11-018/BR": 5, "PSI-6F-11-018/BR": 5, "IN4530": 10, "IN4130": 10, "EN2006020": 1, "EN2007045": 1, "EN2006010": 1, "EN2006015": 1, "EN1003004": 1, "EN1003008": 1, "203HN-R": 25, "503HF-R": 25, "503HN-R": 25, "MSS111-LB": 25, "MSS121-LB": 25, "H1FLC": 50, "H3FLC": 50, "RB050": 1, "MAP351": 25, "MAP152": 25, "MAP222": 25};
 // Merit · segunda tabela (lote mínimo e múltiplo = caixa)
+// a 1ª tabela de caixas é da linha Coronária, a 2ª da Periférica (ver Object.assign abaixo)
+const CX_CORONARIA = new Set(Object.keys(CAIXAS_MERIT).map(c => String(c).toUpperCase().replace(/\/BR$/, '')));
 Object.assign(CAIXAS_MERIT, {"S120GH": 5, "S220GH": 5, "S420GH": 5, "S620GH": 5, "S820GH": 5, "S1020GH": 5, "V100EP": 5, "V200EP": 5, "V300EP": 5, "V400EP": 5, "V600EP": 5, "V800EP": 5, "V125HS": 1, "V225HS": 1, "V325HS": 1, "TF14180S": 1, "TF14180A": 1, "28MC21150SN": 1, "28MC21150ST": 1, "29MC29130ST": 1, "29MC29150ST": 1, "28MC28150ST": 1, "28MC24130SN": 1, "28MC24150SN": 1, "28MC28150SN": 1, "29MC29150SN": 1, "28HC17150SNNS": 1, "28HC17150STNS": 1, "29HC20150SNNS": 1, "29HC20150STNS": 1, "26SN24125ST": 1, "26SN24150ST": 1, "ASAP100": 1, "ASAPLP": 1, "57538CARN10": 5, "57538CARN15": 5, "59038UAC": 5, "412535VER": 5, "510038SIM1": 5, "510038VER": 5, "512535VER": 5, "510038CB2": 5, "512538MPA1": 5, "PV412538MP1": 5, "PV412538U1": 5, "PV512538BERN": 5, "PV512538MP1": 5, "MAK-NV-001": 10, "MAK-NV-013": 10, "MAK-NV-017": 10, "PAKM4NPD7": 5, "RLCMB-NV-10": 1, "RLCMB-NV-12": 1, "RLCMB-NV-14": 1, "RBDC-8-038": 5, "RBDC-10-038": 5, "RBDC-12-038": 5, "RBDC-14-038": 5, "RLC-8-038MB": 5, "RLC-10-038MB": 5, "RLC-12-038MB": 5, "RLC-14-038MB": 5, "RML17-7-038MB": 5, "RML27-10-038MB": 5, "RML27-12-038MB": 5, "RML27-14-038MB": 5, "RML27-8-038MB": 5, "680ME": 25, "FZ624": 20, "OSC-5F-15LT": 5, "IS4-135-10": 5, "IS4-135-20": 5, "IS4-135-30": 5, "IS4-135-40": 5, "IS4-135-50": 5, "IS5-135-10": 5, "IS5-135-20": 5, "IS5-135-30": 5, "IS5-135-40": 5, "IS5-135-50": 5, "SC14150": 5, "SC18150": 5, "SC35150": 5, "SC35135": 5, "ONE1000": 1, "ONE1500": 1, "ONE2000": 1, "ONE2500": 1, "ONE3000": 1, "IQA502": 5, "IQA509": 5, "IQA526": 5, "MSWSTDA18260EX": 5, "MSWSTDS18260EX": 5, "EZ-REG": 5, "65-018-E4S-X": 5, "85-018-E140S-X": 5, "PG5F45S": 1, "PG5F45MP": 1, "PG5F45R": 1, "PG6F45S": 1, "PG6F45HS": 1, "PG6F45MP": 1, "PG6F45R": 1, "PG6F65S": 1, "PG6F65MP": 1, "PG6F65SX": 1, "PG6F90MP": 1, "PG6F90SX": 1, "PG6F90MPX": 1, "PG7F45S": 1, "PG7F45MP": 1, "PG7F45SX": 1, "PG7F45MPX": 1, "PG7F45RX": 1, "PG7F65SX": 1, "PG7F90SX": 1, "PG8F45S": 1, "PG8F45SX": 1, "PG8F45MPX": 1, "PG8F65SX": 1, "PG8F90SX": 1, "HST-085-00": 1, "HST-085-10": 1});
 const chaveCx = c => norm(c).replace(/\/BR$/, '');
 const CAIXAS = new Map(Object.entries(CAIXAS_MERIT).map(([k, v]) => [chaveCx(k), v]));
@@ -800,6 +803,9 @@ const caixaDe = cod => CAIXAS.get(chaveCx(cod || '')) || 1;
 const nomeMerit = () => { const todos = [...(data.raw.est || data.est), ...(data.raw.cmo || data.cmo), ...(data.raw.pen || data.pen), ...data.cons].map(r => r.fabricante).filter(f => f && /MERIT/i.test(f));
   return todos.length ? String(todos[0]).trim() : 'MERIT MEDICAL'; };
 const fabPorTabela = cod => CAIXAS.has(chaveCx(cod || '')) ? nomeMerit() : '';
+// Grupo/linha do produto: vem dos PDFs filtrados por "Grupo:" (C1060, S013, C723…); sem isso, a tabela de caixas da Merit
+const grupoPorTabela = cod => { const k = chaveCx(cod || ''); return !CAIXAS.has(k) ? '' : CX_CORONARIA.has(k) ? 'CORONARIA' : 'PERIFERICA'; };
+const NOME_GRUPO = g => { const n = norm(g); return !n ? 'Sem grupo' : 'Linha ' + ({ CORONARIA: 'Coronária', PERIFERICA: 'Periférica', VASCULAR: 'Vascular' }[n] || n.charAt(0) + n.slice(1).toLowerCase()); };
 const fabDe = r => (r.fabricante && String(r.fabricante).trim()) || fabPorTabela(r.codigo_alt || r.codigo);
 const emCaixas = (q, cx) => cx > 1 ? Math.ceil(q / cx) * cx : q;
 // Código terminando em "-0" = produto reutilizável: fica fora da contagem (estoque, consumo, pendente e programação)
@@ -946,6 +952,7 @@ function programacao() {
     const situacao = paraReserva > 0 ? 'comprar' : diaOut <= 0 ? (media <= 0 ? 'semconsumo' : 'ok') : fica + emPedido <= diaOut * (prazo + cfg.seguranca_dias) ? 'comprar' : covOut < prazo + cfg.seguranca_dias + 15 ? 'atencao' : 'ok';
     return { codigo: e?.codigo || c?.codigo, descricao: e?.descricao || c?.descricao, disp, fisico: num(e?.estoque), media, total: num(c?.total), meses: c?.meses || [], ponto, cobertura,
       sugerido, situacao, preco: num(e?.ultimo_preco), unidade: e?.unidade || '', consignado: cm.get(k)?.saldo || 0, semEstoqueCadastro: !e, fabricante: fab, prazo,
+      grupo: norm(c?.grupo || e?.grupo || pd?.linhas.find(l => l.grupo)?.grupo || grupoPorTabela(e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || k)),
       mediaFat, pendAno: num(pd?.ano), pendAntigo: num(pd?.antigo), nMeses, codigo: codigoRow, descricao: e?.descricao || c?.descricao || pd?.linhas[0]?.produto || rs?.produto || ccm.get(k)?.descricao,
       mediaAno, media3, tendencia, emPedido, caixa, reserva, separado, faltaSeparar, reservaClientes: rs ? [...rs.clientes] : [],
       mediaCli, outrosMes, idealReserva, protege, transferir, paraReserva, paraOutros, sepAgora, sepSemDisp: faltaSemDisp, parado: disp > 0 && venda6 <= 0 && !num(pd?.ano) };
@@ -986,7 +993,7 @@ function consPorProduto(soSaldo = true) {
 const consMap = () => new Map(consPorProduto(true).map(g => [norm(g.codigo_alt), g]));
 
 // ───────── Navegação ─────────
-const ui = { view: 'painel', busca: '', est: '', cons: 'saldo', cliente: '', abertos: new Set(), prog: new Set(['comprar']), fab: '', abc: '', valor: 0, ord: 'urgencia', ped: 'abertos', pedAbertos: new Set(), res: '', resCli: '' };
+const ui = { grupo: '', view: 'painel', busca: '', est: '', cons: 'saldo', cliente: '', abertos: new Set(), prog: new Set(['comprar']), fab: '', abc: '', valor: 0, ord: 'urgencia', ped: 'abertos', pedAbertos: new Set(), res: '', resCli: '' };
 const TITULOS = { painel: 'Painel — Programação de Compras', programacao: 'Programação de compra', pendente: 'Pendente de faturamento', estoque: 'Estoque próprio', consignado: 'Consignado', importar: 'Importar do Callisto', pedidos: 'Pedidos de compra', reserva: 'Reserva de cliente (C904)' };
 window.goView = v => {
   ui.view = v;
@@ -1038,6 +1045,7 @@ function listaProgramacao() {
   const FILTRO = { zerado: r => r.semEstoqueCadastro && r.media > 0, parado: r => r.parado, reserva: r => r.reserva > 0 || r.mediaCli > 0, subindo: r => r.tendencia >= 1.25 && (r.media3 >= 0.5 || r.mediaAno >= 0.5), caindo: r => r.tendencia <= 0.75 && r.mediaAno >= 0.5 };
   const ORDEM = { valor: (a, b) => qtdComprar(b) * b.preco - qtdComprar(a) * a.preco, abc: (a, b) => a.abc.localeCompare(b.abc) || b.valorAno - a.valorAno };
   return programacaoFab().filter(r => !ui.prog.size || [...ui.prog].some(p => FILTRO[p] ? FILTRO[p](r) : r.situacao === p)).filter(r => casa(r, ['codigo', 'descricao', 'fabricante']))
+    .filter(r => !ui.grupo || (ui.grupo === '__sem' ? !r.grupo : r.grupo === ui.grupo))
     .filter(r => !ui.abc || r.abc === ui.abc).filter(r => !ui.valor || qtdComprar(r) * r.preco >= ui.valor)
     .sort(ORDEM[ui.ord] || ((a, b) => (a.cobertura ?? 1e9) - (b.cobertura ?? 1e9) || b.media - a.media));
 }
@@ -1068,10 +1076,21 @@ function renderProgramacao() {
   const totQ = lista.reduce((a, r) => a + qtdComprar(r), 0), totV = lista.reduce((a, r) => a + qtdComprar(r) * r.preco, 0), nItens = lista.filter(r => qtdComprar(r) > 0).length;
   $('prog-tot').innerHTML = `<b>${nItens}</b> item(ns) para comprar · <b>${qtd(totQ)}</b> un · <b>${brl(totV)}</b> <span style="opacity:.75">(itens da lista abaixo, com os filtros)</span>`;
   const temRes = data.res.length > 0 || data.cmoCli.length > 0;
+  { const gs = new Map(); programacaoFab().forEach(r => gs.set(r.grupo || '__sem', (gs.get(r.grupo || '__sem') || 0) + 1));
+    const ordem = [...gs.keys()].filter(g => g !== '__sem').sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    $('prog-grupo').innerHTML = '<option value="">🧬 Todas as linhas</option>' + ordem.map(g => `<option value="${esc(g)}" ${ui.grupo === g ? 'selected' : ''}>🧬 ${esc(NOME_GRUPO(g))} (${gs.get(g)})</option>`).join('')
+      + (gs.has('__sem') && ordem.length ? `<option value="__sem" ${ui.grupo === '__sem' ? 'selected' : ''}>Sem grupo (${gs.get('__sem')})</option>` : ''); }
+  // separa a lista por linha (Coronária, Periférica, Vascular…) mantendo a ordem escolhida dentro de cada uma
+  const grupos = [...new Set(lista.map(r => r.grupo || ''))], separar = !ui.grupo && grupos.length > 1;
+  if (separar) { const pos = g => g ? grupos.filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR')).indexOf(g) : 999; lista.sort((a, b) => pos(a.grupo || '') - pos(b.grupo || '')); }
+  const nCols = 10 + (temRes ? 2 : 0);
+  const cabGrupo = (r, i) => { if (!separar || (i && (lista[i - 1].grupo || '') === (r.grupo || ''))) return '';
+    const g = lista.filter(x => (x.grupo || '') === (r.grupo || '')), qg = g.reduce((a, x) => a + qtdComprar(x), 0), vg = g.reduce((a, x) => a + qtdComprar(x) * x.preco, 0);
+    return `<tr class="grp"><td colspan="${nCols}" style="background:var(--surface2);font-weight:700;color:var(--text);padding:9px 12px">🧬 ${esc(NOME_GRUPO(r.grupo))} <span class="td-doc" style="font-weight:400">· ${g.length} produto(s) · comprar ${qtd(qg)} un · ${brl(vg)}</span></td></tr>`; };
   $('tb-prog').innerHTML = `<thead><tr><th>Situação</th><th>Produto</th><th class="num" title="Estoque Disp. (S013) + o que já foi pedido; consignação">Estoque</th>${temRes ? '<th class="num" title="Reserva do cliente no C904 · já separado · falta separar">🔒 Reservado</th><th class="num" title="Reserva ideal (consumo do cliente × dias de cobertura) − reservado · de onde vem: Estoque Disp. ou compra">🔒 Falta reservar</th>' : ''}<th class="num" title="Média mensal faturada no C1060">Faturado/mês</th><th class="num" title="Pendente de faturamento (C723) do ano — entra no consumo no mês da cirurgia">Pendente</th><th class="num" title="Consumo médio mensal = (faturado + pendente do ano) ÷ meses">Consumo/mês</th><th class="num" title="Quantos dias o estoque dura · ponto de pedido">Cobertura</th><th class="num">Comprar</th><th class="num" title="Estoque Disp. + já pedido − reserva a separar + compra">Saldo após</th><th class="num">Valor</th></tr></thead><tbody>
-    ${lista.map(r => { const k = norm(r.codigo), q = qtdComprar(r);
+    ${lista.map((r, iL) => { const k = norm(r.codigo), q = qtdComprar(r);
       const meses = r.meses.map((x, i) => num(x) ? mesesNome[i] + ':' + qtd(x) : '').filter(Boolean).join(' ');
-      return `<tr class="sit-${r.situacao}"><td><span class="badge ${SIT[r.situacao][0]}">${SIT[r.situacao][1]}</span>
+      return cabGrupo(r, iL) + `<tr class="sit-${r.situacao}"><td><span class="badge ${SIT[r.situacao][0]}">${SIT[r.situacao][1]}</span>
         <div style="margin-top:4px">${r.media > 0 || r.valorAno ? `<span class="mini" title="Curva ABC pelo valor consumido no ano (${brl(r.valorAno)})">curva ${r.abc}</span>` : ''}${r.parado ? '<span class="mini" title="Tem estoque e não vendeu nos últimos 6 meses">💤 parado</span>' : ''}</div></td>
       <td class="prod"><div class="cod">${esc(r.codigo)}${r.fabricante ? ` · 🏭 ${esc(r.fabricante)}` : ''}</div><b>${esc(r.descricao || '')}</b>
         ${meses ? `<div class="td-doc" title="Consumo por mês no C1060">${meses}</div>` : ''}${r.semEstoqueCadastro ? '<div class="td-doc" style="color:#dc2626">sem estoque próprio (fora do S013)</div>' : ''}</td>
@@ -1865,6 +1884,7 @@ async function importarArquivos(files) {
       // S013 filtrado (ex.: "Fabricante: JOTEC BRASIL"): atualiza só esses produtos, o resto do estoque continua
       const filtroS013 = /S013|C723|C1060|C457/.test(texto) ? (/(Fabricante|Fornecedor|SubGrupo|Grupo):\s*([^.]+?)\s*\./i.exec(texto.replace(/\s+/g, ' ')) || null) : null;
       const fabricante = filtroS013 && /Fabricante|Fornecedor/i.test(filtroS013[1]) ? filtroS013[2].trim() : null;
+      const grupoPdf = filtroS013 && /Grupo/i.test(filtroS013[1]) ? filtroS013[2].trim().toUpperCase() : null;
       if (/C904/.test(texto)) { tipo = 'C904'; rows = lerC904(pags); }
       else if (/S013/.test(texto)) { tipo = 'S013'; rows = lerS013(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; }); }
       else if (/C457/.test(texto)) { tipo = 'C457'; rows = lerC457(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; }); }
@@ -1945,14 +1965,17 @@ O consignado de ${BR.label} já tem ${jaTem} linha(s) de importações anteriore
           if (del.error) throw del.error;
         }
       }
-      let semColunaFab = false;
+      if (grupoPdf && tipo !== 'C904' && tipo !== 'C1060C') rows.forEach(r => { r.grupo = grupoPdf; });
+      let semColunaFab = false, semColunaGrupo = false;
       for (let i = 0; i < rows.length; i += 500) {
-        const lote = rows.slice(i, i + 500).map(r => { const x = { ...r, filial: FILIAL, importado_em: agora }; if (semColunaFab) delete x.fabricante; return x; });
+        const lote = rows.slice(i, i + 500).map(r => { const x = { ...r, filial: FILIAL, importado_em: agora }; if (semColunaFab) delete x.fabricante; if (semColunaGrupo) delete x.grupo; return x; });
         let { error } = await supabase.from(tabela).insert(lote);
+        if (error && /grupo/i.test(error.message || '')) { semColunaGrupo = true; lote.forEach(x => delete x.grupo); ({ error } = await supabase.from(tabela).insert(lote)); }
         if (error && /fabricante/i.test(error.message || '')) { semColunaFab = true; ({ error } = await supabase.from(tabela).insert(lote.map(({ fabricante, ...x }) => x))); }
         if (error) throw error;
         $('imp-status').textContent = `⏳ Gravando… ${Math.min(i + 500, rows.length)} de ${rows.length}`;
       }
+      if (semColunaGrupo) toast('Gravado sem o grupo (linha): rode o SQL de atualização (coluna grupo).', 'info');
       if (semColunaFab) toast('Gravado sem o fabricante: rode o SQL de atualização (coluna fabricante) para guardar o fabricante de cada item.', 'info');
       await supabase.from(T.imp).insert({ filial: FILIAL, tipo, arquivo: file.name + (filtroS013 ? ` (${filtroS013[1]}: ${filtroS013[2].trim()})` : ''), linhas: rows.length, usuario: quemSou(), importado_em: agora });
       if (fabricante) fabsImp.add(fabricante); else semFabImp = true;
@@ -2001,7 +2024,7 @@ window.planilhaCallisto = () => {
 };
 window.exportarExcel = () => {
   let linhas, nome;
-  if (ui.view === 'programacao') { nome = 'Lista_de_compra'; linhas = listaProgramacao().map(r => ({ Situação: SIT[r.situacao][1].replace(/^\S+ /, ''), Código: r.codigo, Produto: r.descricao, Fabricante: r.fabricante || '', 'Estoque Disp.': r.disp, 'Faturado/mês (C1060)': +num(r.mediaFat).toFixed(2), 'Pendente no ano (C723)': num(r.pendAno), 'Pendente antigo': num(r.pendAntigo), 'Consumo médio/mês': +num(r.media).toFixed(2), 'Cobertura (dias)': r.cobertura == null ? null : Math.round(r.cobertura), 'Ponto de pedido': Math.ceil(r.ponto), Comprar: qtdComprar(r), 'Caixa com': r.caixa > 1 ? r.caixa : '', 'Em pedido': r.emPedido || 0, 'Reserva cliente (C904)': r.reserva || 0, 'Falta separar': r.faltaSeparar || 0, 'Consumo do cliente/mês': +num(r.mediaCli).toFixed(2), 'Passar do Disp. p/ reserva': r.transferir || 0, 'Compra p/ reserva': r.paraReserva || 0, 'Compra p/ outros': r.paraOutros || 0, 'Saldo após compra': saldoApos(r), Curva: r.abc, 'Consumo 3 meses/mês': +r.media3.toFixed(2), 'Tendência %': r.mediaAno > 0 ? Math.round((r.tendencia - 1) * 100) : '', Parado: r.parado ? 'sim' : '', Unidade: r.unidade, 'Último preço': r.preco, Valor: +(qtdComprar(r) * r.preco).toFixed(2), 'Em consignação': r.consignado })); }
+  if (ui.view === 'programacao') { nome = 'Lista_de_compra'; linhas = listaProgramacao().map(r => ({ Situação: SIT[r.situacao][1].replace(/^\S+ /, ''), Código: r.codigo, Produto: r.descricao, Linha: r.grupo ? NOME_GRUPO(r.grupo) : '', Fabricante: r.fabricante || '', 'Estoque Disp.': r.disp, 'Faturado/mês (C1060)': +num(r.mediaFat).toFixed(2), 'Pendente no ano (C723)': num(r.pendAno), 'Pendente antigo': num(r.pendAntigo), 'Consumo médio/mês': +num(r.media).toFixed(2), 'Cobertura (dias)': r.cobertura == null ? null : Math.round(r.cobertura), 'Ponto de pedido': Math.ceil(r.ponto), Comprar: qtdComprar(r), 'Caixa com': r.caixa > 1 ? r.caixa : '', 'Em pedido': r.emPedido || 0, 'Reserva cliente (C904)': r.reserva || 0, 'Falta separar': r.faltaSeparar || 0, 'Consumo do cliente/mês': +num(r.mediaCli).toFixed(2), 'Passar do Disp. p/ reserva': r.transferir || 0, 'Compra p/ reserva': r.paraReserva || 0, 'Compra p/ outros': r.paraOutros || 0, 'Saldo após compra': saldoApos(r), Curva: r.abc, 'Consumo 3 meses/mês': +r.media3.toFixed(2), 'Tendência %': r.mediaAno > 0 ? Math.round((r.tendencia - 1) * 100) : '', Parado: r.parado ? 'sim' : '', Unidade: r.unidade, 'Último preço': r.preco, Valor: +(qtdComprar(r) * r.preco).toFixed(2), 'Em consignação': r.consignado })); }
   else if (ui.view === 'pendente') { nome = 'Pendente_faturamento'; linhas = data.pen.map(r => ({ Pedido: r.pedido, NF: r.nf, 'Data cirurgia': dataBR(r.data_cirurgia), Cliente: r.cliente, Paciente: r.paciente, Convênio: r.convenio, Médico: r.medico, 'Código alt.': r.codigo_alt, Produto: r.produto, Fabricante: r.fabricante || '', Qtd: num(r.quantidade), 'Valor unit.': num(r.valor_unit), 'Valor total': num(r.valor_total) })); }
   else if (ui.view === 'consignado') { nome = 'Consignado'; linhas = consPorProduto(ui.cons === 'saldo').flatMap(g => g.linhas.filter(r => ui.cons !== 'saldo' || num(r.saldo) > 0).map(r => ({ 'Código alt.': r.codigo_alt, Código: r.codigo, Produto: r.produto, Cliente: r.cliente, Emissão: dataBR(r.data_emissao), Documento: r.documento, Pedido: r.pedido, 'Qtd enviada': num(r.quantidade), 'Saldo atual': num(r.saldo), 'Valor da remessa': num(r.valor) }))); }
   else if (ui.view === 'reserva') { nome = 'Reserva_cliente'; linhas = listaReserva().map(r => ({ Situação: RES_ST[r.status][1].replace(/^\S+ /, ''), Código: r.codigo, Produto: r.produto, Cliente: [...r.clientes].join(', '), 'Reserva (C904)': r.saldo, 'Consumo cliente/mês': +r.media.toFixed(2), 'Consumo 3 meses/mês': +r.media3.toFixed(2), 'Cobertura (dias)': r.cobertura == null ? '' : Math.round(r.cobertura), 'Reserva ideal': r.ideal, Ajuste: r.ajuste, 'Repor por mês': r.reposMes, 'Estoque Disp.': r.disp, 'Já separado': r.separado, 'Falta separar': r.falta, 'Passar do Disp. p/ reserva': r.transferir, 'Fica p/ outros clientes': r.protege, 'Comprar p/ reserva': r.comprarReserva, 'Comprar p/ outros': r.comprarOutros, 'Comprar (cx)': r.comprar, 'Valor reservado': +r.valor.toFixed(2) })); }

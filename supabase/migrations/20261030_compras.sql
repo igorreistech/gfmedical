@@ -199,3 +199,10 @@ create policy compras_consumo_cliente_write on public.compras_consumo_cliente fo
 -- Quantos dias de consumo do cliente a reserva deve cobrir
 alter table public.compras_config add column if not exists reserva_dias integer;
 notify pgrst, 'reload schema';
+
+-- Grupo/linha do produto (Coronária, Periférica, Vascular…) quando o PDF vem filtrado por "Grupo:" no Callisto
+alter table public.compras_estoque    add column if not exists grupo text;
+alter table public.compras_consumo    add column if not exists grupo text;
+alter table public.compras_pendente   add column if not exists grupo text;
+alter table public.compras_consignado add column if not exists grupo text;
+notify pgrst, 'reload schema';
