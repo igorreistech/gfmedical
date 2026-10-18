@@ -704,7 +704,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.17';
+const VERSAO = '2026-10-17.18';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1669,10 +1669,39 @@ function renderPendente() {
 function renderImportar() {
   const l = [...data.imp].sort((a, b) => (b.importado_em || '').localeCompare(a.importado_em || ''));
   $('cnt-imp').textContent = l.length;
-  $('tb-imp').innerHTML = l.length ? `<thead><tr><th>Quando</th><th>Relatório</th><th>Arquivo</th><th class="num">Linhas</th><th>Quem</th></tr></thead><tbody>
-    ${l.map(i => `<tr><td class="td-mono">${dataHoraBR(i.importado_em)}</td><td>${{ S013: '📦 S013 - Estoque', C457: '🏥 C457 - Itens Consignados', C1060: '📈 C1060 - Consumo Mensal', C723: '⏳ C723 - Pendentes por cirurgia', C904: '🔒 C904 - Reserva de cliente', C1060C: '👤 C1060 - Consumo do cliente' }[i.tipo] || i.tipo}</td><td>${esc(i.arquivo || '')}</td><td class="num">${i.linhas}</td><td class="td-mono">${esc((i.usuario || '').split(' (')[0].split('@')[0])}</td></tr>`).join('')}</tbody>`
+  const tabDe = { S013: 'est', C457: 'cons', C1060: 'cmo', C723: 'pen', C904: 'res', C1060C: 'cmoCli' };
+  // linhas que ainda estão no banco vindas desta importação (mesmo horário de gravação)
+  const noBanco = i => { const k = tabDe[i.tipo], t = new Date(i.importado_em).getTime(); return k ? (data.raw[k] || data[k] || []).filter(r => Math.abs(new Date(r.importado_em).getTime() - t) < 2000).length : 0; };
+  $('tb-imp').innerHTML = l.length ? `<thead><tr><th>Quando</th><th>Relatório</th><th>Arquivo</th><th class="num">Linhas</th><th class="num" title="Linhas desta importação que ainda estão no banco (as outras foram trocadas por importações depois)">Ainda no banco</th><th>Quem</th><th></th></tr></thead><tbody>
+    ${l.map(i => `<tr><td class="td-mono">${dataHoraBR(i.importado_em)}</td><td>${{ S013: '📦 S013 - Estoque', C457: '🏥 C457 - Itens Consignados', C1060: '📈 C1060 - Consumo Mensal', C723: '⏳ C723 - Pendentes por cirurgia', C904: '🔒 C904 - Reserva de cliente', C1060C: '👤 C1060 - Consumo do cliente' }[i.tipo] || i.tipo}</td><td>${esc(i.arquivo || '')}</td><td class="num">${i.linhas}</td><td class="num">${(n => n ? n : '<span class="td-doc">—</span>')(noBanco(i))}</td><td class="td-mono">${esc((i.usuario || '').split(' (')[0].split('@')[0])}</td>
+      <td>${_readOnly ? '' : `<button class="tbtn" title="Remover esta importação" onclick="removerImportacao('${i.id}')">🗑</button>`}</td></tr>`).join('')}</tbody>`
     : '<tbody><tr><td><div class="empty-mini">Nenhuma importação ainda.</div></td></tr></tbody>';
 }
+
+// Remove uma importação: apaga as linhas gravadas por ela (mesmo horário) e o registro no histórico.
+// Atenção: se ela tinha substituído dados antigos, esses antigos não voltam — o aviso explica.
+window.removerImportacao = async id => {
+  const i = data.imp.find(x => x.id === id); if (!i) return;
+  const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen, C904: T.res, C1060C: T.cmoCli }[i.tipo];
+  const k = { S013: 'est', C457: 'cons', C1060: 'cmo', C723: 'pen', C904: 'res', C1060C: 'cmoCli' }[i.tipo], t = new Date(i.importado_em).getTime();
+  const linhas = (data.raw[k] || data[k] || []).filter(r => Math.abs(new Date(r.importado_em).getTime() - t) < 2000);
+  const repetida = data.imp.some(o => o.id !== i.id && o.tipo === i.tipo && o.arquivo === i.arquivo && o.importado_em < i.importado_em);
+  const op = await escolher('🗑 Remover importação', `${i.arquivo || i.tipo}\n${dataHoraBR(i.importado_em)} · ${i.linhas} linha(s) importadas · ${linhas.length} ainda no banco.\n\n` +
+    (linhas.length ? `Remover apaga essas ${linhas.length} linha(s) do banco.${repetida ? '\n\n⚠ Este mesmo arquivo já tinha sido importado antes e esta importação TROCOU aqueles dados pelos mesmos — não duplicou nada. Se remover, esses produtos ficam SEM dados até importar o PDF de novo. Se foi só uma importação repetida, o melhor é tirar só do histórico.' : '\n\nSe ela tinha substituído dados mais antigos, eles não voltam: importe o PDF certo de novo depois.'}`
+      : 'As linhas desta importação já foram trocadas por importações mais novas — só o registro do histórico será removido.'), [
+      ...(linhas.length ? [['tudo', `🗑 Remover as ${linhas.length} linha(s) do banco e o histórico`, repetida ? '' : 'tbtn-p']] : []),
+      ['hist', '🧾 Tirar só do histórico (os dados continuam)', repetida || !linhas.length ? 'tbtn-p' : ''],
+      [null, 'Cancelar', '']]);
+  if (!op) return;
+  if (op === 'tudo' && linhas.length) {
+    const ids = linhas.map(r => r.id);
+    for (let n = 0; n < ids.length; n += 200) { const d = await supabase.from(tabela).delete().in('id', ids.slice(n, n + 200)); if (d.error) { toast('Não removeu: ' + d.error.message, 'err'); return; } }
+  }
+  const h = await supabase.from(T.imp).delete().eq('id', id);
+  if (h.error) { toast('Não tirou do histórico: ' + h.error.message, 'err'); return; }
+  toast(op === 'tudo' ? `✔ Importação removida (${linhas.length} linha(s))` : '✔ Tirada do histórico');
+  await carregarTudo();
+};
 
 // ───────── Leitura dos PDFs do Callisto ─────────
 async function itensPdf(file) {

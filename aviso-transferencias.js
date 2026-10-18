@@ -13,7 +13,9 @@
   code = code === 'cba' ? 'cba' : 'cgr';
   var outra = code === 'cba' ? 'cgr' : 'cba', F = code.toUpperCase();
   var hoje = new Date().toISOString().slice(0, 10), chaveDia = 'gf_aviso_transf_' + code;
-  try { if (localStorage.getItem(chaveDia) === hoje) return; } catch (e) { return; }
+  // No Monitor Cirúrgico o alerta aparece TODA vez que a página é aberta; nas outras telas, uma vez por dia
+  var ehMonitor = !!document.querySelector('.view-tabs') || /(^|\/)(index\.html)?$/.test(location.pathname);
+  try { if (!ehMonitor && localStorage.getItem(chaveDia) === hoje) return; } catch (e) { return; }
 
   function token() {
     var chaves = fixa ? ['sb-' + BR[code].ref + '-auth-token'] : ['sb-' + code + '-auth', 'sb-' + BR[code].ref + '-auth-token'];
@@ -66,7 +68,7 @@
       return { l: l, un: l.reduce(function (a, i) { return a + i.livre; }, 0), valor: l.reduce(function (a, i) { return a + i.livre * num(i.valor_unit); }, 0), dias: l.length ? l[0].dias : 0 };
     };
     var devolver = lado('retorno'), receber = lado('envio');
-    if (!devolver.l.length && !receber.l.length) { try { localStorage.setItem(chaveDia, hoje); } catch (e) {} return; }
+    if (!devolver.l.length && !receber.l.length) { try { if (!ehMonitor) localStorage.setItem(chaveDia, hoje); } catch (e) {} return; }
     mostrar(devolver, receber);
   }
   var brl = function (v) { return num(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); };
@@ -85,18 +87,30 @@
     ov.id = 'aviso-transf';
     ov.style.cssText = 'position:fixed;inset:0;z-index:20000;background:rgba(10,42,24,.45);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;font-family:Inter,system-ui,sans-serif';
     ov.innerHTML = '<div style="background:#f6fbf8;border-radius:16px;max-width:560px;width:100%;max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25);padding:18px 20px">' +
-      '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">🔁</span><div style="font-weight:800;font-size:16px;color:#0f3d26">Lembrete do dia — transferências entre filiais</div>' +
+      '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">🔁</span><div style="font-weight:800;font-size:16px;color:#0f3d26">' + (ehMonitor ? 'Cobrar devolução — transferências entre filiais' : 'Lembrete do dia — transferências entre filiais') + '</div>' +
       '<button id="aviso-transf-x" style="margin-left:auto;border:0;background:transparent;font-size:18px;cursor:pointer;color:#64748b" title="Fechar">✕</button></div>' +
       '<div style="font-size:13px;color:#334155;margin-top:4px">Produtos enviados para cirurgia que ainda não voltaram. Devolva o que não foi usado ou informe o paciente/pedido dos que foram usados.</div>' +
       bloco(devolver, '#d97706', '📥 GF ' + BR[code].nome + ' tem para devolver à GF ' + BR[outra].nome) +
       bloco(receber, '#dc2626', '📤 GF ' + BR[outra].nome + ' tem para devolver à GF ' + BR[code].nome) +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;justify-content:flex-end">' +
-      '<button id="aviso-transf-ok" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer">Ok, lembrar amanhã</button>' +
+      '<button id="aviso-transf-ok" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer">' + (ehMonitor ? 'Fechar' : 'Ok, lembrar amanhã') + '</button>' +
+      '<button id="aviso-transf-zap" style="border:0;background:#25d366;color:#fff;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer">📲 Cobrar no WhatsApp</button>' +
       '<button id="aviso-transf-ver" style="border:0;background:#1a7a4a;color:#fff;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer">🔁 Abrir transferências</button></div></div>';
     document.body.appendChild(ov);
-    var fechar = function () { try { localStorage.setItem(chaveDia, hoje); } catch (e) {} ov.remove(); };
+    var fechar = function () { try { if (!ehMonitor) localStorage.setItem(chaveDia, hoje); } catch (e) {} ov.remove(); };
     document.getElementById('aviso-transf-x').onclick = fechar;
     document.getElementById('aviso-transf-ok').onclick = fechar;
+    document.getElementById('aviso-transf-zap').onclick = function () {
+      var L = ['*Transferências entre filiais pendentes de devolução*', '(' + new Date().toLocaleDateString('pt-BR') + ')'];
+      var lista = function (t, titulo) { if (!t.l.length) return; L.push('', '*' + titulo + '*');
+        t.l.forEach(function (i) { L.push('• ' + (i.codigo_alt || i.codigo) + ' — ' + (i.descricao || '') + ': *' + q(i.livre) + '* (NF ' + num(i.numero).toLocaleString('pt-BR') + ', ' + i.dias + ' dia(s)' + ((i.lotes || []).length ? ', lote ' + i.lotes.map(function (x) { return x.lote; }).join(', ') : '') + ')'); });
+        L.push('Total: ' + q(t.un) + ' un · ' + brl(t.valor)); };
+      lista(receber, 'GF ' + BR[outra].nome + ' → devolver para GF ' + BR[code].nome);
+      lista(devolver, 'GF ' + BR[code].nome + ' → devolver para GF ' + BR[outra].nome);
+      L.push('', 'Por favor, devolver o que não foi usado ou informar o paciente/pedido dos que foram usados em cirurgia, para darmos baixa. Obrigado!');
+      var t = L.join('\n'); try { navigator.clipboard && navigator.clipboard.writeText(t); } catch (e) {}
+      window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(t), '_blank');
+    };
     document.getElementById('aviso-transf-ver').onclick = function () { fechar(); if (document.getElementById('transf-view') && typeof window.switchView === 'function') window.switchView('transf'); else window.open('transferencias.html' + (fixa ? '' : '?filial=' + code), '_blank'); };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(esperar, 5000); });
