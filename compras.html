@@ -500,9 +500,10 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
               <select class="tsel" id="p-base" onchange="previewParametros()"><option value="ano">Média do ano (C1060)</option><option value="3m">Últimos 3 meses</option><option value="maior">O maior dos dois (mais seguro)</option></select></label>
             <div class="par-help">A média do ano esconde produto que começou a vender mais ou menos agora. "Últimos 3 meses" usa os 3 últimos meses fechados; "o maior dos dois" evita faltar quando o consumo está subindo.</div></div>
           <div id="p-exemplo"></div>
-          <details style="margin:6px 0 10px"><summary class="td-mono" style="cursor:pointer">🏭 Parâmetros por fabricante (prazo, segurança e cobrir) <span id="p-fabs-n"></span></summary>
+          <details open style="margin:6px 0 10px"><summary class="td-mono" style="cursor:pointer">🏭 Parâmetros por fabricante (prazo, segurança e cobrir) <span id="p-fabs-n"></span></summary>
             <div class="td-mono" style="white-space:normal;margin-top:6px;opacity:.8">Deixe em branco para usar o valor geral (aparece apagado no campo). Ex.: fornecedor comprado a cada 90 dias → segurança 20 e cobrir 110 (20 + 90).</div>
             <div class="par-fabs" id="p-fabs"></div>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:8px"><input class="finput" id="p-fab-novo" placeholder="Adicionar fabricante (ex.: JOTEC BRASIL)" style="max-width:320px"><button class="tbtn" onclick="addFabParam()">➕ Adicionar</button></div>
           </details>
           <div class="filters" style="margin-bottom:6px">
             <button class="tbtn tbtn-p" onclick="salvarParametros()">💾 Salvar e recalcular</button>
@@ -707,7 +708,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.24';
+const VERSAO = '2026-10-17.25';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -859,13 +860,17 @@ function lerParametrosTela() {
 }
 function montarParametros() {
   $('p-prazo').value = cfg.prazo_dias; $('p-seg').value = cfg.seguranca_dias; $('p-cob').value = cfg.cobertura_dias; $('p-base').value = cfg.base_consumo || 'ano';
-  const fabs = [...new Set([...data.est, ...data.cmo, ...data.pen, ...data.cons].map(r => r.fabricante).filter(Boolean).map(f => String(f).trim()))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  // fabricantes: os da programação (S013/C1060/C723/C457 filtrados, tabela de caixas da Merit), os que já têm parâmetro salvo e os adicionados à mão
+  let fabsProg = []; try { fabsProg = programacao().map(r => r.fabricante); } catch (e) {}
+  const salvos = Object.keys(cfg.prazos_fabricante || {}), conhecidos = [...data.est, ...data.cmo, ...data.pen, ...data.cons].map(r => r.fabricante);
+  const porNorm = new Map(); [...fabsProg, ...conhecidos, ...salvos, ...(window._fabsExtras || [])].filter(Boolean).forEach(f => { const k = norm(f); if (!porNorm.has(k)) porNorm.set(k, String(f).trim()); });
+  const fabs = [...porNorm.values()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const n = Object.keys(cfg.prazos_fabricante || {}).length;
   $('p-fabs-n').textContent = fabs.length ? `(${fabs.length} fabricante(s)${n ? ` · ${n} com parâmetros próprios` : ''})` : '';
   const inp = (f, campo, val, ph) => `<input class="finput" type="number" min="0" step="1" data-fab="${esc(norm(f))}" data-campo="${campo}" value="${temValor(val) ? val : ''}" placeholder="${ph}" oninput="previewParametros()">`;
   $('p-fabs').innerHTML = fabs.length ? `<div class="par-fab par-fab-cab"><span>Fabricante</span><span>🚚 Prazo</span><span>🛟 Segurança</span><span>📦 Cobrir</span></div>` + fabs.map(f => { const v = paramFab(f);
     return `<div class="par-fab"><span title="${esc(f)}">${esc(f)}</span>${inp(f, 'prazo', v.prazo, cfg.prazo_dias)}${inp(f, 'seg', v.seg, cfg.seguranca_dias)}${inp(f, 'cob', v.cob, cfg.cobertura_dias)}</div>`; }).join('')
-    : '<div class="td-mono" style="opacity:.7">Nenhum fabricante ainda: importe os PDFs filtrados por fabricante (S013/C1060/C723).</div>';
+    : '<div class="td-mono" style="opacity:.7">Nenhum fabricante identificado ainda — use "Adicionar fabricante" abaixo, ou importe PDFs filtrados por fabricante (S013/C1060/C723).</div>';
   previewParametros();
 }
 // Exemplo ao vivo com os números digitados + avisos de combinação estranha
@@ -875,6 +880,8 @@ function resumoParametros() {
   const nFab = Object.keys(cfg.prazos_fabricante || {}).length;
   el.textContent = `prazo ${cfg.prazo_dias}d · segurança ${cfg.seguranca_dias}d · cobrir ${cfg.cobertura_dias}d · ${base}${nFab ? ` · ${nFab} fabricante(s) com parâmetros próprios` : ''}${$('p-pend')?.checked === false ? ' · sem C723' : ''}`;
 }
+window.addFabParam = () => { const n = $('p-fab-novo').value.trim(); if (!n) return; (window._fabsExtras = window._fabsExtras || []).push(n.toUpperCase()); $('p-fab-novo').value = '';
+  const atual = lerParametrosTela(); cfg.prazos_fabricante = atual.prazos_fabricante; montarParametros(); toast('Fabricante adicionado: preencha prazo/segurança/cobrir e salve.', 'info'); };
 window.previewParametros = () => {
   const c = lerParametrosTela(), P = c.prazo_dias, S = c.seguranca_dias, C = c.cobertura_dias, lote = C - S;
   const avisos = [];
