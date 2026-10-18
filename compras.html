@@ -630,7 +630,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
         <div class="twrap">
           <div class="thead-bar"><span class="thead-title">🔒 Reserva de cliente</span><span class="tcount" id="cnt-res">0</span><span class="td-mono" id="res-info"></span>
             <span style="margin-left:auto;display:flex;gap:6px">
-              <button class="tbtn tbtn-p" onclick="excelReserva()" title="Planilha com abas: Resumo, Reservar, Separar, Passar do Disp. e Comprar">📊 Excel da reserva</button>
+              <button class="tbtn tbtn-p" onclick="excelReserva()" title="Planilha só com o que precisa reservar, pelo consumo mensal do cliente">📊 Excel do que reservar</button>
               <button class="tbtn tbtn-g" onclick="listaTransferencia()" title="Lista do que passar do Estoque Disp. para o pedido reservado (copia e abre o WhatsApp)">🔁 Lista de transferência</button>
             </span></div>
           <div class="tscroll"><table id="tb-res" class="tb-grande"></table></div>
@@ -704,7 +704,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.16';
+const VERSAO = '2026-10-17.17';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1141,79 +1141,32 @@ function listaReserva() {
 const RES_ST = { semreserva: ['b-crit', '❗ Consome sem reserva'], abaixo: ['b-warn', '📉 Abaixo do ideal'], acima: ['b-info', '📈 Acima do ideal'], parada: ['b-mute', '💤 Parada'], ok: ['b-ok', '✔ OK'] };
 // Excel da reserva: uma aba para cada ação (respeita o cliente escolhido; ignora os chips de filtro)
 window.excelReserva = () => {
+  // Só o que precisa RESERVAR para o cliente, pelo consumo mensal dele (C1060 do cliente) × dias de cobertura da reserva
   const salva = ui.res; ui.res = '';
   let l; try { l = listaReserva(); } finally { ui.res = salva; }
-  if (!l.length) { toast('Nada para exportar: importe o C904 (e o C1060 do cliente).', 'info'); return; }
+  if (!l.length) { toast('Nada para exportar: importe o C904 e o C1060 do cliente.', 'info'); return; }
   const cli = (ui.resCli || [...new Set(l.flatMap(r => [...r.clientes]))].join(', ') || 'Cliente') + (ui.resFab ? ` — ${ui.resFab === SEM_FAB ? 'sem fornecedor' : ui.resFab}` : '');
   const dias = num(cfg.reserva_dias) || 30, hoje = new Date().toLocaleDateString('pt-BR');
-  const base = r => ({ Código: r.codigo, Produto: r.produto || '', Fornecedor: r.fabricante || '' });
-  const reservar = l.filter(r => r.ajuste > 0).map(r => ({ ...base(r), 'Consumo cliente/mês': +r.media.toFixed(2), 'Reserva atual (C904)': r.saldo, [`Reserva ideal (${dias} dias)`]: r.ideal, 'Aumentar a reserva em': r.ajuste,
-    'Dá para passar do Disp.': r.transferir, 'Comprar p/ reserva': r.comprarReserva, Situação: RES_ST[r.status][1].replace(/^\S+ /, '') }));
-  const separar = l.filter(r => r.falta > 0).map(r => ({ ...base(r), 'Reserva (C904)': r.saldo, 'Estoque Disp.': r.disp, 'Já separado': r.separado,
-    'SEPARAR AGORA': r.sepAgora, 'Caixas': r.caixa > 1 && r.sepAgora ? `${Math.ceil(r.sepAgora / r.caixa)} cx de ${r.caixa}` : '', 'Falta (sem estoque)': r.sepSemDisp }));
-  const passar = l.filter(r => r.transferir > 0).map(r => ({ ...base(r), 'Estoque Disp.': r.disp, 'Falta separar (já reservado)': r.falta, 'Fica p/ outros clientes': r.protege,
-    'Outros clientes/mês': +num(r.outrosMes).toFixed(2), 'PASSAR P/ RESERVA': r.transferir, 'Caixas': r.caixa > 1 ? `${r.transferir / r.caixa} cx de ${r.caixa}` : '', 'Reserva fica com': r.saldo + r.transferir, 'Disp. fica com': Math.max(0, r.disp - r.sepAgora - r.transferir) }));
-  const comprar = l.filter(r => r.comprar > 0).map(r => ({ ...base(r), 'P/ reserva': r.comprarReserva, 'P/ outros clientes': r.comprarOutros, 'Caixa com': r.caixa > 1 ? r.caixa : '', 'COMPRAR': r.comprar,
-    'Valor estimado': +(r.comprar * r.unit).toFixed(2) }));
-  const soma = (a, k) => a.reduce((x, r) => x + num(r[k]), 0);
-  const resumo = [
-    ['Reserva de cliente — ' + cli], [`GF Medical ${BR.cityLabel} · gerado em ${hoje} por ${quemSou() || ''}`], [],
-    ['Ação', 'Produtos', 'Unidades', 'Aba'],
-    ['Aumentar a reserva (abaixo do ideal / sem reserva)', reservar.length, soma(reservar, 'Aumentar a reserva em'), 'Reservar'],
-    ['Separar fisicamente (já está no C904)', separar.length, soma(separar, 'SEPARAR AGORA'), 'Separar'],
-    ['Passar do Estoque Disp. para a reserva', passar.length, soma(passar, 'PASSAR P/ RESERVA'), 'Passar do Disp'],
-    ['Comprar (reserva + outros clientes)', comprar.length, soma(comprar, 'COMPRAR'), 'Comprar'], [],
-    ['Reserva ideal = consumo do cliente por dia × ' + dias + ' dias.'],
-    ['"Passar do Disp." já deixa no estoque o que os outros clientes usam até a próxima compra (prazo + segurança).'],
-    ['A compra é a MESMA da Programação de compra — gere o pedido só lá para não duplicar.'],
-    ['Veja a aba "Legenda" para o significado de cada aba e de cada coluna.'],
-    ...(() => { const rv = l.filter(r => r.saldo > 0), se = rv.filter(r => r.semS013).length;
-      return rv.length && (!data.est.length || se / rv.length >= 0.5) ? [[], [`⚠ ATENÇÃO: ${!data.est.length ? 'nenhum S013 (estoque) importado' : `${se} de ${rv.length} produtos reservados não estão no S013 importado`} — o Estoque Disp. sai 0 e "SEPARAR AGORA" fica zerado. Importe o S013 desses produtos e gere de novo.`]] : []; })()];
-  const wb = XLSX.utils.book_new();
-  const ws0 = XLSX.utils.aoa_to_sheet(resumo); ws0['!cols'] = [{ wch: 52 }, { wch: 10 }, { wch: 10 }, { wch: 16 }];
-  XLSX.utils.book_append_sheet(wb, ws0, 'Resumo');
-  // Legenda: para quem for executar entender cada aba e cada coluna
-  const leg = [
-    ['LEGENDA — como usar esta planilha'], [],
-    ['ABA', 'O QUE É', 'O QUE FAZER', 'COLUNA PRINCIPAL'],
-    ['Resumo', 'Quantos produtos e unidades há em cada ação, com data e quem gerou', 'Ver o tamanho do trabalho', '—'],
-    ['Reservar', 'Produtos com a reserva abaixo do ideal ou que o cliente consome e não têm reserva', 'Aumentar a reserva do cliente no pedido reservado (C904)', 'Aumentar a reserva em'],
-    ['Separar', 'O que já está no pedido reservado (C904) e ainda não foi separado no estoque', 'Separar fisicamente para o cliente', 'SEPARAR AGORA (o que tem no Disp.) · Falta (sem estoque) = vai chegar pela compra'],
-    ['Passar do Disp', 'O que sobra no Estoque Disp. depois de guardar o que os outros clientes usam até a próxima compra', 'Tirar do Estoque Disp. e colocar no pedido reservado', 'PASSAR P/ RESERVA'],
-    ['Comprar', 'O que precisa comprar: parte para a reserva + parte para os outros clientes', 'Conferir — o pedido é gerado só na Programação de compra (para não comprar em dobro)', 'COMPRAR'],
-    [], ['ORDEM DE TRABALHO', '1º Separar  →  2º Passar do Disp.  →  3º Comprar  →  4º Ajustar a reserva no Callisto (aba Reservar)'], [],
-    ['COLUNA', 'SIGNIFICADO'],
-    ['Reserva (C904) / Reserva atual', 'Saldo a faturar do pedido reservado do cliente no Callisto (relatório C904)'],
-    ['Consumo cliente/mês', 'Média mensal que o cliente consome (C1060 filtrado pelo cliente) — é o que precisa repor todo mês'],
-    [`Reserva ideal (${dias} dias)`, `Consumo do cliente por dia × ${dias} dias`],
-    ['Aumentar a reserva em', 'Reserva ideal − reserva atual'],
-    ['Estoque Disp.', 'Estoque disponível no S013 (o que ainda não está separado para ninguém)'],
-    ['Já separado', 'O que já foi tirado do Estoque Disp. para o cliente'],
-    ['SEPARAR AGORA', 'Quanto separar hoje, usando o Estoque Disp. — em caixas fechadas (múltiplo da caixa)'],
-    ['Caixas', 'Quantas caixas fechadas separar ou passar (produtos vendidos em caixa)'],
-    ['Falta (sem estoque)', 'Parte da reserva que não tem no estoque — entra na compra'],
-    ['Falta separar (já reservado)', 'Reservado no C904 e ainda não separado (o Disp. cobre isso primeiro)'],
-    ['Fica p/ outros clientes', 'Quantidade que precisa ficar no Estoque Disp. para os outros clientes até a próxima compra chegar (prazo + segurança)'],
-    ['Outros clientes/mês', 'Consumo geral (C1060) − consumo do cliente'],
-    ['PASSAR P/ RESERVA', 'Quanto tirar do Estoque Disp. e colocar no pedido reservado, sem faltar para os outros — em caixas fechadas'],
-    ['Reserva fica com / Disp. fica com', 'Como ficam a reserva e o Estoque Disp. depois de passar'],
-    ['Dá para passar do Disp.', 'Da quantidade a aumentar, quanto sai do Estoque Disp.'],
-    ['Comprar p/ reserva · P/ reserva', 'Parte da compra que vai para a reserva do cliente'],
-    ['P/ outros clientes', 'Parte da compra para repor os outros clientes'],
-    ['Caixa com', 'Produto vendido em caixa fechada: a compra já está arredondada para caixas cheias'],
-    ['COMPRAR', 'Total a comprar (reserva + outros), igual ao da Programação de compra'],
-    ['Valor estimado', 'COMPRAR × último preço'],
-    ['Situação', 'Consome sem reserva · Abaixo do ideal · Acima do ideal · Parada (sem consumo há 6 meses) · OK']];
-  const wsL = XLSX.utils.aoa_to_sheet(leg); wsL['!cols'] = [{ wch: 32 }, { wch: 70 }, { wch: 55 }, { wch: 60 }];
-  XLSX.utils.book_append_sheet(wb, wsL, 'Legenda');
-  const aba = (rows, nome, vazio) => { const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: vazio }]);
-    ws['!cols'] = Object.keys(rows[0] || { Aviso: '' }).map((k, i) => ({ wch: i === 1 ? 46 : Math.max(12, k.length + 2) })); XLSX.utils.book_append_sheet(wb, ws, nome); };
-  aba(reservar, 'Reservar', 'Nenhuma reserva abaixo do ideal.');
-  aba(separar, 'Separar', 'Nada a separar: a reserva já está toda separada.');
-  aba(passar, 'Passar do Disp', 'Nada sobrando no Disp. para passar sem faltar para os outros clientes.');
-  aba(comprar, 'Comprar', 'Nada a comprar.');
-  XLSX.writeFile(wb, `Reserva_${cli.replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 40)}_${FILIAL}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  toast(`✔ Excel gerado: ${reservar.length} a reservar · ${separar.length} a separar · ${passar.length} a passar do Disp. · ${comprar.length} a comprar`);
+  const itens = l.filter(r => r.media > 0 && r.ajuste > 0).sort((a, b) => String(a.fabricante || '').localeCompare(String(b.fabricante || ''), 'pt-BR') || String(a.produto || '').localeCompare(String(b.produto || ''), 'pt-BR'));
+  if (!itens.length) { toast(`✔ Nada a reservar: a reserva já cobre ${dias} dias do consumo do cliente em todos os produtos.`, 'info'); return; }
+  const cab = ['Código', 'Produto', 'Fornecedor', 'Consumo do cliente/mês', 'Reserva atual (C904)', `Reserva ideal (${dias} dias)`, 'RESERVAR', 'Caixas', 'Sai do Estoque Disp.', 'Precisa comprar'];
+  const linhas = itens.map(r => [r.codigo, r.produto || '', r.fabricante || '', +r.media.toFixed(2), r.saldo, r.ideal, r.ajuste,
+    r.caixa > 1 ? `${Math.ceil(r.ajuste / r.caixa)} cx de ${r.caixa}` : '', Math.min(r.transferir, r.ajuste), Math.max(0, r.ajuste - r.transferir)]);
+  const soma = k => itens.reduce((a, r) => a + num(r[k]), 0);
+  const aoa = [
+    ['O que reservar para o cliente — ' + cli], [`GF Medical ${BR.cityLabel} · ${hoje} · ${quemSou() || ''}`], [],
+    cab, ...linhas,
+    ['TOTAL', `${itens.length} produto(s)`, '', +soma('media').toFixed(2), soma('saldo'), soma('ideal'), soma('ajuste'), '', itens.reduce((a, r) => a + Math.min(r.transferir, r.ajuste), 0), itens.reduce((a, r) => a + Math.max(0, r.ajuste - r.transferir), 0)], [],
+    ['Como ler:'],
+    [`RESERVAR = reserva ideal − reserva atual. Reserva ideal = consumo do cliente por dia × ${dias} dias (C1060 filtrado pelo cliente).`],
+    ['Sai do Estoque Disp. = parte que dá para tirar do disponível sem faltar para os outros clientes; Precisa comprar = o restante (já está na Programação de compra).'],
+    ['Caixas = quantas caixas fechadas, para produtos vendidos em caixa.']];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [16, 52, 22, 14, 14, 16, 12, 14, 14, 14].map(w => ({ wch: w }));
+  ws['!autofilter'] = { ref: `A4:J${4 + linhas.length}` };
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Reservar');
+  XLSX.writeFile(wb, `Reservar_${cli.replace(/[\/:*?"<>|]+/g, ' ').trim().slice(0, 40)}_${FILIAL}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  toast(`✔ Excel gerado: ${itens.length} produto(s) para reservar, ${qtd(soma('ajuste'))} un`);
 };
 window.listaTransferencia = () => {
   const l = listaReserva().filter(r => r.transferir > 0);
