@@ -299,9 +299,11 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 .par-presets{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .par-ex{border-radius:10px;padding:10px 12px;background:rgba(30,130,76,0.07);line-height:1.6;font-size:13px;margin-bottom:10px}
 .par-warn{border-radius:10px;padding:8px 12px;background:rgba(220,140,20,0.12);color:#8a5200;font-size:13px;margin-bottom:6px}
-.par-fabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px;margin-top:8px}
-.par-fabs label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px}
-.par-fabs input{width:64px}
+.par-fabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:4px 18px;margin-top:8px}
+.par-fab{display:grid;grid-template-columns:minmax(0,1fr) 70px 70px 70px;gap:6px;align-items:center;font-size:12.5px}
+.par-fab>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.par-fab-cab{font-family:var(--mono);font-size:0.6rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)}
+.par-fabs input{width:70px}
 .stats-auto{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .par-card>summary::-webkit-details-marker{display:none}
 .par-card>summary{list-style:none;flex-wrap:wrap}
@@ -498,8 +500,8 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
               <select class="tsel" id="p-base" onchange="previewParametros()"><option value="ano">Média do ano (C1060)</option><option value="3m">Últimos 3 meses</option><option value="maior">O maior dos dois (mais seguro)</option></select></label>
             <div class="par-help">A média do ano esconde produto que começou a vender mais ou menos agora. "Últimos 3 meses" usa os 3 últimos meses fechados; "o maior dos dois" evita faltar quando o consumo está subindo.</div></div>
           <div id="p-exemplo"></div>
-          <details style="margin:6px 0 10px"><summary class="td-mono" style="cursor:pointer">🏭 Prazo de entrega por fabricante <span id="p-fabs-n"></span></summary>
-            <div class="td-mono" style="white-space:normal;margin-top:6px;opacity:.8">Deixe em branco para usar o prazo geral.</div>
+          <details style="margin:6px 0 10px"><summary class="td-mono" style="cursor:pointer">🏭 Parâmetros por fabricante (prazo, segurança e cobrir) <span id="p-fabs-n"></span></summary>
+            <div class="td-mono" style="white-space:normal;margin-top:6px;opacity:.8">Deixe em branco para usar o valor geral (aparece apagado no campo). Ex.: fornecedor comprado a cada 90 dias → segurança 20 e cobrir 110 (20 + 90).</div>
             <div class="par-fabs" id="p-fabs"></div>
           </details>
           <div class="filters" style="margin-bottom:6px">
@@ -705,7 +707,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.23';
+const VERSAO = '2026-10-17.24';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -843,20 +845,26 @@ async function carregarTudo() {
   render();
 }
 // Prazo de entrega do produto: o do fabricante (se cadastrado) ou o geral
-const prazoDe = fab => { const v = fab ? cfg.prazos_fabricante?.[norm(fab)] : null; return v != null && v !== '' ? num(v) : cfg.prazo_dias; };
+// prazos_fabricante: { "JOTEC BRASIL": 30 } (antigo, só prazo) ou { "JOTEC BRASIL": { prazo: 30, seg: 20, cob: 110 } }
+const paramFab = fab => { const v = fab ? cfg.prazos_fabricante?.[norm(fab)] : null; return v == null || v === '' ? {} : typeof v === 'object' ? v : { prazo: num(v) }; };
+const temValor = v => v != null && v !== '';
+const prazoDe = fab => { const v = paramFab(fab).prazo; return temValor(v) ? num(v) : cfg.prazo_dias; };
+const segDe = fab => { const v = paramFab(fab).seg; return temValor(v) ? num(v) : cfg.seguranca_dias; };
+const cobDe = fab => { const v = paramFab(fab).cob; return temValor(v) ? Math.max(1, num(v)) : cfg.cobertura_dias; };
 function lerParametrosTela() {
   const v = id => Math.max(0, Math.round(num($(id).value)));
   const prazos = {};
-  document.querySelectorAll('#p-fabs input[data-fab]').forEach(i => { if (i.value.trim() !== '') prazos[i.dataset.fab] = Math.max(0, Math.round(num(i.value))); });
+  document.querySelectorAll('#p-fabs input[data-fab]').forEach(i => { if (i.value.trim() === '') return; (prazos[i.dataset.fab] = prazos[i.dataset.fab] || {})[i.dataset.campo] = Math.max(0, Math.round(num(i.value))); });
   return { prazo_dias: v('p-prazo'), seguranca_dias: v('p-seg'), cobertura_dias: Math.max(1, v('p-cob')), prazos_fabricante: prazos, base_consumo: $('p-base').value || 'ano', reserva_dias: cfg.reserva_dias || 30 };
 }
 function montarParametros() {
   $('p-prazo').value = cfg.prazo_dias; $('p-seg').value = cfg.seguranca_dias; $('p-cob').value = cfg.cobertura_dias; $('p-base').value = cfg.base_consumo || 'ano';
   const fabs = [...new Set([...data.est, ...data.cmo, ...data.pen, ...data.cons].map(r => r.fabricante).filter(Boolean).map(f => String(f).trim()))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const n = Object.keys(cfg.prazos_fabricante || {}).length;
-  $('p-fabs-n').textContent = fabs.length ? `(${fabs.length} fabricante(s)${n ? ` · ${n} com prazo próprio` : ''})` : '';
-  $('p-fabs').innerHTML = fabs.length ? fabs.map(f => { const v = cfg.prazos_fabricante?.[norm(f)];
-    return `<label>${esc(f)} <span><input class="finput" type="number" min="0" step="1" data-fab="${esc(norm(f))}" value="${v ?? ''}" placeholder="${cfg.prazo_dias}" oninput="previewParametros()"> dias</span></label>`; }).join('')
+  $('p-fabs-n').textContent = fabs.length ? `(${fabs.length} fabricante(s)${n ? ` · ${n} com parâmetros próprios` : ''})` : '';
+  const inp = (f, campo, val, ph) => `<input class="finput" type="number" min="0" step="1" data-fab="${esc(norm(f))}" data-campo="${campo}" value="${temValor(val) ? val : ''}" placeholder="${ph}" oninput="previewParametros()">`;
+  $('p-fabs').innerHTML = fabs.length ? `<div class="par-fab par-fab-cab"><span>Fabricante</span><span>🚚 Prazo</span><span>🛟 Segurança</span><span>📦 Cobrir</span></div>` + fabs.map(f => { const v = paramFab(f);
+    return `<div class="par-fab"><span title="${esc(f)}">${esc(f)}</span>${inp(f, 'prazo', v.prazo, cfg.prazo_dias)}${inp(f, 'seg', v.seg, cfg.seguranca_dias)}${inp(f, 'cob', v.cob, cfg.cobertura_dias)}</div>`; }).join('')
     : '<div class="td-mono" style="opacity:.7">Nenhum fabricante ainda: importe os PDFs filtrados por fabricante (S013/C1060/C723).</div>';
   previewParametros();
 }
@@ -865,7 +873,7 @@ function resumoParametros() {
   const el = $('par-resumo'); if (!el) return;
   const base = { ano: 'média do ano', '3m': 'últimos 3 meses', maior: 'maior dos dois' }[cfg.base_consumo || 'ano'];
   const nFab = Object.keys(cfg.prazos_fabricante || {}).length;
-  el.textContent = `prazo ${cfg.prazo_dias}d · segurança ${cfg.seguranca_dias}d · cobrir ${cfg.cobertura_dias}d · ${base}${nFab ? ` · ${nFab} prazo(s) por fabricante` : ''}${$('p-pend')?.checked === false ? ' · sem C723' : ''}`;
+  el.textContent = `prazo ${cfg.prazo_dias}d · segurança ${cfg.seguranca_dias}d · cobrir ${cfg.cobertura_dias}d · ${base}${nFab ? ` · ${nFab} fabricante(s) com parâmetros próprios` : ''}${$('p-pend')?.checked === false ? ' · sem C723' : ''}`;
 }
 window.previewParametros = () => {
   const c = lerParametrosTela(), P = c.prazo_dias, S = c.seguranca_dias, C = c.cobertura_dias, lote = C - S;
@@ -924,12 +932,12 @@ function programacao() {
     const m3 = mesesN(3), media3 = m3.length ? somaMeses(m3) / m3.length : mediaAno, venda6 = somaMeses(mesesN(6));
     const tendencia = mediaAno > 0 ? media3 / mediaAno : (media3 > 0 ? 2 : 1);
     const media = cfg.base_consumo === '3m' ? media3 : cfg.base_consumo === 'maior' ? Math.max(media3, mediaAno) : mediaAno, dia = media / 30;
-    const fab = e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || fabPorTabela(e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || k) || '', prazo = prazoDe(fab);
+    const fab = e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || fabPorTabela(e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || k) || '', prazo = prazoDe(fab), seg = segDe(fab), cob = cobDe(fab);
     // o que já foi pedido (aguardando aprovação ou aprovado e não recebido) conta como estoque a caminho
     // Reserva de cliente (C904): o Disp. já desconta o que está separado; o que falta separar sai do disponível
     const rs = rm.get(k), reserva = rs?.saldo || 0, separado = Math.min(reserva, Math.max(0, num(e?.estoque) - disp)), faltaSeparar = Math.max(0, reserva - separado);
     const emPedido = tm.get(k) || 0, dispEf = disp + emPedido - faltaSeparar;
-    const ponto = dia * (prazo + cfg.seguranca_dias), cobertura = dia > 0 ? dispEf / dia : null;
+    const ponto = dia * (prazo + seg), cobertura = dia > 0 ? dispEf / dia : null;
     const codigoRow = e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || rs?.codigo || ccm.get(k)?.codigo, caixa = caixaDe(codigoRow);
     // UMA conta só, sem duplicar: o consumo geral (C1060) já inclui o cliente da reserva, então separa
     //   cliente = C1060 filtrado pelo cliente · outros = consumo geral − cliente.
@@ -937,7 +945,7 @@ function programacao() {
     // chegar (prazo + segurança); 3) a sobra completa a reserva até a ideal (dias de cobertura da reserva).
     // Compra = falta para a reserva + reposição dos outros (prazo + cobertura) — a tela da Reserva mostra estes mesmos números.
     const mediaCli = ccm.get(k)?.media || 0, diaCli = mediaCli / 30, idealReserva = diaCli > 0 ? Math.ceil(diaCli * (num(cfg.reserva_dias) || 30)) : 0;
-    const outrosMes = Math.max(0, media - mediaCli), diaOut = outrosMes / 30, protege = Math.ceil(diaOut * (prazo + cfg.seguranca_dias));
+    const outrosMes = Math.max(0, media - mediaCli), diaOut = outrosMes / 30, protege = Math.ceil(diaOut * (prazo + seg));
     // Separar e passar do Disp. em caixas fechadas (mesmo múltiplo da compra): arredonda para cima o que precisa,
     // mas nunca tira do Disp. mais caixas do que existem (para baixo); o que não fecha caixa vem da compra.
     const cxS = caixa > 1 ? caixa : 1, cxCima = q => Math.ceil(q / cxS) * cxS, cxBaixo = q => Math.floor(Math.max(0, q) / cxS) * cxS;
@@ -945,13 +953,13 @@ function programacao() {
     const sepExtra = Math.max(0, sepAgora - faltaSeparar), d1 = Math.max(0, disp - sepAgora), livre = Math.max(0, d1 - protege);
     const ajusteMais = Math.max(0, idealReserva - reserva - sepExtra), transferir = ajusteMais > 0 ? Math.min(cxCima(ajusteMais), cxBaixo(livre)) : 0;
     const paraReserva = faltaSemDisp + Math.max(0, ajusteMais - transferir), fica = d1 - transferir;
-    const paraOutros = diaOut > 0 ? Math.max(0, Math.ceil(diaOut * (prazo + cfg.cobertura_dias) - fica - emPedido)) : 0;
+    const paraOutros = diaOut > 0 ? Math.max(0, Math.ceil(diaOut * (prazo + cob) - fica - emPedido)) : 0;
     const sugerido = paraReserva + paraOutros > 0 ? emCaixas(paraReserva + paraOutros, caixa) : 0;
     // Ponto de partida é o consumo (venda): sem estoque próprio (fora do S013) conta como estoque ZERO — e vira compra.
     const covOut = diaOut > 0 ? (fica + emPedido) / diaOut : null;
-    const situacao = paraReserva > 0 ? 'comprar' : diaOut <= 0 ? (media <= 0 ? 'semconsumo' : 'ok') : fica + emPedido <= diaOut * (prazo + cfg.seguranca_dias) ? 'comprar' : covOut < prazo + cfg.seguranca_dias + 15 ? 'atencao' : 'ok';
+    const situacao = paraReserva > 0 ? 'comprar' : diaOut <= 0 ? (media <= 0 ? 'semconsumo' : 'ok') : fica + emPedido <= diaOut * (prazo + seg) ? 'comprar' : covOut < prazo + seg + 15 ? 'atencao' : 'ok';
     return { codigo: e?.codigo || c?.codigo, descricao: e?.descricao || c?.descricao, disp, fisico: num(e?.estoque), media, total: num(c?.total), meses: c?.meses || [], ponto, cobertura,
-      sugerido, situacao, preco: num(e?.ultimo_preco), unidade: e?.unidade || '', consignado: cm.get(k)?.saldo || 0, semEstoqueCadastro: !e, fabricante: fab, prazo,
+      sugerido, situacao, preco: num(e?.ultimo_preco), unidade: e?.unidade || '', consignado: cm.get(k)?.saldo || 0, semEstoqueCadastro: !e, fabricante: fab, prazo, seg, cob,
       grupo: norm(c?.grupo || e?.grupo || pd?.linhas.find(l => l.grupo)?.grupo || grupoPorTabela(e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || k)),
       mediaFat, pendAno: num(pd?.ano), pendAntigo: num(pd?.antigo), nMeses, codigo: codigoRow, descricao: e?.descricao || c?.descricao || pd?.linhas[0]?.produto || rs?.produto || ccm.get(k)?.descricao,
       mediaAno, media3, tendencia, emPedido, caixa, reserva, separado, faltaSeparar, reservaClientes: rs ? [...rs.clientes] : [],
@@ -1284,7 +1292,7 @@ function forecast(itens, pedidoId) {
     // falta antes de a compra chegar · compra não cobre o período planejado · compra acima de 6 meses · ok
     const proxCompra = rupCom != null ? Math.max(0, rupCom - Math.ceil(prazo / 30)) : null;
     const sit = venda <= 0 ? 'semvenda' : hoje / (venda / 30) < prazo ? 'antes'
-      : cobDepois < cfg.cobertura_dias ? 'curto' : cobDepois > 180 ? 'excesso' : 'ok';
+      : cobDepois < (r?.cob ?? cfg.cobertura_dias) ? 'curto' : cobDepois > 180 ? 'excesso' : 'ok';
     return { codigo: i.codigo, descricao: i.descricao || r?.descricao || '', compra, venda, preco, disp, outros, reserva, hoje, prazo, chega, proj, rupCom, rupSem, proxCompra, cobHoje, cobDepois, mesesCompra, sit, tend: r?.tendencia, mediaAno: r?.mediaAno, media3: r?.media3 };
   });
   const soma = f => linhas.reduce((a, l) => a + f(l), 0);
