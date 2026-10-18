@@ -414,6 +414,67 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 #tb-prog.compacto td.prod{width:250px;max-width:250px}
 #tb-prog.compacto td.prod .cod,#tb-prog.compacto td.prod b{display:block;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #tb-prog.compacto tr.aberta td.prod b{white-space:normal}
+/* modo escuro */
+:root[data-theme="dark"]{--bg:#0e1712;--surface:#14211a;--surface2:#1b2c22;--surface3:#23382b;--border:#2a4233;--border2:#3c5b47;--accent:#3fbf7f;--accent2:#4cc3e0;--accent3:#5fd08f;
+  --text:#e2f1e7;--text2:#b3d2bf;--text3:#7ea28b;--shadow:0 2px 12px rgba(0,0,0,.35);--shadow-md:0 4px 24px rgba(0,0,0,.45);
+  --ok-c:#4fd18c;--info-c:#5fcbe6;--warn-c:#f0b43c;--crit-c:#f26b6b;--mute-c:#9aa3ad}
+:root[data-theme="dark"] body::before{background-image:linear-gradient(rgba(63,191,127,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(63,191,127,.04) 1px,transparent 1px)}
+:root[data-theme="dark"] .seg .fchip.on{color:#06140c}
+:root[data-theme="dark"] .tbtn:not(.tbtn-p):not(.tbtn-g){background:var(--surface2);color:var(--text)}
+:root[data-theme="dark"] .tbtn-p{color:#06140c}
+/* barra do topo abaixo do cabeçalho fixo */
+.prog-topo{top:var(--tb-h,52px)}
+.tscroll-prog{max-height:calc(100vh - var(--tb-h,52px) - 130px)}
+.prog-topo .pt-subir{display:none}
+#view-programacao.rolado .prog-topo .pt-subir{display:inline-flex}
+/* situação na cor da linha (compacto: sem a coluna Situação) */
+#tb-prog.compacto thead th:nth-child(2),#tb-prog.compacto tbody tr:not(.grp) td:nth-child(2){display:none}
+#tb-prog tbody tr{border-left-width:4px!important}
+#tb-prog.compacto tbody tr.sit-comprar:not(.grp){background:color-mix(in srgb,var(--crit-c) 4%,transparent)}
+#tb-prog.compacto tbody tr.sit-atencao:not(.grp){background:color-mix(in srgb,var(--warn-c) 4%,transparent)}
+#tb-prog tbody tr.urg:not(.grp){background:color-mix(in srgb,var(--crit-c) 10%,transparent)!important;border-left-color:#991b1b!important}
+#tb-prog .urg-tag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;background:var(--crit-c);color:#fff;font-size:.55rem;font-family:var(--mono);vertical-align:middle}
+#tb-prog .sub{display:block;font-family:var(--mono);font-size:.58rem;color:var(--text3);white-space:nowrap}
+#tb-prog .sub.urg-t{color:var(--crit-c);font-weight:700}
+#tb-prog tr.sel-row td{box-shadow:inset 0 2px 0 var(--accent),inset 0 -2px 0 var(--accent)}
+#tb-prog tr.grp .grp-sub{font-weight:400;font-size:.72rem;color:var(--text2)}
+/* fornecedores da lista */
+.forn-strip{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.forn-strip .fs{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:9px;border:1px solid var(--border);background:var(--surface);font-size:.74rem;cursor:pointer}
+.forn-strip .fs:hover{border-color:var(--accent)}
+.forn-strip .fs b{font-family:var(--mono)}
+.forn-strip .fs.min-falta{border-color:var(--warn-c);background:color-mix(in srgb,var(--warn-c) 8%,var(--surface))}
+.forn-strip .fs.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+/* parâmetros em painel lateral */
+details.par-card[open]{position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);z-index:90;margin:0!important;border-radius:0;overflow:auto;box-shadow:-12px 0 32px rgba(0,0,0,.22);background:var(--surface)}
+details.par-card[open]>summary{position:sticky;top:0;z-index:2;background:var(--surface2)}
+details.par-card[open]>summary small{font-size:0}
+details.par-card[open]>summary small::after{content:'✕ fechar';font-size:.7rem}
+/* ficha do produto */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);z-index:85;background:var(--surface);border-left:1px solid var(--border);box-shadow:-12px 0 32px rgba(0,0,0,.2);transform:translateX(105%);transition:transform .18s ease;display:flex;flex-direction:column}
+.drawer.on{transform:none}
+.dr-head{display:flex;align-items:flex-start;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.dr-head .dr-t{flex:1;min-width:0}
+.dr-head .dr-t b{display:block;font-family:var(--display);font-size:.95rem;color:var(--text)}
+.dr-head .dr-t span{font-family:var(--mono);font-size:.65rem;color:var(--text3)}
+.dr-head button{all:unset;cursor:pointer;font-size:1rem;padding:2px 6px;color:var(--text2)}
+.dr-body{padding:14px 16px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:14px}
+.dr-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dr-kpis div{border:1px solid var(--border);border-radius:9px;padding:7px 9px;background:var(--bg)}
+.dr-kpis small{display:block;font-family:var(--mono);font-size:.55rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)}
+.dr-kpis b{font-size:.95rem;color:var(--text)}
+.dr-sec h4{font-family:var(--mono);font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:0 0 6px}
+.dr-sec table{width:100%;font-size:.74rem;border-collapse:collapse}.dr-sec td{padding:4px 6px;border-bottom:1px solid var(--border)}
+.dr-alerta{padding:8px 10px;border-radius:9px;font-size:.78rem}
+.dr-alerta.crit{background:color-mix(in srgb,var(--crit-c) 12%,transparent);color:var(--crit-c)}
+.dr-alerta.ok{background:color-mix(in srgb,var(--ok-c) 12%,transparent);color:var(--ok-c)}
+.dr-q{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dr-q .finput{width:110px;font-weight:700;text-align:right}
+.dr-dica{font-family:var(--mono);font-size:.58rem;color:var(--text3)}
+#tb-prog td.col-q{text-align:right}
+#tb-prog.compacto td.col-q .q-cx{display:inline-flex!important;width:74px;justify-content:flex-start;margin-left:6px;vertical-align:middle}
+#tb-prog.compacto td.col-q .q-cx a.mini{width:100%;justify-content:center;box-sizing:border-box}
+#tb-prog td.col-q>.finput{vertical-align:middle}
 /* Programação — layout profissional */
 .tscroll-prog{max-height:calc(100vh - 190px);overflow:auto}
 #tb-prog{font-size:12.5px}
@@ -565,6 +626,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <div class="sbox"><span>🔍</span><input id="f-busca" placeholder="Buscar código, produto, cliente…"></div>
       <label class="tbtn tbtn-p w-only" title="PDF do Callisto: S013 - Estoque, C457 - Itens Consignados, C1060 - Consumo Mensal ou C723 - Pedidos por Agenda de Cirurgia">📥 Importar PDF do Callisto<input type="file" id="f-pdf" accept="application/pdf,.pdf" multiple hidden></label>
       <button class="tbtn tbtn-g" onclick="exportarExcel()" title="Planilha da tela atual">📤 Exportar</button>
+      <button class="tbtn" id="btn-tema" onclick="alternarTema()" title="Modo claro / escuro">🌙</button>
     </div>
     <div class="vtabs" id="vtabs">
       <div class="vtab" data-view="painel">📊 Painel</div>
@@ -586,6 +648,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
         <div class="prog-topo">
           <div class="pt-resumo"><span class="pt-lbl">Compra sugerida (lista filtrada)</span><span class="tot" id="prog-tot"></span></div>
           <div class="pt-acoes">
+            <button class="tbtn pt-subir" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Voltar aos indicadores e filtros">⬆ Filtros</button>
             <button class="tbtn" onclick="pedidoModeloProgramacao()" title="Preenche a planilha de pedido do fornecedor (Merit, BD, Nipro CEC…) com as quantidades desta lista — o resto do modelo fica igual">📄 Modelo do fornecedor</button>
             <details class="pt-menu"><summary class="tbtn">📤 Exportar ▾</summary><div class="pt-pop">
               <button onclick="exportarExcel()">📊 Excel da lista</button>
@@ -637,6 +700,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <span class="td-mono" style="opacity:.6;margin-left:auto">clique em mais de um para somar</span>
           </div>
           <div class="frow"><span class="flabel">Destaques</span>
+            <button class="fchip" data-prog="urgente" title="Vão faltar antes de a compra chegar, mesmo comprando hoje (cobertura menor que o prazo de entrega)">⏰ Urgente</button>
             <button class="fchip" data-prog="reserva" title="Têm reserva (C904) ou consumo do cliente com reserva (C1060 do cliente)">🔒 Reserva cliente</button>
             <button class="fchip" data-prog="subindo" title="Consumo dos últimos 3 meses 25% ou mais acima da média do ano">📈 Subindo</button>
             <button class="fchip" data-prog="caindo" title="Consumo dos últimos 3 meses 25% ou mais abaixo da média do ano">📉 Caindo</button>
@@ -650,6 +714,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <select class="tsel" id="prog-ord" title="Ordem da lista" onchange="filtroProg('ord', this.value)"><option value="urgencia">Ordem: mais urgente</option><option value="valor">Ordem: maior valor de compra</option><option value="abc">Ordem: curva ABC</option></select>
           </div>
         </div></div>
+        <div class="forn-strip" id="prog-forn"></div>
         <div class="sel-bar" id="sel-bar"></div>
         <div class="twrap">
           <div class="thead-bar"><span class="thead-title">🛒 Programação de compra</span><span class="tcount" id="cnt-prog">0</span><span class="td-mono" style="margin-left:auto" id="prog-info"></span>
@@ -659,6 +724,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
         </div>
       </section>
 
+      <aside class="drawer" id="prod-drawer" aria-label="Ficha do produto"><div class="dr-head"><div class="dr-t" id="dr-title"></div><button onclick="fecharProduto()" title="Fechar (Esc)">✕</button></div><div class="dr-body" id="dr-body"></div></aside>
       <section class="view" id="view-pedidos">
         <div class="stats-bar" id="ped-stats"></div>
         <div class="dcard" style="margin-bottom:14px"><div class="dcard-head">🔎 Filtros <small>pedido aprovado e ainda não recebido conta como "em pedido" na programação</small></div><div class="dcard-body"><div class="filters" style="margin-bottom:0">
@@ -873,7 +939,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-18.6';
+const VERSAO = '2026-10-18.7';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores' };
 
 const $ = id => document.getElementById(id);
@@ -977,7 +1043,7 @@ window.definirMultiplo = async cod => {
   const { error } = await supabase.from(T.cfg).upsert({ filial: FILIAL, multiplos: m, atualizado_em: new Date().toISOString() });
   toast(error ? (/multiplos/i.test(error.message || '') ? 'Aplicado na tela; rode o SQL de atualização para guardar o múltiplo.' : 'Não salvou: ' + error.message) : `✔ ${cod}: múltiplo ${m[chaveCx(cod)] || 'padrão'}`, error ? 'info' : 'ok');
 };
-const linkMult = (cod, cx) => `<a href="#" class="mini" title="Definir o múltiplo (caixa fechada) deste produto" onclick="definirMultiplo(${JSON.stringify(cod).replace(/"/g, '&quot;')});return false">📦 ${cx > 1 ? 'cx ' + cx : 'múltiplo?'} ✎</a>`;
+const linkMult = (cod, cx) => `<a href="#" class="mini" title="Definir o múltiplo (caixa fechada) deste produto" onclick="definirMultiplo(${JSON.stringify(cod).replace(/"/g, '&quot;')});return false">📦 ${cx > 1 ? 'cx ' + cx : 'cx ?'} ✎</a>`;
 // Fabricante de reserva: código que está na tabela de caixas da Merit é Merit, mesmo fora do S013/PDF filtrado.
 // Usa o mesmo nome que já veio nos PDFs filtrados (ex.: "MERIT MEDICAL"), para o filtro juntar tudo.
 const nomeMerit = () => { const todos = [...(data.raw.est || data.est), ...(data.raw.cmo || data.cmo), ...(data.raw.pen || data.pen), ...data.cons].map(r => r.fabricante).filter(f => f && /MERIT/i.test(f));
@@ -997,11 +1063,11 @@ const fabConhecido = cod => {
 };
 const nomeFab = f => { const t = String(f || '').replace(/\s+/g, ' ').trim().toUpperCase(); if (!t) return '';
   const c = t.replace(/\s+(IND(USTRIA|\.)?|COM(ERCIO|\.)?|LTDA|S\.?\/?A\.?|EIRELI|IMPORTA\S*|DISTRIBUI\S*|PRODUTOS)\b.*$/i, '').trim(); return c || t; };
-const fabDe = r => (r.fabricante && String(r.fabricante).trim()) || fabConhecido(r.codigo_alt) || fabConhecido(r.codigo) || fabPorTabela(r.codigo_alt || r.codigo);
+const fabDe = r => cfg.fab_produto?.[chaveCx(r.codigo_alt || r.codigo || '')] || (r.fabricante && String(r.fabricante).trim()) || fabConhecido(r.codigo_alt) || fabConhecido(r.codigo) || fabPorTabela(r.codigo_alt || r.codigo);
 const emCaixas = (q, cx) => cx > 1 ? Math.ceil(q / cx) * cx : q;
 // Código terminando em "-0" = produto reutilizável: fica fora da contagem (estoque, consumo, pendente e programação)
 const reutilizavel = r => /-0$/.test(String(r.codigo_alt || r.codigo || '').trim());
-let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60, prazos_fabricante: {}, base_consumo: 'ano', reserva_dias: 30, orcamento_mensal: null, multiplos: {} };
+let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60, prazos_fabricante: {}, base_consumo: 'ano', reserva_dias: 30, orcamento_mensal: null, multiplos: {}, fab_produto: {} };
 let _bancoOk = true;
 async function selectTudo(tabela) {
   const out = [];
@@ -1132,7 +1198,7 @@ function programacao() {
     const m3 = mesesN(3), media3 = m3.length ? somaMeses(m3) / m3.length : mediaAno, venda6 = somaMeses(mesesN(6));
     const tendencia = mediaAno > 0 ? media3 / mediaAno : (media3 > 0 ? 2 : 1);
     const media = cfg.base_consumo === '3m' ? media3 : cfg.base_consumo === 'maior' ? Math.max(media3, mediaAno) : mediaAno, dia = media / 30;
-    const fab = e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || fabConhecido(e?.codigo || c?.codigo || k) || fabPorTabela(e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || k) || '', prazo = prazoDe(fab), seg = segDe(fab), cob = cobDe(fab);
+    const fab = cfg.fab_produto?.[chaveCx(k)] || e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || fabConhecido(e?.codigo || c?.codigo || k) || fabPorTabela(e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || k) || '', prazo = prazoDe(fab), seg = segDe(fab), cob = cobDe(fab);
     // o que já foi pedido (aguardando aprovação ou aprovado e não recebido) conta como estoque a caminho
     // Reserva de cliente (C904): o Disp. já desconta o que está separado; o que falta separar sai do disponível
     const rs = rm.get(k), reserva = rs?.saldo || 0, separado = Math.min(reserva, Math.max(0, num(e?.estoque) - disp)), faltaSeparar = Math.max(0, reserva - separado);
@@ -1206,7 +1272,7 @@ function consPorProduto(soSaldo = true) {
 const consMap = () => new Map(consPorProduto(true).map(g => [norm(g.codigo_alt), g]));
 
 // ───────── Navegação ─────────
-const ui = { sel: new Set(), abertosProg: new Set(), grupo: '', view: 'painel', busca: '', est: '', cons: 'saldo', cliente: '', abertos: new Set(), prog: new Set(['comprar']), fab: '', abc: '', valor: 0, ord: 'urgencia', ped: 'abertos', pedAbertos: new Set(), res: '', resCli: '' };
+const ui = { sel: new Set(), abertosProg: new Set(), prodAberto: null, focoK: null, grupo: '', view: 'painel', busca: '', est: '', cons: 'saldo', cliente: '', abertos: new Set(), prog: new Set(['comprar']), fab: '', abc: '', valor: 0, ord: 'urgencia', ped: 'abertos', pedAbertos: new Set(), res: '', resCli: '' };
 const TITULOS = { painel: 'Painel — Programação de Compras', programacao: 'Programação de compra', pendente: 'Pendente de faturamento', estoque: 'Estoque próprio', consignado: 'Consignado', importar: 'Importar do Callisto', pedidos: 'Pedidos de compra', indicadores: 'Indicadores de compras e estoque', fornecedores: 'Fornecedores', reserva: 'Reserva de cliente (C904)' };
 window.goView = v => {
   ui.view = v;
@@ -1257,7 +1323,7 @@ function fabricantesConhecidos() {
   return [...new Set([...data.est.map(fabDe), ...data.cmo.map(fabDe), ...data.pen.map(r => r.fabricante)].filter(Boolean).map(f => String(f).trim()))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 }
 function listaProgramacao() {
-  const FILTRO = { zerado: r => r.semEstoqueCadastro && r.media > 0, parado: r => r.parado, reserva: r => r.reserva > 0 || r.mediaCli > 0, subindo: r => r.tendencia >= 1.25 && (r.media3 >= 0.5 || r.mediaAno >= 0.5), caindo: r => r.tendencia <= 0.75 && r.mediaAno >= 0.5 };
+  const FILTRO = { urgente: ehUrgente, zerado: r => r.semEstoqueCadastro && r.media > 0, parado: r => r.parado, reserva: r => r.reserva > 0 || r.mediaCli > 0, subindo: r => r.tendencia >= 1.25 && (r.media3 >= 0.5 || r.mediaAno >= 0.5), caindo: r => r.tendencia <= 0.75 && r.mediaAno >= 0.5 };
   const ORDEM = { valor: (a, b) => qtdComprar(b) * b.preco - qtdComprar(a) * a.preco, abc: (a, b) => a.abc.localeCompare(b.abc) || b.valorAno - a.valorAno };
   return programacaoFab().filter(r => !ui.prog.size || [...ui.prog].some(p => FILTRO[p] ? FILTRO[p](r) : r.situacao === p)).filter(r => casa(r, ['codigo', 'descricao', 'fabricante']))
     .filter(r => !ui.grupo || (ui.grupo === '__sem' ? !r.grupo : r.grupo === ui.grupo))
@@ -1265,6 +1331,15 @@ function listaProgramacao() {
     .sort(ORDEM[ui.ord] || ((a, b) => (a.cobertura ?? 1e9) - (b.cobertura ?? 1e9) || b.media - a.media));
 }
 const qtdComprar = r => _qtdEditada[norm(r.codigo)] ?? r.sugerido;
+// vai faltar antes de a compra chegar, mesmo comprando hoje
+const ehUrgente = r => r.media > 0 && (r.cobertura ?? 0) < r.prazo;
+const diasBR = d => { const x = new Date(Date.now() + d * 864e5); return String(x.getDate()).padStart(2, '0') + '/' + String(x.getMonth() + 1).padStart(2, '0'); };
+function ultimasCompras() {
+  const m = new Map();
+  data.ped.filter(p => p.status !== 'cancelado').sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)))
+    .forEach(p => (p.itens || []).forEach(i => m.set(norm(i.codigo), { qtd: num(i.qtd), data: p.criado_em, numero: p.numero, status: p.status })));
+  return m;
+}
 // ───── seleção em lote ─────
 window.selItem = (k, on) => { on ? ui.sel.add(k) : ui.sel.delete(k); barraSelecao(); };
 window.selTodos = on => { listaProgramacao().forEach(r => on ? ui.sel.add(norm(r.codigo)) : ui.sel.delete(norm(r.codigo))); render(); };
@@ -1283,7 +1358,7 @@ window.loteAcao = acao => {
   render();
 };
 // ───── colunas configuráveis (ficam neste navegador) ─────
-const COLS_OPC = { fat: 'Faturado/mês', pend: 'Pendente', res: 'Reservado / Falta reservar', cob: 'Cobertura', saldo: 'Saldo após', valor: 'Valor' };
+const COLS_OPC = { chega: 'Chega em / última compra', fat: 'Faturado/mês', pend: 'Pendente', res: 'Reservado / Falta reservar', cob: 'Cobertura', saldo: 'Saldo após', valor: 'Valor' };
 const colsOcultas = () => { try { return new Set(JSON.parse(localStorage.getItem('gf_prog_cols') || '[]')); } catch (e) { return new Set(); } };
 window.alternarColuna = (c, on) => { const o = colsOcultas(); on ? o.delete(c) : o.add(c); try { localStorage.setItem('gf_prog_cols', JSON.stringify([...o])); } catch (e) {} aplicarColunas(); };
 function aplicarColunas() {
@@ -1310,7 +1385,7 @@ window.apagarFavorito = n => { const l = favs(); l.splice(n, 1); try { localStor
 const saldoApos = r => num(r.disp) + num(r.emPedido) - num(r.faltaSeparar) + qtdComprar(r); // saldo livre depois da compra: Disp. + já pedido − reserva a separar + compra
 function contarSituacoes() {
   const base = programacaoFab().filter(r => casa(r, ['codigo', 'descricao', 'fabricante'])).filter(r => !ui.grupo || (ui.grupo === '__sem' ? !r.grupo : r.grupo === ui.grupo));
-  const F = { zerado: r => r.semEstoqueCadastro && r.media > 0, parado: r => r.parado, reserva: r => r.reserva > 0 || r.mediaCli > 0, subindo: r => r.tendencia >= 1.25, caindo: r => r.tendencia <= 0.75 && r.media > 0 };
+  const F = { urgente: ehUrgente, zerado: r => r.semEstoqueCadastro && r.media > 0, parado: r => r.parado, reserva: r => r.reserva > 0 || r.mediaCli > 0, subindo: r => r.tendencia >= 1.25, caindo: r => r.tendencia <= 0.75 && r.media > 0 };
   document.querySelectorAll('#view-programacao [data-prog]').forEach(b => { const k = b.dataset.prog, n = !k ? base.length : base.filter(F[k] || (r => r.situacao === k)).length;
     let c = b.querySelector('.cnt'); if (!c) { c = document.createElement('span'); c.className = 'cnt'; b.appendChild(c); } c.textContent = n; b.classList.toggle('vazio', !n && !!k); });
 }
@@ -1327,7 +1402,9 @@ function renderProgramacao() {
     + (data.reut.est + data.reut.cmo ? ` · ♻ reutilizáveis (-0) fora` : '')
     + (ui.fab ? ` · <b>filtro: ${esc(ui.fab)}</b> <a href="#" onclick="filtrarFabricante('');return false">✕ ver todos</a>` : '');
   const valor = comprar.reduce((a, r) => a + qtdComprar(r) * r.preco, 0);
+  const urgentes = todos.filter(ehUrgente);
   $('prog-stats').innerHTML = statCard('Comprar agora', comprar.length, 'no ponto de pedido ou abaixo', comprar.length ? 'crit' : '')
+    + statCard('⏰ Urgente', urgentes.length, 'faltam antes de a compra chegar', urgentes.length ? 'crit' : 'ok')
     + statCard('Valor sugerido', brl(valor), 'quantidade sugerida × último preço', 'info')
     + statCard('Atenção', todos.filter(r => r.situacao === 'atencao').length, 'perto do ponto de pedido', 'warn')
     + statCard('Sem estoque', todos.filter(r => r.semEstoqueCadastro && r.media > 0).length, 'vendem e estão zerados (fora do S013) — já estão em Comprar agora', 'crit')
@@ -1349,16 +1426,16 @@ function renderProgramacao() {
   // separa a lista por linha (Coronária, Periférica, Vascular…) mantendo a ordem escolhida dentro de cada uma
   const grupos = [...new Set(lista.map(r => r.grupo || ''))], separar = !ui.grupo && grupos.length > 1;
   if (separar) { const pos = g => g ? grupos.filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR')).indexOf(g) : 999; lista.sort((a, b) => pos(a.grupo || '') - pos(b.grupo || '')); }
-  const nCols = 11 + (temRes ? 2 : 0);
+  const nCols = 12 + (temRes ? 2 : 0), ultM = ultimasCompras();
   const cabGrupo = (r, i) => { if (!separar || (i && (lista[i - 1].grupo || '') === (r.grupo || ''))) return '';
     const g = lista.filter(x => (x.grupo || '') === (r.grupo || '')), qg = g.reduce((a, x) => a + qtdComprar(x), 0), vg = g.reduce((a, x) => a + qtdComprar(x) * x.preco, 0);
-    return `<tr class="grp"><td colspan="${nCols}" style="background:var(--surface2);font-weight:700;color:var(--text);padding:9px 12px">🧬 ${esc(NOME_GRUPO(r.grupo))} <span class="td-doc" style="font-weight:400">· ${g.length} produto(s) · comprar ${qtd(qg)} un · ${brl(vg)}</span></td></tr>`; };
-  $('tb-prog').innerHTML = `<thead><tr><th class="sel"><input type="checkbox" title="Selecionar todos da lista" onchange="selTodos(this.checked)" ${lista.length && lista.every(r => ui.sel.has(norm(r.codigo))) ? 'checked' : ''}></th><th>Situação</th><th>Produto</th><th class="num" title="Estoque Disp. (S013) + o que já foi pedido; consignação">Estoque</th>${temRes ? '<th class="num" data-col="res" title="Reserva do cliente no C904 · já separado · falta separar">🔒 Reservado</th><th class="num" data-col="res" title="Reserva ideal (consumo do cliente × dias de cobertura) − reservado · de onde vem: Estoque Disp. ou compra">🔒 Falta reservar</th>' : ''}<th class="num" data-col="fat" title="Média mensal faturada no C1060">Faturado/mês</th><th class="num" data-col="pend" title="Pendente de faturamento (C723) do ano — entra no consumo no mês da cirurgia">Pendente</th><th class="num" title="Consumo médio mensal = (faturado + pendente do ano) ÷ meses">Consumo/mês</th><th class="num" data-col="cob" title="Quantos dias o estoque dura · ponto de pedido">Cobertura</th><th class="num">Comprar</th><th class="num" data-col="saldo" title="Estoque Disp. + já pedido − reserva a separar + compra">Saldo após</th><th class="num" data-col="valor">Valor</th></tr></thead><tbody>
+    return `<tr class="grp"><td colspan="${nCols}" style="background:var(--surface2);font-weight:700;color:var(--text);padding:9px 12px">🧬 ${esc(NOME_GRUPO(r.grupo))} <span class="grp-sub">· ${g.length} produto(s) · comprar ${qtd(qg)} un · ${brl(vg)}</span></td></tr>`; };
+  $('tb-prog').innerHTML = `<thead><tr><th class="sel"><input type="checkbox" title="Selecionar todos da lista" onchange="selTodos(this.checked)" ${lista.length && lista.every(r => ui.sel.has(norm(r.codigo))) ? 'checked' : ''}></th><th>Situação</th><th>Produto</th><th class="num" title="Estoque Disp. (S013) + o que já foi pedido; consignação">Estoque</th>${temRes ? '<th class="num" data-col="res" title="Reserva do cliente no C904 · já separado · falta separar">🔒 Reservado</th><th class="num" data-col="res" title="Reserva ideal (consumo do cliente × dias de cobertura) − reservado · de onde vem: Estoque Disp. ou compra">🔒 Falta reservar</th>' : ''}<th class="num" data-col="fat" title="Média mensal faturada no C1060">Faturado/mês</th><th class="num" data-col="pend" title="Pendente de faturamento (C723) do ano — entra no consumo no mês da cirurgia">Pendente</th><th class="num" title="Consumo médio mensal = (faturado + pendente do ano) ÷ meses">Consumo/mês</th><th class="num" data-col="cob" title="Quantos dias o estoque dura · ponto de pedido">Cobertura</th><th class="num" data-col="chega" title="Quando chega se comprar hoje (hoje + prazo do fornecedor) · última compra feita no sistema">Chega em</th><th class="num">Comprar</th><th class="num" data-col="saldo" title="Estoque Disp. + já pedido − reserva a separar + compra">Saldo após</th><th class="num" data-col="valor">Valor</th></tr></thead><tbody>
     ${lista.map((r, iL) => { const k = norm(r.codigo), q = qtdComprar(r);
       const meses = r.meses.map((x, i) => num(x) ? mesesNome[i] + ':' + qtd(x) : '').filter(Boolean).join(' ');
-      return cabGrupo(r, iL) + `<tr class="sit-${r.situacao}${ui.abertosProg.has(k) ? ' aberta' : ''}" data-k="${esc(k)}"><td class="sel"><input type="checkbox" ${ui.sel.has(k) ? 'checked' : ''} onchange="selItem(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.checked)"></td><td><span class="badge ${SIT[r.situacao][0]}"><span class="l-longo">${SIT[r.situacao][1]}</span><span class="l-curto">${SIT_CURTO[r.situacao] || SIT[r.situacao][1]}</span></span>
+      return cabGrupo(r, iL) + `<tr class="sit-${r.situacao}${ui.abertosProg.has(k) ? ' aberta' : ''}${ehUrgente(r) ? ' urg' : ''}${ui.prodAberto === k ? ' sel-row' : ''}" data-k="${esc(k)}" title="${esc(SIT[r.situacao][1].replace(/^\S+ /, ''))}${ehUrgente(r) ? ' · URGENTE: falta antes de chegar' : ''}"><td class="sel"><input type="checkbox" ${ui.sel.has(k) ? 'checked' : ''} onchange="selItem(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.checked)"></td><td><span class="badge ${SIT[r.situacao][0]}"><span class="l-longo">${SIT[r.situacao][1]}</span><span class="l-curto">${SIT_CURTO[r.situacao] || SIT[r.situacao][1]}</span></span>
         <div style="margin-top:4px">${r.media > 0 || r.valorAno ? `<span class="mini" title="Curva ABC pelo valor consumido no ano (${brl(r.valorAno)})">curva ${r.abc}</span>` : ''}${r.parado ? '<span class="mini" title="Tem estoque e não vendeu nos últimos 6 meses">💤 parado</span>' : ''}</div></td>
-      <td class="prod"><div class="cod">${esc(r.codigo)}${r.fabricante ? ` · 🏭 ${esc(r.fabricante)}` : ''}</div><b title="${esc(r.descricao || '')}">${esc(r.descricao || '')}${r.semEstoqueCadastro ? '<span class="sel-warn" title="Sem estoque próprio (fora do S013)"></span>' : ''}</b>
+      <td class="prod"><div class="cod">${esc(r.codigo)}${r.fabricante ? ` · 🏭 ${esc(r.fabricante)}` : ''}</div><b title="${esc(r.descricao || '')}">${esc(r.descricao || '')}${r.semEstoqueCadastro ? '<span class="sel-warn" title="Sem estoque próprio (fora do S013)"></span>' : ''}${ehUrgente(r) ? '<span class="urg-tag">⏰ URGENTE</span>' : ''}</b>
         ${meses ? `<div class="td-doc" title="Consumo por mês no C1060">${meses}</div>` : ''}${r.semEstoqueCadastro ? '<div class="td-doc" style="color:#dc2626">sem estoque próprio (fora do S013)</div>' : ''}</td>
       <td class="num"><span class="big">${qtd(r.disp)}</span><div>${r.emPedido ? `<span class="mini info" title="Pedido de compra já feito (aguardando aprovação ou a caminho) — conta como estoque">+${qtd(r.emPedido)} em pedido de compra</span>` : ''}${r.consignado ? `<span class="mini" title="Em consignação nos clientes (C457) — não abate a compra">🏥 ${qtd(r.consignado)} consig.</span>` : ''}</div></td>
       ${temRes ? (() => { const faltaRes = Math.max(0, num(r.idealReserva) - num(r.reserva)), semDisp = num(r.sepSemDisp), compraFalta = Math.max(0, num(r.paraReserva) - semDisp);
@@ -1368,17 +1445,103 @@ function renderProgramacao() {
       <td class="num">${r.pendAno ? `<span class="big" style="color:#b45309">${qtd(r.pendAno)}</span><div class="td-doc">no ano · +${qtd(r.pendAno / (r.nMeses || 1))}/mês</div>` : '<span class="td-doc">—</span>'}${r.pendAntigo ? `<div><span class="mini" title="Pendentes de anos anteriores: só aparecem, não entram no consumo">${qtd(r.pendAntigo)} antigo</span></div>` : ''}</td>
       <td class="num"><span class="big">${qtd(r.media)}</span>${tendenciaTag(r) ? `<div class="td-doc">${tendenciaTag(r)}</div>` : ''}${r.mediaCli ? `<div class="td-doc" title="Consumo do cliente com reserva (C1060 filtrado) × outros clientes">cliente ${qtd(r.mediaCli)} · outros ${qtd(r.outrosMes)}</div>` : ''}${cfg.base_consumo !== 'ano' ? `<div class="td-doc" title="Base do consumo nos parâmetros">ano ${qtd(r.mediaAno)} · 3m ${qtd(r.media3)}</div>` : ''}</td>
       <td class="num"><span class="big" style="${r.cobertura != null && r.cobertura < r.prazo ? 'color:#dc2626' : ''}">${r.cobertura == null ? '—' : Math.round(r.cobertura) + ' d'}</span>${r.media ? `<div class="td-doc" title="Ponto de pedido: consumo por dia × (prazo + segurança)">ponto ${qtd(Math.ceil(r.ponto))} · prazo ${r.prazo}d</div>` : ''}</td>
+      <td class="num">${(() => { const u = ultM.get(k), chega = q > 0 || r.situacao === 'comprar';
+        return `<span class="big">${chega ? diasBR(r.prazo) : '—'}</span>${ehUrgente(r) ? `<span class="sub urg-t">⏰ ~${Math.max(1, Math.ceil(r.prazo - (r.cobertura || 0)))} d sem estoque</span>` : ''}${u ? `<span class="sub" title="Último pedido de compra no sistema (#${u.numero}, ${esc(u.status)})">últ. ${qtd(u.qtd)} · ${dataBR(String(u.data).slice(0, 10))}</span>` : ''}`; })()}</td>
       <td class="num col-q"><input class="finput" type="number" min="0" step="1" value="${q}" style="width:80px;text-align:right;font-weight:700" onchange="editarQtd(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.value, ${r.caixa})">
         <div class="q-cx">${linkMult(r.codigo, r.caixa)}${r.caixa > 1 && q ? `<span class="mini">${Math.ceil(q / r.caixa)} cx</span>` : ''}${r.paraReserva || r.mediaCli ? `<span class="mini warn" title="A mesma compra, dividida: parte para a reserva do cliente (C904) e parte para os outros clientes — já incluída aqui, não pedir de novo">🔒 ${qtd(r.paraReserva)} reserva · ${qtd(r.paraOutros)} outros</span>` : ''}</div></td>
       <td class="num"><span class="big">${qtd(saldoApos(r))}</span>${r.media > 0 ? `<div class="td-doc" title="Saldo após a compra ÷ consumo por dia">≈ ${Math.round(saldoApos(r) / (r.media / 30))} dias</div>` : ''}</td>
       <td class="num"><span class="big">${brl(q * r.preco)}</span>${r.preco ? `<div class="td-doc">un ${brl(r.preco)}</div>` : ''}</td></tr>`; }).join('')}</tbody>
-    <tfoot><tr><td colspan="${temRes ? 10 : 8}">Total (${lista.length})</td><td class="num">${qtd(totQ)}</td><td class="num">${qtd(lista.reduce((a, r) => a + saldoApos(r), 0))}</td><td class="num">${brl(totV)}</td></tr></tfoot>`;
+    <tfoot><tr><td colspan="${temRes ? 11 : 9}">Total (${lista.length})</td><td class="num">${qtd(totQ)}</td><td class="num">${qtd(lista.reduce((a, r) => a + saldoApos(r), 0))}</td><td class="num">${brl(totV)}</td></tr></tfoot>`;
   resumoParametros(); aplicarColunas(); barraSelecao();
   const compacto = densidade() === 'compacto'; $('tb-prog').classList.toggle('compacto', compacto);
   $('prog-dens').textContent = compacto ? '☰ Compacto' : '▦ Detalhado';
-  $('tb-prog').onclick = e => { if (!compacto || e.target.closest('input,a,button,select,label')) return; const tr = e.target.closest('tbody tr[data-k]'); if (!tr) return;
-    const k = tr.dataset.k; tr.classList.toggle('aberta') ? ui.abertosProg.add(k) : ui.abertosProg.delete(k); };
+  $('tb-prog').onclick = e => { if (e.target.closest('input,a,button,select,label')) return; const tr = e.target.closest('tbody tr[data-k]'); if (!tr) return;
+    const k = tr.dataset.k;
+    if (compacto) abrirProduto(k); else { tr.classList.toggle('aberta') ? ui.abertosProg.add(k) : ui.abertosProg.delete(k); } };
+  $('tb-prog').onkeydown = tecladoProg;
+  renderFornStrip(lista);
+  if (ui.focoK) { const kf = ui.focoK; setTimeout(() => { const inp = $('tb-prog').querySelector(`tr[data-k="${CSS.escape(kf)}"] td.col-q input`); if (inp) { inp.focus(); inp.select(); } if (ui.focoK === kf) ui.focoK = null; }, 30); }
+  if (ui.prodAberto) abrirProduto(ui.prodAberto, true);
+  ligarRolagemProg();
 }
+// ───── subtotal por fornecedor (com pedido mínimo do cadastro) ─────
+function renderFornStrip(lista) {
+  const el = $('prog-forn'); if (!el) return;
+  const g = new Map(); lista.forEach(r => { const q = qtdComprar(r); if (!q) return; const f = r.fabricante || ''; const x = g.get(f) || { n: 0, v: 0 }; x.n++; x.v += q * r.preco; g.set(f, x); });
+  if (!g.size) { el.innerHTML = ''; return; }
+  el.innerHTML = [...g].sort((a, b) => b[1].v - a[1].v).map(([f, x]) => { const fo = f ? fornDe(f) : null, min = num(fo?.pedido_minimo), falta = min > x.v ? min - x.v : 0;
+    return `<span class="fs ${falta ? 'min-falta' : ''} ${f && norm(f) === norm(ui.fab) ? 'on' : ''}" onclick="filtrarFabricante(${JSON.stringify(f && norm(f) === norm(ui.fab) ? '' : f).replace(/"/g, '&quot;')})" title="${f ? 'Filtrar só este fornecedor' : ''}">🏭 ${esc(f || 'Sem fabricante')} · ${x.n} it · <b>${brl(x.v)}</b>${min ? (falta ? ` <span style="color:var(--warn-c)">⚠ mínimo ${brl(min)} · faltam ${brl(falta)}</span>` : ' <span style="color:var(--ok-c)">✔ mínimo</span>') : ''}${fo?.ciclo_dias ? ` <span class="dr-dica">ciclo ${fo.ciclo_dias} d</span>` : ''}</span>`; }).join('');
+}
+// ───── teclado: ↑ ↓ / Enter andam entre as quantidades ─────
+function tecladoProg(e) {
+  const inp = e.target.closest?.('td.col-q input'); if (!inp || !['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return;
+  e.preventDefault();
+  const linhas = [...$('tb-prog').querySelectorAll('tbody tr[data-k]')], i = linhas.indexOf(inp.closest('tr')), alvo = linhas[i + (e.key === 'ArrowUp' ? -1 : 1)];
+  if (!alvo) return;
+  if (String(num(inp.value)) !== String(num(inp.defaultValue))) { ui.focoK = alvo.dataset.k; inp.dispatchEvent(new Event('change', { bubbles: true })); }
+  else { const n = alvo.querySelector('td.col-q input'); n?.focus(); n?.select(); if (ui.prodAberto) abrirProduto(alvo.dataset.k); }
+}
+document.addEventListener('keydown', e => {
+  if (ui.view !== 'programacao' || e.target.closest?.('input,textarea,select')) return;
+  if (e.key === 'Escape' && ui.prodAberto) { fecharProduto(); return; }
+  if (!ui.prodAberto || !['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  const ks = [...document.querySelectorAll('#tb-prog tbody tr[data-k]')].map(t => t.dataset.k), i = ks.indexOf(ui.prodAberto), k = ks[i + (e.key === 'ArrowUp' ? -1 : 1)];
+  if (k) { e.preventDefault(); abrirProduto(k); document.querySelector(`#tb-prog tr[data-k="${CSS.escape(k)}"]`)?.scrollIntoView({ block: 'nearest' }); }
+});
+// ───── ao rolar a tabela, a página sobe até ela (indicadores e filtros saem da frente) ─────
+function ligarRolagemProg() {
+  const tb = document.querySelector('.topbar'); if (tb) document.documentElement.style.setProperty('--tb-h', tb.offsetHeight + 'px');
+  const sc = document.querySelector('#view-programacao .tscroll-prog'), wrap = sc?.closest('.twrap'); if (!sc || sc._ligado) return; sc._ligado = true;
+  sc.addEventListener('scroll', () => {
+    if (sc.scrollTop <= 0) return;
+    const topo = (tb?.offsetHeight || 52) + ($('view-programacao').querySelector('.prog-topo')?.offsetHeight || 0) + 10, y = wrap.getBoundingClientRect().top;
+    if (y > topo + 4) window.scrollTo({ top: window.scrollY + y - topo, behavior: 'smooth' });
+  }, { passive: true });
+  if (!window._rolProg) { window._rolProg = true; window.addEventListener('scroll', () => $('view-programacao')?.classList.toggle('rolado', window.scrollY > 200), { passive: true }); }
+}
+// ───── ficha do produto (painel lateral) ─────
+window.fecharProduto = () => { ui.prodAberto = null; $('prod-drawer').classList.remove('on'); document.querySelectorAll('#tb-prog tr.sel-row').forEach(t => t.classList.remove('sel-row')); };
+window.abrirProduto = (k, soAtualiza) => {
+  const r = programacao().find(x => norm(x.codigo) === k); if (!r) { if (!soAtualiza) toast('Produto não está na programação.', 'info'); return; }
+  ui.prodAberto = k; $('prod-drawer').classList.add('on');
+  document.querySelectorAll('#tb-prog tr[data-k]').forEach(t => t.classList.toggle('sel-row', t.dataset.k === k));
+  const q = qtdComprar(r), dia = r.media / 30, urg = ehUrgente(r), ks = JSON.stringify(r.codigo).replace(/"/g, '&quot;');
+  const peds = data.ped.filter(p => (p.itens || []).some(i => norm(i.codigo) === k)).sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em))).slice(0, 8);
+  $('dr-title').innerHTML = `<span>${esc(r.codigo)} · 🏭 ${esc(r.fabricante || 'sem fabricante')} <a href="#" onclick="definirFabricante(${ks});return false" title="Corrigir o fabricante deste produto">✎</a>${r.grupo ? ' · ' + esc(NOME_GRUPO(r.grupo)) : ''}</span><b>${esc(r.descricao || '')}</b><span>${SIT[r.situacao][1]}${r.abc ? ' · curva ' + r.abc : ''}${r.parado ? ' · 💤 parado' : ''}</span>`;
+  $('dr-body').innerHTML = `
+    ${urg ? `<div class="dr-alerta crit">⏰ <b>Urgente:</b> o estoque dura ~${Math.round(r.cobertura || 0)} dia(s) e o fornecedor leva ${r.prazo}. Mesmo comprando hoje faltam ~${Math.max(1, Math.ceil(r.prazo - (r.cobertura || 0)))} dia(s) — veja transferência ou compra emergencial.</div>` : r.situacao === 'ok' ? '<div class="dr-alerta ok">✔ Estoque suficiente até a próxima compra.</div>' : ''}
+    <div class="dr-q"><label class="dr-dica">COMPRAR</label><input class="finput" type="number" min="0" step="1" value="${q}" onchange="editarQtd(${ks}, this.value, ${r.caixa})">
+      ${linkMult(r.codigo, r.caixa)} <span class="dr-dica">sugerido ${qtd(r.sugerido)} · ${brl(q * r.preco)} · chega ${diasBR(r.prazo)}</span>
+      <label class="dr-dica" style="margin-left:auto"><input type="checkbox" ${ui.sel.has(k) ? 'checked' : ''} onchange="selItem(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.checked); render()"> selecionar</label></div>
+    <div class="dr-kpis">
+      <div><small>Estoque disp.</small><b>${qtd(r.disp)}</b></div><div><small>Em pedido</small><b>${qtd(r.emPedido)}</b></div><div><small>Reserva a separar</small><b>${qtd(r.faltaSeparar)}</b></div>
+      <div><small>Consumo/mês</small><b>${qtd(r.media)}</b></div><div><small>Cobertura</small><b style="${urg ? 'color:var(--crit-c)' : ''}">${r.cobertura == null ? '—' : Math.round(r.cobertura) + ' d'}</b></div><div><small>Ponto de pedido</small><b>${qtd(Math.ceil(r.ponto || 0))}</b></div>
+      <div><small>Prazo</small><b>${r.prazo} d</b></div><div><small>Segurança</small><b>${r.seg ?? cfg.seguranca_dias} d</b></div><div><small>Cobrir</small><b>${r.cob ?? cfg.cobertura_dias} d</b></div>
+    </div>
+    <div class="dr-sec"><h4>Consumo por mês (C1060${r.pendAno ? ' + pendente' : ''})</h4><div class="graf" id="dr-graf"></div>
+      <div class="dr-dica">faturado/mês ${qtd(r.mediaFat)}${r.pendAno ? ` · pendente no ano ${qtd(r.pendAno)}` : ''}${r.mediaCli ? ` · cliente c/ reserva ${qtd(r.mediaCli)}/mês` : ''} · ${dia ? qtd(dia) + '/dia' : 'sem consumo'}</div></div>
+    ${r.reserva ? `<div class="dr-sec"><h4>Reserva de cliente</h4><div class="dr-dica">reservado ${qtd(r.reserva)} · separado ${qtd(r.separado)} · a separar ${qtd(r.sepAgora || r.faltaSeparar)}${r.transferir ? ` · passar do Disp. ${qtd(r.transferir)}` : ''}${r.paraReserva ? ` · comprar p/ reserva ${qtd(r.paraReserva)}` : ''}</div></div>` : ''}
+    <div class="dr-sec"><h4>Pedidos de compra deste produto</h4>${peds.length ? `<table>${peds.map(p => { const it = p.itens.find(i => norm(i.codigo) === k), rec = recebidoDe(p, it.codigo);
+      return `<tr><td>#${p.numero}</td><td>${dataBR(String(p.criado_em).slice(0, 10))}</td><td><span class="badge ${PED_ST[p.status]?.[0] || 'b-mute'}">${PED_ST[p.status]?.[1] || esc(p.status)}</span></td><td style="text-align:right"><b>${qtd(it.qtd)}</b>${rec ? ` · rec. ${qtd(rec)}` : ''}</td></tr>`; }).join('')}</table>` : '<div class="dr-dica">nenhum pedido no sistema ainda</div>'}</div>
+    <div class="dr-dica">↑ ↓ trocam de produto · Esc fecha</div>`;
+  const ano = num(data.cmo[0]?.ano) || new Date().getFullYear();
+  barrasSVG($('dr-graf'), (r.meses || []).map(num).concat(Array(12).fill(0)).slice(0, 12), MESES_N, v => qtd(v) + ' un', { destaque: ano === new Date().getFullYear() ? new Date().getMonth() : -1, titulo: 'Consumo por mês' });
+};
+window.definirFabricante = async cod => {
+  if (_readOnly) { toast('Seu usuário é só de visualização.', 'err'); return; }
+  const atual = fabDe({ codigo: cod }), v = prompt(`Fabricante de ${cod}:\n(vazio = voltar ao que vem dos PDFs)`, atual || '');
+  if (v === null) return;
+  const m = { ...(cfg.fab_produto || {}) }, n = nomeFab(v);
+  if (!n) delete m[chaveCx(cod)]; else m[chaveCx(cod)] = n;
+  cfg.fab_produto = m; render();
+  const { error } = await supabase.from(T.cfg).upsert({ filial: FILIAL, fab_produto: m, atualizado_em: new Date().toISOString() });
+  toast(error ? (/fab_produto/i.test(error.message || '') ? 'Aplicado na tela; rode o SQL de atualização para guardar.' : 'Não salvou: ' + error.message) : `✔ ${cod}: ${n || 'fabricante dos PDFs'}`, error ? 'info' : 'ok');
+};
+// ───── modo escuro ─────
+const temaAtual = () => { try { return localStorage.getItem('gf_tema') || 'light'; } catch (e) { return 'light'; } };
+function aplicarTema() { const t = temaAtual(); document.documentElement.dataset.theme = t; const b = $('btn-tema'); if (b) b.textContent = t === 'dark' ? '☀️' : '🌙'; }
+window.alternarTema = () => { try { localStorage.setItem('gf_tema', temaAtual() === 'dark' ? 'light' : 'dark'); } catch (e) {} aplicarTema(); };
+aplicarTema();
 const densidade = () => { try { return localStorage.getItem('gf_prog_dens') || 'compacto'; } catch (e) { return 'compacto'; } };
 window.alternarDensidade = () => { try { localStorage.setItem('gf_prog_dens', densidade() === 'compacto' ? 'detalhado' : 'compacto'); } catch (e) {} render(); };
 window.editarQtd = (k, v, cx = 1) => {

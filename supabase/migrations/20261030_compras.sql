@@ -244,3 +244,7 @@ alter table public.compras_config add column if not exists orcamento_mensal nume
 alter table public.compras_config add column if not exists multiplos jsonb;
 alter table public.compras_importacoes add column if not exists periodo text;
 notify pgrst, 'reload schema';
+
+-- Fabricante corrigido à mão por produto (ficha do produto na programação)
+alter table public.compras_config add column if not exists fab_produto jsonb;
+notify pgrst, 'reload schema';
