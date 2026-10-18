@@ -821,7 +821,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-18.1';
+const VERSAO = '2026-10-18.2';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores' };
 
 const $ = id => document.getElementById(id);
@@ -1910,6 +1910,14 @@ async function preencherModelo(itens, oc, pedidoId) {
     const doc = xml(await f.async('string')), rows = [...doc.getElementsByTagNameNS(NS_X, 'row')];
     for (const row of rows) {
       const cs = [...row.getElementsByTagNameNS(NS_X, 'c')], col = re => { const c = cs.find(c => re.test(txt(c).trim())); return c ? colDe(c.getAttribute('r')) : null; };
+      // modelo de rateio por cidade (ex.: Pedido Nipro CEC — Campo Grande × Dourados, estoque único)
+      const todas = re => cs.filter(c => re.test(txt(c).replace(/\s+/g, ' ').trim())).map(c => colDe(c.getAttribute('r')));
+      if (col(/^c[óo]d\.?\s*alternativo/i) && todas(/qtde a pedir.*total/i).length && todas(/rateio/i).length >= 2) {
+        A = { rateio: true, path, doc, rows, hdr: +row.getAttribute('r'), alt: col(/^c[óo]d\.?\s*alternativo/i), gf: col(/^c[óo]d\.?\s*gf/i), desc: col(/^descri/i),
+          est: todas(/qtde em estoque/i)[0], cheg: todas(/a chegar/i)[0], seg: todas(/seguran/i)[0], pedir: todas(/qtde a pedir.*total/i)[0],
+          cons: todas(/^consumo/i), cid: todas(/qtde a pedir\s*[–—-]\s*(?!soma)/i), soma: todas(/soma/i)[0], cidades: todas(/^atende/i).map(c => txt(cs.find(x => colDe(x.getAttribute('r')) === c)).replace(/\s+/g, ' ').replace(/^atende\s*/i, '').replace(/\?$/, '').trim()) };
+        break;
+      }
       const pn = col(/^part\s*number$/i), qt = col(/^qtde?\.?$|^quantidade$/i);
       if (pn && qt) { A = { path, doc, rows, hdr: +row.getAttribute('r'), pn, qt, preco: col(/^pre[çc]o(?!.*total)/i), total: col(/total/i) }; break; }
       const cod = col(/^c[óo]digo$/i), qtL = col(/^quantidade\b/i);
@@ -1939,6 +1947,7 @@ async function preencherModelo(itens, oc, pedidoId) {
     if (texto) { c.setAttribute('t', 'inlineStr'); const is = doc.createElementNS(NS_X, 'is'), t = doc.createElementNS(NS_X, 't'); t.textContent = val; is.appendChild(t); c.appendChild(is); }
     else { const v = doc.createElementNS(NS_X, 'v'); v.textContent = String(val); c.appendChild(v); }
   };
+  if (A.rateio) return preencherRateio({ zip, A, mod, wbDoc, rels, cel, gravar, txt, str });
   const pedir = new Map(); itens.forEach(i => { const k = chaveCx(i.codigo); if (k && num(i.qtd) > 0) pedir.set(k, (pedir.get(k) || 0) + num(i.qtd)); });
   const usados = new Set(); let nItens = 0, unid = 0, total = 0;
   if (A.lista) {
@@ -1989,10 +1998,65 @@ async function preencherModelo(itens, oc, pedidoId) {
   toast(`✔ ${nome}: ${nItens} item(ns), ${qtd(unid)} un${total ? ` · ${brl(total)}` : ''}`);
   if (faltam.length) alert(`${faltam.length} item(ns) da lista NÃO estão no modelo "${mod.nome}" (provavelmente são de outra linha/fornecedor) e ficaram de fora:\n\n${faltam.slice(0, 40).map(i => `• ${i.codigo}${i.descricao ? ' — ' + i.descricao : ''}: ${qtd(i.qtd)}`).join('\n')}${faltam.length > 40 ? `\n… e mais ${faltam.length - 40}` : ''}\n\nDica: filtre a Programação pelo fabricante (ex.: MERIT MEDICAL) antes de gerar; para os itens da outra linha, gere de novo escolhendo o outro modelo.`);
 }
+// Planilha de rateio por cidade (Pedido Nipro CEC): estoque do S013 + "a chegar" dos pedidos em aberto; a planilha recalcula
+// o "Qtde a Pedir" (segurança − estoque − a chegar) e divide entre as cidades pelo consumo — as fórmulas do modelo continuam valendo.
+async function preencherRateio({ zip, A, mod, wbDoc, rels, cel, gravar, txt, str }) {
+  const { doc, rows, hdr } = A;
+  if (FILIAL !== 'CGR' && !confirm(`Este modelo (${mod.nome}) é do estoque de Campo Grande, e você está em ${BR.label}. Preencher com o estoque de ${BR.label} mesmo assim?`)) return;
+  const op = await escolher('📄 ' + mod.nome, `Planilha de rateio por cidade (${A.cidades.join(' × ') || 'cidades'}).\n\nO sistema preenche "Qtde em Estoque" com o Estoque Disp. do S013 importado (pelo código alternativo ou pelo código GF da linha). A planilha recalcula "Qtde a Pedir" e a divisão entre as cidades; a segurança, o "Atende?" e o consumo por cidade continuam os da planilha.\n\nE a coluna "Qtde a Chegar"?`, [
+    ['sistema', '🔄 Usar os pedidos de compra em aberto do sistema', 'tbtn-p'], ['manter', '✋ Manter o que está na planilha (OC do Callisto)', ''], [null, 'Cancelar', '']]);
+  if (!op) return;
+  const estM = new Map(); (data.raw.est || data.est).forEach(r => { estM.set(norm(r.codigo), num(r.estoque_disp)); });
+  const pedM = emPedidoMap();
+  const fimR = (rows.find(r => +r.getAttribute('r') > hdr && /^total/i.test(txt(cel(r, A.desc)).trim())) || {}).getAttribute?.('r') || 1e9;
+  const dados = rows.filter(r => +r.getAttribute('r') > hdr && +r.getAttribute('r') < +fimR && txt(cel(r, A.desc)).trim());
+  const codDe = r => [A.alt, A.gf].filter(Boolean).map(c => txt(cel(r, c)).trim()).filter(c => c && !/^[—–-]+$/.test(c));
+  const valor = (r, c) => c ? num(txt(cel(r, c))) : 0;
+  // fórmula-modelo de cada coluna calculada (primeira linha que tem fórmula) → replicada em todas as linhas
+  const colsF = [A.pedir, ...A.cons, ...A.cid, A.soma].filter(Boolean);
+  const todasCols = [...new Set([...colsF, ...rows.filter(r => +r.getAttribute('r') === +dados[0]?.getAttribute('r')).flatMap(r => [...r.getElementsByTagNameNS(NS_X, 'c')].map(c => colDe(c.getAttribute('r'))))])];
+  const modeloF = {};
+  todasCols.forEach(c => { if (colNum(c) < colNum(A.pedir)) return; for (const r of dados) { const f = cel(r, c)?.getElementsByTagNameNS(NS_X, 'f')[0]; if (f && f.textContent) { modeloF[c] = { f: f.textContent, r: +r.getAttribute('r') }; break; } } });
+  const ajusta = (f, de, para) => f.replace(/('[^']*'!|\b[A-Za-z_]\w*!)?(\$?)([A-Z]{1,3})(\$?)(\d+)\b/g, (m, folha, d1, c, d2, n) => folha || d2 || +n !== de ? m : `${d1}${c}${n === String(de) ? para : n}`);
+  const porF = (r, c, f) => { let x = cel(r, c); if (!x) { gravar(r, c, 0); x = cel(r, c); } [...x.childNodes].forEach(n => x.removeChild(n)); x.removeAttribute('t'); const e = doc.createElementNS(NS_X, 'f'); e.textContent = f; x.appendChild(e); };
+  const fixo = (r, c, v) => { const x = cel(r, c), f = x?.getElementsByTagNameNS(NS_X, 'f')[0]; if (f) x.removeChild(f); gravar(r, c, v); };
+  const resumo = [], naoAchou = []; let totPed = 0; const totCid = A.cons.map(() => 0);
+  for (const r of dados) {
+    const n = +r.getAttribute('r'), cods = codDe(r), desc = txt(cel(r, A.desc)).split('\n')[0].trim();
+    const consCid = A.cons.map(c => valor(r, c));   // consumo por cidade (valor já calculado na planilha)
+    if (A.est) { const achou = cods.find(c => estM.has(norm(c))); if (achou != null) fixo(r, A.est, estM.get(norm(achou))); else if (cods.length) naoAchou.push(`${cods.join(' / ')} — ${desc}`); }
+    if (A.cheg && op === 'sistema') { const q = cods.reduce((a, c) => a + (pedM.get(norm(c)) || 0), 0); fixo(r, A.cheg, q || 0); }
+    Object.entries(modeloF).forEach(([c, m]) => porF(r, c, ajusta(m.f, m.r, n)));
+    if (!modeloF[A.pedir] && A.pedir && A.seg && A.est && A.cheg) porF(r, A.pedir, `MAX(${A.seg}${n}-${A.est}${n}-${A.cheg}${n},0)`);
+    // conta aqui também, para o resumo na tela
+    const ped = Math.max(0, valor(r, A.seg) - valor(r, A.est) - valor(r, A.cheg)), soma = consCid.reduce((a, x) => a + x, 0);
+    const porCid = consCid.map((x, i) => soma ? (i < consCid.length - 1 ? Math.round(ped * x / soma) : 0) : 0); if (porCid.length) porCid[porCid.length - 1] = ped - porCid.slice(0, -1).reduce((a, x) => a + x, 0);
+    totPed += ped; porCid.forEach((x, i) => { totCid[i] += x; });
+    if (ped > 0) resumo.push(`• ${cods[0] || ''} — ${desc}: *${qtd(ped)}*${porCid.length ? ' (' + porCid.map((x, i) => `${A.cidades[i] || 'cidade ' + (i + 1)} ${qtd(x)}`).join(' · ') + ')' : ''}`);
+  }
+  // fórmulas sem valor guardado → o Excel recalcula tudo ao abrir
+  [...doc.getElementsByTagNameNS(NS_X, 'f')].forEach(f => { const c = f.parentNode; [...c.childNodes].forEach(x => { if (x !== f && x.localName === 'v') c.removeChild(x); }); });
+  zip.file(A.path, str(doc));
+  const calc = wbDoc.getElementsByTagNameNS(NS_X, 'calcPr')[0]; if (calc) calc.setAttribute('fullCalcOnLoad', '1');
+  zip.file('xl/workbook.xml', str(wbDoc));
+  if (zip.file('xl/calcChain.xml')) {
+    zip.remove('xl/calcChain.xml');
+    [...rels.getElementsByTagName('Relationship')].filter(x => /calcChain/i.test(x.getAttribute('Target'))).forEach(x => x.parentNode.removeChild(x)); zip.file('xl/_rels/workbook.xml.rels', str(rels));
+    const ctF = zip.file('[Content_Types].xml'), ct = new DOMParser().parseFromString(await ctF.async('string'), 'application/xml');
+    [...ct.getElementsByTagName('Override')].filter(x => /calcChain/i.test(x.getAttribute('PartName'))).forEach(x => x.parentNode.removeChild(x)); zip.file('[Content_Types].xml', new XMLSerializer().serializeToString(ct));
+  }
+  const h = new Date(), dt = `${String(h.getDate()).padStart(2, '0')}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getFullYear()).slice(2)}`;
+  const nome = mod.nome.replace(/\.xlsx$/i, '').replace(/\s*-\s*\d{2}-\d{2}-\d{2}$/, '') + ` - ${dt}.xlsx`;
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast(`✔ ${nome}: pedir ${qtd(totPed)} no total${A.cidades.length ? ' · ' + totCid.map((x, i) => `${A.cidades[i]} ${qtd(x)}`).join(' · ') : ''}`);
+  const msg = [`*Pedido CEC — rateio por cidade* (${h.toLocaleDateString('pt-BR')})`, ...resumo, '', `Total ao fornecedor: *${qtd(totPed)}*${A.cidades.length ? ' — ' + totCid.map((x, i) => `${A.cidades[i]} ${qtd(x)}`).join(' · ') : ''}`].join('\n');
+  alert((resumo.length ? msg.replace(/\*/g, '') : 'Nada a pedir: estoque + a chegar já cobrem a segurança de todos os itens.') + (naoAchou.length ? `\n\n⚠ Não achei no S013 importado (o estoque ficou o da planilha):\n${naoAchou.slice(0, 20).map(x => '• ' + x).join('\n')}` : '') + '\n\nO texto do resumo foi copiado (para colar no WhatsApp).');
+  navigator.clipboard?.writeText(msg).catch(() => {});
+}
 window.pedidoModeloProgramacao = () => {
   const itens = listaProgramacao().filter(r => qtdComprar(r) > 0).map(r => ({ codigo: r.codigo, descricao: r.descricao, qtd: qtdComprar(r), fabricante: r.fabricante || '' }));
-  if (!itens.length) { toast('Nenhum item com quantidade a comprar nesta lista (confira os filtros e as quantidades).', 'info'); return; }
-  preencherModelo(itens);
+  preencherModelo(itens);   // lista vazia: só os modelos de rateio (ex.: Pedido Nipro CEC) geram arquivo
 };
 window.pedidoModelo = id => { const p = data.ped.find(x => x.id === id); if (p) preencherModelo((p.itens || []).map(i => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.qtd, preco: i.preco, fabricante: p.fabricante || '' })), p.numero, p.id); };
 window.listaCompraWhatsApp = () => {
