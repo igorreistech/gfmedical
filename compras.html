@@ -365,6 +365,55 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 .sel{width:28px;text-align:center}
 .sel-bar{display:none;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 12px;margin-bottom:10px;border-radius:var(--radius);background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.3)}
 .sel-bar.on{display:flex}
+/* Programação — barra de ações, KPIs e filtros */
+.prog-topo{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px;margin:-4px 0 12px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow)}
+.prog-topo .pt-resumo{display:flex;flex-direction:column;gap:2px;margin-right:auto;min-width:0}
+.prog-topo .pt-lbl{font-family:var(--mono);font-size:.58rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)}
+.prog-topo .tot{font-family:var(--mono);font-size:.78rem;color:var(--text2);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.prog-topo .tot b{color:var(--text);font-size:.9rem}
+.prog-topo .tot .pt-v{font-family:var(--display);font-size:1.25rem}
+.prog-topo .pt-sep{width:1px;height:12px;background:var(--border);display:inline-block}
+.prog-topo .pt-acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pt-menu{position:relative}.pt-menu>summary{list-style:none;cursor:pointer}.pt-menu>summary::-webkit-details-marker{display:none}
+.pt-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:210px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-md);padding:6px;display:flex;flex-direction:column}
+.pt-pop button{all:unset;cursor:pointer;padding:8px 10px;border-radius:7px;font-size:.8rem;color:var(--text)}.pt-pop button:hover{background:var(--surface2)}
+.prog-kpis{gap:10px;margin-bottom:12px}
+.prog-kpis .stat-card{padding:9px 12px}
+.prog-kpis .stat-val{font-size:1.15rem}
+.prog-kpis .stat-sub{font-size:.6rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog-filtros .dcard-body{padding:10px 14px}
+.prog-filtros .frow+.frow{margin-top:7px;padding-top:7px}
+.prog-filtros .flabel{min-width:64px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)}
+.seg .fchip{border:0;border-radius:0;padding:6px 12px;border-right:1px solid var(--border);background:transparent}
+.seg .fchip:last-child{border-right:0}
+.seg .fchip.on{background:var(--accent);color:#fff}
+.fchip .cnt{display:inline-block;margin-left:6px;min-width:18px;padding:0 5px;border-radius:9px;background:var(--surface2);color:var(--text2);font-family:var(--mono);font-size:.6rem;line-height:16px;text-align:center}
+.seg .fchip.on .cnt{background:rgba(255,255,255,.25);color:#fff}
+.fchip.vazio{opacity:.45}
+.fdiv-v{width:1px;height:20px;background:var(--border);margin:0 6px}
+#tb-prog.compacto td.col-q{white-space:nowrap}
+#tb-prog.compacto td.col-q .q-cx{display:inline-flex;gap:3px;vertical-align:middle;margin-left:6px}
+#tb-prog.compacto td.col-q .q-cx .mini{margin:0}
+#tb-prog.compacto td.num{min-width:0}
+#tb-prog.compacto .prod{max-width:320px}
+#view-programacao .thead-bar{flex-wrap:nowrap}
+#view-programacao #prog-info{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;display:block}
+#view-programacao .thead-bar .tbtn{white-space:nowrap;flex:none}
+#tb-prog.compacto td.col-q .finput{width:62px!important}
+#tb-prog.compacto tr:not(.aberta) td.col-q .q-cx .mini:not(a){display:none}
+#tb-prog.compacto td .badge{font-size:.55rem;padding:2px 6px;letter-spacing:.02em}
+#tb-prog.compacto td,#tb-prog.compacto th{padding-left:8px;padding-right:8px}
+#tb-prog.compacto .prod{max-width:280px}
+#tb-prog.compacto td.col-q .q-cx a.mini{font-size:.55rem;padding:0 5px}
+#tb-prog.compacto{font-size:12px}
+#tb-prog.compacto td.num .big{font-size:.8rem}
+#tb-prog .l-curto{display:none}
+#tb-prog.compacto .l-longo{display:none}#tb-prog.compacto .l-curto{display:inline}
+#tb-prog.compacto th.sel,#tb-prog.compacto td.sel{width:28px;padding-right:0}
+#tb-prog.compacto td.prod{width:250px;max-width:250px}
+#tb-prog.compacto td.prod .cod,#tb-prog.compacto td.prod b{display:block;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tb-prog.compacto tr.aberta td.prod b{white-space:normal}
 /* Programação — layout profissional */
 .tscroll-prog{max-height:calc(100vh - 190px);overflow:auto}
 #tb-prog{font-size:12.5px}
@@ -534,7 +583,19 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <section class="view" id="view-painel"></section>
 
       <section class="view" id="view-programacao">
-        <div class="stats-bar stats-auto" id="prog-stats"></div>
+        <div class="prog-topo">
+          <div class="pt-resumo"><span class="pt-lbl">Compra sugerida (lista filtrada)</span><span class="tot" id="prog-tot"></span></div>
+          <div class="pt-acoes">
+            <button class="tbtn" onclick="pedidoModeloProgramacao()" title="Preenche a planilha de pedido do fornecedor (Merit, BD, Nipro CEC…) com as quantidades desta lista — o resto do modelo fica igual">📄 Modelo do fornecedor</button>
+            <details class="pt-menu"><summary class="tbtn">📤 Exportar ▾</summary><div class="pt-pop">
+              <button onclick="exportarExcel()">📊 Excel da lista</button>
+              <button onclick="planilhaCallisto()" title="Layout 'Importação de Lotes NF de compra' do Callisto (versão 1.01)">📄 Planilha Callisto</button>
+              <button onclick="listaCompraWhatsApp()">📲 Enviar por WhatsApp</button>
+            </div></details>
+            <button class="tbtn tbtn-p" onclick="gerarPedido()" title="Cria o pedido de compra (um por fabricante) com os itens e quantidades da lista — você aprova em 📝 Pedidos de compra">📝 Gerar pedido de compra</button>
+          </div>
+        </div>
+        <div class="stats-bar stats-auto prog-kpis" id="prog-stats"></div>
         <details class="dcard par-card" id="par-card" style="margin-bottom:14px"><summary class="dcard-head" style="cursor:pointer"><span class="par-seta">▸</span> ⚙ Parâmetros da filial <span class="par-resumo" id="par-resumo"></span><small>clique para ver ou editar</small></summary><div class="dcard-body">
           <div class="par-presets"><span class="td-mono">Atalhos:</span>
             <button class="fchip" onclick="presetParametros(7, 30)" title="Segurança 7 dias · cobre 30 dias">🪶 Enxuto</button>
@@ -565,23 +626,22 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
           </div>
           <div class="td-mono" style="white-space:normal;line-height:1.6;opacity:.8">Ponto de pedido = consumo por dia × (prazo + segurança): chegou nele → <b>Comprar agora</b>. Quantidade sugerida = consumo por dia × (prazo + cobertura) − Estoque Disp. Consumo médio = MÉDIA do C1060 (+ pendente do C723, se marcado).</div>
         </div></details>
-        <div class="dcard" style="margin-bottom:14px"><div class="dcard-body">
-          <div class="frow"><span class="flabel">Situação</span>
+        <div class="dcard prog-filtros" style="margin-bottom:14px"><div class="dcard-body">
+          <div class="frow"><span class="flabel">Situação</span><span class="seg" id="prog-seg">
             <button class="fchip on" data-prog="comprar">🛒 Comprar agora</button>
             <button class="fchip" data-prog="atencao">⚠ Atenção</button>
             <button class="fchip" data-prog="ok">✔ OK</button>
             <button class="fchip" data-prog="semconsumo">Sem consumo</button>
             <button class="fchip" data-prog="zerado" title="Têm consumo (venda) e estão sem estoque próprio (fora do S013) — já entram em Comprar agora">Sem estoque</button>
-            <button class="fchip" data-prog="">Todos</button>
-            <span class="td-mono" style="opacity:.7;margin-left:auto">clique em mais de um para somar</span>
+            <button class="fchip" data-prog="">Todos</button></span>
+            <span class="td-mono" style="opacity:.6;margin-left:auto">clique em mais de um para somar</span>
           </div>
           <div class="frow"><span class="flabel">Destaques</span>
             <button class="fchip" data-prog="reserva" title="Têm reserva (C904) ou consumo do cliente com reserva (C1060 do cliente)">🔒 Reserva cliente</button>
             <button class="fchip" data-prog="subindo" title="Consumo dos últimos 3 meses 25% ou mais acima da média do ano">📈 Subindo</button>
             <button class="fchip" data-prog="caindo" title="Consumo dos últimos 3 meses 25% ou mais abaixo da média do ano">📉 Caindo</button>
             <button class="fchip" data-prog="parado" title="Têm estoque disponível e não venderam nos últimos 6 meses">💤 Parado</button>
-          </div>
-          <div class="frow"><span class="flabel">Favoritos</span><span id="prog-favs"></span><button class="tbtn" onclick="salvarFavorito()" title="Guarda os filtros atuais com um nome (fica neste navegador)">⭐ Salvar filtros atuais</button></div>
+            <span class="fdiv-v"></span><span class="flabel" style="min-width:0">Favoritos</span><span id="prog-favs"></span><button class="tbtn" onclick="salvarFavorito()" title="Guarda os filtros atuais com um nome (fica neste navegador)">⭐ Salvar</button></div>
           <div class="frow"><span class="flabel">Refinar</span>
             <select class="tsel" id="prog-grupo" title="Linha do produto (Grupo do Callisto)" onchange="filtroProg('grupo', this.value)"></select>
             <select class="tsel" id="prog-fab" title="Mostrar só os produtos deste fabricante/fornecedor" onchange="filtrarFabricante(this.value)"></select>
@@ -596,14 +656,6 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <button class="tbtn" id="prog-dens" onclick="alternarDensidade()" title="Compacto: uma linha por produto (clique na linha para ver os detalhes)"></button>
             <span style="position:relative"><button class="tbtn" onclick="document.getElementById('cols-pop').classList.toggle('on')" title="Mostrar/ocultar colunas">⚙ Colunas</button><div class="cols-pop" id="cols-pop"></div></span></div>
           <div class="tscroll tscroll-prog"><table id="tb-prog" class="tb-grande"></table></div>
-        </div>
-        <div class="prog-acoes">
-          <span class="tot" id="prog-tot"></span>
-          <button class="tbtn tbtn-p" onclick="gerarPedido()" title="Cria o pedido de compra (um por fabricante) com os itens e quantidades da lista — você aprova em 📝 Pedidos de compra">📝 Gerar pedido de compra</button>
-          <button class="tbtn tbtn-g" onclick="pedidoModeloProgramacao()" title="Preenche a planilha de pedido do fornecedor (ex.: Merit Coronária / Periférica) com as quantidades desta lista — o resto do modelo fica igual">📄 Pedido no modelo do fornecedor</button>
-          <button class="tbtn tbtn-g" onclick="listaCompraWhatsApp()">📲 WhatsApp</button>
-          <button class="tbtn tbtn-g" onclick="planilhaCallisto()" title="Planilha no layout 'Importação de Lotes NF de compra' do Callisto (versão 1.01)">📄 Planilha Callisto</button>
-          <button class="tbtn tbtn-g" onclick="exportarExcel()">📤 Excel</button>
         </div>
       </section>
 
@@ -821,7 +873,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-18.5';
+const VERSAO = '2026-10-18.6';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores' };
 
 const $ = id => document.getElementById(id);
@@ -1195,6 +1247,7 @@ function render() {
   ({ indicadores: renderIndicadores, fornecedores: renderFornecedores, reserva: renderReserva, pedidos: renderPedidos, painel: renderPainel, programacao: renderProgramacao, pendente: renderPendente, estoque: renderEstoque, consignado: renderConsignado, importar: renderImportar })[ui.view]();
 }
 let _qtdEditada = {};
+const SIT_CURTO = { comprar: '🛒 Comprar', atencao: '⚠ Atenção', ok: '✔ OK', semconsumo: 'Sem venda', fora: 'Fora S013' };
 const SIT = { comprar: ['b-crit', '🛒 Comprar agora'], atencao: ['b-warn', '⚠ Atenção'], ok: ['b-ok', '✔ OK'], semconsumo: ['b-mute', 'Sem consumo'], fora: ['b-info', 'Fora do S013'] };
 // Fabricante escolhido no filtro (ex.: depois de importar o S013 só da JOTEC, mostra só os itens dela)
 const doFabricante = r => !ui.fab || norm(r.fabricante || '') === norm(ui.fab);
@@ -1255,8 +1308,14 @@ window.aplicarFavorito = n => { const f = favs()[n]; if (!f) return; ui.prog = n
   document.querySelectorAll('[data-prog]').forEach(x => x.classList.toggle('on', x.dataset.prog ? ui.prog.has(x.dataset.prog) : !ui.prog.size)); render(); };
 window.apagarFavorito = n => { const l = favs(); l.splice(n, 1); try { localStorage.setItem('gf_prog_favs', JSON.stringify(l)); } catch (e) {} renderFavoritos(); };
 const saldoApos = r => num(r.disp) + num(r.emPedido) - num(r.faltaSeparar) + qtdComprar(r); // saldo livre depois da compra: Disp. + já pedido − reserva a separar + compra
+function contarSituacoes() {
+  const base = programacaoFab().filter(r => casa(r, ['codigo', 'descricao', 'fabricante'])).filter(r => !ui.grupo || (ui.grupo === '__sem' ? !r.grupo : r.grupo === ui.grupo));
+  const F = { zerado: r => r.semEstoqueCadastro && r.media > 0, parado: r => r.parado, reserva: r => r.reserva > 0 || r.mediaCli > 0, subindo: r => r.tendencia >= 1.25, caindo: r => r.tendencia <= 0.75 && r.media > 0 };
+  document.querySelectorAll('#view-programacao [data-prog]').forEach(b => { const k = b.dataset.prog, n = !k ? base.length : base.filter(F[k] || (r => r.situacao === k)).length;
+    let c = b.querySelector('.cnt'); if (!c) { c = document.createElement('span'); c.className = 'cnt'; b.appendChild(c); } c.textContent = n; b.classList.toggle('vazio', !n && !!k); });
+}
 function renderProgramacao() {
-  resumoParametros(); renderFavoritos();
+  resumoParametros(); renderFavoritos(); try { contarSituacoes(); } catch (e) { console.warn(e); }
   const fabs = fabricantesConhecidos();
   if (ui.fab && !fabs.some(f => norm(f) === norm(ui.fab))) fabs.unshift(ui.fab);
   $('prog-fab').innerHTML = `<option value="">🏭 Todos os fabricantes</option>` + fabs.map(f => `<option value="${esc(f)}" ${norm(f) === norm(ui.fab) ? 'selected' : ''}>🏭 ${esc(f)}</option>`).join('');
@@ -1266,7 +1325,7 @@ function renderProgramacao() {
   const iE = ultImp('S013'), iP = ultImp('C723');
   $('prog-info').innerHTML = [iE && `S013 ${dataHoraBR(iE.importado_em)}`, iC && `C1060 ${dataHoraBR(iC.importado_em)}`, iP && `C723 ${dataHoraBR(iP.importado_em)}`].filter(Boolean).join(' · ')
     + (data.reut.est + data.reut.cmo ? ` · ♻ reutilizáveis (-0) fora` : '')
-    + (ui.fab ? ` · <b>filtro: ${esc(ui.fab)}</b> <button class="tbtn" onclick="filtrarFabricante('')">ver todos</button>` : '');
+    + (ui.fab ? ` · <b>filtro: ${esc(ui.fab)}</b> <a href="#" onclick="filtrarFabricante('');return false">✕ ver todos</a>` : '');
   const valor = comprar.reduce((a, r) => a + qtdComprar(r) * r.preco, 0);
   $('prog-stats').innerHTML = statCard('Comprar agora', comprar.length, 'no ponto de pedido ou abaixo', comprar.length ? 'crit' : '')
     + statCard('Valor sugerido', brl(valor), 'quantidade sugerida × último preço', 'info')
@@ -1285,7 +1344,7 @@ function renderProgramacao() {
   if (!lista.length) { $('tb-prog').innerHTML = '<tbody><tr><td><div class="empty-page">Nenhum produto com esse filtro.</div></td></tr></tbody>'; return; }
   const mesesNome = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
   const totQ = lista.reduce((a, r) => a + qtdComprar(r), 0), totV = lista.reduce((a, r) => a + qtdComprar(r) * r.preco, 0), nItens = lista.filter(r => qtdComprar(r) > 0).length;
-  $('prog-tot').innerHTML = `<b>${nItens}</b> item(ns) para comprar · <b>${qtd(totQ)}</b> un · <b>${brl(totV)}</b> <span style="opacity:.75">(itens da lista abaixo, com os filtros)</span>`;
+  $('prog-tot').innerHTML = `<b class="pt-v">${brl(totV)}</b><span class="pt-sep"></span><b>${nItens}</b> item(ns)<span class="pt-sep"></span><b>${qtd(totQ)}</b> un`;
   const temRes = data.res.length > 0 || data.cmoCli.length > 0;
   // separa a lista por linha (Coronária, Periférica, Vascular…) mantendo a ordem escolhida dentro de cada uma
   const grupos = [...new Set(lista.map(r => r.grupo || ''))], separar = !ui.grupo && grupos.length > 1;
@@ -1297,7 +1356,7 @@ function renderProgramacao() {
   $('tb-prog').innerHTML = `<thead><tr><th class="sel"><input type="checkbox" title="Selecionar todos da lista" onchange="selTodos(this.checked)" ${lista.length && lista.every(r => ui.sel.has(norm(r.codigo))) ? 'checked' : ''}></th><th>Situação</th><th>Produto</th><th class="num" title="Estoque Disp. (S013) + o que já foi pedido; consignação">Estoque</th>${temRes ? '<th class="num" data-col="res" title="Reserva do cliente no C904 · já separado · falta separar">🔒 Reservado</th><th class="num" data-col="res" title="Reserva ideal (consumo do cliente × dias de cobertura) − reservado · de onde vem: Estoque Disp. ou compra">🔒 Falta reservar</th>' : ''}<th class="num" data-col="fat" title="Média mensal faturada no C1060">Faturado/mês</th><th class="num" data-col="pend" title="Pendente de faturamento (C723) do ano — entra no consumo no mês da cirurgia">Pendente</th><th class="num" title="Consumo médio mensal = (faturado + pendente do ano) ÷ meses">Consumo/mês</th><th class="num" data-col="cob" title="Quantos dias o estoque dura · ponto de pedido">Cobertura</th><th class="num">Comprar</th><th class="num" data-col="saldo" title="Estoque Disp. + já pedido − reserva a separar + compra">Saldo após</th><th class="num" data-col="valor">Valor</th></tr></thead><tbody>
     ${lista.map((r, iL) => { const k = norm(r.codigo), q = qtdComprar(r);
       const meses = r.meses.map((x, i) => num(x) ? mesesNome[i] + ':' + qtd(x) : '').filter(Boolean).join(' ');
-      return cabGrupo(r, iL) + `<tr class="sit-${r.situacao}${ui.abertosProg.has(k) ? ' aberta' : ''}" data-k="${esc(k)}"><td class="sel"><input type="checkbox" ${ui.sel.has(k) ? 'checked' : ''} onchange="selItem(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.checked)"></td><td><span class="badge ${SIT[r.situacao][0]}">${SIT[r.situacao][1]}</span>
+      return cabGrupo(r, iL) + `<tr class="sit-${r.situacao}${ui.abertosProg.has(k) ? ' aberta' : ''}" data-k="${esc(k)}"><td class="sel"><input type="checkbox" ${ui.sel.has(k) ? 'checked' : ''} onchange="selItem(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.checked)"></td><td><span class="badge ${SIT[r.situacao][0]}"><span class="l-longo">${SIT[r.situacao][1]}</span><span class="l-curto">${SIT_CURTO[r.situacao] || SIT[r.situacao][1]}</span></span>
         <div style="margin-top:4px">${r.media > 0 || r.valorAno ? `<span class="mini" title="Curva ABC pelo valor consumido no ano (${brl(r.valorAno)})">curva ${r.abc}</span>` : ''}${r.parado ? '<span class="mini" title="Tem estoque e não vendeu nos últimos 6 meses">💤 parado</span>' : ''}</div></td>
       <td class="prod"><div class="cod">${esc(r.codigo)}${r.fabricante ? ` · 🏭 ${esc(r.fabricante)}` : ''}</div><b title="${esc(r.descricao || '')}">${esc(r.descricao || '')}${r.semEstoqueCadastro ? '<span class="sel-warn" title="Sem estoque próprio (fora do S013)"></span>' : ''}</b>
         ${meses ? `<div class="td-doc" title="Consumo por mês no C1060">${meses}</div>` : ''}${r.semEstoqueCadastro ? '<div class="td-doc" style="color:#dc2626">sem estoque próprio (fora do S013)</div>' : ''}</td>
@@ -1310,7 +1369,7 @@ function renderProgramacao() {
       <td class="num"><span class="big">${qtd(r.media)}</span>${tendenciaTag(r) ? `<div class="td-doc">${tendenciaTag(r)}</div>` : ''}${r.mediaCli ? `<div class="td-doc" title="Consumo do cliente com reserva (C1060 filtrado) × outros clientes">cliente ${qtd(r.mediaCli)} · outros ${qtd(r.outrosMes)}</div>` : ''}${cfg.base_consumo !== 'ano' ? `<div class="td-doc" title="Base do consumo nos parâmetros">ano ${qtd(r.mediaAno)} · 3m ${qtd(r.media3)}</div>` : ''}</td>
       <td class="num"><span class="big" style="${r.cobertura != null && r.cobertura < r.prazo ? 'color:#dc2626' : ''}">${r.cobertura == null ? '—' : Math.round(r.cobertura) + ' d'}</span>${r.media ? `<div class="td-doc" title="Ponto de pedido: consumo por dia × (prazo + segurança)">ponto ${qtd(Math.ceil(r.ponto))} · prazo ${r.prazo}d</div>` : ''}</td>
       <td class="num col-q"><input class="finput" type="number" min="0" step="1" value="${q}" style="width:80px;text-align:right;font-weight:700" onchange="editarQtd(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.value, ${r.caixa})">
-        <div>${linkMult(r.codigo, r.caixa)}${r.caixa > 1 && q ? `<span class="mini">${Math.ceil(q / r.caixa)} cx</span>` : ''}${r.paraReserva || r.mediaCli ? `<span class="mini warn" title="A mesma compra, dividida: parte para a reserva do cliente (C904) e parte para os outros clientes — já incluída aqui, não pedir de novo">🔒 ${qtd(r.paraReserva)} reserva · ${qtd(r.paraOutros)} outros</span>` : ''}</div></td>
+        <div class="q-cx">${linkMult(r.codigo, r.caixa)}${r.caixa > 1 && q ? `<span class="mini">${Math.ceil(q / r.caixa)} cx</span>` : ''}${r.paraReserva || r.mediaCli ? `<span class="mini warn" title="A mesma compra, dividida: parte para a reserva do cliente (C904) e parte para os outros clientes — já incluída aqui, não pedir de novo">🔒 ${qtd(r.paraReserva)} reserva · ${qtd(r.paraOutros)} outros</span>` : ''}</div></td>
       <td class="num"><span class="big">${qtd(saldoApos(r))}</span>${r.media > 0 ? `<div class="td-doc" title="Saldo após a compra ÷ consumo por dia">≈ ${Math.round(saldoApos(r) / (r.media / 30))} dias</div>` : ''}</td>
       <td class="num"><span class="big">${brl(q * r.preco)}</span>${r.preco ? `<div class="td-doc">un ${brl(r.preco)}</div>` : ''}</td></tr>`; }).join('')}</tbody>
     <tfoot><tr><td colspan="${temRes ? 10 : 8}">Total (${lista.length})</td><td class="num">${qtd(totQ)}</td><td class="num">${qtd(lista.reduce((a, r) => a + saldoApos(r), 0))}</td><td class="num">${brl(totV)}</td></tr></tfoot>`;
