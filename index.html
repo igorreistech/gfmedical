@@ -267,6 +267,7 @@
       }
 
       function mostrarResumoInicial() {
+        window._resumoInicialMostrado = true; window._resumoPendente = false; return;   // Resumo do dia automático desligado (pedido do usuário)
         if (window._resumoInicialMostrado) return;
         // Enquanto a tela de login ou a de escolha (Monitor / Fichas OPME / Fretes)
         // está aberta, o resumo espera — e só aparece quando a pessoa chega ao Monitor.
@@ -11694,6 +11695,7 @@ function verificarLembreteCobrancaDiario(depois) {
 // checkpoint) — só que sempre depois do lembrete ter sido tratado, nunca
 // antes nem em cima dele.
 function _verificarResumoDiaAutomatico() {
+    return;   // Resumo do Dia automático desligado (pedido do usuário) — continua no botão 📊 Resumo do Dia
     if (!_isContaComercialCompartilhada()) return;
     if (typeof _precisaNomeOp === 'function' && _precisaNomeOp()) return; // ainda não escolheu o nome — não mostra nada ainda
     const horaAtual = new Date().getHours();
