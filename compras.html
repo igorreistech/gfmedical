@@ -705,7 +705,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.20';
+const VERSAO = '2026-10-17.21';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -957,6 +957,11 @@ function programacao() {
       mediaAno, media3, tendencia, emPedido, caixa, reserva, separado, faltaSeparar, reservaClientes: rs ? [...rs.clientes] : [],
       mediaCli, outrosMes, idealReserva, protege, transferir, paraReserva, paraOutros, sepAgora, sepSemDisp: faltaSemDisp, parado: disp > 0 && venda6 <= 0 && !num(pd?.ano) };
   });
+  // Linha herdada do fabricante: se todos os produtos conhecidos de um fabricante são de uma linha só (ex.: Bard → Vascular),
+  // os dele que vieram sem grupo (ex.: só no C723, filtrado por fabricante) ficam nessa linha. Merit tem duas linhas → não herda.
+  { const porFab = new Map();
+    lin.forEach(r => { if (!r.fabricante || !r.grupo) return; const f = norm(r.fabricante); if (!porFab.has(f)) porFab.set(f, new Map()); const m = porFab.get(f); m.set(r.grupo, (m.get(r.grupo) || 0) + 1); });
+    lin.forEach(r => { if (r.grupo || !r.fabricante) return; const m = porFab.get(norm(r.fabricante)); if (m && m.size === 1) { r.grupo = [...m.keys()][0]; r.grupoHerdado = true; } }); }
   // Curva ABC pelo valor consumido no ano (média do ano × 12 × último preço): A = 80% do valor, B = 15%, C = 5%
   const tot = lin.reduce((a, r) => a + r.mediaAno * 12 * r.preco, 0); let acc = 0;
   [...lin].sort((a, b) => b.mediaAno * b.preco - a.mediaAno * a.preco).forEach(r => { const v = r.mediaAno * 12 * r.preco; acc += v; r.valorAno = v; r.abc = !v || !tot ? 'C' : acc - v < tot * 0.8 ? 'A' : acc - v < tot * 0.95 ? 'B' : 'C'; });
