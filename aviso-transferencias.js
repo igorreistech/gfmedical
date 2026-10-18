@@ -3,6 +3,7 @@
 // Só LÊ a sessão já salva pela página (não renova token), para não interferir no login dela.
 (function () {
   if (window.__avisoTransf) return; window.__avisoTransf = true;
+  try { if (window.top !== window) return; } catch (e) { return; }   // dentro do Monitor (tela embutida): o Monitor já avisa
   var BR = {
     cgr: { url: 'https://rqzqetfoxiutabsooqqn.supabase.co', key: 'sb_publishable_P3EggMdsxQUoKnX_pLMaRQ_ZrGEYpIP', ref: 'rqzqetfoxiutabsooqqn', nome: 'Campo Grande' },
     cba: { url: 'https://cyztucqhfotqhauavepu.supabase.co', key: 'sb_publishable_LnJYIlIDvTF6l4MMQwZ-Kg_uCBXnZRM', ref: 'cyztucqhfotqhauavepu', nome: 'Cuiabá' }
@@ -96,7 +97,7 @@
     var fechar = function () { try { localStorage.setItem(chaveDia, hoje); } catch (e) {} ov.remove(); };
     document.getElementById('aviso-transf-x').onclick = fechar;
     document.getElementById('aviso-transf-ok').onclick = fechar;
-    document.getElementById('aviso-transf-ver').onclick = function () { fechar(); window.open('transferencias.html' + (fixa ? '' : '?filial=' + code), '_blank'); };
+    document.getElementById('aviso-transf-ver').onclick = function () { fechar(); if (document.getElementById('transf-view') && typeof window.switchView === 'function') window.switchView('transf'); else window.open('transferencias.html' + (fixa ? '' : '?filial=' + code), '_blank'); };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(esperar, 5000); });
   else setTimeout(esperar, 5000);

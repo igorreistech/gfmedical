@@ -5261,9 +5261,13 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
         <button class="view-tab" id="tab-coleta" onclick="switchView('coleta')" style="color:#818cf8;border-color:rgba(99,102,241,0.5);">✈️ Retirada de Material</button>
         <button class="view-tab" id="tab-opme" onclick="window.open('fichas-opme.html','_blank')" style="color:#f59e0b;border-color:rgba(245,158,11,0.5);">📋 Fichas OPME</button>
         <button class="view-tab" id="tab-fretes" onclick="window.open('fretes.html','_blank')" style="color:#2a9fbf;border-color:rgba(42,159,191,0.5);">🚚 Controle de Fretes</button>
-        <button class="view-tab" id="tab-compras" onclick="window.open('compras.html','_blank')" style="color:#8b5cf6;border-color:rgba(139,92,246,0.5);">🛒 Compras</button><button class="view-tab" id="tab-transf" onclick="window.open('transferencias.html','_blank')" style="color:#d97706;border-color:rgba(217,119,6,0.5);" title="Transferências enviadas para a outra filial e ainda não devolvidas">🔁 Transferências</button>
+        <button class="view-tab" id="tab-compras" onclick="window.open('compras.html','_blank')" style="color:#8b5cf6;border-color:rgba(139,92,246,0.5);">🛒 Compras</button><button class="view-tab" id="tab-transf" onclick="switchView('transf')" style="color:#d97706;border-color:rgba(217,119,6,0.5);" title="Transferências enviadas para a outra filial e ainda não devolvidas">🔁 Transferências</button>
         <button class="view-tab" id="tab-atividade" onclick="switchView('atividade')" style="color:#4db87a;border-color:rgba(77,184,122,0.5);">🕐 Atividade</button>
         <button id="btn-toggle-ocultos" onclick="toggleOcultos()" style="margin-left:auto;padding:7px 14px;background:rgba(107,114,128,0.12);border:1.5px solid rgba(107,114,128,0.35);color:#6b7280;border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.05em;transition:all 0.2s;" title="Mostrar/ocultar Concluídos e Cancelados">👁 Ocultos</button>
+    </div>
+    <!-- Transferências entre filiais: a tela transferencias.html embutida (mesmo login), carregada ao abrir a aba -->
+    <div id="transf-view" style="display:none;margin-top:10px">
+        <iframe id="transf-frame" title="Transferências entre filiais" style="width:100%;height:calc(100vh - 150px);min-height:640px;border:0;border-radius:14px;background:#f4faf6;box-shadow:0 4px 18px rgba(10,42,24,.08)"></iframe>
     </div>
 
     <!-- CARDS VIEW -->
@@ -22298,6 +22302,29 @@ else init();
         +
     </button>
 </div>
+<script>
+// Aba "Transferências" dentro do Monitor: usa a troca de visões que já existe (switchView)
+(function () {
+  var base = window.switchView; if (typeof base !== 'function') return;
+  function urlTransf() {
+    var f = null; try { f = localStorage.getItem('gf_branch'); } catch (e) {}
+    return 'transferencias.html?embed=1' + (f === 'cba' || f === 'cgr' ? '&filial=' + f : '');
+  }
+  window.switchView = function (v) {
+    var tv = document.getElementById('transf-view'), tb = document.getElementById('tab-transf');
+    if (v === 'transf' && tv) {
+      base.call(this, 'atividade');                    // esconde Central/Dashboard como as outras abas fazem
+      var av = document.getElementById('atividade-view'); if (av) av.style.display = 'none';
+      document.querySelectorAll('.view-tab.active').forEach(function (b) { b.classList.remove('active'); });
+      tv.style.display = ''; if (tb) tb.classList.add('active');
+      var fr = document.getElementById('transf-frame'); if (fr && !fr.getAttribute('src')) fr.setAttribute('src', urlTransf());
+      return;
+    }
+    if (tv) tv.style.display = 'none'; if (tb) tb.classList.remove('active');
+    return base.apply(this, arguments);
+  };
+})();
+</script>
 <script src="aviso-transferencias.js" defer></script>
 </body>
 </html>

@@ -422,6 +422,14 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 .ag.a{border-top:3px solid #16a34a}.ag.b{border-top:3px solid #d97706}.ag.c{border-top:3px solid #ea580c}.ag.d{border-top:3px solid #dc2626}
 .sql-box{width:100%;height:240px;font-family:var(--mono);font-size:0.66rem}
 </style>
+<script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');</script>
+<style>
+html.embed .sidebar{display:none!important}
+html.embed .main{margin-left:0!important}
+html.embed .vtabs{display:flex!important}
+html.embed body>div[style*="position:fixed;bottom:0"]{display:none!important}
+html.embed .topbar .filial-mobile{display:none!important}
+</style>
 </head>
 <body>
 
@@ -612,7 +620,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.2';
+const VERSAO = '2026-10-17.3';
 const T = { nf: 'transf_nf', it: 'transf_itens', bx: 'transf_baixas' };
 
 const $ = id => document.getElementById(id);
