@@ -705,7 +705,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.21';
+const VERSAO = '2026-10-17.22';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1075,12 +1075,6 @@ function renderProgramacao() {
     + statCard('Sem estoque', todos.filter(r => r.semEstoqueCadastro && r.media > 0).length, 'vendem e estão zerados (fora do S013) — já estão em Comprar agora', 'crit')
     + statCard('Estoque parado', brl(todos.filter(r => r.parado).reduce((a, r) => a + r.disp * r.preco, 0)), `${todos.filter(r => r.parado).length} produto(s) sem venda há 6 meses`);
   if (!data.cmo.length) { $('tb-prog').innerHTML = '<tbody><tr><td><div class="empty-page">🛒 Para a programação, importe o PDF <b>C1060 - Consumo Mensal</b> (e o <b>S013 - Estoque</b>) em <b>📥 Importar</b>.</div></td></tr></tbody>'; $('cnt-prog').textContent = 0; return; }
-  $('cnt-prog').textContent = lista.length;
-  if (!lista.length) { $('tb-prog').innerHTML = '<tbody><tr><td><div class="empty-page">Nenhum produto com esse filtro.</div></td></tr></tbody>'; return; }
-  const mesesNome = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
-  const totQ = lista.reduce((a, r) => a + qtdComprar(r), 0), totV = lista.reduce((a, r) => a + qtdComprar(r) * r.preco, 0), nItens = lista.filter(r => qtdComprar(r) > 0).length;
-  $('prog-tot').innerHTML = `<b>${nItens}</b> item(ns) para comprar · <b>${qtd(totQ)}</b> un · <b>${brl(totV)}</b> <span style="opacity:.75">(itens da lista abaixo, com os filtros)</span>`;
-  const temRes = data.res.length > 0 || data.cmoCli.length > 0;
   // contagem por linha com os MESMOS filtros da lista (situação, busca, valor, curva), só sem o filtro de linha
   { const salvaG = ui.grupo; ui.grupo = ''; let base; try { base = listaProgramacao(); } finally { ui.grupo = salvaG; }
     const gs = new Map(); base.forEach(r => gs.set(r.grupo || '__sem', (gs.get(r.grupo || '__sem') || 0) + 1));
@@ -1088,6 +1082,12 @@ function renderProgramacao() {
     if (ui.grupo && !gs.has(ui.grupo)) gs.set(ui.grupo, 0), ordem.includes(ui.grupo) || ui.grupo === '__sem' || ordem.push(ui.grupo);
     $('prog-grupo').innerHTML = `<option value="">🧬 Todas as linhas (${base.length})</option>` + ordem.map(g => `<option value="${esc(g)}" ${ui.grupo === g ? 'selected' : ''}>🧬 ${esc(NOME_GRUPO(g))} (${gs.get(g)})</option>`).join('')
       + (gs.has('__sem') ? `<option value="__sem" ${ui.grupo === '__sem' ? 'selected' : ''}>Sem grupo (${gs.get('__sem')})</option>` : ''); }
+  $('cnt-prog').textContent = lista.length;
+  if (!lista.length) { $('tb-prog').innerHTML = '<tbody><tr><td><div class="empty-page">Nenhum produto com esse filtro.</div></td></tr></tbody>'; return; }
+  const mesesNome = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+  const totQ = lista.reduce((a, r) => a + qtdComprar(r), 0), totV = lista.reduce((a, r) => a + qtdComprar(r) * r.preco, 0), nItens = lista.filter(r => qtdComprar(r) > 0).length;
+  $('prog-tot').innerHTML = `<b>${nItens}</b> item(ns) para comprar · <b>${qtd(totQ)}</b> un · <b>${brl(totV)}</b> <span style="opacity:.75">(itens da lista abaixo, com os filtros)</span>`;
+  const temRes = data.res.length > 0 || data.cmoCli.length > 0;
   // separa a lista por linha (Coronária, Periférica, Vascular…) mantendo a ordem escolhida dentro de cada uma
   const grupos = [...new Set(lista.map(r => r.grupo || ''))], separar = !ui.grupo && grupos.length > 1;
   if (separar) { const pos = g => g ? grupos.filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR')).indexOf(g) : 999; lista.sort((a, b) => pos(a.grupo || '') - pos(b.grupo || '')); }
