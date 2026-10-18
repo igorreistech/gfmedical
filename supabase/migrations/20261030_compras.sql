@@ -248,3 +248,21 @@ notify pgrst, 'reload schema';
 -- Fabricante corrigido à mão por produto (ficha do produto na programação)
 alter table public.compras_config add column if not exists fab_produto jsonb;
 notify pgrst, 'reload schema';
+
+-- Modelos de pedido do fornecedor (planilhas .xlsx em base64), valem para qualquer computador/endereço da filial
+create table if not exists public.compras_modelos (
+  id             uuid primary key default gen_random_uuid(),
+  filial         text not null,
+  nome           text not null,
+  b64            text not null,
+  atualizado_em  timestamptz not null default now()
+);
+create unique index if not exists compras_modelos_nome on public.compras_modelos (filial, nome);
+alter table public.compras_modelos enable row level security;
+drop policy if exists compras_modelos_select on public.compras_modelos;
+drop policy if exists compras_modelos_write on public.compras_modelos;
+create policy compras_modelos_select on public.compras_modelos for select to authenticated using (true);
+create policy compras_modelos_write on public.compras_modelos for all to authenticated
+  using (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'))
+  with check (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'));
+notify pgrst, 'reload schema';

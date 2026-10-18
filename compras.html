@@ -941,8 +941,8 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-18.8';
-const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores' };
+const VERSAO = '2026-10-18.9';
+const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores', mod: 'compras_modelos' };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2074,16 +2074,48 @@ async function carregarJSZip() {
   if (window.JSZip) return;
   await new Promise((ok, erro) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; sc.onload = ok; sc.onerror = () => erro(new Error('não carregou o leitor de planilhas')); document.head.appendChild(sc); });
 }
+// Modelos de pedido ficam no banco (valem em qualquer endereço/computador da filial); o navegador guarda só uma cópia
+async function modelosBanco() {
+  const r = await supabase.from(T.mod).select('id,nome,atualizado_em').eq('filial', FILIAL).order('atualizado_em', { ascending: false });
+  return r.error ? null : r.data || [];
+}
+async function guardarModeloBanco(nome, b64) {
+  if (_readOnly) return false;
+  const r = await supabase.from(T.mod).upsert({ filial: FILIAL, nome, b64, atualizado_em: new Date().toISOString() }, { onConflict: 'filial,nome' });
+  if (r.error) { console.warn('[modelos]', r.error.message); return false; } return true;
+}
 async function pegarModelo() {
-  const salvos = modelosSalvos(); let op = '__novo';
-  if (salvos.length) {
-    op = await escolher('📄 Modelo de pedido do fornecedor', 'Qual planilha usar como modelo?\nO sistema preenche só QTDE (pelo Part Number), PREÇO TOTAL e a data — o resto fica igual ao modelo.\nItens que não estão no modelo escolhido (ex.: da outra linha) são avisados no fim.',
-      [...salvos.map((m, i) => [String(i), '📄 ' + m.nome, i ? '' : 'tbtn-p']), ['__novo', '📂 Escolher outro arquivo do computador…', ''], [null, 'Cancelar', '']]);
+  const locais = modelosSalvos(), banco = await modelosBanco();
+  const lista = [...(banco || []).map(m => ({ ...m, onde: 'banco' })), ...locais.filter(m => !(banco || []).some(b => b.nome === m.nome)).map(m => ({ ...m, onde: 'local' }))];
+  let op = '__novo';
+  if (lista.length) {
+    op = await escolher('📄 Modelo de pedido do fornecedor', `Qual planilha usar como modelo?\nO sistema preenche as quantidades (pelo código) e a data — o resto fica igual ao modelo.\nItens que não estão no modelo escolhido (ex.: da outra linha) são avisados no fim.${banco == null ? '\n\n⚠ Rode o SQL de atualização para os modelos ficarem guardados no banco (hoje ficam só neste navegador).' : ''}`,
+      [...lista.map((m, i) => [String(i), `📄 ${m.nome}${m.onde === 'local' && banco ? ' (só neste navegador)' : ''}`, i ? '' : 'tbtn-p']), ['__novo', '📂 Escolher outro arquivo do computador…', ''], ...(banco && banco.length && !_readOnly ? [['__del', '🗑 Remover um modelo salvo…', '']] : []), [null, 'Cancelar', '']]);
     if (!op) return null;
   }
-  if (op !== '__novo') { const m = salvos[+op]; guardarModelo(m.nome, m.b64); return { nome: m.nome, ab: b64ParaAb(m.b64) }; }
+  if (op === '__del') {
+    const d = await escolher('🗑 Remover modelo', 'Qual modelo remover do banco?', [...banco.map((m, i) => [String(i), '🗑 ' + m.nome, '']), [null, 'Cancelar', '']]);
+    if (d == null) return null; const m = banco[+d];
+    if (!confirm(`Remover o modelo "${m.nome}" para todos da filial?`)) return null;
+    await supabase.from(T.mod).delete().eq('id', m.id);
+    try { localStorage.setItem(MODELOS_KEY, JSON.stringify(modelosSalvos().filter(x => x.nome !== m.nome))); } catch (e) {}
+    toast('Modelo removido.'); return pegarModelo();
+  }
+  if (op !== '__novo') {
+    const m = lista[+op];
+    if (m.onde === 'banco') {
+      const cache = locais.find(x => x.nome === m.nome && x.em && x.em >= m.atualizado_em);
+      let b64 = cache?.b64;
+      if (!b64) { const r = await supabase.from(T.mod).select('b64').eq('id', m.id).single(); if (r.error) { toast('Não consegui baixar o modelo: ' + r.error.message, 'err'); return null; } b64 = r.data.b64; guardarModelo(m.nome, b64); }
+      return { nome: m.nome, ab: b64ParaAb(b64) };
+    }
+    guardarModelo(m.nome, m.b64); if (banco) guardarModeloBanco(m.nome, m.b64);   // o que estava só no navegador sobe para o banco
+    return { nome: m.nome, ab: b64ParaAb(m.b64) };
+  }
   const f = await escolherXlsx(); if (!f) return null;
-  const ab = await f.arrayBuffer(); guardarModelo(f.name, abParaB64(ab)); return { nome: f.name, ab };
+  const ab = await f.arrayBuffer(), b64 = abParaB64(ab); guardarModelo(f.name, b64);
+  if (banco) { if (await guardarModeloBanco(f.name, b64)) toast(`📄 Modelo "${f.name}" guardado para a filial`); }
+  return { nome: f.name, ab };
 }
 // Monta uma aba nova (XML puro, só valores) e liga no arquivo do modelo, sem tocar nas outras abas
 async function abaForecast(zip, wbDoc, rels, fc, estiloCab) {
