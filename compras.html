@@ -821,7 +821,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-18.2';
+const VERSAO = '2026-10-18.3';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores' };
 
 const $ = id => document.getElementById(id);
@@ -2491,6 +2491,12 @@ O consignado de ${BR.label} já tem ${jaTem} linha(s) de importações anteriore
         if (op === 'tudo') parcial = null;
       } else if (!confirm(`${NOMES[tipo]} de ${file.name}:\n${resumo}.\n\nIsso SUBSTITUI o ${ALVO[tipo]} atual de ${BR.label}. Importar?`)) continue;
       const tabela = { S013: T.est, C457: T.cons, C1060: T.cmo, C723: T.pen, C904: T.res, C1060C: T.cmoCli }[tipo], agora = new Date().toISOString();
+      // PDF filtrado por Grupo não traz o fabricante (e o filtrado por Fabricante não traz o grupo): mantém o que já se sabia do produto
+      { const antes = { S013: data.raw.est || data.est, C1060: data.raw.cmo || data.cmo, C723: data.raw.pen || data.pen, C457: data.cons }[tipo] || [], fabAnt = new Map(), grpAnt = new Map();
+        antes.forEach(r => { [r.codigo, r.codigo_alt].filter(Boolean).forEach(c => { const k = norm(c); if (r.fabricante) fabAnt.set(k, r.fabricante); if (r.grupo) grpAnt.set(k, r.grupo); }); });
+        rows.forEach(r => { const ks = [r.codigo_alt, r.codigo].filter(Boolean);
+          if (!r.fabricante) { const f = ks.map(c => fabAnt.get(norm(c)) || fabConhecido(c)).find(Boolean); if (f) r.fabricante = f; }
+          if (!r.grupo && !grupoPdf) { const g = ks.map(c => grpAnt.get(norm(c))).find(Boolean); if (g) r.grupo = g; } }); }
       $('imp-status').textContent = `⏳ Gravando ${rows.length} linha(s)…`;
       if (novaAnalise) { /* nada a apagar: começou do zero */ }
       else if (parcial) {
