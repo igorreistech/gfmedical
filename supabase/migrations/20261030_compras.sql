@@ -266,3 +266,25 @@ create policy compras_modelos_write on public.compras_modelos for all to authent
   using (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'))
   with check (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'));
 notify pgrst, 'reload schema';
+
+-- Estoque da outra filial (S013 dela importado aqui) para sugerir transferência em vez de compra
+create table if not exists public.compras_estoque_outra (
+  id uuid primary key default gen_random_uuid(), filial text not null, origem text, codigo text not null, descricao text,
+  estoque_disp numeric(14,4), ultimo_preco numeric(14,4), importado_em timestamptz not null default now());
+create index if not exists compras_estoque_outra_filial on public.compras_estoque_outra (filial);
+-- Consumo mensal de anos anteriores (C1060) para a sazonalidade
+create table if not exists public.compras_consumo_hist (
+  id uuid primary key default gen_random_uuid(), filial text not null, codigo text not null, descricao text,
+  meses jsonb not null default '[]', total numeric(14,4), media numeric(14,4), ano integer not null, importado_em timestamptz not null default now());
+create index if not exists compras_consumo_hist_filial on public.compras_consumo_hist (filial, ano);
+do $$ declare t text; begin
+  foreach t in array array['compras_estoque_outra', 'compras_consumo_hist'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists %I on public.%I', t || '_select', t);
+    execute format('drop policy if exists %I on public.%I', t || '_write', t);
+    execute format('create policy %I on public.%I for select to authenticated using (true)', t || '_select', t);
+    execute format('create policy %I on public.%I for all to authenticated using (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = ''visualizacao'')) with check (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = ''visualizacao''))', t || '_write', t);
+  end loop; end $$;
+alter table public.compras_config add column if not exists prazo_real boolean;
+alter table public.compras_config add column if not exists sazonal boolean;
+notify pgrst, 'reload schema';
