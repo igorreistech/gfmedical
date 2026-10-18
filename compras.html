@@ -299,11 +299,14 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 .par-presets{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .par-ex{border-radius:10px;padding:10px 12px;background:rgba(30,130,76,0.07);line-height:1.6;font-size:13px;margin-bottom:10px}
 .par-warn{border-radius:10px;padding:8px 12px;background:rgba(220,140,20,0.12);color:#8a5200;font-size:13px;margin-bottom:6px}
-.par-fabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:4px 18px;margin-top:8px}
-.par-fab{display:grid;grid-template-columns:minmax(0,1fr) 70px 70px 70px;gap:6px;align-items:center;font-size:12.5px}
+.par-fabs{display:flex;flex-direction:column;gap:4px;margin-top:8px;max-width:620px}
+.par-fab{display:grid;grid-template-columns:minmax(0,1fr) 84px 84px 84px;gap:8px;align-items:center;font-size:12.5px;padding:3px 0;border-bottom:1px dashed var(--border)}
+.par-fab:last-child{border-bottom:0}
+.par-fab-cab{border-bottom:1px solid var(--border)!important;padding-bottom:5px}
+.par-fab-cab span:not(:first-child){text-align:center}
 .par-fab>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .par-fab-cab{font-family:var(--mono);font-size:0.6rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)}
-.par-fabs input{width:70px}
+.par-fabs input{width:84px;text-align:center}
 .stats-auto{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .par-card>summary::-webkit-details-marker{display:none}
 .par-card>summary{list-style:none;flex-wrap:wrap}
@@ -346,6 +349,50 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
 .acao .t{font-family:var(--mono);font-size:0.6rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)}
 .acao .d{font-size:0.7rem;color:var(--text2);margin-top:2px}
 .acao.a1{border-top:3px solid #d97706}.acao.a2{border-top:3px solid #16a34a}.acao.a3{border-top:3px solid #dc2626}.acao.a0{border-top:3px solid #2563eb}
+.forn-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.forn-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text2)}
+.forn-grid .fl2{grid-column:1/-1}
+@media(max-width:700px){.forn-grid{grid-template-columns:1fr}}
+.graf{position:relative;min-height:190px}
+.graf svg{display:block;width:100%;height:190px;overflow:visible}
+.graf .bar{fill:var(--accent,#1a7a4a);opacity:.85}
+.graf .bar:hover{opacity:1}
+.graf .bar.atual{fill:#d97706}
+.graf .eixo{font-family:var(--mono);font-size:10px;fill:var(--text3)}
+.graf .grid{stroke:var(--border);stroke-width:1}
+.graf .orc{stroke:#dc2626;stroke-width:1.5;stroke-dasharray:5 4}
+.graf-tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-md);border-radius:8px;padding:6px 9px;font-size:12px;color:var(--text);white-space:nowrap;transform:translate(-50%,-110%);display:none;z-index:3}
+.sel{width:28px;text-align:center}
+.sel-bar{display:none;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 12px;margin-bottom:10px;border-radius:var(--radius);background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.3)}
+.sel-bar.on{display:flex}
+/* Programação — layout profissional */
+.tscroll-prog{max-height:calc(100vh - 190px);overflow:auto}
+#tb-prog{font-size:12.5px}
+#tb-prog td.num,#tb-prog th.num{font-variant-numeric:tabular-nums}
+#tb-prog thead th{position:sticky;top:0;z-index:2;background:var(--surface2);box-shadow:inset 0 -1px 0 var(--border);font-size:.6rem;letter-spacing:.05em}
+#tb-prog tbody tr:not(.grp):nth-child(even){background:color-mix(in srgb,var(--surface2) 45%,transparent)}
+#tb-prog tbody tr:not(.grp):hover{background:color-mix(in srgb,var(--accent2,#2563eb) 7%,transparent)}
+#tb-prog tbody tr.grp td{position:sticky;top:30px;z-index:1}
+#tb-prog.compacto td{padding:6px 10px;vertical-align:middle}
+#tb-prog.compacto tbody tr:not(.grp){cursor:pointer}
+#tb-prog.compacto .td-doc,#tb-prog.compacto td:not(.col-q) .mini{display:none}
+#tb-prog.compacto tr.aberta .td-doc{display:block}
+#tb-prog.compacto tr.aberta td:not(.col-q) .mini{display:inline-flex}
+#tb-prog.compacto tr.aberta{box-shadow:inset 0 0 0 1px var(--border)}
+#tb-prog.compacto .big{font-size:.84rem}
+#tb-prog.compacto td .badge{font-size:.58rem;padding:2px 7px;white-space:nowrap}
+#tb-prog.compacto td:first-child,#tb-prog.compacto td.sel{min-width:0}
+#tb-prog.compacto .prod{max-width:360px}
+#tb-prog.compacto .prod b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tb-prog.compacto tr.aberta .prod b{white-space:normal}
+#tb-prog.compacto .prod .cod{font-size:.62rem}
+#tb-prog.compacto td.num .finput{padding:3px 6px}
+#tb-prog .sel-warn{display:inline-block;width:7px;height:7px;border-radius:50%;background:#dc2626;margin-left:4px;vertical-align:middle}
+.cols-pop{right:0;position:absolute;z-index:20;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-md);border-radius:10px;padding:10px 12px;display:none;min-width:220px}
+.cols-pop.on{display:block}
+.cols-pop label{display:flex;gap:6px;align-items:center;font-size:12.5px;padding:3px 0;cursor:pointer}
+.fav{display:inline-flex;align-items:center;gap:4px}
+.fav a{color:var(--text3);text-decoration:none;font-size:11px}
 .lote{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--border);font-size:12.5px}
 .lote:last-child{border-bottom:0}
 .lote-tipo{font-weight:700;margin-top:10px}
@@ -433,14 +480,18 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       </div>
     </div>
     <div class="sidebar-inner">
-      <div class="slabel">Visualizações</div>
+      <div class="slabel">Planejamento</div>
       <a class="nav-item" data-view="painel" href="#"><span class="nav-icon">📊</span> Painel</a>
+      <a class="nav-item" data-view="indicadores" href="#"><span class="nav-icon">📈</span> Indicadores</a>
       <a class="nav-item" data-view="programacao" href="#"><span class="nav-icon">🛒</span> Programação de compra<span class="nbadge crit" id="nb-prog">0</span></a>
+      <a class="nav-item" data-view="reserva" href="#"><span class="nav-icon">🔒</span> Reserva de cliente<span class="nbadge" id="nb-res">0</span></a>
+      <div class="slabel">Compras</div>
+      <a class="nav-item" data-view="pedidos" href="#"><span class="nav-icon">📝</span> Pedidos de compra<span class="nbadge" id="nb-ped">0</span></a>
+      <a class="nav-item" data-view="fornecedores" href="#"><span class="nav-icon">🏭</span> Fornecedores<span class="nbadge" id="nb-forn">0</span></a>
+      <div class="slabel">Dados do Callisto</div>
       <a class="nav-item" data-view="estoque" href="#"><span class="nav-icon">📦</span> Estoque próprio<span class="nbadge" id="nb-est">0</span></a>
       <a class="nav-item" data-view="consignado" href="#"><span class="nav-icon">🏥</span> Consignado<span class="nbadge" id="nb-cons">0</span></a>
       <a class="nav-item" data-view="pendente" href="#"><span class="nav-icon">⏳</span> Pendente de faturamento<span class="nbadge" id="nb-pen">0</span></a>
-      <a class="nav-item" data-view="reserva" href="#"><span class="nav-icon">🔒</span> Reserva de cliente<span class="nbadge" id="nb-res">0</span></a>
-      <a class="nav-item" data-view="pedidos" href="#"><span class="nav-icon">📝</span> Pedidos de compra<span class="nbadge" id="nb-ped">0</span></a>
       <a class="nav-item" data-view="importar" href="#"><span class="nav-icon">📥</span> Importar do Callisto</a>
       <div class="sdiv"></div>
       <a class="nav-item" href="fretes.html"><span class="nav-icon">🚚</span> Controle de Fretes</a>
@@ -468,7 +519,10 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
     </div>
     <div class="vtabs" id="vtabs">
       <div class="vtab" data-view="painel">📊 Painel</div>
+      <div class="vtab" data-view="indicadores">📈 Indicadores</div>
       <div class="vtab" data-view="programacao">🛒 Programação</div>
+      <div class="vtab" data-view="pedidos">📝 Pedidos</div>
+      <div class="vtab" data-view="fornecedores">🏭 Fornecedores</div>
       <div class="vtab" data-view="estoque">📦 Estoque</div>
       <div class="vtab" data-view="consignado">🏥 Consignado</div>
       <div class="vtab" data-view="pendente">⏳ Pendente</div>
@@ -527,6 +581,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <button class="fchip" data-prog="caindo" title="Consumo dos últimos 3 meses 25% ou mais abaixo da média do ano">📉 Caindo</button>
             <button class="fchip" data-prog="parado" title="Têm estoque disponível e não venderam nos últimos 6 meses">💤 Parado</button>
           </div>
+          <div class="frow"><span class="flabel">Favoritos</span><span id="prog-favs"></span><button class="tbtn" onclick="salvarFavorito()" title="Guarda os filtros atuais com um nome (fica neste navegador)">⭐ Salvar filtros atuais</button></div>
           <div class="frow"><span class="flabel">Refinar</span>
             <select class="tsel" id="prog-grupo" title="Linha do produto (Grupo do Callisto)" onchange="filtroProg('grupo', this.value)"></select>
             <select class="tsel" id="prog-fab" title="Mostrar só os produtos deste fabricante/fornecedor" onchange="filtrarFabricante(this.value)"></select>
@@ -535,9 +590,12 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
             <select class="tsel" id="prog-ord" title="Ordem da lista" onchange="filtroProg('ord', this.value)"><option value="urgencia">Ordem: mais urgente</option><option value="valor">Ordem: maior valor de compra</option><option value="abc">Ordem: curva ABC</option></select>
           </div>
         </div></div>
+        <div class="sel-bar" id="sel-bar"></div>
         <div class="twrap">
-          <div class="thead-bar"><span class="thead-title">🛒 Programação de compra</span><span class="tcount" id="cnt-prog">0</span><span class="td-mono" style="margin-left:auto" id="prog-info"></span></div>
-          <div class="tscroll"><table id="tb-prog" class="tb-grande"></table></div>
+          <div class="thead-bar"><span class="thead-title">🛒 Programação de compra</span><span class="tcount" id="cnt-prog">0</span><span class="td-mono" style="margin-left:auto" id="prog-info"></span>
+            <button class="tbtn" id="prog-dens" onclick="alternarDensidade()" title="Compacto: uma linha por produto (clique na linha para ver os detalhes)"></button>
+            <span style="position:relative"><button class="tbtn" onclick="document.getElementById('cols-pop').classList.toggle('on')" title="Mostrar/ocultar colunas">⚙ Colunas</button><div class="cols-pop" id="cols-pop"></div></span></div>
+          <div class="tscroll tscroll-prog"><table id="tb-prog" class="tb-grande"></table></div>
         </div>
         <div class="prog-acoes">
           <span class="tot" id="prog-tot"></span>
@@ -553,8 +611,9 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
         <div class="stats-bar" id="ped-stats"></div>
         <div class="dcard" style="margin-bottom:14px"><div class="dcard-head">🔎 Filtros <small>pedido aprovado e ainda não recebido conta como "em pedido" na programação</small></div><div class="dcard-body"><div class="filters" style="margin-bottom:0">
           <button class="fchip on" data-ped="abertos">📂 Em aberto</button>
+          <button class="fchip" data-ped="rascunho">✏️ Rascunho</button>
           <button class="fchip" data-ped="aguardando">⏳ Aguardando aprovação</button>
-          <button class="fchip" data-ped="aprovado">✔ Aprovados (a caminho)</button>
+          <button class="fchip" data-ped="aprovado">🚚 Aprovados / enviados / em parte</button>
           <button class="fchip" data-ped="recebido">📦 Recebidos</button>
           <button class="fchip" data-ped="cancelado">✖ Cancelados</button>
           <button class="fchip" data-ped="">Histórico completo</button>
@@ -563,6 +622,27 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
           <div class="thead-bar"><span class="thead-title">📝 Pedidos de compra</span><span class="tcount" id="cnt-ped">0</span><span class="td-mono" style="margin-left:auto">clique no pedido para ver os itens</span></div>
           <div class="tscroll"><table id="tb-ped"></table></div>
         </div>
+      </section>
+
+      <section class="view" id="view-indicadores">
+        <div class="stats-bar stats-auto" id="ind-kpis"></div>
+        <div class="dash-grid">
+          <div class="dcard"><div class="dcard-head">📊 Consumo por mês <small id="ind-cons-sub">R$ a custo (C1060 × último preço)</small></div><div class="dcard-body"><div id="ind-graf-cons" class="graf"></div></div></div>
+          <div class="dcard"><div class="dcard-head">📝 Compras por mês <small>valor dos pedidos de compra (sem cancelados)</small></div><div class="dcard-body"><div id="ind-graf-comp" class="graf"></div>
+            <div class="td-mono" style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">Orçamento de compras por mês: <input class="finput" id="ind-orc" type="number" min="0" step="1000" style="width:130px"> <button class="tbtn" onclick="salvarOrcamento()">💾 Salvar</button></div></div></div>
+        </div>
+        <div class="twrap" style="margin-bottom:14px"><div class="thead-bar"><span class="thead-title">🧬 Por linha</span></div><div class="tscroll"><table id="ind-linha" class="tb-grande"></table></div></div>
+        <div class="twrap"><div class="thead-bar"><span class="thead-title">🏭 Por fornecedor</span></div><div class="tscroll"><table id="ind-forn" class="tb-grande"></table></div></div>
+      </section>
+
+      <section class="view" id="view-fornecedores">
+        <div class="stats-bar stats-auto" id="forn-stats"></div>
+        <div class="dcard" style="margin-bottom:14px"><div class="dcard-body"><div class="frow">
+          <span class="td-mono" style="white-space:normal;flex:1">Cadastro de cada fornecedor: contato, prazo, segurança, cobrir, <b>ciclo de compra</b> (ex.: a cada 90 dias) e <b>pedido mínimo</b>. A Programação usa esses números para o fornecedor; em branco = parâmetros gerais.</span>
+          <button class="tbtn" onclick="importarFabsForn()" title="Cria o cadastro dos fabricantes que aparecem na programação e ainda não estão aqui">⤵ Trazer fabricantes da programação</button>
+          <button class="tbtn tbtn-p" onclick="abrirForn()">➕ Novo fornecedor</button>
+        </div></div></div>
+        <div class="twrap"><div class="thead-bar"><span class="thead-title">🏭 Fornecedores</span><span class="tcount" id="cnt-forn">0</span></div><div class="tscroll"><table id="tb-forn" class="tb-grande"></table></div></div>
       </section>
 
       <section class="view" id="view-estoque">
@@ -676,6 +756,39 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
     <div class="mfoot"><button class="tbtn tbtn-p" onclick="confirmarOperador()">Confirmar</button></div>
   </div>
 </div>
+<div id="modal-forn" class="modal-ov">
+  <div class="modal" style="max-width:680px" role="dialog" aria-modal="true" aria-labelledby="forn-title">
+    <div class="mhead"><span class="mtitle" id="forn-title">🏭 Fornecedor</span><button class="mclose" onclick="document.getElementById('modal-forn').classList.remove('open')" aria-label="Fechar">✕</button></div>
+    <div class="mbody"><div class="forn-grid">
+      <label class="fl2">Nome (como vem no Callisto)<input class="finput" id="fo-nome"></label>
+      <label>Contato<input class="finput" id="fo-contato"></label>
+      <label>E-mail<input class="finput" id="fo-email" type="email"></label>
+      <label>Telefone / WhatsApp<input class="finput" id="fo-tel"></label>
+      <label>Linhas que atende<input class="finput" id="fo-linhas" placeholder="ex.: Coronária, Periférica"></label>
+      <label>🚚 Prazo de entrega (dias)<input class="finput" id="fo-prazo" type="number" min="0"></label>
+      <label>🛟 Segurança (dias)<input class="finput" id="fo-seg" type="number" min="0"></label>
+      <label>📦 Comprar para cobrir (dias)<input class="finput" id="fo-cob" type="number" min="1"></label>
+      <label>📅 Ciclo de compra (a cada N dias)<input class="finput" id="fo-ciclo" type="number" min="0" placeholder="ex.: 90"></label>
+      <label>💰 Pedido mínimo (R$)<input class="finput" id="fo-min" type="number" min="0" step="0.01"></label>
+      <label>🚛 Frete<input class="finput" id="fo-frete" placeholder="CIF / FOB / acima de R$ X"></label>
+      <label class="fl2">Observações<input class="finput" id="fo-obs"></label>
+    </div><div class="td-mono" id="fo-dica" style="white-space:normal;margin-top:8px;opacity:.8"></div></div>
+    <div class="mfoot"><button class="tbtn tbtn-p" onclick="salvarForn()">💾 Salvar</button></div>
+  </div>
+</div>
+<div id="modal-receb" class="modal-ov">
+  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="rc-title">
+    <div class="mhead"><span class="mtitle" id="rc-title">📦 Receber pedido</span><button class="mclose" onclick="document.getElementById('modal-receb').classList.remove('open')" aria-label="Fechar">✕</button></div>
+    <div class="mbody">
+      <div class="frow" style="margin-bottom:10px"><label class="td-mono">NF de entrada <input class="finput" id="rc-nf" style="width:120px"></label>
+        <label class="td-mono">Data <input class="finput" id="rc-data" type="date" style="width:150px"></label>
+        <label class="tbtn" title="Lê a DANFE (PDF) da NF de entrada e preenche as quantidades pelo código">📄 Ler DANFE da NF<input type="file" id="rc-pdf" accept="application/pdf,.pdf" hidden></label>
+        <span class="td-mono" id="rc-info"></span></div>
+      <div class="tscroll"><table id="rc-tb"></table></div>
+    </div>
+    <div class="mfoot"><button class="tbtn" onclick="recebTudo()">✔ Receber tudo o que falta</button><button class="tbtn tbtn-p" onclick="salvarReceb()">💾 Registrar recebimento</button></div>
+  </div>
+</div>
 <div id="modal-escolha" class="modal-ov">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="esc-title" style="max-width:560px">
     <div class="mhead"><span class="mtitle" id="esc-title"></span></div>
@@ -708,8 +821,8 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.25';
-const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
+const VERSAO = '2026-10-18.1';
+const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores' };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -791,7 +904,7 @@ auth.onAuthStateChange((_e, session) => {
 });
 
 // ───────── Dados ─────────
-const data = { est: [], cons: [], imp: [], cmo: [], pen: [], ped: [], res: [], resOk: false, cmoCli: [], cmoCliOk: false, pedOk: false, raw: {}, reut: { est: 0, cmo: 0, pen: 0, res: 0, cmoCli: 0 } };
+const data = { est: [], cons: [], imp: [], cmo: [], pen: [], ped: [], forn: [], fornOk: false, res: [], resOk: false, cmoCli: [], cmoCliOk: false, pedOk: false, raw: {}, reut: { est: 0, cmo: 0, pen: 0, res: 0, cmoCli: 0 } };
 // Merit · Coronária: quantidade por caixa — a compra sai em caixa fechada (arredonda para cima). No Callisto o código vem sem o "/BR".
 const CAIXAS_MERIT = {"RR811": 10, "RT913": 1, "RBX": 1, "AD18T71W": 25, "AD18T71WS": 25, "AD21T41W": 25, "PSI-4F-7-018": 5, "PSI-4F-11-018": 5, "PSI-5F-7-018": 5, "PSI-6F-7-018": 5, "PSI-5F-23-035": 5, "PSI-4F-11-035": 5, "PSI-5F-11-035": 5, "PSI-6F-11-035": 5, "PSI-6F-23-035": 5, "PSI-7F-23-035": 5, "PSI-7F-11-035": 5, "PSI-8F-11-035": 5, "7529-11/BR": 10, "7509-11/BR": 10, "7531-13/BR": 5, "7521-13/BR": 5, "7501-13/BR": 5, "7521-21/BR": 10, "7523-13/BR": 5, "7503-13/BR": 5, "7523-21/BR": 10, "7533-13/BR": 5, "7533-23/BR": 5, "7710-20": 5, "5576-33": 5, "7527-13": 5, "7507-13": 5, "7527-23": 5, "7507-23": 5, "7527-33": 5, "7507-33": 5, "7703-20": 5, "7528-13": 5, "7528-23": 5, "7508-23": 5, "7528-33": 5, "7508-33": 5, "7706-10": 5, "7511-13": 5, "7700-10": 5, "7700-20": 5, "7501-21": 10, "7521-F1": 10, "7501-H1": 10, "7521-33": 5, "7501-33": 5, "7521-43": 5, "7501-43": 5, "7701-10": 5, "7523-53": 5, "7701-20": 5, "7523-63": 5, "7503-21": 10, "7503-33": 5, "7523-33": 5, "7534-13": 5, "7708-10": 5, "7513-B3": 5, "7513-C3": 5, "7708-20": 5, "7513-23": 5, "7513-53": 5, "7533-33": 5, "7529-23": 5, "7529-33": 5, "7704-10": 5, "7704-70": 5, "7529-43": 5, "7776-11": 10, "510038ULT1": 5, "5100381ULT1": 5, "5100381ULT2": 5, "6100381ULT1": 5, "5592-13": 5, "5575-13": 5, "5594-13": 5, "5576-13": 5, "7717-20": 5, "7717-B0": 5, "5592-A3": 5, "7718-10": 5, "5592-B3": 5, "5584-D3": 5, "5584-A3": 5, "5584-B3": 5, "5584-53": 10, "5584-E3": 5, "5584-63": 5, "5584-43": 5, "5575-A3": 5, "5582-43": 5, "7602-41": 10, "5587-13": 5, "5576-A3": 5, "5576-23": 5, "7720-20": 5, "5576-B3": 5, "5576-C3": 5, "7673-21": 10, "5583-A3": 5, "5583-13": 5, "5585-B3": 5, "7602-20M": 1, "5587-A3": 5, "5584-13": 5, "EZ-REG": 5, "TD500": 10, "HPF480K": 25, "HPF300K": 25, "MSWSTDA35150": 5, "MSWSTDA35180": 5, "MSWSTDA35260EX": 5, "MSWSTFA35180": 5, "MSWSTFA35260EX": 5, "6680-23": 5, "IQ35F180J3": 10, "6682-21": 10, "IQ35F150J3": 10, "IQ35F150S": 10, "IQ35F260S": 10, "IQ38F150S": 10, "IQ35F260J3": 10, "IN7130": 5, "PSI-5F-11-035-18G/BR": 5, "PSI-6F-11-035-18G/BR": 5, "PSI-7F-11-035-18G/BR": 5, "PSI-8F-11-035-18G/BR": 5, "PSI-5F-11-018/BR": 5, "PSI-6F-11-018/BR": 5, "IN4530": 10, "IN4130": 10, "EN2006020": 1, "EN2007045": 1, "EN2006010": 1, "EN2006015": 1, "EN1003004": 1, "EN1003008": 1, "203HN-R": 25, "503HF-R": 25, "503HN-R": 25, "MSS111-LB": 25, "MSS121-LB": 25, "H1FLC": 50, "H3FLC": 50, "RB050": 1, "MAP351": 25, "MAP152": 25, "MAP222": 25};
 // Merit · segunda tabela (lote mínimo e múltiplo = caixa)
@@ -800,7 +913,19 @@ const CX_CORONARIA = new Set(Object.keys(CAIXAS_MERIT).map(c => String(c).toUppe
 Object.assign(CAIXAS_MERIT, {"S120GH": 5, "S220GH": 5, "S420GH": 5, "S620GH": 5, "S820GH": 5, "S1020GH": 5, "V100EP": 5, "V200EP": 5, "V300EP": 5, "V400EP": 5, "V600EP": 5, "V800EP": 5, "V125HS": 1, "V225HS": 1, "V325HS": 1, "TF14180S": 1, "TF14180A": 1, "28MC21150SN": 1, "28MC21150ST": 1, "29MC29130ST": 1, "29MC29150ST": 1, "28MC28150ST": 1, "28MC24130SN": 1, "28MC24150SN": 1, "28MC28150SN": 1, "29MC29150SN": 1, "28HC17150SNNS": 1, "28HC17150STNS": 1, "29HC20150SNNS": 1, "29HC20150STNS": 1, "26SN24125ST": 1, "26SN24150ST": 1, "ASAP100": 1, "ASAPLP": 1, "57538CARN10": 5, "57538CARN15": 5, "59038UAC": 5, "412535VER": 5, "510038SIM1": 5, "510038VER": 5, "512535VER": 5, "510038CB2": 5, "512538MPA1": 5, "PV412538MP1": 5, "PV412538U1": 5, "PV512538BERN": 5, "PV512538MP1": 5, "MAK-NV-001": 10, "MAK-NV-013": 10, "MAK-NV-017": 10, "PAKM4NPD7": 5, "RLCMB-NV-10": 1, "RLCMB-NV-12": 1, "RLCMB-NV-14": 1, "RBDC-8-038": 5, "RBDC-10-038": 5, "RBDC-12-038": 5, "RBDC-14-038": 5, "RLC-8-038MB": 5, "RLC-10-038MB": 5, "RLC-12-038MB": 5, "RLC-14-038MB": 5, "RML17-7-038MB": 5, "RML27-10-038MB": 5, "RML27-12-038MB": 5, "RML27-14-038MB": 5, "RML27-8-038MB": 5, "680ME": 25, "FZ624": 20, "OSC-5F-15LT": 5, "IS4-135-10": 5, "IS4-135-20": 5, "IS4-135-30": 5, "IS4-135-40": 5, "IS4-135-50": 5, "IS5-135-10": 5, "IS5-135-20": 5, "IS5-135-30": 5, "IS5-135-40": 5, "IS5-135-50": 5, "SC14150": 5, "SC18150": 5, "SC35150": 5, "SC35135": 5, "ONE1000": 1, "ONE1500": 1, "ONE2000": 1, "ONE2500": 1, "ONE3000": 1, "IQA502": 5, "IQA509": 5, "IQA526": 5, "MSWSTDA18260EX": 5, "MSWSTDS18260EX": 5, "EZ-REG": 5, "65-018-E4S-X": 5, "85-018-E140S-X": 5, "PG5F45S": 1, "PG5F45MP": 1, "PG5F45R": 1, "PG6F45S": 1, "PG6F45HS": 1, "PG6F45MP": 1, "PG6F45R": 1, "PG6F65S": 1, "PG6F65MP": 1, "PG6F65SX": 1, "PG6F90MP": 1, "PG6F90SX": 1, "PG6F90MPX": 1, "PG7F45S": 1, "PG7F45MP": 1, "PG7F45SX": 1, "PG7F45MPX": 1, "PG7F45RX": 1, "PG7F65SX": 1, "PG7F90SX": 1, "PG8F45S": 1, "PG8F45SX": 1, "PG8F45MPX": 1, "PG8F65SX": 1, "PG8F90SX": 1, "HST-085-00": 1, "HST-085-10": 1});
 const chaveCx = c => norm(c).replace(/\/BR$/, '');
 const CAIXAS = new Map(Object.entries(CAIXAS_MERIT).map(([k, v]) => [chaveCx(k), v]));
-const caixaDe = cod => CAIXAS.get(chaveCx(cod || '')) || 1;
+// múltiplo (caixa fechada): o que você definiu para o produto > tabela de caixas da Merit > 1
+const caixaDe = cod => { const m = num(cfg.multiplos?.[chaveCx(cod || '')]); return m > 1 ? m : m === 1 ? 1 : CAIXAS.get(chaveCx(cod || '')) || 1; };
+window.definirMultiplo = async cod => {
+  if (_readOnly) { toast('Seu usuário é só de visualização.', 'err'); return; }
+  const atual = caixaDe(cod), v = prompt(`Múltiplo (caixa fechada) de ${cod}:\nseparar, passar do Disp. e comprar sempre em múltiplos deste número.\n\n1 = unidade avulsa · vazio = voltar ao padrão${CAIXAS.has(chaveCx(cod)) ? ' (tabela Merit: ' + CAIXAS.get(chaveCx(cod)) + ')' : ''}`, atual);
+  if (v === null) return;
+  const m = { ...(cfg.multiplos || {}) }, n = Math.round(num(v));
+  if (String(v).trim() === '' || n < 1) delete m[chaveCx(cod)]; else m[chaveCx(cod)] = n;
+  cfg.multiplos = m; render();
+  const { error } = await supabase.from(T.cfg).upsert({ filial: FILIAL, multiplos: m, atualizado_em: new Date().toISOString() });
+  toast(error ? (/multiplos/i.test(error.message || '') ? 'Aplicado na tela; rode o SQL de atualização para guardar o múltiplo.' : 'Não salvou: ' + error.message) : `✔ ${cod}: múltiplo ${m[chaveCx(cod)] || 'padrão'}`, error ? 'info' : 'ok');
+};
+const linkMult = (cod, cx) => `<a href="#" class="mini" title="Definir o múltiplo (caixa fechada) deste produto" onclick="definirMultiplo(${JSON.stringify(cod).replace(/"/g, '&quot;')});return false">📦 ${cx > 1 ? 'cx ' + cx : 'múltiplo?'} ✎</a>`;
 // Fabricante de reserva: código que está na tabela de caixas da Merit é Merit, mesmo fora do S013/PDF filtrado.
 // Usa o mesmo nome que já veio nos PDFs filtrados (ex.: "MERIT MEDICAL"), para o filtro juntar tudo.
 const nomeMerit = () => { const todos = [...(data.raw.est || data.est), ...(data.raw.cmo || data.cmo), ...(data.raw.pen || data.pen), ...data.cons].map(r => r.fabricante).filter(f => f && /MERIT/i.test(f));
@@ -809,11 +934,20 @@ const fabPorTabela = cod => CAIXAS.has(chaveCx(cod || '')) ? nomeMerit() : '';
 // Grupo/linha do produto: vem dos PDFs filtrados por "Grupo:" (C1060, S013, C723…); sem isso, a tabela de caixas da Merit
 const grupoPorTabela = cod => { const k = chaveCx(cod || ''); return !CAIXAS.has(k) ? '' : CX_CORONARIA.has(k) ? 'CORONARIA' : 'PERIFERICA'; };
 const NOME_GRUPO = g => { const n = norm(g); return !n ? 'Sem grupo' : 'Linha ' + ({ CORONARIA: 'Coronária', PERIFERICA: 'Periférica', VASCULAR: 'Vascular' }[n] || n.charAt(0) + n.slice(1).toLowerCase()); };
-const fabDe = r => (r.fabricante && String(r.fabricante).trim()) || fabPorTabela(r.codigo_alt || r.codigo);
+let _fabCache = null, _fabChave = [];
+const fabConhecido = cod => {
+  const ch = [data.raw.est, data.raw.cmo, data.raw.pen, data.est, data.cmo, data.pen, data.cons];
+  if (!_fabCache || ch.some((x, n) => x !== _fabChave[n])) { _fabCache = new Map(); _fabChave = ch;
+    // ordem: consignado < pendente < consumo < estoque (o último a gravar vence)
+    [data.cons, data.raw.pen || data.pen, data.raw.cmo || data.cmo, data.raw.est || data.est].forEach(l => (l || []).forEach(r => { const f = r.fabricante && String(r.fabricante).trim();
+      if (f) [r.codigo, r.codigo_alt].filter(Boolean).forEach(c => _fabCache.set(norm(c), f)); })); }
+  return _fabCache.get(norm(cod || '')) || '';
+};
+const fabDe = r => (r.fabricante && String(r.fabricante).trim()) || fabConhecido(r.codigo_alt) || fabConhecido(r.codigo) || fabPorTabela(r.codigo_alt || r.codigo);
 const emCaixas = (q, cx) => cx > 1 ? Math.ceil(q / cx) * cx : q;
 // Código terminando em "-0" = produto reutilizável: fica fora da contagem (estoque, consumo, pendente e programação)
 const reutilizavel = r => /-0$/.test(String(r.codigo_alt || r.codigo || '').trim());
-let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60, prazos_fabricante: {}, base_consumo: 'ano', reserva_dias: 30 };
+let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60, prazos_fabricante: {}, base_consumo: 'ano', reserva_dias: 30, orcamento_mensal: null, multiplos: {} };
 let _bancoOk = true;
 async function selectTudo(tabela) {
   const out = [];
@@ -830,6 +964,7 @@ async function carregarTudo() {
     [data.est, data.cons, data.imp, data.cmo] = await Promise.all([selectTudo(T.est), selectTudo(T.cons), selectTudo(T.imp), selectTudo(T.cmo)]);
     try { data.pen = await selectTudo(T.pen); } catch (e) { data.pen = []; console.warn('[Compras] pendente:', e.message); }
     try { data.ped = await selectTudo(T.ped); data.pedOk = true; } catch (e) { data.ped = []; data.pedOk = false; console.warn('[Compras] pedidos:', e.message); }
+    try { data.forn = await selectTudo(T.forn); data.fornOk = true; } catch (e) { data.forn = []; data.fornOk = false; console.warn('[Compras] fornecedores:', e.message); }
     try { data.res = await selectTudo(T.res); data.resOk = true; } catch (e) { data.res = []; data.resOk = false; console.warn('[Compras] reserva:', e.message); }
     try { data.cmoCli = await selectTudo(T.cmoCli); data.cmoCliOk = true; } catch (e) { data.cmoCli = []; data.cmoCliOk = false; console.warn('[Compras] consumo do cliente:', e.message); }
     ['est', 'cmo', 'pen', 'res', 'cmoCli'].forEach(k => { data.raw[k] = data[k]; data[k] = data.raw[k].filter(r => !reutilizavel(r)); data.reut[k] = data.raw[k].length - data[k].length; });
@@ -847,7 +982,10 @@ async function carregarTudo() {
 }
 // Prazo de entrega do produto: o do fabricante (se cadastrado) ou o geral
 // prazos_fabricante: { "JOTEC BRASIL": 30 } (antigo, só prazo) ou { "JOTEC BRASIL": { prazo: 30, seg: 20, cob: 110 } }
-const paramFab = fab => { const v = fab ? cfg.prazos_fabricante?.[norm(fab)] : null; return v == null || v === '' ? {} : typeof v === 'object' ? v : { prazo: num(v) }; };
+const fornDe = fab => fab ? data.forn.find(f => norm(f.nome) === norm(fab)) : null;
+const paramFab = fab => { const v = fab ? cfg.prazos_fabricante?.[norm(fab)] : null, base = v == null || v === '' ? {} : typeof v === 'object' ? { ...v } : { prazo: num(v) };
+  const f = fornDe(fab); if (f) { if (f.prazo_dias != null) base.prazo = f.prazo_dias; if (f.seguranca_dias != null) base.seg = f.seguranca_dias; if (f.cobertura_dias != null) base.cob = f.cobertura_dias; }
+  return base; };
 const temValor = v => v != null && v !== '';
 const prazoDe = fab => { const v = paramFab(fab).prazo; return temValor(v) ? num(v) : cfg.prazo_dias; };
 const segDe = fab => { const v = paramFab(fab).seg; return temValor(v) ? num(v) : cfg.seguranca_dias; };
@@ -939,7 +1077,7 @@ function programacao() {
     const m3 = mesesN(3), media3 = m3.length ? somaMeses(m3) / m3.length : mediaAno, venda6 = somaMeses(mesesN(6));
     const tendencia = mediaAno > 0 ? media3 / mediaAno : (media3 > 0 ? 2 : 1);
     const media = cfg.base_consumo === '3m' ? media3 : cfg.base_consumo === 'maior' ? Math.max(media3, mediaAno) : mediaAno, dia = media / 30;
-    const fab = e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || fabPorTabela(e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || k) || '', prazo = prazoDe(fab), seg = segDe(fab), cob = cobDe(fab);
+    const fab = e?.fabricante || c?.fabricante || pd?.linhas[0]?.fabricante || fabConsignado.get(k) || fabConhecido(e?.codigo || c?.codigo || k) || fabPorTabela(e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || k) || '', prazo = prazoDe(fab), seg = segDe(fab), cob = cobDe(fab);
     // o que já foi pedido (aguardando aprovação ou aprovado e não recebido) conta como estoque a caminho
     // Reserva de cliente (C904): o Disp. já desconta o que está separado; o que falta separar sai do disponível
     const rs = rm.get(k), reserva = rs?.saldo || 0, separado = Math.min(reserva, Math.max(0, num(e?.estoque) - disp)), faltaSeparar = Math.max(0, reserva - separado);
@@ -1013,8 +1151,8 @@ function consPorProduto(soSaldo = true) {
 const consMap = () => new Map(consPorProduto(true).map(g => [norm(g.codigo_alt), g]));
 
 // ───────── Navegação ─────────
-const ui = { grupo: '', view: 'painel', busca: '', est: '', cons: 'saldo', cliente: '', abertos: new Set(), prog: new Set(['comprar']), fab: '', abc: '', valor: 0, ord: 'urgencia', ped: 'abertos', pedAbertos: new Set(), res: '', resCli: '' };
-const TITULOS = { painel: 'Painel — Programação de Compras', programacao: 'Programação de compra', pendente: 'Pendente de faturamento', estoque: 'Estoque próprio', consignado: 'Consignado', importar: 'Importar do Callisto', pedidos: 'Pedidos de compra', reserva: 'Reserva de cliente (C904)' };
+const ui = { sel: new Set(), abertosProg: new Set(), grupo: '', view: 'painel', busca: '', est: '', cons: 'saldo', cliente: '', abertos: new Set(), prog: new Set(['comprar']), fab: '', abc: '', valor: 0, ord: 'urgencia', ped: 'abertos', pedAbertos: new Set(), res: '', resCli: '' };
+const TITULOS = { painel: 'Painel — Programação de Compras', programacao: 'Programação de compra', pendente: 'Pendente de faturamento', estoque: 'Estoque próprio', consignado: 'Consignado', importar: 'Importar do Callisto', pedidos: 'Pedidos de compra', indicadores: 'Indicadores de compras e estoque', fornecedores: 'Fornecedores', reserva: 'Reserva de cliente (C904)' };
 window.goView = v => {
   ui.view = v;
   document.querySelectorAll('.nav-item[data-view], .vtab').forEach(a => a.classList.toggle('active', a.dataset.view === v));
@@ -1050,7 +1188,8 @@ function render() {
   $('nb-pen').textContent = new Set(data.pen.map(r => r.pedido)).size;
   $('nb-ped').textContent = data.ped.filter(p => p.status === 'aguardando').length;
   $('nb-res').textContent = new Set(data.res.map(r => norm(r.codigo))).size;
-  ({ reserva: renderReserva, pedidos: renderPedidos, painel: renderPainel, programacao: renderProgramacao, pendente: renderPendente, estoque: renderEstoque, consignado: renderConsignado, importar: renderImportar })[ui.view]();
+  $('nb-forn').textContent = data.forn.length;
+  ({ indicadores: renderIndicadores, fornecedores: renderFornecedores, reserva: renderReserva, pedidos: renderPedidos, painel: renderPainel, programacao: renderProgramacao, pendente: renderPendente, estoque: renderEstoque, consignado: renderConsignado, importar: renderImportar })[ui.view]();
 }
 let _qtdEditada = {};
 const SIT = { comprar: ['b-crit', '🛒 Comprar agora'], atencao: ['b-warn', '⚠ Atenção'], ok: ['b-ok', '✔ OK'], semconsumo: ['b-mute', 'Sem consumo'], fora: ['b-info', 'Fora do S013'] };
@@ -1070,9 +1209,51 @@ function listaProgramacao() {
     .sort(ORDEM[ui.ord] || ((a, b) => (a.cobertura ?? 1e9) - (b.cobertura ?? 1e9) || b.media - a.media));
 }
 const qtdComprar = r => _qtdEditada[norm(r.codigo)] ?? r.sugerido;
+// ───── seleção em lote ─────
+window.selItem = (k, on) => { on ? ui.sel.add(k) : ui.sel.delete(k); barraSelecao(); };
+window.selTodos = on => { listaProgramacao().forEach(r => on ? ui.sel.add(norm(r.codigo)) : ui.sel.delete(norm(r.codigo))); render(); };
+function barraSelecao() {
+  const el = $('sel-bar'); if (!el) return; const n = ui.sel.size;
+  el.classList.toggle('on', n > 0);
+  if (!n) return;
+  const sel = listaProgramacao().filter(r => ui.sel.has(norm(r.codigo))), q = sel.reduce((a, r) => a + qtdComprar(r), 0), v = sel.reduce((a, r) => a + qtdComprar(r) * r.preco, 0);
+  el.innerHTML = `<b>${n}</b> selecionado(s) · ${qtd(q)} un · ${brl(v)} <span class="fdiv"></span>
+    <button class="tbtn" onclick="loteAcao('zerar')">0 Zerar</button><button class="tbtn" onclick="loteAcao('sugestao')">↺ Voltar à sugestão</button><button class="tbtn" onclick="loteAcao('caixa')">📦 Arredondar p/ caixa</button>
+    <button class="tbtn tbtn-p" onclick="gerarPedido(true)">📝 Gerar pedido só destes</button><button class="tbtn" onclick="ui.sel.clear();render()">Limpar seleção</button>`;
+}
+window.loteAcao = acao => {
+  programacao().filter(r => ui.sel.has(norm(r.codigo))).forEach(r => { const k = norm(r.codigo);
+    if (acao === 'zerar') _qtdEditada[k] = 0; else if (acao === 'sugestao') delete _qtdEditada[k]; else if (acao === 'caixa') _qtdEditada[k] = emCaixas(qtdComprar(r), r.caixa || 1); });
+  render();
+};
+// ───── colunas configuráveis (ficam neste navegador) ─────
+const COLS_OPC = { fat: 'Faturado/mês', pend: 'Pendente', res: 'Reservado / Falta reservar', cob: 'Cobertura', saldo: 'Saldo após', valor: 'Valor' };
+const colsOcultas = () => { try { return new Set(JSON.parse(localStorage.getItem('gf_prog_cols') || '[]')); } catch (e) { return new Set(); } };
+window.alternarColuna = (c, on) => { const o = colsOcultas(); on ? o.delete(c) : o.add(c); try { localStorage.setItem('gf_prog_cols', JSON.stringify([...o])); } catch (e) {} aplicarColunas(); };
+function aplicarColunas() {
+  const o = colsOcultas(), tb = $('tb-prog'); if (!tb || !tb.tHead) return;
+  $('cols-pop').innerHTML = '<div class="td-mono" style="margin-bottom:4px">Colunas visíveis</div>' + Object.entries(COLS_OPC).map(([c, n]) => `<label><input type="checkbox" ${o.has(c) ? '' : 'checked'} onchange="alternarColuna('${c}', this.checked)"> ${n}</label>`).join('');
+  const ths = [...tb.tHead.rows[0].cells], idx = ths.map((th, n) => o.has(th.dataset.col) ? n : -1).filter(n => n >= 0);
+  [...tb.querySelectorAll('thead tr, tbody tr:not(.grp)')].forEach(tr => [...tr.cells].forEach((td, n) => { td.style.display = idx.includes(n) ? 'none' : ''; }));
+  const vis = ths.length - idx.length, antes = ths.findIndex(th => th.textContent.trim() === 'Comprar'), escAntes = idx.filter(n => n < antes).length;
+  tb.querySelectorAll('tbody tr.grp td').forEach(td => { td.colSpan = vis; });
+  const tf = tb.tFoot?.rows[0]; if (tf) { tf.cells[0].colSpan = antes - escAntes; const iSaldo = ths.findIndex(th => th.dataset.col === 'saldo'), iValor = ths.findIndex(th => th.dataset.col === 'valor');
+    if (tf.cells[2]) tf.cells[2].style.display = idx.includes(iSaldo) ? 'none' : ''; if (tf.cells[3]) tf.cells[3].style.display = idx.includes(iValor) ? 'none' : ''; }
+}
+// ───── filtros favoritos ─────
+const favs = () => { try { return JSON.parse(localStorage.getItem('gf_prog_favs') || '[]'); } catch (e) { return []; } };
+function renderFavoritos() { const el = $('prog-favs'); if (!el) return; const l = favs();
+  el.innerHTML = l.length ? l.map((f, n) => `<span class="fav"><button class="fchip" onclick="aplicarFavorito(${n})">⭐ ${esc(f.nome)}</button><a href="#" title="Apagar" onclick="apagarFavorito(${n});return false">✕</a></span>`).join(' ') : '<span class="td-doc">nenhum ainda</span>'; }
+window.salvarFavorito = () => { const nome = prompt('Nome para estes filtros (ex.: Merit coronária — comprar agora):'); if (!nome) return;
+  const l = favs(); l.push({ nome, prog: [...ui.prog], grupo: ui.grupo, fab: ui.fab, abc: ui.abc, valor: ui.valor, ord: ui.ord, busca: ui.busca });
+  try { localStorage.setItem('gf_prog_favs', JSON.stringify(l.slice(-12))); } catch (e) {} renderFavoritos(); toast('⭐ Filtros salvos'); };
+window.aplicarFavorito = n => { const f = favs()[n]; if (!f) return; ui.prog = new Set(f.prog || []); Object.assign(ui, { grupo: f.grupo || '', fab: f.fab || '', abc: f.abc || '', valor: f.valor || 0, ord: f.ord || 'urgencia', busca: f.busca || '' });
+  $('f-busca').value = ui.busca; $('prog-abc').value = ui.abc; $('prog-valor').value = String(ui.valor || 0); $('prog-ord').value = ui.ord;
+  document.querySelectorAll('[data-prog]').forEach(x => x.classList.toggle('on', x.dataset.prog ? ui.prog.has(x.dataset.prog) : !ui.prog.size)); render(); };
+window.apagarFavorito = n => { const l = favs(); l.splice(n, 1); try { localStorage.setItem('gf_prog_favs', JSON.stringify(l)); } catch (e) {} renderFavoritos(); };
 const saldoApos = r => num(r.disp) + num(r.emPedido) - num(r.faltaSeparar) + qtdComprar(r); // saldo livre depois da compra: Disp. + já pedido − reserva a separar + compra
 function renderProgramacao() {
-  resumoParametros();
+  resumoParametros(); renderFavoritos();
   const fabs = fabricantesConhecidos();
   if (ui.fab && !fabs.some(f => norm(f) === norm(ui.fab))) fabs.unshift(ui.fab);
   $('prog-fab').innerHTML = `<option value="">🏭 Todos os fabricantes</option>` + fabs.map(f => `<option value="${esc(f)}" ${norm(f) === norm(ui.fab) ? 'selected' : ''}>🏭 ${esc(f)}</option>`).join('');
@@ -1106,16 +1287,16 @@ function renderProgramacao() {
   // separa a lista por linha (Coronária, Periférica, Vascular…) mantendo a ordem escolhida dentro de cada uma
   const grupos = [...new Set(lista.map(r => r.grupo || ''))], separar = !ui.grupo && grupos.length > 1;
   if (separar) { const pos = g => g ? grupos.filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR')).indexOf(g) : 999; lista.sort((a, b) => pos(a.grupo || '') - pos(b.grupo || '')); }
-  const nCols = 10 + (temRes ? 2 : 0);
+  const nCols = 11 + (temRes ? 2 : 0);
   const cabGrupo = (r, i) => { if (!separar || (i && (lista[i - 1].grupo || '') === (r.grupo || ''))) return '';
     const g = lista.filter(x => (x.grupo || '') === (r.grupo || '')), qg = g.reduce((a, x) => a + qtdComprar(x), 0), vg = g.reduce((a, x) => a + qtdComprar(x) * x.preco, 0);
     return `<tr class="grp"><td colspan="${nCols}" style="background:var(--surface2);font-weight:700;color:var(--text);padding:9px 12px">🧬 ${esc(NOME_GRUPO(r.grupo))} <span class="td-doc" style="font-weight:400">· ${g.length} produto(s) · comprar ${qtd(qg)} un · ${brl(vg)}</span></td></tr>`; };
-  $('tb-prog').innerHTML = `<thead><tr><th>Situação</th><th>Produto</th><th class="num" title="Estoque Disp. (S013) + o que já foi pedido; consignação">Estoque</th>${temRes ? '<th class="num" title="Reserva do cliente no C904 · já separado · falta separar">🔒 Reservado</th><th class="num" title="Reserva ideal (consumo do cliente × dias de cobertura) − reservado · de onde vem: Estoque Disp. ou compra">🔒 Falta reservar</th>' : ''}<th class="num" title="Média mensal faturada no C1060">Faturado/mês</th><th class="num" title="Pendente de faturamento (C723) do ano — entra no consumo no mês da cirurgia">Pendente</th><th class="num" title="Consumo médio mensal = (faturado + pendente do ano) ÷ meses">Consumo/mês</th><th class="num" title="Quantos dias o estoque dura · ponto de pedido">Cobertura</th><th class="num">Comprar</th><th class="num" title="Estoque Disp. + já pedido − reserva a separar + compra">Saldo após</th><th class="num">Valor</th></tr></thead><tbody>
+  $('tb-prog').innerHTML = `<thead><tr><th class="sel"><input type="checkbox" title="Selecionar todos da lista" onchange="selTodos(this.checked)" ${lista.length && lista.every(r => ui.sel.has(norm(r.codigo))) ? 'checked' : ''}></th><th>Situação</th><th>Produto</th><th class="num" title="Estoque Disp. (S013) + o que já foi pedido; consignação">Estoque</th>${temRes ? '<th class="num" data-col="res" title="Reserva do cliente no C904 · já separado · falta separar">🔒 Reservado</th><th class="num" data-col="res" title="Reserva ideal (consumo do cliente × dias de cobertura) − reservado · de onde vem: Estoque Disp. ou compra">🔒 Falta reservar</th>' : ''}<th class="num" data-col="fat" title="Média mensal faturada no C1060">Faturado/mês</th><th class="num" data-col="pend" title="Pendente de faturamento (C723) do ano — entra no consumo no mês da cirurgia">Pendente</th><th class="num" title="Consumo médio mensal = (faturado + pendente do ano) ÷ meses">Consumo/mês</th><th class="num" data-col="cob" title="Quantos dias o estoque dura · ponto de pedido">Cobertura</th><th class="num">Comprar</th><th class="num" data-col="saldo" title="Estoque Disp. + já pedido − reserva a separar + compra">Saldo após</th><th class="num" data-col="valor">Valor</th></tr></thead><tbody>
     ${lista.map((r, iL) => { const k = norm(r.codigo), q = qtdComprar(r);
       const meses = r.meses.map((x, i) => num(x) ? mesesNome[i] + ':' + qtd(x) : '').filter(Boolean).join(' ');
-      return cabGrupo(r, iL) + `<tr class="sit-${r.situacao}"><td><span class="badge ${SIT[r.situacao][0]}">${SIT[r.situacao][1]}</span>
+      return cabGrupo(r, iL) + `<tr class="sit-${r.situacao}${ui.abertosProg.has(k) ? ' aberta' : ''}" data-k="${esc(k)}"><td class="sel"><input type="checkbox" ${ui.sel.has(k) ? 'checked' : ''} onchange="selItem(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.checked)"></td><td><span class="badge ${SIT[r.situacao][0]}">${SIT[r.situacao][1]}</span>
         <div style="margin-top:4px">${r.media > 0 || r.valorAno ? `<span class="mini" title="Curva ABC pelo valor consumido no ano (${brl(r.valorAno)})">curva ${r.abc}</span>` : ''}${r.parado ? '<span class="mini" title="Tem estoque e não vendeu nos últimos 6 meses">💤 parado</span>' : ''}</div></td>
-      <td class="prod"><div class="cod">${esc(r.codigo)}${r.fabricante ? ` · 🏭 ${esc(r.fabricante)}` : ''}</div><b>${esc(r.descricao || '')}</b>
+      <td class="prod"><div class="cod">${esc(r.codigo)}${r.fabricante ? ` · 🏭 ${esc(r.fabricante)}` : ''}</div><b title="${esc(r.descricao || '')}">${esc(r.descricao || '')}${r.semEstoqueCadastro ? '<span class="sel-warn" title="Sem estoque próprio (fora do S013)"></span>' : ''}</b>
         ${meses ? `<div class="td-doc" title="Consumo por mês no C1060">${meses}</div>` : ''}${r.semEstoqueCadastro ? '<div class="td-doc" style="color:#dc2626">sem estoque próprio (fora do S013)</div>' : ''}</td>
       <td class="num"><span class="big">${qtd(r.disp)}</span><div>${r.emPedido ? `<span class="mini info" title="Pedido de compra já feito (aguardando aprovação ou a caminho) — conta como estoque">+${qtd(r.emPedido)} em pedido de compra</span>` : ''}${r.consignado ? `<span class="mini" title="Em consignação nos clientes (C457) — não abate a compra">🏥 ${qtd(r.consignado)} consig.</span>` : ''}</div></td>
       ${temRes ? (() => { const faltaRes = Math.max(0, num(r.idealReserva) - num(r.reserva)), semDisp = num(r.sepSemDisp), compraFalta = Math.max(0, num(r.paraReserva) - semDisp);
@@ -1125,13 +1306,19 @@ function renderProgramacao() {
       <td class="num">${r.pendAno ? `<span class="big" style="color:#b45309">${qtd(r.pendAno)}</span><div class="td-doc">no ano · +${qtd(r.pendAno / (r.nMeses || 1))}/mês</div>` : '<span class="td-doc">—</span>'}${r.pendAntigo ? `<div><span class="mini" title="Pendentes de anos anteriores: só aparecem, não entram no consumo">${qtd(r.pendAntigo)} antigo</span></div>` : ''}</td>
       <td class="num"><span class="big">${qtd(r.media)}</span>${tendenciaTag(r) ? `<div class="td-doc">${tendenciaTag(r)}</div>` : ''}${r.mediaCli ? `<div class="td-doc" title="Consumo do cliente com reserva (C1060 filtrado) × outros clientes">cliente ${qtd(r.mediaCli)} · outros ${qtd(r.outrosMes)}</div>` : ''}${cfg.base_consumo !== 'ano' ? `<div class="td-doc" title="Base do consumo nos parâmetros">ano ${qtd(r.mediaAno)} · 3m ${qtd(r.media3)}</div>` : ''}</td>
       <td class="num"><span class="big" style="${r.cobertura != null && r.cobertura < r.prazo ? 'color:#dc2626' : ''}">${r.cobertura == null ? '—' : Math.round(r.cobertura) + ' d'}</span>${r.media ? `<div class="td-doc" title="Ponto de pedido: consumo por dia × (prazo + segurança)">ponto ${qtd(Math.ceil(r.ponto))} · prazo ${r.prazo}d</div>` : ''}</td>
-      <td class="num"><input class="finput" type="number" min="0" step="1" value="${q}" style="width:80px;text-align:right;font-weight:700" onchange="editarQtd(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.value, ${r.caixa})">
-        <div>${r.caixa > 1 ? `<span class="mini" title="Vende em caixa fechada">📦 cx ${r.caixa}${q ? ` · ${Math.ceil(q / r.caixa)} cx` : ''}</span>` : ''}${r.paraReserva || r.mediaCli ? `<span class="mini warn" title="A mesma compra, dividida: parte para a reserva do cliente (C904) e parte para os outros clientes — já incluída aqui, não pedir de novo">🔒 ${qtd(r.paraReserva)} reserva · ${qtd(r.paraOutros)} outros</span>` : ''}</div></td>
+      <td class="num col-q"><input class="finput" type="number" min="0" step="1" value="${q}" style="width:80px;text-align:right;font-weight:700" onchange="editarQtd(${JSON.stringify(k).replace(/"/g, '&quot;')}, this.value, ${r.caixa})">
+        <div>${linkMult(r.codigo, r.caixa)}${r.caixa > 1 && q ? `<span class="mini">${Math.ceil(q / r.caixa)} cx</span>` : ''}${r.paraReserva || r.mediaCli ? `<span class="mini warn" title="A mesma compra, dividida: parte para a reserva do cliente (C904) e parte para os outros clientes — já incluída aqui, não pedir de novo">🔒 ${qtd(r.paraReserva)} reserva · ${qtd(r.paraOutros)} outros</span>` : ''}</div></td>
       <td class="num"><span class="big">${qtd(saldoApos(r))}</span>${r.media > 0 ? `<div class="td-doc" title="Saldo após a compra ÷ consumo por dia">≈ ${Math.round(saldoApos(r) / (r.media / 30))} dias</div>` : ''}</td>
       <td class="num"><span class="big">${brl(q * r.preco)}</span>${r.preco ? `<div class="td-doc">un ${brl(r.preco)}</div>` : ''}</td></tr>`; }).join('')}</tbody>
-    <tfoot><tr><td colspan="${temRes ? 9 : 7}">Total (${lista.length})</td><td class="num">${qtd(totQ)}</td><td class="num">${qtd(lista.reduce((a, r) => a + saldoApos(r), 0))}</td><td class="num">${brl(totV)}</td></tr></tfoot>`;
-  resumoParametros();
+    <tfoot><tr><td colspan="${temRes ? 10 : 8}">Total (${lista.length})</td><td class="num">${qtd(totQ)}</td><td class="num">${qtd(lista.reduce((a, r) => a + saldoApos(r), 0))}</td><td class="num">${brl(totV)}</td></tr></tfoot>`;
+  resumoParametros(); aplicarColunas(); barraSelecao();
+  const compacto = densidade() === 'compacto'; $('tb-prog').classList.toggle('compacto', compacto);
+  $('prog-dens').textContent = compacto ? '☰ Compacto' : '▦ Detalhado';
+  $('tb-prog').onclick = e => { if (!compacto || e.target.closest('input,a,button,select,label')) return; const tr = e.target.closest('tbody tr[data-k]'); if (!tr) return;
+    const k = tr.dataset.k; tr.classList.toggle('aberta') ? ui.abertosProg.add(k) : ui.abertosProg.delete(k); };
 }
+const densidade = () => { try { return localStorage.getItem('gf_prog_dens') || 'compacto'; } catch (e) { return 'compacto'; } };
+window.alternarDensidade = () => { try { localStorage.setItem('gf_prog_dens', densidade() === 'compacto' ? 'detalhado' : 'compacto'); } catch (e) {} render(); };
 window.editarQtd = (k, v, cx = 1) => {
   let q = Math.max(0, Math.round(num(v)));
   if (cx > 1 && q % cx) { q = emCaixas(q, cx); toast(`Este item vem em caixa com ${cx}: arredondei para ${q}.`, 'info'); }
@@ -1172,7 +1359,7 @@ function listaReserva() {
     // números da Programação de compra (uma conta só — a compra é a mesma, só mostrada dividida)
     const outrosMes = num(pr?.outrosMes), protege = num(pr?.protege), transferir = num(pr?.transferir), caixa = pr?.caixa || caixaDe(g.codigo);
     const comprarReserva = num(pr?.paraReserva), comprarOutros = num(pr?.paraOutros), comprar = pr ? qtdComprar(pr) : 0;
-    const sepAgora = pr ? num(pr.sepAgora) : Math.min(falta, Math.max(0, disp)), sepSemDisp = pr ? num(pr.sepSemDisp) : Math.max(0, falta - Math.max(0, disp));
+    const cxR = caixa > 1 ? caixa : 1, sepAgora = pr ? num(pr.sepAgora) : falta > 0 ? Math.min(Math.ceil(falta / cxR) * cxR, Math.floor(Math.max(0, disp) / cxR) * cxR) : 0, sepSemDisp = pr ? num(pr.sepSemDisp) : Math.max(0, falta - sepAgora);
     const status = g.media > 0 && g.saldo <= 0 ? 'semreserva' : g.saldo > 0 && venda6 <= 0 && g.media <= 0 ? 'parada' : g.saldo > 0 && g.media <= 0 ? 'parada' : ajuste > 0 ? 'abaixo' : ideal > 0 && g.saldo > ideal * 1.5 ? 'acima' : 'ok';
     const fabricante = pr?.fabricante || '';
     return { ...g, fabricante, fisico, disp, separado, falta, sepAgora, sepSemDisp, comprar, comprarReserva, comprarOutros, transferir, protege, outrosMes, caixa, media3, venda6, cobertura, ideal, ajuste, unit, status, reposMes: Math.ceil(g.media), semS013: !e };
@@ -1265,7 +1452,7 @@ function renderReserva() {
       <td class="num"><span class="big">${qtd(r.saldo)}</span>${r.ideal ? `<span class="td-doc"> → ideal ${qtd(r.ideal)}</span>` : ''}<div>${r.ajuste > 0 ? `<span class="mini warn">+${qtd(r.ajuste)} aumentar</span>` : r.ajuste < 0 && r.ideal ? `<span class="mini info">${qtd(r.ajuste)} sobrando</span>` : ''}${r.cobertura != null ? `<span class="mini">${Math.round(r.cobertura)} dias</span>` : ''}</div>${r.valor ? `<div class="td-doc">${brl(r.valor)}</div>` : ''}</td>
       <td class="num"><span class="big">${r.media ? qtd(r.media) : '—'}</span><span class="td-doc">/mês</span><div>${tend(r)}${r.reposMes ? `<span class="mini">repor ~${qtd(r.reposMes)}/mês</span>` : ''}</div>${r.outrosMes ? `<div class="td-doc">outros clientes ${qtd(r.outrosMes)}/mês</div>` : ''}</td>
       <td class="num"><span class="big">${qtd(r.disp)}</span><span class="td-doc"> disp</span><div class="td-doc">separado ${qtd(r.separado)}</div>${r.protege ? `<div class="td-doc" title="Fica no Disp. para os outros clientes até a próxima compra">guardar p/ outros ${qtd(r.protege)}</div>` : ''}</td>
-      <td class="num">${r.falta ? `<span class="big" style="color:#b45309">${qtd(sepAgora)}</span>${cxTxt(sepAgora)}${semEst ? `<div><span class="mini crit">faltam ${qtd(semEst)} (sem estoque)</span></div>` : ''}` : (r.saldo ? '<span class="mini ok">✔ separada</span>' : '—')}</td>
+      <td class="num">${r.falta ? `<span class="big" style="color:#b45309">${qtd(sepAgora)}</span>${cxTxt(sepAgora)}${sepAgora > r.falta ? `<div class="td-doc" title="Arredondado para caixa fechada">falta ${qtd(r.falta)} → ${qtd(sepAgora)} (caixa)</div>` : ''}${semEst ? `<div><span class="mini crit">faltam ${qtd(semEst)} (sem estoque)</span></div>` : ''}` : (r.saldo ? '<span class="mini ok">✔ separada</span>' : '—')}<div>${linkMult(r.codigo, r.caixa)}</div></td>
       <td class="num">${r.transferir ? `<span class="big" style="color:#15803d">${qtd(r.transferir)}</span>${cxTxt(r.transferir)}<div class="td-doc">reserva → ${qtd(r.saldo + r.transferir)}</div>` : '—'}</td>
       <td class="num">${r.comprar ? `<span class="big" style="color:#dc2626">${qtd(r.comprar)}</span><div>${r.comprarReserva ? `<span class="mini warn">${qtd(r.comprarReserva)} reserva</span>` : ''}${r.comprarOutros ? `<span class="mini">${qtd(r.comprarOutros)} outros</span>` : ''}${r.caixa > 1 ? `<span class="mini">cx ${r.caixa}</span>` : ''}</div>` : '—'}</td></tr>`; }).join('')}</tbody>
     <tfoot><tr><td colspan="2">Total (${l.length})</td><td class="num">${qtd(tot('saldo'))}</td><td class="num">${qtd(consTot)}</td><td></td><td class="num">${qtd(l.reduce((a, r) => a + num(r.sepAgora), 0))}</td><td class="num">${qtd(tot('transferir'))}</td><td class="num">${qtd(tot('comprar'))}</td></tr></tfoot>`;
@@ -1274,7 +1461,7 @@ window.filtroResChip = f => { ui.res = ui.res === f ? '' : f; document.querySele
 // Em pedido por produto: aguardando aprovação + aprovado (a caminho) — sai quando marca como recebido ou cancela
 function emPedidoMap() {
   const m = new Map();
-  data.ped.filter(p => p.status === 'aguardando' || p.status === 'aprovado').forEach(p => (p.itens || []).forEach(i => { const k = norm(i.codigo); m.set(k, (m.get(k) || 0) + num(i.qtd)); }));
+  data.ped.filter(pedAberto).forEach(p => (p.itens || []).forEach(i => { const k = norm(i.codigo); m.set(k, (m.get(k) || 0) + saldoItemPed(p, i)); }));
   return m;
 }
 // Forecast do pedido: estoque hoje + o que já está pedido − reserva a separar, a compra chegando no mês do prazo,
@@ -1283,7 +1470,7 @@ const MESES_N = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 
 function forecast(itens, pedidoId) {
   const prog = new Map(programacao().map(r => [norm(r.codigo), r])), proprio = new Map();
   const ped = pedidoId && data.ped.find(x => x.id === pedidoId);
-  if (ped && (ped.status === 'aguardando' || ped.status === 'aprovado')) (ped.itens || []).forEach(i => proprio.set(norm(i.codigo), (proprio.get(norm(i.codigo)) || 0) + num(i.qtd)));
+  if (ped && pedAberto(ped)) (ped.itens || []).forEach(i => proprio.set(norm(i.codigo), (proprio.get(norm(i.codigo)) || 0) + saldoItemPed(ped, i)));
   const h = new Date(), meses = Array.from({ length: 6 }, (_, i) => { const d = new Date(h.getFullYear(), h.getMonth() + i, 1); return MESES_N[d.getMonth()] + '/' + String(d.getFullYear()).slice(2); });
   const linhas = itens.filter(i => num(i.qtd) > 0).map(i => {
     const k = norm(i.codigo), r = prog.get(k), compra = num(i.qtd), venda = num(r?.media), preco = num(i.preco) || num(r?.preco);
@@ -1324,39 +1511,270 @@ function forecastHTML(fc) {
       <td class="num">${l.cobHoje == null ? '—' : `${Math.round(l.cobHoje)} → <b>${Math.round(l.cobDepois)}</b> dias`}</td>
       ${l.proj.map((v, i) => `<td class="num" style="${v < 0 ? 'color:#dc2626;font-weight:700' : i === l.chega ? 'font-weight:700' : ''}">${qtd(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
-const PED_ST = { aguardando: ['b-warn', '⏳ Aguardando aprovação'], aprovado: ['b-info', '✔ Aprovado · a caminho'], recebido: ['b-ok', '📦 Recebido'], cancelado: ['b-mute', '✖ Cancelado'] };
+const PED_ST = { rascunho: ['b-mute', '✏️ Rascunho'], aguardando: ['b-warn', '⏳ Aguardando aprovação'], aprovado: ['b-info', '✔ Aprovado'], enviado: ['b-info', '📤 Enviado ao fornecedor'],
+  parcial: ['b-warn', '📦 Recebido em parte'], recebido: ['b-ok', '✅ Recebido'], cancelado: ['b-mute', '✖ Cancelado'] };
+const PED_ABERTOS = ['rascunho', 'aguardando', 'aprovado', 'enviado', 'parcial'];
+const pedAberto = p => PED_ABERTOS.includes(p.status);
+// quanto de cada item já chegou (somando os recebimentos registrados)
+const recebidoDe = (p, cod) => (p.recebimentos || []).reduce((a, r) => a + (r.itens || []).filter(i => norm(i.codigo) === norm(cod)).reduce((x, i) => x + num(i.qtd), 0), 0);
+const saldoItemPed = (p, i) => Math.max(0, num(i.qtd) - recebidoDe(p, i.codigo));
+// prazo real (dias) = 1º recebimento − envio ao fornecedor (ou aprovação / criação)
+const prazoRealPed = p => { const r = (p.recebimentos || [])[0]; if (!r || !r.data) return null; const ini = p.enviado_em || p.aprovado_em || p.criado_em; if (!ini) return null;
+  return Math.max(0, Math.round((Date.parse(r.data) - Date.parse(String(ini).slice(0, 10))) / 864e5)); };
 const ehAprovador = () => _role === 'admin';
 const semTabelaPedidos = () => { toast('Falta a tabela de pedidos: rode o SQL de atualização do sistema de compras.', 'err'); mostrarSql(); };
-window.gerarPedido = async () => {
+window.gerarPedido = async (soSel) => {
   if (_readOnly) { toast('Seu usuário é só de visualização.', 'err'); return; }
   if (!data.pedOk) return semTabelaPedidos();
-  const itens = listaProgramacao().filter(r => qtdComprar(r) > 0);
+  const itens = listaProgramacao().filter(r => qtdComprar(r) > 0).filter(r => !soSel || ui.sel.has(norm(r.codigo)));
   if (!itens.length) { toast('Nenhum item com quantidade a comprar nesta lista (confira os filtros e as quantidades).', 'info'); return; }
   const porFab = new Map(); itens.forEach(r => { const f = r.fabricante || 'Fabricante não informado'; if (!porFab.has(f)) porFab.set(f, []); porFab.get(f).push(r); });
   const total = itens.reduce((a, r) => a + qtdComprar(r) * r.preco, 0);
-  if (!confirm(`Criar ${porFab.size} pedido(s) de compra (um por fabricante) com ${itens.length} item(ns), total ≈ ${brl(total)}?\n\n${[...porFab].map(([f, rs]) => `• ${f}: ${rs.length} item(ns)`).join('\n')}\n\nO pedido fica "Aguardando aprovação" e já conta como "em pedido" na programação.`)) return;
+  if (!confirm(`Criar ${porFab.size} pedido(s) de compra (um por fabricante) com ${itens.length} item(ns), total ≈ ${brl(total)}?\n\n${[...porFab].map(([f, rs]) => `• ${f}: ${rs.length} item(ns)`).join('\n')}\n\nO pedido nasce como RASCUNHO (você revisa e manda para aprovação) e já conta como "em pedido" na programação.`)) return;
   const agora = new Date().toISOString();
-  const linhas = [...porFab].map(([f, rs]) => ({ filial: FILIAL, fabricante: f, status: 'aguardando', criado_por: quemSou(), criado_em: agora,
+  const linhas = [...porFab].map(([f, rs]) => ({ filial: FILIAL, fabricante: f, status: 'rascunho', criado_por: quemSou(), criado_em: agora,
     valor: +rs.reduce((a, r) => a + qtdComprar(r) * r.preco, 0).toFixed(2),
     itens: rs.map(r => ({ codigo: r.codigo, descricao: r.descricao, unidade: r.unidade || '', sugerido: r.sugerido, qtd: qtdComprar(r), caixa: r.caixa, preco: r.preco, disp: r.disp, consumo: +r.media.toFixed(2), para_reserva: r.paraReserva || 0, para_outros: r.paraOutros || 0 })) }));
   const { error } = await supabase.from(T.ped).insert(linhas);
   if (error) { if (/compras_pedidos|does not exist|schema cache/i.test(error.message || '')) return semTabelaPedidos(); toast('Não criou o pedido: ' + error.message, 'err'); return; }
   _qtdEditada = {};
-  toast(`✔ ${linhas.length} pedido(s) criado(s) — aguardando aprovação`);
+  ui.sel.clear(); toast(`✔ ${linhas.length} pedido(s) criado(s) como rascunho — revise e envie para aprovação`);
   await carregarTudo(); ui.ped = 'abertos'; document.querySelectorAll('[data-ped]').forEach(x => x.classList.toggle('on', x.dataset.ped === 'abertos')); goView('pedidos');
 };
 window.mudarPedido = async (id, status) => {
   const p = data.ped.find(x => x.id === id); if (!p) return;
   if (status === 'aprovado' && !ehAprovador()) { toast('Só o aprovador (administrador) pode aprovar pedidos.', 'err'); return; }
-  const txt = { aprovado: 'Aprovar', recebido: 'Marcar como RECEBIDO (sai do "em pedido"; confira se o S013 novo já tem a entrada)', cancelado: 'Cancelar' }[status];
+  const txt = { aguardando: 'Enviar para aprovação', aprovado: 'Aprovar', enviado: 'Marcar como ENVIADO ao fornecedor', recebido: 'Marcar como RECEBIDO (sai do "em pedido"; confira se o S013 novo já tem a entrada)', cancelado: 'Cancelar', rascunho: 'Voltar para rascunho' }[status];
   if (!confirm(`${txt} o pedido #${p.numero || ''} — ${p.fabricante} (${brl(p.valor)})?`)) return;
   const agora = new Date().toISOString(), campos = { status };
   if (status === 'aprovado') { campos.aprovado_por = quemSou(); campos.aprovado_em = agora; }
   if (status === 'recebido') campos.recebido_em = agora;
   if (status === 'cancelado') campos.cancelado_em = agora;
-  const { error } = await supabase.from(T.ped).update(campos).eq('id', id);
+  if (status === 'enviado') { campos.enviado_em = agora; campos.enviado_por = quemSou(); const pz = prazoDe(p.fabricante); campos.previsao_entrega = new Date(Date.now() + pz * 864e5).toISOString().slice(0, 10); }
+  let { error } = await supabase.from(T.ped).update(campos).eq('id', id);
+  if (error && /enviado|previsao/i.test(error.message || '')) { delete campos.enviado_em; delete campos.enviado_por; delete campos.previsao_entrega; ({ error } = await supabase.from(T.ped).update(campos).eq('id', id)); if (!error) toast('Rode o SQL de atualização para guardar data de envio e previsão.', 'info'); }
   if (error) { toast('Não atualizou: ' + error.message, 'err'); return; }
   toast('✔ Pedido atualizado'); await carregarTudo();
+};
+// edição do pedido (rascunho / aguardando): quantidade e remover item
+async function gravarItensPed(p, itens) {
+  const valor = +itens.reduce((a, i) => a + num(i.qtd) * num(i.preco), 0).toFixed(2);
+  const { error } = await supabase.from(T.ped).update({ itens, valor }).eq('id', p.id);
+  if (error) { toast('Não salvou: ' + error.message, 'err'); return false; }
+  await carregarTudo(); return true;
+}
+window.editarItemPed = async (id, idx, v) => { const p = data.ped.find(x => x.id === id); if (!p) return; const itens = (p.itens || []).map(i => ({ ...i }));
+  let q = Math.max(0, Math.round(num(v))); const cx = num(itens[idx].caixa) || 1; if (cx > 1 && q % cx) { q = Math.ceil(q / cx) * cx; toast(`Caixa com ${cx}: arredondei para ${q}.`, 'info'); }
+  itens[idx].qtd = q; await gravarItensPed(p, itens); };
+window.removerItemPed = async (id, idx) => { const p = data.ped.find(x => x.id === id); if (!p) return; if (!confirm(`Tirar ${p.itens[idx].codigo} do pedido #${p.numero || ''}?`)) return;
+  const itens = (p.itens || []).filter((_, n) => n !== idx); if (!itens.length) { toast('O pedido ficaria vazio — cancele o pedido em vez de tirar o último item.', 'info'); return; } await gravarItensPed(p, itens); };
+// e-mail para o fornecedor (cadastro de fornecedores)
+window.pedidoEmail = id => {
+  const p = data.ped.find(x => x.id === id); if (!p) return; const f = fornDe(p.fabricante);
+  const L = [`Prezados${f?.contato ? ' ' + f.contato : ''},`, '', `Segue o pedido de compra nº ${p.numero || ''} da GF Medical ${BR.cityLabel.replace(' · ', '/')}:`, ''];
+  (p.itens || []).forEach(i => L.push(`- ${i.codigo} — ${i.descricao}: ${qtd(i.qtd)} ${i.unidade || 'un'}${i.caixa > 1 ? ` (${Math.ceil(i.qtd / i.caixa)} cx c/ ${i.caixa})` : ''}`));
+  L.push('', `Total estimado: ${brl(p.valor)}`, '', 'Por favor, confirmar o recebimento, a disponibilidade e o prazo de entrega.', '', 'Obrigado,', quemSou()?.split(' (')[0] || 'GF Medical');
+  location.href = `mailto:${encodeURIComponent(f?.email || '')}?subject=${encodeURIComponent(`Pedido de compra nº ${p.numero || ''} — GF Medical`)}&body=${encodeURIComponent(L.join('\n'))}`;
+  if (!f?.email) toast('Cadastre o e-mail deste fornecedor em 🏭 Fornecedores para já vir preenchido.', 'info');
+};
+// impressão / PDF do pedido com logo
+window.imprimirPedido = id => {
+  const p = data.ped.find(x => x.id === id); if (!p) return; const f = fornDe(p.fabricante) || {};
+  const linhas = (p.itens || []).map((i, n) => `<tr><td>${n + 1}</td><td>${esc(i.codigo)}</td><td>${esc(i.descricao || '')}</td><td class="n">${i.caixa > 1 ? Math.ceil(i.qtd / i.caixa) + ' cx c/ ' + i.caixa : ''}</td><td class="n">${qtd(i.qtd)} ${esc(i.unidade || 'un')}</td><td class="n">${i.preco ? brl(i.preco) : '—'}</td><td class="n">${brl(num(i.qtd) * num(i.preco))}</td></tr>`).join('');
+  const w = window.open('', '_blank'); if (!w) { toast('Libere as janelas (pop-up) para imprimir.', 'err'); return; }
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Pedido de compra ${p.numero || ''} — GF Medical</title><style>
+    body{font-family:Inter,Arial,sans-serif;color:#1f2937;margin:28px;font-size:12px} .top{display:flex;align-items:center;gap:16px;border-bottom:2px solid #1a7a4a;padding-bottom:12px}
+    .top img{height:56px} h1{font-size:18px;margin:0;color:#0f3d26} .meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin:14px 0} .meta b{display:inline-block;min-width:110px;color:#475569}
+    table{width:100%;border-collapse:collapse;margin-top:8px} th{background:#e8f5ee;text-align:left;padding:6px;font-size:11px;text-transform:uppercase;letter-spacing:.03em} td{padding:6px;border-bottom:1px solid #e2e8f0}
+    .n{text-align:right;white-space:nowrap} tfoot td{font-weight:700;border-top:2px solid #1a7a4a} .ass{display:flex;gap:40px;margin-top:50px} .ass div{flex:1;border-top:1px solid #94a3b8;padding-top:4px;text-align:center;color:#475569}
+    @media print{body{margin:12mm}}</style></head><body>
+    <div class="top"><img src="${location.origin}${location.pathname.replace(/[^/]*$/, '')}logo.jpg" alt="GF Medical"><div><h1>Pedido de compra nº ${esc(String(p.numero || ''))}</h1><div>GF Medical · ${esc(BR.cityLabel)}</div></div></div>
+    <div class="meta"><div><b>Fornecedor:</b> ${esc(p.fabricante || '')}</div><div><b>Data:</b> ${dataHoraBR(p.criado_em).slice(0, 10)}</div>
+      <div><b>Contato:</b> ${esc(f.contato || '—')}</div><div><b>Situação:</b> ${(PED_ST[p.status]?.[1] || p.status).replace(/^\S+ /, '')}</div>
+      <div><b>E-mail / tel.:</b> ${esc([f.email, f.telefone].filter(Boolean).join(' · ') || '—')}</div><div><b>Previsão de entrega:</b> ${p.previsao_entrega ? dataBR(p.previsao_entrega) : '—'}</div>
+      <div><b>Criado por:</b> ${esc((p.criado_por || '').split(' (')[0])}</div><div><b>Aprovado por:</b> ${esc((p.aprovado_por || '—').split(' (')[0])}</div></div>
+    <table><thead><tr><th>#</th><th>Código</th><th>Produto</th><th class="n">Caixas</th><th class="n">Quantidade</th><th class="n">Preço</th><th class="n">Total</th></tr></thead><tbody>${linhas}</tbody>
+    <tfoot><tr><td colspan="4">${(p.itens || []).length} item(ns)</td><td class="n">${qtd((p.itens || []).reduce((a, i) => a + num(i.qtd), 0))}</td><td></td><td class="n">${brl(p.valor)}</td></tr></tfoot></table>
+    ${f.frete || f.obs ? `<p style="margin-top:14px"><b>Frete:</b> ${esc(f.frete || '—')} ${f.obs ? ' · <b>Obs.:</b> ' + esc(f.obs) : ''}</p>` : ''}
+    <div class="ass"><div>Comprador</div><div>Aprovação</div></div>
+    <script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
+  w.document.close();
+};
+// recebimento (parcial ou total), com NF de entrada; pode ler a DANFE para preencher
+let _recebPed = null;
+window.abrirReceb = id => {
+  const p = data.ped.find(x => x.id === id); if (!p) return; _recebPed = p;
+  $('rc-title').textContent = `📦 Receber pedido #${p.numero || ''} — ${p.fabricante}`; $('rc-nf').value = ''; $('rc-data').value = new Date().toISOString().slice(0, 10); $('rc-info').textContent = '';
+  $('rc-tb').innerHTML = `<thead><tr><th>Código</th><th>Produto</th><th class="num">Pedido</th><th class="num">Já recebido</th><th class="num">Falta</th><th class="num">Receber agora</th></tr></thead><tbody>
+    ${(p.itens || []).map((i, n) => { const ja = recebidoDe(p, i.codigo), falta = Math.max(0, num(i.qtd) - ja);
+      return `<tr><td class="td-mono">${esc(i.codigo)}</td><td>${esc(i.descricao || '')}</td><td class="num">${qtd(i.qtd)}</td><td class="num">${qtd(ja)}</td><td class="num"><b>${qtd(falta)}</b></td>
+        <td class="num"><input class="finput rc-q" data-n="${n}" type="number" min="0" step="1" value="0" style="width:90px;text-align:right"></td></tr>`; }).join('')}</tbody>`;
+  $('modal-receb').classList.add('open');
+};
+window.recebTudo = () => { const p = _recebPed; if (!p) return; document.querySelectorAll('#rc-tb .rc-q').forEach(inp => { const i = p.itens[+inp.dataset.n]; inp.value = Math.max(0, num(i.qtd) - recebidoDe(p, i.codigo)); }); };
+$('rc-pdf').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f || !_recebPed) return;
+  try {
+    $('rc-info').textContent = '⏳ Lendo a DANFE…';
+    const { nf, itens } = lerDanfeItens(await itensPdf(f)); let achou = 0;
+    if (nf.numero) $('rc-nf').value = nf.numero; if (nf.data) $('rc-data').value = nf.data;
+    document.querySelectorAll('#rc-tb .rc-q').forEach(inp => { const i = _recebPed.itens[+inp.dataset.n], k = chaveCx(i.codigo);
+      const q = itens.filter(x => chaveCx(x.codigo_alt || '') === k || chaveCx(x.codigo) === k).reduce((a, x) => a + num(x.quantidade), 0); if (q) { inp.value = q; achou++; } });
+    $('rc-info').textContent = `✔ NF ${nf.numero || ''}: ${achou} de ${_recebPed.itens.length} item(ns) do pedido encontrados na nota`;
+  } catch (err) { console.error(err); $('rc-info').textContent = '✖ Não consegui ler essa DANFE: ' + err.message; }
+};
+window.salvarReceb = async () => {
+  const p = _recebPed; if (!p) return;
+  const itens = [...document.querySelectorAll('#rc-tb .rc-q')].map(inp => ({ codigo: p.itens[+inp.dataset.n].codigo, qtd: Math.max(0, num(inp.value)) })).filter(i => i.qtd > 0);
+  if (!itens.length) { toast('Informe a quantidade recebida de pelo menos um item.', 'info'); return; }
+  const rec = { data: $('rc-data').value || new Date().toISOString().slice(0, 10), nf: $('rc-nf').value.trim() || null, por: quemSou(), em: new Date().toISOString(), itens };
+  const recebimentos = [...(p.recebimentos || []), rec], prov = { ...p, recebimentos };
+  const completo = (p.itens || []).every(i => saldoItemPed(prov, i) <= 0);
+  const campos = { recebimentos, status: completo ? 'recebido' : 'parcial' }; if (completo) campos.recebido_em = new Date().toISOString();
+  let { error } = await supabase.from(T.ped).update(campos).eq('id', p.id);
+  if (error && /recebimentos/i.test(error.message || '')) { toast('Falta a coluna "recebimentos": rode o SQL de atualização do sistema de compras.', 'err'); mostrarSql(); return; }
+  if (error) { toast('Não registrou: ' + error.message, 'err'); return; }
+  $('modal-receb').classList.remove('open'); toast(completo ? '✅ Pedido recebido por completo' : '📦 Recebimento parcial registrado'); await carregarTudo();
+};
+// DANFE (NF de entrada) → itens com código / Cód.Alt. / quantidade (mesmo leitor usado nas transferências)
+function lerDanfeItens(paginas) {
+  const soDig = x => String(x || '').replace(/\D/g, ''), dISO = x => { const m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(x || ''); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
+  const L = paginas.flatMap(its => linhasDaPagina(its).map(l => ({ ...l, txt: juntar([...l.its]) })));
+  const chave = L.map(l => soDig(l.txt)).find(d => d.length === 44 && /^\d{20}55/.test(d)) || '';
+  const iDest = L.findIndex(l => /DESTINAT/i.test(l.txt)), lDest = iDest >= 0 ? L.slice(iDest + 1, iDest + 5).find(l => /\d{2}\/\d{2}\/\d{4}/.test(l.txt)) : null;
+  const itens = [];
+  paginas.forEach(its => {
+    const ini = its.find(i => /DADOS DO PRODUTO/i.test(i.s)), fim = its.find(i => /DADOS ADICIONAIS/i.test(i.s)), yIni = ini ? ini.y : 9999, yFim = fim ? fim.y : -1;
+    const anc = its.filter(i => i.x >= 225 && i.x < 262 && /^\d{4}\.\d{2}\.\d{2}$/.test(i.s.trim()) && i.y < yIni && i.y > yFim).sort((a, b) => b.y - a.y);
+    anc.forEach((a, k) => {
+      const yProx = k + 1 < anc.length ? anc[k + 1].y + 2.5 : yFim, bloco = its.filter(i => i.y <= a.y + 2.5 && i.y > yProx), naLinha = bloco.filter(i => Math.abs(i.y - a.y) <= 2.5);
+      const lt = bloco.filter(i => Math.abs(i.y - a.y) > 2.5).map(i => i.s).join(' ');
+      itens.push({ codigo: juntar(naFaixa(naLinha, 0, 52)), codigo_alt: (/C\s*ó\s*d\.?\s*Alt\.?\s*:\s*(\S+)/i.exec(lt) || [])[1] || null, quantidade: numBR(juntar(naFaixa(naLinha, 330, 365))) });
+    });
+  });
+  return { nf: { numero: chave ? String(+chave.slice(25, 34)) : null, data: lDest ? dISO(lDest.txt) : null }, itens: itens.filter(i => i.codigo && i.quantidade) };
+}
+// ───────── Indicadores ─────────
+function barrasSVG(el, valores, rotulos, fmt, opts = {}) {
+  const W = 600, H = 190, pad = { l: 8, r: 8, t: 14, b: 22 }, max = Math.max(1, opts.ref || 0, ...valores), bw = (W - pad.l - pad.r) / valores.length, y = v => pad.t + (H - pad.t - pad.b) * (1 - v / max);
+  const grades = [0.5, 1].map(f => `<line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${y(max * f)}" y2="${y(max * f)}"/><text class="eixo" x="${W - pad.r}" y="${y(max * f) - 3}" text-anchor="end">${fmt(max * f)}</text>`).join('');
+  const barras = valores.map((v, n) => { const x = pad.l + n * bw + 2, h = Math.max(0, H - pad.b - y(v)), w = Math.max(2, bw - 4), r = Math.min(4, w / 2, h);
+    const d = h > 0 ? `M${x},${H - pad.b} V${H - pad.b - h + r} Q${x},${H - pad.b - h} ${x + r},${H - pad.b - h} H${x + w - r} Q${x + w},${H - pad.b - h} ${x + w},${H - pad.b - h + r} V${H - pad.b} Z` : '';
+    return `<path class="bar ${opts.destaque === n ? 'atual' : ''}" d="${d}" data-tip="${esc(rotulos[n])}: ${esc(fmt(v))}"/><rect x="${pad.l + n * bw}" y="${pad.t}" width="${bw}" height="${H - pad.t - pad.b}" fill="transparent" data-tip="${esc(rotulos[n])}: ${esc(fmt(v))}"/>
+      <text class="eixo" x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${esc(rotulos[n])}</text>`; }).join('');
+  const ref = opts.ref ? `<line class="orc" x1="${pad.l}" x2="${W - pad.r}" y1="${y(opts.ref)}" y2="${y(opts.ref)}"/><text class="eixo" x="${pad.l + 2}" y="${y(opts.ref) - 3}" style="fill:#dc2626">orçamento ${esc(fmt(opts.ref))}</text>` : '';
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(opts.titulo || '')}">${grades}${barras}${ref}</svg><div class="graf-tip"></div>`;
+  const tip = el.querySelector('.graf-tip');
+  el.querySelectorAll('[data-tip]').forEach(b => { b.addEventListener('mousemove', e => { const rc = el.getBoundingClientRect(); tip.textContent = b.dataset.tip; tip.style.left = (e.clientX - rc.left) + 'px'; tip.style.top = (e.clientY - rc.top) + 'px'; tip.style.display = 'block'; });
+    b.addEventListener('mouseleave', () => { tip.style.display = 'none'; }); });
+}
+function renderIndicadores() {
+  const pr = programacao(), comCons = pr.filter(r => r.media > 0), soma = (l, f) => l.reduce((a, r) => a + f(r), 0);
+  const estV = soma(pr, r => r.disp * r.preco), consV = soma(pr, r => r.media * r.preco), cob = consV > 0 ? estV / (consV / 30) : null, giro = estV > 0 ? consV * 12 / estV : null;
+  const ruptura = comCons.filter(r => r.disp <= 0), servico = comCons.length ? (comCons.length - ruptura.length) / comCons.length : null, parado = soma(pr.filter(r => r.parado), r => r.disp * r.preco);
+  const comprar = pr.filter(r => r.situacao === 'comprar'), comprarV = soma(comprar, r => qtdComprar(r) * r.preco);
+  const mes = new Date().toISOString().slice(0, 7), compMes = data.ped.filter(p => p.status !== 'cancelado' && String(p.criado_em).startsWith(mes)).reduce((a, p) => a + num(p.valor), 0), orc = num(cfg.orcamento_mensal);
+  const prazos = data.ped.map(prazoRealPed).filter(x => x != null);
+  if (document.activeElement !== $('ind-orc')) $('ind-orc').value = orc || '';
+  $('ind-kpis').innerHTML = statCard('Estoque disponível', brl(estV), `${pr.filter(r => r.disp > 0).length} produto(s) com saldo`, 'info')
+    + statCard('Cobertura média', cob != null ? Math.round(cob) + ' dias' : '—', 'estoque ÷ consumo por dia (em R$)')
+    + statCard('Giro de estoque', giro != null ? giro.toFixed(1) + '× / ano' : '—', 'consumo anual ÷ estoque')
+    + statCard('Nível de serviço', servico != null ? Math.round(servico * 100) + '%' : '—', `${ruptura.length} item(ns) em ruptura (vende e está zerado)`, ruptura.length ? 'crit' : 'ok')
+    + statCard('Estoque parado', brl(parado), 'com saldo e sem venda há 6 meses', parado ? 'warn' : '')
+    + statCard('Compras do mês', brl(compMes), orc ? `${Math.round(compMes / orc * 100)}% do orçamento de ${brl(orc)}` : 'defina o orçamento abaixo', orc && compMes > orc ? 'crit' : '')
+    + statCard('Comprar agora', brl(comprarV), `${comprar.length} item(ns) no ponto de pedido`, comprar.length ? 'warn' : '')
+    + statCard('Prazo real médio', prazos.length ? Math.round(prazos.reduce((a, x) => a + x, 0) / prazos.length) + ' dias' : '—', 'fornecedores: envio → entrega');
+  // consumo por mês (R$) do C1060 + compras por mês (pedidos)
+  const ano = num(data.cmo[0]?.ano) || new Date().getFullYear(), atualMes = ano === new Date().getFullYear() ? new Date().getMonth() : -1;
+  const consMes = Array.from({ length: 12 }, (_, m) => soma(pr, r => num(r.meses?.[m]) * r.preco));
+  $('ind-cons-sub').textContent = `${ano} · R$ a custo (C1060 × último preço) · mês atual em laranja (incompleto)`;
+  barrasSVG($('ind-graf-cons'), consMes, MESES_N.map(m => m), v => brl(v).replace(',00', ''), { destaque: atualMes, titulo: 'Consumo por mês' });
+  const meses12 = Array.from({ length: 12 }, (_, n) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 11 + n); return d.toISOString().slice(0, 7); });
+  const compras = meses12.map(m => data.ped.filter(p => p.status !== 'cancelado' && String(p.criado_em).startsWith(m)).reduce((a, p) => a + num(p.valor), 0));
+  barrasSVG($('ind-graf-comp'), compras, meses12.map(m => MESES_N[+m.slice(5) - 1] + '/' + m.slice(2, 4)), v => brl(v).replace(',00', ''), { destaque: 11, ref: orc || 0, titulo: 'Compras por mês' });
+  // tabelas por linha e por fornecedor
+  const tabela = (el, chave, nomeDe) => {
+    const g = new Map(); pr.forEach(r => { const k = chave(r) || ''; if (!g.has(k)) g.set(k, []); g.get(k).push(r); });
+    const linhas = [...g].map(([k, l]) => { const e = soma(l, r => r.disp * r.preco), c = soma(l, r => r.media * r.preco), cp = l.filter(r => r.situacao === 'comprar');
+      return { nome: nomeDe(k), n: l.length, e, c, cob: c > 0 ? e / (c / 30) : null, giro: e > 0 ? c * 12 / e : null, rup: l.filter(r => r.media > 0 && r.disp <= 0).length, cpN: cp.length, cpV: soma(cp, r => qtdComprar(r) * r.preco), ped: soma(l, r => num(r.emPedido) * r.preco) }; })
+      .sort((a, b) => b.c - a.c);
+    $(el).innerHTML = `<thead><tr><th>${el === 'ind-linha' ? 'Linha' : 'Fornecedor'}</th><th class="num">Produtos</th><th class="num">Estoque (R$)</th><th class="num">Consumo/mês (R$)</th><th class="num">Cobertura</th><th class="num">Giro/ano</th><th class="num">Ruptura</th><th class="num">Comprar agora</th><th class="num">Em pedido (R$)</th></tr></thead><tbody>
+      ${linhas.map(x => `<tr><td><b>${esc(x.nome)}</b></td><td class="num">${x.n}</td><td class="num">${brl(x.e)}</td><td class="num">${brl(x.c)}</td><td class="num">${x.cob != null ? Math.round(x.cob) + ' d' : '—'}</td><td class="num">${x.giro != null ? x.giro.toFixed(1) + '×' : '—'}</td>
+        <td class="num">${x.rup ? `<span class="mini crit">${x.rup}</span>` : '—'}</td><td class="num">${x.cpN ? `${x.cpN} · ${brl(x.cpV)}` : '—'}</td><td class="num">${x.ped ? brl(x.ped) : '—'}</td></tr>`).join('')}</tbody>`;
+  };
+  tabela('ind-linha', r => r.grupo, k => k ? NOME_GRUPO(k) : 'Sem grupo');
+  tabela('ind-forn', r => r.fabricante, k => k || 'Fabricante não identificado');
+}
+window.salvarOrcamento = async () => {
+  cfg.orcamento_mensal = num($('ind-orc').value) || null; render();
+  if (_readOnly) return;
+  const { error } = await supabase.from(T.cfg).upsert({ filial: FILIAL, orcamento_mensal: cfg.orcamento_mensal, atualizado_em: new Date().toISOString() });
+  toast(error ? (/orcamento/i.test(error.message || '') ? 'Aplicado na tela; rode o SQL de atualização para guardar o orçamento.' : 'Não salvou: ' + error.message) : '✔ Orçamento salvo', error ? 'info' : 'ok');
+};
+// ───────── Fornecedores ─────────
+function ultimoPedidoForn(nome) { return data.ped.filter(p => norm(p.fabricante) === norm(nome) && p.status !== 'cancelado').sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)))[0]; }
+function infoForn(f) {
+  const peds = data.ped.filter(p => norm(p.fabricante) === norm(f.nome) && p.status !== 'cancelado'), prazos = peds.map(prazoRealPed).filter(x => x != null);
+  const ult = ultimoPedidoForn(f.nome), proxima = f.ciclo_dias && ult ? new Date(Date.parse(String(ult.criado_em).slice(0, 10)) + num(f.ciclo_dias) * 864e5).toISOString().slice(0, 10) : null;
+  let prog = []; try { prog = programacao().filter(r => norm(r.fabricante) === norm(f.nome)); } catch (e) {}
+  const comprar = prog.filter(r => r.situacao === 'comprar');
+  return { peds, prazoReal: prazos.length ? Math.round(prazos.reduce((a, x) => a + x, 0) / prazos.length) : null, ult, proxima, comprar, valorComprar: comprar.reduce((a, r) => a + qtdComprar(r) * r.preco, 0),
+    emAberto: peds.filter(pedAberto).reduce((a, p) => a + num(p.valor), 0) };
+}
+function renderFornecedores() {
+  const l = data.forn.filter(f => casa(f, ['nome', 'contato', 'email', 'linhas'])).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  $('cnt-forn').textContent = l.length;
+  const infos = new Map(l.map(f => [f.id, infoForn(f)])), hoje = new Date().toISOString().slice(0, 10);
+  const venc = l.filter(f => infos.get(f.id).proxima && infos.get(f.id).proxima <= hoje).length;
+  $('forn-stats').innerHTML = statCard('Fornecedores', data.forn.length, `${data.forn.filter(f => f.ciclo_dias).length} com ciclo de compra`, 'info')
+    + statCard('Compra programada vencida', venc, 'ciclo de compra já passou — hora de pedir', venc ? 'warn' : 'ok')
+    + statCard('Em pedidos abertos', brl(l.reduce((a, f) => a + infos.get(f.id).emAberto, 0)), 'rascunho até recebido em parte')
+    + statCard('Prazo real médio', (() => { const v = l.map(f => infos.get(f.id).prazoReal).filter(x => x != null); return v.length ? Math.round(v.reduce((a, x) => a + x, 0) / v.length) + ' dias' : '—'; })(), 'envio → 1º recebimento');
+  if (!data.fornOk) { $('tb-forn').innerHTML = `<tbody><tr><td><div class="empty-page">🏭 Para cadastrar fornecedores, rode o SQL de atualização do sistema de compras.<br><br><button class="tbtn tbtn-p" onclick="mostrarSql()">📋 Ver e copiar o SQL</button></div></td></tr></tbody>`; return; }
+  if (!l.length) { $('tb-forn').innerHTML = `<tbody><tr><td><div class="empty-page">Nenhum fornecedor cadastrado. Use <b>⤵ Trazer fabricantes da programação</b> ou <b>➕ Novo fornecedor</b>.</div></td></tr></tbody>`; return; }
+  $('tb-forn').innerHTML = `<thead><tr><th>Fornecedor</th><th>Contato</th><th class="num">Prazo · Seg. · Cobrir</th><th class="num">Ciclo / próxima compra</th><th class="num">Pedido mínimo</th><th class="num">Prazo real</th><th class="num">Comprar agora</th><th></th></tr></thead><tbody>
+    ${l.map(f => { const i = infos.get(f.id), atrasada = i.proxima && i.proxima <= hoje;
+      return `<tr><td><b>${esc(f.nome)}</b>${f.linhas ? `<div class="td-doc">🧬 ${esc(f.linhas)}</div>` : ''}${f.frete ? `<div class="td-doc">🚛 ${esc(f.frete)}</div>` : ''}</td>
+        <td class="td-doc">${esc(f.contato || '')}${f.email ? `<br>✉ ${esc(f.email)}` : ''}${f.telefone ? `<br>📞 ${esc(f.telefone)}` : ''}</td>
+        <td class="num">${f.prazo_dias ?? `<span class="td-doc">${cfg.prazo_dias}</span>`} · ${f.seguranca_dias ?? `<span class="td-doc">${cfg.seguranca_dias}</span>`} · ${f.cobertura_dias ?? `<span class="td-doc">${cfg.cobertura_dias}</span>`}<div class="td-doc">dias${f.prazo_dias == null || f.seguranca_dias == null || f.cobertura_dias == null ? ' (apagado = geral)' : ''}</div></td>
+        <td class="num">${f.ciclo_dias ? `a cada ${f.ciclo_dias} d<div>${i.proxima ? `<span class="mini ${atrasada ? 'warn' : ''}">${atrasada ? '⏰ ' : '📅 '}${dataBR(i.proxima)}</span>` : '<span class="td-doc">sem pedido ainda</span>'}</div>` : '<span class="td-doc">—</span>'}</td>
+        <td class="num">${f.pedido_minimo ? brl(f.pedido_minimo) : '—'}${f.pedido_minimo && i.valorComprar && i.valorComprar < f.pedido_minimo ? `<div><span class="mini warn">compra atual ${brl(i.valorComprar)} abaixo do mínimo</span></div>` : ''}</td>
+        <td class="num">${i.prazoReal != null ? `${i.prazoReal} d${f.prazo_dias != null && i.prazoReal > f.prazo_dias ? `<div><span class="mini warn">acima do combinado (${f.prazo_dias} d)</span></div>` : ''}` : '<span class="td-doc">—</span>'}<div class="td-doc">${i.peds.length} pedido(s)</div></td>
+        <td class="num">${i.comprar.length ? `<b>${i.comprar.length}</b> item(ns)<div class="td-doc">${brl(i.valorComprar)}</div>` : '—'}</td>
+        <td style="white-space:nowrap">${_readOnly ? '' : `<button class="tbtn" onclick="abrirForn('${f.id}')" title="Editar">✏️</button> <button class="tbtn" onclick="filtrarFabricante(${JSON.stringify(f.nome).replace(/"/g, '&quot;')});goView('programacao')" title="Ver na programação">🛒</button> <button class="tbtn" onclick="excluirForn('${f.id}')" title="Excluir">🗑</button>`}</td></tr>`; }).join('')}</tbody>`;
+}
+let _fornEdit = null;
+window.abrirForn = id => {
+  const f = id ? data.forn.find(x => x.id === id) : null; _fornEdit = f;
+  $('forn-title').textContent = f ? `🏭 ${f.nome}` : '🏭 Novo fornecedor';
+  const set = (k, v) => { $(k).value = v ?? ''; };
+  set('fo-nome', f?.nome); set('fo-contato', f?.contato); set('fo-email', f?.email); set('fo-tel', f?.telefone); set('fo-linhas', f?.linhas); set('fo-prazo', f?.prazo_dias);
+  set('fo-seg', f?.seguranca_dias); set('fo-cob', f?.cobertura_dias); set('fo-ciclo', f?.ciclo_dias); set('fo-min', f?.pedido_minimo); set('fo-frete', f?.frete); set('fo-obs', f?.obs);
+  ['fo-prazo', 'fo-seg', 'fo-cob'].forEach((k, n) => { $(k).placeholder = 'geral: ' + [cfg.prazo_dias, cfg.seguranca_dias, cfg.cobertura_dias][n]; });
+  $('fo-dica').textContent = 'Dica: comprado a cada 90 dias → ciclo 90, segurança 20 e cobrir 110 (20 + 90). Em branco = parâmetros gerais.';
+  $('modal-forn').classList.add('open');
+};
+window.salvarForn = async () => {
+  if (_readOnly) { toast('Seu usuário é só de visualização.', 'err'); return; }
+  const nome = $('fo-nome').value.trim().toUpperCase(); if (!nome) { $('fo-nome').focus(); return; }
+  const n = id => { const v = $(id).value.trim(); return v === '' ? null : num(v); };
+  const row = { filial: FILIAL, nome, contato: $('fo-contato').value.trim() || null, email: $('fo-email').value.trim() || null, telefone: $('fo-tel').value.trim() || null, linhas: $('fo-linhas').value.trim() || null,
+    prazo_dias: n('fo-prazo'), seguranca_dias: n('fo-seg'), cobertura_dias: n('fo-cob'), ciclo_dias: n('fo-ciclo'), pedido_minimo: n('fo-min'), frete: $('fo-frete').value.trim() || null, obs: $('fo-obs').value.trim() || null, atualizado_em: new Date().toISOString() };
+  const q = _fornEdit ? supabase.from(T.forn).update(row).eq('id', _fornEdit.id) : supabase.from(T.forn).insert(row);
+  const { error } = await q;
+  if (error) { if (/compras_fornecedores|does not exist|schema cache/i.test(error.message || '')) { toast('Falta a tabela de fornecedores: rode o SQL de atualização.', 'err'); mostrarSql(); } else toast('Não salvou: ' + error.message, 'err'); return; }
+  $('modal-forn').classList.remove('open'); toast('✔ Fornecedor salvo'); await carregarTudo(); montarParametros();
+};
+window.excluirForn = async id => { const f = data.forn.find(x => x.id === id); if (!f || !confirm(`Excluir o cadastro de ${f.nome}? (os pedidos continuam)`)) return;
+  const { error } = await supabase.from(T.forn).delete().eq('id', id); toast(error ? 'Não excluiu: ' + error.message : '✔ Excluído', error ? 'err' : 'ok'); await carregarTudo(); };
+window.importarFabsForn = async () => {
+  if (_readOnly) return; if (!data.fornOk) { toast('Rode o SQL de atualização (tabela de fornecedores).', 'err'); mostrarSql(); return; }
+  let fabs = []; try { fabs = programacao().map(r => r.fabricante); } catch (e) {}
+  const ja = new Set(data.forn.map(f => norm(f.nome))), novos = [...new Set(fabs.filter(Boolean).map(f => String(f).trim().toUpperCase()))].filter(f => !ja.has(norm(f)));
+  if (!novos.length) { toast('Todos os fabricantes da programação já estão cadastrados.', 'info'); return; }
+  const rows = novos.map(nome => { const v = paramFab(nome); return { filial: FILIAL, nome, prazo_dias: v.prazo ?? null, seguranca_dias: v.seg ?? null, cobertura_dias: v.cob ?? null, atualizado_em: new Date().toISOString() }; });
+  const { error } = await supabase.from(T.forn).insert(rows);
+  toast(error ? 'Não cadastrou: ' + error.message : `✔ ${rows.length} fornecedor(es) cadastrado(s): ${novos.join(', ')}`, error ? 'err' : 'ok'); await carregarTudo();
 };
 window.filtroProg = (campo, v) => { ui[campo] = v; render(); };
 window.irParado = () => { ui.prog = new Set(['parado']); document.querySelectorAll('[data-prog]').forEach(x => x.classList.toggle('on', x.dataset.prog === 'parado')); goView('programacao'); };
@@ -1371,14 +1789,15 @@ window.pedidoWhatsApp = id => {
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(t), '_blank');
 };
 function listaPedidos() {
-  return data.ped.filter(p => !ui.ped || (ui.ped === 'abertos' ? p.status === 'aguardando' || p.status === 'aprovado' : p.status === ui.ped))
+  return data.ped.filter(p => !ui.ped || (ui.ped === 'abertos' ? pedAberto(p) : ui.ped === 'aprovado' ? ['aprovado', 'enviado', 'parcial'].includes(p.status) : p.status === ui.ped))
     .filter(p => !ui.busca || norm(p.fabricante).includes(norm(ui.busca)) || (p.itens || []).some(i => norm(i.codigo).includes(norm(ui.busca)) || norm(i.descricao).includes(norm(ui.busca))))
     .sort((a, b) => (b.criado_em || '').localeCompare(a.criado_em || ''));
 }
 function renderPedidos() {
   const ab = st => data.ped.filter(p => p.status === st), mes = new Date().toISOString().slice(0, 7);
-  $('ped-stats').innerHTML = statCard('Aguardando aprovação', ab('aguardando').length, brl(ab('aguardando').reduce((a, p) => a + num(p.valor), 0)), ab('aguardando').length ? 'warn' : '')
-    + statCard('Aprovados · a caminho', ab('aprovado').length, brl(ab('aprovado').reduce((a, p) => a + num(p.valor), 0)) + ' em trânsito', 'info')
+  const caminho = data.ped.filter(p => ['aprovado', 'enviado', 'parcial'].includes(p.status)), atrasados = caminho.filter(p => p.previsao_entrega && p.previsao_entrega < new Date().toISOString().slice(0, 10));
+  $('ped-stats').innerHTML = statCard('Rascunho / aguardando', ab('rascunho').length + ab('aguardando').length, `${ab('aguardando').length} esperando aprovação · ${brl([...ab('rascunho'), ...ab('aguardando')].reduce((a, p) => a + num(p.valor), 0))}`, ab('aguardando').length ? 'warn' : '')
+    + statCard('A caminho', caminho.length, `${brl(caminho.reduce((a, p) => a + num(p.valor), 0))}${atrasados.length ? ` · ⏰ ${atrasados.length} atrasado(s)` : ''}`, atrasados.length ? 'crit' : 'info')
     + statCard('Recebidos no mês', ab('recebido').filter(p => (p.recebido_em || '').startsWith(mes)).length, brl(ab('recebido').filter(p => (p.recebido_em || '').startsWith(mes)).reduce((a, p) => a + num(p.valor), 0)), 'ok')
     + statCard('Total de pedidos', data.ped.length, 'histórico desta filial');
   const lista = listaPedidos(); $('cnt-ped').textContent = lista.length;
@@ -1389,19 +1808,25 @@ function renderPedidos() {
     ${lista.map(p => { const its = p.itens || [], aberto = ui.pedAbertos.has(p.id), difer = its.filter(i => num(i.qtd) !== num(i.sugerido)).length;
       return `<tr class="click" onclick="abrirPedido('${p.id}')"><td class="td-mono">${aberto ? '▾' : '▸'} #${esc(p.numero ?? '')}</td><td class="td-mono">${dataHoraBR(p.criado_em)}</td><td>${esc(p.fabricante || '')}</td>
         <td class="num">${its.length}${difer ? `<div class="td-doc" title="Itens com quantidade diferente da sugerida">${difer} ajustado(s)</div>` : ''}</td><td class="num"><b>${brl(p.valor)}</b></td>
-        <td><span class="badge ${PED_ST[p.status]?.[0] || 'b-mute'}">${PED_ST[p.status]?.[1] || esc(p.status)}</span>${p.recebido_em ? `<div class="td-doc">em ${dataHoraBR(p.recebido_em)}</div>` : ''}</td>
+        <td><span class="badge ${PED_ST[p.status]?.[0] || 'b-mute'}">${PED_ST[p.status]?.[1] || esc(p.status)}</span>${p.enviado_em ? `<div class="td-doc">enviado ${dataHoraBR(p.enviado_em).slice(0, 10)}</div>` : ''}${p.previsao_entrega && pedAberto(p) ? `<div class="td-doc" style="${p.previsao_entrega < new Date().toISOString().slice(0, 10) ? 'color:#dc2626' : ''}">previsão ${dataBR(p.previsao_entrega)}</div>` : ''}${p.recebido_em ? `<div class="td-doc">recebido ${dataHoraBR(p.recebido_em).slice(0, 10)}${prazoRealPed(p) != null ? ` · ${prazoRealPed(p)} d` : ''}</div>` : ''}${(p.recebimentos || []).length ? `<div class="td-doc">${p.recebimentos.length} entrega(s)${p.recebimentos.filter(r => r.nf).length ? ' · NF ' + p.recebimentos.filter(r => r.nf).map(r => r.nf).join(', ') : ''}</div>` : ''}</td>
         <td class="td-doc">${esc(p.criado_por || '')}</td><td class="td-doc">${p.aprovado_em ? `${dataHoraBR(p.aprovado_em)}<br>${esc(p.aprovado_por || '')}` : '—'}</td>
         <td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">
-          ${p.status === 'aguardando' && apr ? `<button class="tbtn tbtn-p" onclick="mudarPedido('${p.id}','aprovado')">✔ Aprovar</button>` : ''}
+          ${p.status === 'rascunho' && pode ? `<button class="tbtn tbtn-p" onclick="mudarPedido('${p.id}','aguardando')" title="Mandar para o aprovador">📨 Enviar p/ aprovação</button>` : ''}
+          ${(p.status === 'aguardando' || p.status === 'rascunho') && apr ? `<button class="tbtn ${p.status === 'aguardando' ? 'tbtn-p' : ''}" onclick="mudarPedido('${p.id}','aprovado')">✔ Aprovar</button>` : ''}
           ${p.status === 'aguardando' && !apr ? '<span class="td-doc">aguardando o aprovador</span>' : ''}
-          ${p.status === 'aprovado' && pode ? `<button class="tbtn tbtn-g" onclick="mudarPedido('${p.id}','recebido')">📦 Recebido</button>` : ''}
+          ${p.status === 'aprovado' && pode ? `<button class="tbtn tbtn-p" onclick="mudarPedido('${p.id}','enviado')" title="Já mandei o pedido ao fornecedor">📤 Enviado</button><button class="tbtn" onclick="pedidoEmail('${p.id}')" title="Mandar por e-mail">✉</button>` : ''}
+          ${['aprovado', 'enviado', 'parcial'].includes(p.status) && pode ? `<button class="tbtn tbtn-g" onclick="abrirReceb('${p.id}')" title="Registrar o que chegou (parcial ou total), com a NF de entrada">📦 Receber</button>` : ''}
+          <button class="tbtn" onclick="imprimirPedido('${p.id}')" title="Imprimir / salvar em PDF">🖨</button>
           <button class="tbtn" onclick="pedidoModelo('${p.id}')" title="Planilha no modelo do fornecedor (Merit etc.)">📄</button>
           <button class="tbtn" onclick="pedidoWhatsApp('${p.id}')" title="Mandar o pedido no WhatsApp">📲</button>
-          ${(p.status === 'aguardando' || p.status === 'aprovado') && pode ? `<button class="tbtn" onclick="mudarPedido('${p.id}','cancelado')" title="Cancelar pedido">✖</button>` : ''}
+          ${pedAberto(p) && pode ? `<button class="tbtn" onclick="mudarPedido('${p.id}','cancelado')" title="Cancelar pedido">✖</button>` : ''}
         </div></td></tr>
         ${aberto ? `<tr><td colspan="9" style="background:var(--surface2,#f6faf7)"><table><thead><tr><th>Código</th><th>Produto</th><th class="num">Estoque na hora</th><th class="num">Consumo/mês</th><th class="num">Sugerido</th><th class="num">Pedido</th><th class="num">Preço</th><th class="num">Valor</th></tr></thead><tbody>
-          ${its.map(i => `<tr><td class="td-mono">${esc(i.codigo)}</td><td>${esc(i.descricao || '')}${i.caixa > 1 ? `<div class="td-doc">📦 ${Math.ceil(num(i.qtd) / i.caixa)} cx c/ ${i.caixa}</div>` : ''}${i.para_reserva ? `<div class="td-doc">🔒 reserva ${qtd(i.para_reserva)} · outros ${qtd(i.para_outros)}</div>` : ''}</td><td class="num">${qtd(i.disp)}</td><td class="num">${qtd(i.consumo)}</td><td class="num">${qtd(i.sugerido)}</td>
-            <td class="num"><b>${qtd(i.qtd)}</b>${num(i.qtd) !== num(i.sugerido) ? `<div class="td-doc">${num(i.qtd) > num(i.sugerido) ? '+' : ''}${qtd(num(i.qtd) - num(i.sugerido))} vs sugerido</div>` : ''}</td><td class="num">${i.preco ? brl(i.preco) : '—'}</td><td class="num">${brl(num(i.qtd) * num(i.preco))}</td></tr>`).join('')}
+          ${its.map((i, n) => { const edita = (p.status === 'rascunho' || p.status === 'aguardando') && pode, rec = recebidoDe(p, i.codigo);
+            return `<tr><td class="td-mono">${esc(i.codigo)}</td><td>${esc(i.descricao || '')}${i.caixa > 1 ? `<div class="td-doc">📦 ${Math.ceil(num(i.qtd) / i.caixa)} cx c/ ${i.caixa}</div>` : ''}${i.para_reserva ? `<div class="td-doc">🔒 reserva ${qtd(i.para_reserva)} · outros ${qtd(i.para_outros)}</div>` : ''}</td>
+            <td class="num">${qtd(i.disp)}</td><td class="num">${qtd(i.consumo)}</td><td class="num">${qtd(i.sugerido)}</td>
+            <td class="num">${edita ? `<input class="finput" type="number" min="0" step="1" value="${num(i.qtd)}" style="width:80px;text-align:right" onchange="editarItemPed('${p.id}', ${n}, this.value)">` : `<b>${qtd(i.qtd)}</b>`}${num(i.qtd) !== num(i.sugerido) ? `<div class="td-doc">${num(i.qtd) > num(i.sugerido) ? '+' : ''}${qtd(num(i.qtd) - num(i.sugerido))} vs sugerido</div>` : ''}${rec ? `<div><span class="mini ${rec >= num(i.qtd) ? 'ok' : 'warn'}">recebido ${qtd(rec)}</span></div>` : ''}</td>
+            <td class="num">${i.preco ? brl(i.preco) : '—'}</td><td class="num">${brl(num(i.qtd) * num(i.preco))}${edita ? ` <a href="#" title="Tirar do pedido" onclick="removerItemPed('${p.id}', ${n});return false">✕</a>` : ''}</td></tr>`; }).join('')}
           </tbody></table>${forecastHTML(forecast(its, p.id))}</td></tr>` : ''}`; }).join('')}</tbody>`;
 }
 // ───────── Pedido no modelo do fornecedor (ex.: "Pedido GF_Medical Matriz x Merit CORONÁRIA.xlsx") ─────────
@@ -1742,8 +2167,8 @@ function renderImportar() {
   const tabDe = { S013: 'est', C457: 'cons', C1060: 'cmo', C723: 'pen', C904: 'res', C1060C: 'cmoCli' };
   // linhas que ainda estão no banco vindas desta importação (mesmo horário de gravação)
   const noBanco = i => { const k = tabDe[i.tipo], t = new Date(i.importado_em).getTime(); return k ? (data.raw[k] || data[k] || []).filter(r => Math.abs(new Date(r.importado_em).getTime() - t) < 2000).length : 0; };
-  $('tb-imp').innerHTML = l.length ? `<thead><tr><th>Quando</th><th>Relatório</th><th>Arquivo</th><th class="num">Linhas</th><th class="num" title="Linhas desta importação que ainda estão no banco (as outras foram trocadas por importações depois)">Ainda no banco</th><th>Quem</th><th></th></tr></thead><tbody>
-    ${l.map(i => `<tr><td class="td-mono">${dataHoraBR(i.importado_em)}</td><td>${{ S013: '📦 S013 - Estoque', C457: '🏥 C457 - Itens Consignados', C1060: '📈 C1060 - Consumo Mensal', C723: '⏳ C723 - Pendentes por cirurgia', C904: '🔒 C904 - Reserva de cliente', C1060C: '👤 C1060 - Consumo do cliente' }[i.tipo] || i.tipo}</td><td>${esc(i.arquivo || '')}</td><td class="num">${i.linhas}</td><td class="num">${(n => n ? n : '<span class="td-doc">—</span>')(noBanco(i))}</td><td class="td-mono">${esc((i.usuario || '').split(' (')[0].split('@')[0])}</td>
+  $('tb-imp').innerHTML = l.length ? `<thead><tr><th>Quando</th><th>Relatório</th><th>Arquivo</th><th>Período</th><th class="num">Linhas</th><th class="num" title="Linhas desta importação que ainda estão no banco (as outras foram trocadas por importações depois)">Ainda no banco</th><th>Quem</th><th></th></tr></thead><tbody>
+    ${l.map(i => `<tr><td class="td-mono">${dataHoraBR(i.importado_em)}</td><td>${{ S013: '📦 S013 - Estoque', C457: '🏥 C457 - Itens Consignados', C1060: '📈 C1060 - Consumo Mensal', C723: '⏳ C723 - Pendentes por cirurgia', C904: '🔒 C904 - Reserva de cliente', C1060C: '👤 C1060 - Consumo do cliente' }[i.tipo] || i.tipo}</td><td>${esc(i.arquivo || '')}</td><td class="td-mono">${esc(i.periodo || '—')}</td><td class="num">${i.linhas}</td><td class="num">${(n => n ? n : '<span class="td-doc">—</span>')(noBanco(i))}</td><td class="td-mono">${esc((i.usuario || '').split(' (')[0].split('@')[0])}</td>
       <td>${_readOnly ? '' : `<button class="tbtn" title="Remover esta importação" onclick="removerImportacao('${i.id}')">🗑</button>`}</td></tr>`).join('')}</tbody>`
     : '<tbody><tr><td><div class="empty-mini">Nenhuma importação ainda.</div></td></tr></tbody>';
 }
@@ -1936,6 +2361,10 @@ async function importarArquivos(files) {
       const filtroS013 = /S013|C723|C1060|C457/.test(texto) ? (/(Fabricante|Fornecedor|SubGrupo|Grupo):\s*([^.]+?)\s*\./i.exec(texto.replace(/\s+/g, ' ')) || null) : null;
       const fabricante = filtroS013 && /Fabricante|Fornecedor/i.test(filtroS013[1]) ? filtroS013[2].trim() : null;
       const grupoPdf = filtroS013 && /Grupo/i.test(filtroS013[1]) ? filtroS013[2].trim().toUpperCase() : null;
+      // período (ou data) do relatório, para não importar o mesmo duas vezes
+      const txt1 = texto.replace(/\s+/g, ' ');
+      const mPer = /Per[\s\S]{0,6}?odo\s*entre\s*(\d{2}\/\d{2}\/\d{4})\s*e?\s*(\d{2}\/\d{2}\/\d{4})/i.exec(txt1), mImp = /Data\s+da\s+impress[\s\S]{0,6}?o\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i.exec(txt1);
+      let periodo = mPer ? `${mPer[1]} a ${mPer[2]}` : mImp ? `posição de ${mImp[1]}` : null;
       if (/C904/.test(texto)) { tipo = 'C904'; rows = lerC904(pags); }
       else if (/S013/.test(texto)) { tipo = 'S013'; rows = lerS013(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; }); }
       else if (/C457/.test(texto)) { tipo = 'C457'; rows = lerC457(pags); if (fabricante) rows.forEach(r => { r.fabricante = fabricante; }); }
@@ -1952,6 +2381,8 @@ async function importarArquivos(files) {
         if (!/Pendente/i.test(texto.replace(/\s+/g, ' ')) && !confirm('Este C723 não parece estar filtrado por "Status dos Pedidos: Pendente". Importar mesmo assim como pendente de faturamento?')) continue; }
       else { toast(`${file.name}: não reconheci o relatório (esperado S013 - Estoque ou C457 - Itens Consignados).`, 'err'); continue; }
       if (!rows.length) { toast(`${file.name}: nenhuma linha encontrada.`, 'err'); continue; }
+      if (!periodo && /^C1060/.test(tipo)) { const ult = Math.max(-1, ...rows.map(r => (r.meses || []).reduce((u, x, m) => num(x) ? m : u, -1)));
+        periodo = `jan–${MESES_N[Math.max(0, ult)]} · ${qtd(rows.reduce((a, r) => a + num(r.total), 0))} un`; }
       const NOMES = { S013: 'S013 - Estoque', C457: 'C457 - Itens Consignados', C1060: 'C1060 - Consumo Mensal', C723: 'C723 - Pedidos pendentes por cirurgia', C904: 'C904 - Pedidos com saldo pendente', C1060C: 'C1060 - Consumo Mensal do cliente' }, ALVO = { S013: 'estoque próprio', C457: 'consignado', C1060: 'consumo', C723: 'pendente de faturamento', C904: 'reserva de cliente', C1060C: 'consumo do cliente' };
       const resumo = tipo === 'S013' ? `${rows.length} produto(s), ${qtd(rows.reduce((a, r) => a + num(r.estoque_disp), 0))} unidade(s) disponíveis`
         : tipo === 'C457' ? `${rows.length} remessa(s), saldo atual ${qtd(rows.reduce((a, r) => a + num(r.saldo), 0))} unidade(s)`
@@ -1960,6 +2391,9 @@ async function importarArquivos(files) {
         : tipo === 'C723' ? `${new Set(rows.map(r => r.pedido)).size} pedido(s), ${rows.length} item(ns), ${qtd(rows.reduce((a, r) => a + num(r.quantidade), 0))} unidade(s), ${brl(rows.reduce((a, r) => a + num(r.valor_total), 0))}`
         : `${rows.length} produto(s), consumo total ${qtd(rows.reduce((a, r) => a + num(r.total), 0))} unidade(s) no ano`;
       let parcial = (tipo === 'S013' || tipo === 'C723' || tipo === 'C1060') && filtroS013;
+      const rotuloFiltro = filtroS013 ? ` (${filtroS013[1]}: ${filtroS013[2].trim()})` : '';
+      const repetido = !novaAnalise && periodo && data.imp.find(i => i.tipo === tipo && i.periodo === periodo && (i.arquivo || '').endsWith(rotuloFiltro) && (rotuloFiltro || !/\(.+:.+\)$/.test(i.arquivo || '')));
+      if (repetido && !confirm(`Este relatório já foi importado:\n${NOMES[tipo]}${rotuloFiltro} · período ${periodo}\nem ${dataHoraBR(repetido.importado_em)} (${repetido.arquivo}).\n\nImportar de novo mesmo assim?`)) continue;
       let modoCli = null; // C904 / C1060 do cliente: 'subst' (troca só os produtos deste PDF) | 'zero' (apaga tudo e fica só com este PDF)
       if (novaAnalise) { /* análise nova: as tabelas já foram zeradas — só grava, sem perguntar de novo */ }
       else if (tipo === 'C1060C' || tipo === 'C904') {
@@ -2028,7 +2462,9 @@ O consignado de ${BR.label} já tem ${jaTem} linha(s) de importações anteriore
       }
       if (semColunaGrupo) toast('Gravado sem o grupo (linha): rode o SQL de atualização (coluna grupo).', 'info');
       if (semColunaFab) toast('Gravado sem o fabricante: rode o SQL de atualização (coluna fabricante) para guardar o fabricante de cada item.', 'info');
-      await supabase.from(T.imp).insert({ filial: FILIAL, tipo, arquivo: file.name + (filtroS013 ? ` (${filtroS013[1]}: ${filtroS013[2].trim()})` : ''), linhas: rows.length, usuario: quemSou(), importado_em: agora });
+      const regImp = { filial: FILIAL, tipo, arquivo: file.name + rotuloFiltro, linhas: rows.length, usuario: quemSou(), importado_em: agora, periodo };
+      let ri = await supabase.from(T.imp).insert(regImp);
+      if (ri.error && /periodo/i.test(ri.error.message || '')) { delete regImp.periodo; await supabase.from(T.imp).insert(regImp); }
       if (fabricante) fabsImp.add(fabricante); else semFabImp = true;
       $('imp-status').textContent = `✔ ${file.name}: ${resumo}.`;
       toast(`✔ ${tipo} importado: ${resumo}`);

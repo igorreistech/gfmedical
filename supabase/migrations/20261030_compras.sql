@@ -206,3 +206,41 @@ alter table public.compras_consumo    add column if not exists grupo text;
 alter table public.compras_pendente   add column if not exists grupo text;
 alter table public.compras_consignado add column if not exists grupo text;
 notify pgrst, 'reload schema';
+
+-- Sistema profissional: cadastro de fornecedores, fluxo do pedido (enviado/recebimentos), orçamento, múltiplo por produto e período dos relatórios
+create table if not exists public.compras_fornecedores (
+  id              uuid primary key default gen_random_uuid(),
+  filial          text not null,
+  nome            text not null,
+  contato         text,
+  email           text,
+  telefone        text,
+  prazo_dias      integer,
+  seguranca_dias  integer,
+  cobertura_dias  integer,
+  ciclo_dias      integer,
+  pedido_minimo   numeric(14,2),
+  frete           text,
+  linhas          text,
+  modelo          text,
+  obs             text,
+  ativo           boolean not null default true,
+  atualizado_em   timestamptz not null default now()
+);
+create unique index if not exists compras_fornecedores_nome on public.compras_fornecedores (filial, nome);
+alter table public.compras_fornecedores enable row level security;
+drop policy if exists compras_fornecedores_select on public.compras_fornecedores;
+drop policy if exists compras_fornecedores_write on public.compras_fornecedores;
+create policy compras_fornecedores_select on public.compras_fornecedores for select to authenticated using (true);
+create policy compras_fornecedores_write on public.compras_fornecedores for all to authenticated
+  using (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'))
+  with check (not exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role = 'visualizacao'));
+alter table public.compras_pedidos
+  add column if not exists enviado_em timestamptz,
+  add column if not exists enviado_por text,
+  add column if not exists recebimentos jsonb not null default '[]',
+  add column if not exists previsao_entrega date;
+alter table public.compras_config add column if not exists orcamento_mensal numeric(14,2);
+alter table public.compras_config add column if not exists multiplos jsonb;
+alter table public.compras_importacoes add column if not exists periodo text;
+notify pgrst, 'reload schema';
