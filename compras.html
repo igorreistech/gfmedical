@@ -821,7 +821,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-18.3';
+const VERSAO = '2026-10-18.4';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores' };
 
 const $ = id => document.getElementById(id);
@@ -943,6 +943,8 @@ const fabConhecido = cod => {
       if (f) [r.codigo, r.codigo_alt].filter(Boolean).forEach(c => _fabCache.set(norm(c), f)); })); }
   return _fabCache.get(norm(cod || '')) || '';
 };
+const nomeFab = f => { const t = String(f || '').replace(/\s+/g, ' ').trim().toUpperCase(); if (!t) return '';
+  const c = t.replace(/\s+(IND(USTRIA|\.)?|COM(ERCIO|\.)?|LTDA|S\.?\/?A\.?|EIRELI|IMPORTA\S*|DISTRIBUI\S*|PRODUTOS)\b.*$/i, '').trim(); return c || t; };
 const fabDe = r => (r.fabricante && String(r.fabricante).trim()) || fabConhecido(r.codigo_alt) || fabConhecido(r.codigo) || fabPorTabela(r.codigo_alt || r.codigo);
 const emCaixas = (q, cx) => cx > 1 ? Math.ceil(q / cx) * cx : q;
 // Código terminando em "-0" = produto reutilizável: fica fora da contagem (estoque, consumo, pendente e programação)
@@ -967,6 +969,7 @@ async function carregarTudo() {
     try { data.forn = await selectTudo(T.forn); data.fornOk = true; } catch (e) { data.forn = []; data.fornOk = false; console.warn('[Compras] fornecedores:', e.message); }
     try { data.res = await selectTudo(T.res); data.resOk = true; } catch (e) { data.res = []; data.resOk = false; console.warn('[Compras] reserva:', e.message); }
     try { data.cmoCli = await selectTudo(T.cmoCli); data.cmoCliOk = true; } catch (e) { data.cmoCli = []; data.cmoCliOk = false; console.warn('[Compras] consumo do cliente:', e.message); }
+    ['est', 'cmo', 'pen', 'cons'].forEach(k => (data[k] || []).forEach(r => { if (r.fabricante) r.fabricante = nomeFab(r.fabricante); }));
     ['est', 'cmo', 'pen', 'res', 'cmoCli'].forEach(k => { data.raw[k] = data[k]; data[k] = data.raw[k].filter(r => !reutilizavel(r)); data.reut[k] = data.raw[k].length - data[k].length; });
     const c = await supabase.from(T.cfg).select('*').eq('filial', FILIAL).maybeSingle();
     if (c.data) cfg = { ...cfg, ...Object.fromEntries(Object.entries(c.data).filter(([, v]) => v != null)) };
@@ -2422,9 +2425,12 @@ async function importarArquivos(files) {
       if (filialPdf && filialPdf !== FILIAL && !confirm(`Este relatório é da filial ${filialPdf === 'CGR' ? 'Campo Grande' : 'Cuiabá'}, mas você está em ${BR.label}. Importar mesmo assim nesta filial?`)) continue;
       let tipo, rows;
       // S013 filtrado (ex.: "Fabricante: JOTEC BRASIL"): atualiza só esses produtos, o resto do estoque continua
-      const filtroS013 = /S013|C723|C1060|C457/.test(texto) ? (/(Fabricante|Fornecedor|SubGrupo|Grupo):\s*([^.]+?)\s*\./i.exec(texto.replace(/\s+/g, ' ')) || null) : null;
-      const fabricante = filtroS013 && /Fabricante|Fornecedor/i.test(filtroS013[1]) ? filtroS013[2].trim() : null;
-      const grupoPdf = filtroS013 && /Grupo/i.test(filtroS013[1]) ? filtroS013[2].trim().toUpperCase() : null;
+      // filtros do relatório: pode vir por Fabricante, por Grupo ou pelos dois (ex.: "Grupo: Vascular" + "Fabricante: BARD BRASIL…")
+      const txF = texto.replace(/\s+/g, ' '), ehFiltravel = /S013|C723|C1060|C457/.test(texto);
+      const mFab = ehFiltravel ? /(Fabricante|Fornecedor):\s*([^.]+?)\s*(?:\.|\bLocal\b|\bLocaliza|\bTodas?\s|$)/i.exec(txF) : null;
+      const mGrp = ehFiltravel ? /(SubGrupo|Grupo)(?:\s+de\s+Produtos)?:\s*([^.]+?)\s*\./i.exec(txF) : null;
+      const fabricante = mFab ? nomeFab(mFab[2]) : null, grupoPdf = mGrp ? mGrp[2].trim().toUpperCase() : null;
+      const filtroS013 = mFab || mGrp ? [null, mFab ? 'Fabricante' : mGrp[1], mFab ? [fabricante, grupoPdf && 'Grupo ' + mGrp[2].trim()].filter(Boolean).join(' · ') : mGrp[2].trim()] : null;
       // período (ou data) do relatório, para não importar o mesmo duas vezes
       const txt1 = texto.replace(/\s+/g, ' ');
       const mPer = /Per[\s\S]{0,6}?odo\s*entre\s*(\d{2}\/\d{2}\/\d{4})\s*e?\s*(\d{2}\/\d{2}\/\d{4})/i.exec(txt1), mImp = /Data\s+da\s+impress[\s\S]{0,6}?o\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i.exec(txt1);
@@ -2505,7 +2511,7 @@ O consignado de ${BR.label} já tem ${jaTem} linha(s) de importações anteriore
         for (let i = 0; i < cods.length; i += 100) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).in('codigo', cods.slice(i, i + 100)); if (d.error) throw d.error; }
         const docs = tipo === 'C457' ? [...new Set(rows.map(r => r.documento).filter(Boolean))] : []; // C457: troca as remessas deste PDF
         for (let i = 0; i < docs.length; i += 100) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).in('documento', docs.slice(i, i + 100)); if (d.error) throw d.error; }
-        if (fabricante) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).eq('fabricante', fabricante); if (d.error && !/fabricante/i.test(d.error.message || '')) throw d.error; }
+        if (fabricante && !grupoPdf) { const d = await supabase.from(tabela).delete().eq('filial', FILIAL).eq('fabricante', fabricante); if (d.error && !/fabricante/i.test(d.error.message || '')) throw d.error; }
       } else {
         if (modoCli === 'subst') {
           // troca só os produtos deste PDF, do(s) cliente(s) do PDF — o resto continua
