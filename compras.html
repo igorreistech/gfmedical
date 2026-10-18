@@ -705,7 +705,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.22';
+const VERSAO = '2026-10-17.23';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente' };
 
 const $ = id => document.getElementById(id);
@@ -1452,6 +1452,7 @@ async function abaForecast(zip, wbDoc, rels, fc, estiloCab) {
   zip.file('[Content_Types].xml', new XMLSerializer().serializeToString(ct));
 }
 async function preencherModelo(itens, oc, pedidoId) {
+  itens = itens.slice();
   const mod = await pegarModelo(); if (!mod) return;
   try { await carregarJSZip(); } catch (e) { toast(e.message, 'err'); return; }
   let zip; try { zip = await JSZip.loadAsync(mod.ab); } catch (e) { toast('Esse arquivo não é uma planilha .xlsx válida.', 'err'); return; }
@@ -1471,10 +1472,22 @@ async function preencherModelo(itens, oc, pedidoId) {
       const cs = [...row.getElementsByTagNameNS(NS_X, 'c')], col = re => { const c = cs.find(c => re.test(txt(c).trim())); return c ? colDe(c.getAttribute('r')) : null; };
       const pn = col(/^part\s*number$/i), qt = col(/^qtde?\.?$|^quantidade$/i);
       if (pn && qt) { A = { path, doc, rows, hdr: +row.getAttribute('r'), pn, qt, preco: col(/^pre[çc]o(?!.*total)/i), total: col(/total/i) }; break; }
+      const cod = col(/^c[óo]digo$/i), qtL = col(/^quantidade\b/i);
+      if (cod && qtL) { A = { lista: true, path, doc, rows, hdr: +row.getAttribute('r'), pn: cod, qt: qtL, num: col(/^n[oº°]\.?$/i), codFab: col(/^c[óo]digo\s+\S+$/i) }; break; }
     }
     if (A) break;
   }
-  if (!A) { toast('Não achei as colunas "Part Number" e "QTDE" nesse modelo.', 'err'); return; }
+  if (!A) { toast('Não achei as colunas do pedido nesse modelo ("Part Number" + "QTDE", ou "CÓDIGO" + "QUANTIDADE").', 'err'); return; }
+  // lista em branco: vale para UM fornecedor — se a lista tem vários, pergunta qual
+  if (A.lista) {
+    const fabs = [...new Set(itens.map(i => i.fabricante || 'Sem fabricante'))];
+    if (fabs.length > 1) {
+      const op = await escolher('📄 ' + mod.nome, `Este modelo é uma lista em branco (preenche código e quantidade). A lista atual tem itens de ${fabs.length} fabricantes. Qual entra neste pedido?`,
+        [...fabs.map(f => [f, `🏭 ${f} (${itens.filter(i => (i.fabricante || 'Sem fabricante') === f).length} itens)`, '']), [null, 'Cancelar', '']]);
+      if (!op) return;
+      itens = itens.filter(i => (i.fabricante || 'Sem fabricante') === op);
+    }
+  }
   const { doc, rows, hdr } = A;
   const cel = (row, col) => [...row.getElementsByTagNameNS(NS_X, 'c')].find(c => colDe(c.getAttribute('r')) === col);
   const gravar = (row, col, val, texto) => {   // mantém o estilo da célula (atributo s) e a fórmula, troca só o valor
@@ -1488,7 +1501,22 @@ async function preencherModelo(itens, oc, pedidoId) {
   };
   const pedir = new Map(); itens.forEach(i => { const k = chaveCx(i.codigo); if (k && num(i.qtd) > 0) pedir.set(k, (pedir.get(k) || 0) + num(i.qtd)); });
   const usados = new Set(); let nItens = 0, unid = 0, total = 0;
-  for (const row of rows) {
+  if (A.lista) {
+    // linhas numeradas abaixo do cabeçalho: limpa o pedido anterior e escreve código + quantidade na ordem
+    const linhas = rows.filter(r => +r.getAttribute('r') > hdr).filter(r => !A.num || /^\d+$/.test(txt(cel(r, A.num)).trim()));
+    const fila = [...pedir.entries()], cabem = Math.min(fila.length, linhas.length);
+    linhas.forEach((row, n) => {
+      const it = n < cabem ? fila[n] : null, codOrig = it ? (itens.find(i => chaveCx(i.codigo) === it[0])?.codigo || it[0]) : null;
+      gravar(row, A.pn, codOrig, true); gravar(row, A.qt, it ? it[1] : null);
+      if (A.codFab && cel(row, A.codFab)?.getElementsByTagNameNS(NS_X, 'f')[0]) {   // "CÓDIGO BD" sai da fórmula: guarda o resultado já calculado
+        const c = cel(row, A.codFab); [...c.childNodes].forEach(x => { if (x.localName === 'v') c.removeChild(x); });
+        if (codOrig) { c.setAttribute('t', 'str'); const v = doc.createElementNS(NS_X, 'v'); v.textContent = /^\d+$/.test(codOrig) ? codOrig.padStart(18, '0') : codOrig; c.appendChild(v); }
+      }
+      if (it) { usados.add(it[0]); nItens++; unid += it[1]; }
+    });
+    if (fila.length > linhas.length) toast(`O modelo tem só ${linhas.length} linhas: ${fila.length - linhas.length} item(ns) ficaram de fora — gere outro arquivo para eles.`, 'err');
+  }
+  for (const row of A.lista ? [] : rows) {
     if (+row.getAttribute('r') <= hdr) continue;
     const cod = txt(cel(row, A.pn)).trim(); if (!cod || cod.length > 40 || /\s{2,}|[.:]$/.test(cod)) continue;
     const k = chaveCx(cod), q = pedir.get(k) || 0, preco = A.preco ? num(txt(cel(row, A.preco))) : 0;
@@ -1522,11 +1550,11 @@ async function preencherModelo(itens, oc, pedidoId) {
   if (faltam.length) alert(`${faltam.length} item(ns) da lista NÃO estão no modelo "${mod.nome}" (provavelmente são de outra linha/fornecedor) e ficaram de fora:\n\n${faltam.slice(0, 40).map(i => `• ${i.codigo}${i.descricao ? ' — ' + i.descricao : ''}: ${qtd(i.qtd)}`).join('\n')}${faltam.length > 40 ? `\n… e mais ${faltam.length - 40}` : ''}\n\nDica: filtre a Programação pelo fabricante (ex.: MERIT MEDICAL) antes de gerar; para os itens da outra linha, gere de novo escolhendo o outro modelo.`);
 }
 window.pedidoModeloProgramacao = () => {
-  const itens = listaProgramacao().filter(r => qtdComprar(r) > 0).map(r => ({ codigo: r.codigo, descricao: r.descricao, qtd: qtdComprar(r) }));
+  const itens = listaProgramacao().filter(r => qtdComprar(r) > 0).map(r => ({ codigo: r.codigo, descricao: r.descricao, qtd: qtdComprar(r), fabricante: r.fabricante || '' }));
   if (!itens.length) { toast('Nenhum item com quantidade a comprar nesta lista (confira os filtros e as quantidades).', 'info'); return; }
   preencherModelo(itens);
 };
-window.pedidoModelo = id => { const p = data.ped.find(x => x.id === id); if (p) preencherModelo((p.itens || []).map(i => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.qtd, preco: i.preco })), p.numero, p.id); };
+window.pedidoModelo = id => { const p = data.ped.find(x => x.id === id); if (p) preencherModelo((p.itens || []).map(i => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.qtd, preco: i.preco, fabricante: p.fabricante || '' })), p.numero, p.id); };
 window.listaCompraWhatsApp = () => {
   const itens = listaProgramacao().filter(r => qtdComprar(r) > 0);
   if (!itens.length) { toast('Nenhum item com quantidade a comprar nesta lista.', 'info'); return; }
