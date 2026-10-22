@@ -567,6 +567,102 @@ details.par-card[open]>summary small::after{content:'✕ fechar';font-size:.7rem
 .cons-det td:first-child{padding-left:28px}
 .tag-min{display:inline-block;margin-left:6px;font-family:var(--mono);font-size:0.6rem;font-weight:700;color:var(--crit-c)}
 .sql-box{width:100%;height:240px;font-family:var(--mono);font-size:0.66rem}
+/* ───── Programação de compra: layout profissional (22/10/2026) ───── */
+#view-programacao{--pg-card:var(--surface);--pg-line:color-mix(in srgb,var(--border) 70%,transparent);--pg-head:color-mix(in srgb,var(--surface2) 60%,var(--surface))}
+:root:not([data-theme="dark"]) #view-programacao{--pg-card:#fff}
+#view-programacao .td-mono,#view-programacao .flabel,#view-programacao .stat-lbl,#view-programacao .pt-lbl{font-family:var(--sans)}
+/* barra de resumo */
+#view-programacao .prog-topo{background:var(--pg-card);border-color:var(--pg-line);box-shadow:0 1px 2px rgba(10,42,24,.06),0 4px 16px rgba(10,42,24,.05);padding:12px 16px;border-radius:12px}
+#view-programacao .prog-topo .pt-lbl{font-size:.68rem;font-weight:600;letter-spacing:.04em;color:var(--text3)}
+#view-programacao .prog-topo .tot{font-family:var(--sans);font-size:.8rem;gap:10px}
+#view-programacao .prog-topo .tot .pt-v{font-size:1.5rem;letter-spacing:-.01em;color:var(--accent)}
+#view-programacao .prog-topo .pt-sep{height:14px}
+#view-programacao .prog-topo .tsel,#view-programacao .prog-filtros .tsel{height:32px;padding:0 10px;background:var(--pg-card);border-color:var(--pg-line);border-radius:8px;font-size:.76rem}
+#view-programacao .tbtn{height:32px;border-radius:8px}
+#view-programacao .prog-topo .tbtn:not(.tbtn-p),#view-programacao .thead-bar .tbtn,#view-programacao .pt-menu>summary{background:var(--pg-card);border:1px solid var(--pg-line);color:var(--text)}
+#view-programacao .prog-topo .tbtn:not(.tbtn-p):hover,#view-programacao .thead-bar .tbtn:hover{border-color:var(--accent);color:var(--accent)}
+#view-programacao .prog-topo .tbtn-p{padding:0 16px;box-shadow:0 1px 2px rgba(10,42,24,.2)}
+/* indicadores: uma linha só, cartão branco com faixa lateral */
+#view-programacao .prog-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+@media(min-width:1280px){#view-programacao .prog-kpis{grid-template-columns:repeat(7,minmax(0,1fr))}}
+#view-programacao .prog-kpis .stat-card{background:var(--pg-card);border:1px solid var(--pg-line);border-radius:12px;box-shadow:0 1px 2px rgba(10,42,24,.05);padding:12px 14px 11px 16px}
+#view-programacao .prog-kpis .stat-card::before{top:10px;bottom:10px;left:0;right:auto;width:3px;height:auto;border-radius:0 3px 3px 0}
+#view-programacao .prog-kpis .stat-lbl{font-size:.66rem;font-weight:600;letter-spacing:.02em;text-transform:none;color:var(--text2);margin-bottom:4px}
+#view-programacao .prog-kpis .stat-val{font-size:clamp(.95rem,1.12vw,1.3rem);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+#view-programacao .prog-kpis .stat-card.crit .stat-val{color:var(--crit-c)}
+#view-programacao .prog-kpis .stat-sub{font-size:.64rem;margin-top:4px}
+/* parâmetros e filtros */
+#view-programacao .par-card,#view-programacao .prog-filtros{background:var(--pg-card);border-color:var(--pg-line);border-radius:12px;box-shadow:0 1px 2px rgba(10,42,24,.05)}
+#view-programacao .par-card>.dcard-head{background:transparent;border-bottom:0;font-family:var(--sans);font-size:.8rem;font-weight:600}
+#view-programacao details.par-card[open]>.dcard-head{background:var(--pg-head);border-bottom:1px solid var(--pg-line)}
+#view-programacao .par-card>summary small{font-family:var(--sans);font-size:.66rem}
+#view-programacao .par-resumo{font-family:var(--sans)!important;font-size:.72rem!important;color:var(--text2)}
+#view-programacao .prog-filtros .dcard-body{padding:12px 16px}
+#view-programacao .prog-filtros .frow{gap:6px}
+#view-programacao #prog-favs .td-doc{display:none}
+#view-programacao .prog-filtros .frow+.frow{border-top:1px solid var(--pg-line);margin-top:10px;padding-top:10px}
+#view-programacao .prog-filtros .flabel{min-width:78px;font-size:.66rem;font-weight:600;letter-spacing:.04em;color:var(--text3)}
+#view-programacao .prog-filtros .frow>.td-mono[style*="margin-left:auto"]{display:none}
+#view-programacao .fchip{height:30px;display:inline-flex;align-items:center;padding:0 10px;border-radius:8px;border-color:var(--pg-line);background:var(--pg-card);font-size:.74rem}
+#view-programacao .fchip.on{background:color-mix(in srgb,var(--accent) 10%,var(--pg-card));font-weight:600}
+#view-programacao .seg{border-color:var(--pg-line);border-radius:8px;background:var(--pg-card)}
+#view-programacao .seg .fchip{height:30px;border-radius:0;border:0;border-right:1px solid var(--pg-line);background:transparent}
+#view-programacao .seg .fchip.on{background:var(--accent);color:#fff}
+#view-programacao .fchip .cnt{font-family:var(--sans);font-weight:600;background:color-mix(in srgb,var(--text3) 14%,transparent)}
+/* subtotal por fornecedor */
+#view-programacao .forn-strip{gap:8px}
+#view-programacao .forn-strip .fs{background:var(--pg-card);border-color:var(--pg-line);border-radius:10px;padding:7px 12px;font-size:.74rem;box-shadow:0 1px 2px rgba(10,42,24,.04)}
+#view-programacao .forn-strip .fs b{font-family:var(--sans);font-variant-numeric:tabular-nums;color:var(--text)}
+/* tabela */
+#view-programacao .twrap{background:var(--pg-card);border-color:var(--pg-line);border-radius:12px;box-shadow:0 1px 2px rgba(10,42,24,.05),0 6px 20px rgba(10,42,24,.05)}
+#view-programacao .thead-bar{background:var(--pg-card);padding:12px 16px}
+#view-programacao .thead-title{font-family:var(--sans);font-size:.9rem;font-weight:700}
+#view-programacao #prog-info{font-family:var(--sans);font-size:.68rem;color:var(--text3)}
+#tb-prog{min-width:100%;font-family:var(--sans);font-size:12.5px;border-collapse:separate;border-spacing:0}
+#tb-prog thead th{background:var(--pg-head);font-family:var(--sans);font-size:.64rem;font-weight:600;letter-spacing:.04em;color:var(--text2);padding-top:9px;padding-bottom:9px;box-shadow:inset 0 -1px 0 var(--pg-line)}
+#tb-prog td{border-bottom:1px solid var(--pg-line)}
+#tb-prog td.num,#tb-prog .big,#tb-prog .cod,#tb-prog .td-doc,#tb-prog .sub,#tb-prog .mini,#tb-prog tfoot td{font-family:var(--sans);font-variant-numeric:tabular-nums}
+#tb-prog .big{font-weight:600}
+#tb-prog .cod{font-size:.66rem;color:var(--text3);letter-spacing:.01em}
+#tb-prog .prod b{font-weight:600;font-size:.78rem;text-transform:none}
+/* sem fundo colorido na linha toda: a situação fica na faixa da esquerda */
+#view-programacao #tb-prog tbody tr:not(.grp){border-left:0!important;background:transparent!important}
+#view-programacao #tb-prog tbody tr:not(.grp):nth-child(even){background:color-mix(in srgb,var(--surface2) 30%,transparent)!important}
+#view-programacao #tb-prog tbody tr:not(.grp):hover{background:color-mix(in srgb,var(--accent) 7%,transparent)!important}
+#view-programacao #tb-prog tbody tr.sel-row:not(.grp){background:color-mix(in srgb,var(--accent) 10%,transparent)!important}
+#tb-prog tbody tr:not(.grp)>td:first-child{box-shadow:inset 3px 0 0 transparent}
+#tb-prog tbody tr.sit-comprar>td:first-child{box-shadow:inset 3px 0 0 var(--crit-c)}
+#tb-prog tbody tr.sit-atencao>td:first-child{box-shadow:inset 3px 0 0 var(--warn-c)}
+#tb-prog tbody tr.sit-ok>td:first-child{box-shadow:inset 3px 0 0 var(--ok-c)}
+#tb-prog tbody tr.urg>td:first-child{box-shadow:inset 4px 0 0 #991b1b}
+#tb-prog .urg-tag{font-family:var(--sans);font-weight:700;letter-spacing:.03em;border-radius:4px;padding:1px 6px}
+#tb-prog .sub{font-size:.62rem}
+#tb-prog .sub.urg-t{font-weight:600}
+#tb-prog .badge{font-family:var(--sans);font-weight:600;text-transform:none;letter-spacing:0;border-radius:6px}
+/* cabeçalho de linha (Coronária, Periférica…) */
+#tb-prog tbody tr.grp td{background:var(--pg-card)!important;border-bottom:1px solid var(--pg-line);border-top:1px solid var(--pg-line);font-size:.8rem;padding:10px 14px!important;color:var(--text)}
+#tb-prog tbody tr.grp .grp-sub{color:var(--text3);font-size:.72rem}
+/* quantidade a comprar */
+#tb-prog td.col-q .finput{height:30px;border-radius:7px;border:1px solid var(--pg-line);background:var(--pg-card);font-family:var(--sans);font-variant-numeric:tabular-nums;font-size:.8rem;box-shadow:inset 0 1px 2px rgba(10,42,24,.06)}
+#tb-prog td.col-q .finput:focus{border-color:var(--accent);outline:2px solid color-mix(in srgb,var(--accent) 25%,transparent)}
+#tb-prog td.col-q .q-cx a.mini{background:transparent;border-color:transparent;color:var(--text3);text-decoration:none}
+#tb-prog td.col-q .q-cx a.mini:hover{color:var(--accent);border-color:var(--pg-line)}
+#tb-prog .mini{border-radius:6px}
+/* total */
+#tb-prog tfoot td{position:sticky;bottom:0;background:var(--pg-head);border-top:1px solid var(--border2);font-weight:700;font-size:.8rem;padding-top:10px;padding-bottom:10px}
+#view-programacao .tscroll-prog{scrollbar-width:thin}
+#view-programacao .sel-bar{border-radius:10px}
+@media(max-width:680px){
+  #view-programacao .prog-topo{position:static}
+  #view-programacao .prog-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #view-programacao .prog-kpis .stat-val{font-size:1.05rem}
+  #view-programacao .seg{flex-wrap:wrap;max-width:100%}
+  #view-programacao .prog-filtros .frow>*{max-width:100%}
+  #view-programacao .prog-filtros .flabel{min-width:100%}
+  #view-programacao .prog-topo .pt-acoes,#view-programacao .prog-topo .pt-sim{width:100%}
+  #view-programacao .thead-bar{flex-wrap:wrap}
+  #view-programacao .forn-strip .fs{max-width:100%}
+}
 </style>
 </head>
 <body>
@@ -963,7 +1059,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-22.1';
+const VERSAO = '2026-10-22.2';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores', mod: 'compras_modelos', outra: 'compras_estoque_outra', hist: 'compras_consumo_hist' };
 
 const $ = id => document.getElementById(id);
@@ -1469,7 +1565,7 @@ function aplicarColunas() {
   [...tb.querySelectorAll('thead tr, tbody tr:not(.grp)')].forEach(tr => [...tr.cells].forEach((td, n) => { td.style.display = idx.includes(n) ? 'none' : ''; }));
   const vis = ths.length - idx.length, antes = ths.findIndex(th => th.textContent.trim() === 'Comprar'), escAntes = idx.filter(n => n < antes).length;
   tb.querySelectorAll('tbody tr.grp td').forEach(td => { td.colSpan = vis; });
-  const tf = tb.tFoot?.rows[0]; if (tf) { tf.cells[0].colSpan = antes - escAntes; const iSaldo = ths.findIndex(th => th.dataset.col === 'saldo'), iValor = ths.findIndex(th => th.dataset.col === 'valor');
+  const tf = tb.tFoot?.rows[0]; if (tf) { tf.cells[0].colSpan = antes - escAntes - (densidade() === 'compacto' ? 1 : 0); const iSaldo = ths.findIndex(th => th.dataset.col === 'saldo'), iValor = ths.findIndex(th => th.dataset.col === 'valor');
     if (tf.cells[2]) tf.cells[2].style.display = idx.includes(iSaldo) ? 'none' : ''; if (tf.cells[3]) tf.cells[3].style.display = idx.includes(iValor) ? 'none' : ''; }
 }
 // ───── filtros favoritos ─────
