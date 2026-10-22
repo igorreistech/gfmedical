@@ -288,3 +288,8 @@ do $$ declare t text; begin
 alter table public.compras_config add column if not exists prazo_real boolean;
 alter table public.compras_config add column if not exists sazonal boolean;
 notify pgrst, 'reload schema';
+
+-- 22/10/2026: estoque mínimo para itens de giro baixo (manter N unidades de quem vendeu nos últimos M meses)
+alter table public.compras_config add column if not exists estoque_min_un integer;
+alter table public.compras_config add column if not exists estoque_min_meses integer;
+notify pgrst, 'reload schema';

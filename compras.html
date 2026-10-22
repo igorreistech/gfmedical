@@ -689,6 +689,10 @@ details.par-card[open]>summary small::after{content:'✕ fechar';font-size:.7rem
           <div class="par-box" style="margin-bottom:12px"><label>📈 Base do consumo
               <select class="tsel" id="p-base" onchange="previewParametros()"><option value="ano">Média do ano (C1060)</option><option value="3m">Últimos 3 meses</option><option value="maior">O maior dos dois (mais seguro)</option></select></label>
             <div class="par-help">A média do ano esconde produto que começou a vender mais ou menos agora. "Últimos 3 meses" usa os 3 últimos meses fechados; "o maior dos dois" evita faltar quando o consumo está subindo.</div></div>
+          <div class="par-box" style="margin-bottom:12px"><label>🧱 Estoque mínimo (giro baixo): manter pelo menos
+              <input class="finput" id="p-min" type="number" min="0" step="1" style="width:60px;display:inline-block" oninput="previewParametros()"> un. de quem vendeu nos últimos
+              <input class="finput" id="p-minm" type="number" min="1" max="12" step="1" style="width:56px;display:inline-block" oninput="previewParametros()"> meses</label>
+            <div class="par-help">Produto que vende 1 a cada poucos meses sai com sugestão 0 pela média. Com este mínimo, quem vendeu no período nunca fica zerado (0 = desligado).</div></div>
           <div id="p-exemplo"></div>
           <details open style="margin:6px 0 10px"><summary class="td-mono" style="cursor:pointer">🏭 Parâmetros por fabricante (prazo, segurança e cobrir) <span id="p-fabs-n"></span></summary>
             <div class="td-mono" style="white-space:normal;margin-top:6px;opacity:.8">Deixe em branco para usar o valor geral (aparece apagado no campo). Ex.: fornecedor comprado a cada 90 dias → segurança 20 e cobrir 110 (20 + 90).</div>
@@ -724,6 +728,7 @@ details.par-card[open]>summary small::after{content:'✕ fechar';font-size:.7rem
           <div class="frow"><span class="flabel">Refinar</span>
             <select class="tsel" id="prog-grupo" title="Linha do produto (Grupo do Callisto)" onchange="filtroProg('grupo', this.value)"></select>
             <select class="tsel" id="prog-fab" title="Mostrar só os produtos deste fabricante/fornecedor" onchange="filtrarFabricante(this.value)"></select>
+            <button type="button" class="fchip" onclick="completarFabricantes()" title="Produtos sem fabricante recebem o fabricante da família do código (ex.: 93MB… = JOTEC), ou informe prefixos à mão">🏭 Completar fabricantes</button>
             <select class="tsel" id="prog-abc" title="Curva ABC pelo valor consumido no ano" onchange="filtroProg('abc', this.value)"><option value="">Curva: todas</option><option value="A">Curva A (80% do valor)</option><option value="B">Curva B (15%)</option><option value="C">Curva C (5%)</option></select>
             <select class="tsel" id="prog-valor" title="Valor da compra do item (quantidade × último preço)" onchange="filtroProg('valor', +this.value)"><option value="0">Valor: qualquer</option><option value="1000">Compra ≥ R$ 1.000</option><option value="5000">Compra ≥ R$ 5.000</option><option value="10000">Compra ≥ R$ 10.000</option></select>
             <select class="tsel" id="prog-ord" title="Ordem da lista" onchange="filtroProg('ord', this.value)"><option value="urgencia">Ordem: mais urgente</option><option value="valor">Ordem: maior valor de compra</option><option value="abc">Ordem: curva ABC</option></select>
@@ -958,7 +963,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-18.10';
+const VERSAO = '2026-10-22.1';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores', mod: 'compras_modelos', outra: 'compras_estoque_outra', hist: 'compras_consumo_hist' };
 
 const $ = id => document.getElementById(id);
@@ -1086,7 +1091,7 @@ const fabDe = r => cfg.fab_produto?.[chaveCx(r.codigo_alt || r.codigo || '')] ||
 const emCaixas = (q, cx) => cx > 1 ? Math.ceil(q / cx) * cx : q;
 // Código terminando em "-0" = produto reutilizável: fica fora da contagem (estoque, consumo, pendente e programação)
 const reutilizavel = r => /-0$/.test(String(r.codigo_alt || r.codigo || '').trim());
-let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60, prazos_fabricante: {}, base_consumo: 'ano', reserva_dias: 30, orcamento_mensal: null, multiplos: {}, fab_produto: {} };
+let cfg = { prazo_dias: 15, seguranca_dias: 15, cobertura_dias: 60, prazos_fabricante: {}, base_consumo: 'ano', reserva_dias: 30, orcamento_mensal: null, multiplos: {}, fab_produto: {}, estoque_min_un: 0, estoque_min_meses: 6 };
 let _bancoOk = true;
 async function selectTudo(tabela) {
   const out = [];
@@ -1141,10 +1146,12 @@ function lerParametrosTela() {
   const v = id => Math.max(0, Math.round(num($(id).value)));
   const prazos = {};
   document.querySelectorAll('#p-fabs input[data-fab]').forEach(i => { if (i.value.trim() === '') return; (prazos[i.dataset.fab] = prazos[i.dataset.fab] || {})[i.dataset.campo] = Math.max(0, Math.round(num(i.value))); });
-  return { prazo_dias: v('p-prazo'), seguranca_dias: v('p-seg'), cobertura_dias: Math.max(1, v('p-cob')), prazos_fabricante: prazos, base_consumo: $('p-base').value || 'ano', reserva_dias: cfg.reserva_dias || 30, prazo_real: $('p-preal') ? $('p-preal').checked : cfg.prazo_real !== false };
+  return { prazo_dias: v('p-prazo'), seguranca_dias: v('p-seg'), cobertura_dias: Math.max(1, v('p-cob')), prazos_fabricante: prazos,
+    estoque_min_un: $('p-min') ? v('p-min') : num(cfg.estoque_min_un), estoque_min_meses: $('p-minm') ? Math.min(12, Math.max(1, v('p-minm'))) : (num(cfg.estoque_min_meses) || 6), base_consumo: $('p-base').value || 'ano', reserva_dias: cfg.reserva_dias || 30, prazo_real: $('p-preal') ? $('p-preal').checked : cfg.prazo_real !== false };
 }
 function montarParametros() {
   if ($('p-preal')) $('p-preal').checked = cfg.prazo_real !== false;
+  if ($('p-min')) { $('p-min').value = num(cfg.estoque_min_un); $('p-minm').value = num(cfg.estoque_min_meses) || 6; }
   $('p-prazo').value = cfg.prazo_dias; $('p-seg').value = cfg.seguranca_dias; $('p-cob').value = cfg.cobertura_dias; $('p-base').value = cfg.base_consumo || 'ano';
   // fabricantes: os da programação (S013/C1060/C723/C457 filtrados, tabela de caixas da Merit), os que já têm parâmetro salvo e os adicionados à mão
   let fabsProg = []; try { fabsProg = programacao().map(r => r.fabricante); } catch (e) {}
@@ -1207,6 +1214,52 @@ function pendentesPorProduto() {
     const g = m.get(k), q = num(r.quantidade); if ((r.data_cirurgia || '').startsWith(String(ano))) g.ano += q; else g.antigo += q; g.linhas.push(r); });
   return m;
 }
+// Vendeu nos últimos N meses (C1060: JAN..DEZ do ano do relatório). Se a janela passa da virada do ano, olha o total.
+function vendeuNosUltimos(c, n) {
+  if (!c) return false;
+  const mesesArr = c.meses || [], atual = new Date().getMonth(); // 0 = jan
+  if (n > atual + 1) return num(c.total) > 0;
+  for (let m = atual; m > atual - n; m--) if (num(mesesArr[m]) > 0) return true;
+  return false;
+}
+// Fabricante pela família do código: produtos sem fabricante cujo início do código (4 caracteres) só aparece
+// com UM fabricante conhecido (2+ produtos) recebem esse fabricante — guardado no cadastro (fab_produto).
+window.completarFabricantes = async () => {
+  if (_readOnly) { toast('Seu usuário é só de visualização.', 'err'); return; }
+  const rows = programacao(), pref = cod => chaveCx(cod || '').replace(/[^A-Z0-9]/g, '').slice(0, 4);
+  const fams = new Map();
+  rows.filter(r => r.fabricante).forEach(r => { const k = pref(r.codigo); if (k.length < 4) return; if (!fams.has(k)) fams.set(k, new Map()); const m = fams.get(k); m.set(r.fabricante, (m.get(r.fabricante) || 0) + 1); });
+  const propostas = rows.filter(r => !r.fabricante && r.codigo).map(r => {
+    const m = fams.get(pref(r.codigo)); if (!m || m.size !== 1) return null;
+    const [[fab, n]] = [...m]; return n >= 2 ? { r, fab } : null;
+  }).filter(Boolean);
+  let manual = null;
+  if (!propostas.length) {
+    manual = prompt('Não achei produtos sem fabricante com família de código conhecida.\n\nPara atribuir à mão, informe: PREFIXOS = FABRICANTE\n(ex.: 93MB, 93CL, 10SW, 70SO = JOTEC BRASIL)', '');
+    if (!manual) return;
+  } else {
+    const resumo = [...new Set(propostas.map(x => x.fab))].map(f => `${f}: ${propostas.filter(x => x.fab === f).length} produto(s)`).join('\n');
+    const ok = confirm(`Fabricante pela família do código (mesmo início de código de produtos já identificados):
+
+${resumo}
+
+Ex.: ${propostas.slice(0, 6).map(x => `${x.r.codigo} → ${x.fab}`).join(' · ')}
+
+Aplicar? (Cancelar = informar prefixos à mão)`);
+    if (!ok) { manual = prompt('Informe: PREFIXOS = FABRICANTE (ex.: 93MB, 93CL, 10SW = JOTEC BRASIL)', ''); if (!manual) return; }
+  }
+  const m = { ...(cfg.fab_produto || {}) }; let n = 0;
+  if (manual) {
+    const mm = /^(.+?)=(.+)$/.exec(manual); if (!mm) { toast('Formato: PREFIXOS = FABRICANTE', 'err'); return; }
+    const prefs = mm[1].split(/[,;\s]+/).map(x => chaveCx(x)).filter(Boolean), fab = nomeFab(mm[2]);
+    const cods = new Set([...data.est, ...data.cmo, ...data.pen, ...data.cons].flatMap(r => [r.codigo, r.codigo_alt]).filter(Boolean).map(chaveCx));
+    cods.forEach(c => { if (prefs.some(p => c.startsWith(p)) && m[c] !== fab) { m[c] = fab; n++; } });
+  } else propostas.forEach(x => { m[chaveCx(x.r.codigo)] = x.fab; n++; });
+  if (!n) { toast('Nenhum produto com esses prefixos.', 'info'); return; }
+  cfg.fab_produto = m; render();
+  const { error } = await supabase.from(T.cfg).upsert({ filial: FILIAL, fab_produto: m, atualizado_em: new Date().toISOString() });
+  toast(error ? 'Aplicado na tela, mas não salvou: ' + error.message : `✔ Fabricante definido em ${n} produto(s)`, error ? 'info' : 'ok');
+};
 function programacao() {
   const est = new Map(data.est.map(r => [norm(r.codigo), r])), cmo = new Map(data.cmo.map(r => [norm(r.codigo), r]));
   const cm = consMap(), pm = pendentesPorProduto(), somaPend = $('p-pend')?.checked !== false;
@@ -1251,12 +1304,20 @@ function programacao() {
     const ajusteMais = Math.max(0, idealReserva - reserva - sepExtra), transferir = ajusteMais > 0 ? Math.min(cxCima(ajusteMais), cxBaixo(livre)) : 0;
     const paraReserva = faltaSemDisp + Math.max(0, ajusteMais - transferir), fica = d1 - transferir;
     const paraOutros = diaOut > 0 ? Math.max(0, Math.ceil(diaOut * (prazo + cob) - fica - emPedido)) : 0;
-    const sugerido = paraReserva + paraOutros > 0 ? emCaixas(paraReserva + paraOutros, caixa) : 0;
+    let sugerido = paraReserva + paraOutros > 0 ? emCaixas(paraReserva + paraOutros, caixa) : 0;
     // Ponto de partida é o consumo (venda): sem estoque próprio (fora do S013) conta como estoque ZERO — e vira compra.
     const covOut = diaOut > 0 ? (fica + emPedido) / diaOut : null;
-    const situacao = paraReserva > 0 ? 'comprar' : diaOut <= 0 ? (media <= 0 ? 'semconsumo' : 'ok') : fica + emPedido <= diaOut * (prazo + seg) ? 'comprar' : covOut < prazo + seg + 15 ? 'atencao' : 'ok';
+    let situacao = paraReserva > 0 ? 'comprar' : diaOut <= 0 ? (media <= 0 ? 'semconsumo' : 'ok') : fica + emPedido <= diaOut * (prazo + seg) ? 'comprar' : covOut < prazo + seg + 15 ? 'atencao' : 'ok';
+    // Estoque mínimo para giro baixo: quem vendeu nos últimos N meses não fica zerado (a média sozinha daria 0)
+    let minimoGiro = false;
+    const minUn = num(cfg.estoque_min_un);
+    if (minUn > 0 && vendeuNosUltimos(c, num(cfg.estoque_min_meses) || 6) && fica + emPedido < minUn) {
+      const q = emCaixas(minUn - fica - emPedido, caixa);
+      if (q > sugerido) { sugerido = q; minimoGiro = true; }
+      situacao = 'comprar';
+    }
     return { codigo: e?.codigo || c?.codigo, descricao: e?.descricao || c?.descricao, disp, fisico: num(e?.estoque), media, total: num(c?.total), meses: c?.meses || [], ponto, cobertura,
-      sugerido, situacao, preco: num(e?.ultimo_preco), unidade: e?.unidade || '', consignado: cm.get(k)?.saldo || 0, semEstoqueCadastro: !e, fabricante: fab, prazo, seg, cob,
+      sugerido, situacao, minimoGiro, preco: num(e?.ultimo_preco), unidade: e?.unidade || '', consignado: cm.get(k)?.saldo || 0, semEstoqueCadastro: !e, fabricante: fab, prazo, seg, cob,
       grupo: norm(c?.grupo || e?.grupo || pd?.linhas.find(l => l.grupo)?.grupo || grupoPorTabela(e?.codigo || c?.codigo || pd?.linhas[0]?.codigo_alt || k)),
       mediaFat, pendAno: num(pd?.ano), pendAntigo: num(pd?.antigo), nMeses, codigo: codigoRow, descricao: e?.descricao || c?.descricao || pd?.linhas[0]?.produto || rs?.produto || ccm.get(k)?.descricao,
       mediaAno, media3, tendencia, emPedido, caixa, reserva, separado, faltaSeparar, reservaClientes: rs ? [...rs.clientes] : [],

@@ -339,6 +339,8 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
   .bar-row{grid-template-columns:90px 1fr 80px}
   .modal-ov{padding:0}.modal{max-height:100vh;border-radius:0;height:100%}
 }
+.comp-tab{width:auto;margin-top:6px;font-size:.72rem}.comp-tab td,.comp-tab th{padding:2px 8px}.comp-dif td{background:var(--warn-bg,#fff7e6)!important}
+.aviso-reajuste{margin:0 14px 10px;padding:10px 12px;border-radius:8px;background:var(--warn-bg,#fff7e6);border:1px solid var(--warn-bd,#f0d9a8);font-size:.8rem}
 </style>
 </head>
 <body>
@@ -376,6 +378,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <a class="nav-item" data-view="comparativo" href="#"><span class="nav-icon">⚖️</span> Comparativo</a>
       <a class="nav-item" data-view="transportadoras" href="#"><span class="nav-icon">🚚</span> Transportadoras<span class="nbadge" id="nb-transp">0</span></a>
       <a class="nav-item" data-view="tabelas" href="#"><span class="nav-icon">📑</span> Tabelas de frete</a>
+      <a class="nav-item" data-view="conferencia" href="#"><span class="nav-icon">🔍</span> Conferir tabela / cobranças</a>
       <a class="nav-item" data-view="faturas" href="#"><span class="nav-icon">💳</span> Faturas<span class="nbadge" id="nb-fat">0</span></a>
       <a class="nav-item" data-view="cirurgias" href="#"><span class="nav-icon">🏥</span> Cirurgia / vendedor / cliente</a>
       <a class="nav-item" data-view="auditoria" href="#"><span class="nav-icon">🔎</span> Auditoria de fretes<span class="nbadge crit" id="nb-aud">0</span></a>
@@ -424,6 +427,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <div class="vtab" data-view="comparativo">⚖️ Comparativo</div>
       <div class="vtab" data-view="transportadoras">🚚 Transp.</div>
       <div class="vtab" data-view="tabelas">📑 Tabelas</div>
+      <div class="vtab" data-view="conferencia">🔍 Conferir</div>
       <div class="vtab" data-view="faturas">💳 Faturas</div>
       <div class="vtab" data-view="cirurgias">🏥 Cirurgias</div>
       <div class="vtab" data-view="auditoria">🔎 Auditoria</div>
@@ -509,6 +513,22 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
           <div class="thead-bar"><span class="thead-title">🛣️ Ranking por rota — quem é mais barata e mais rápida em cada trajeto</span><span class="tcount" id="cnt-rotas">0</span>
             <span class="td-mono" style="margin-left:auto">rotas com 2+ CT-es no período</span></div>
           <div class="tscroll"><table id="tb-rotas"></table></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-conferencia">
+        <div class="twrap">
+          <div class="thead-bar"><span class="thead-title">🔍 Conferir tabela — CT-es × tabela combinada</span><span class="tcount" id="cnt-conf">0</span>
+            <select class="tsel" id="conf-transp" onchange="conferirTransp(this.value)" title="Transportadora"></select>
+            <select class="tsel" id="conf-dias" onchange="conferirDias(this.value)" title="Período"><option value="30">últimos 30 dias</option><option value="60">últimos 60 dias</option><option value="120">últimos 120 dias</option><option value="365">último ano</option></select></div>
+          <div class="aud-explica">Cada CT-e da transportadora calculado pela tabela cadastrada. Use para <b>validar uma tabela nova</b> (todos devem bater) e para <b>perceber reajuste</b> não comunicado (vários acima com o mesmo %). A coluna Componentes compara pedágio, adicional e coleta/entrega um a um (o resto vai junto em "frete, GRIS e taxas").</div>
+          <div class="stats-bar" id="conf-resumo" style="padding:10px 14px"></div>
+          <div id="conf-aviso"></div>
+          <div class="tscroll"><table id="tb-conf"></table></div>
+        </div>
+        <div class="twrap" style="margin-top:14px">
+          <div class="thead-bar"><span class="thead-title">💬 Cobranças enviadas às transportadoras</span><span class="tcount" id="cnt-cob">0</span><span class="td-mono" style="margin-left:auto" id="cob-resumo"></span></div>
+          <div class="tscroll"><table id="tb-cob"></table></div>
         </div>
       </section>
 
@@ -801,10 +821,10 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-16.7';
+const VERSAO = '2026-10-22.1';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
-const VERSAO_BANCO = '20261025';
+const VERSAO_BANCO = '20261030';
 // CT-es importados ficam no banco da própria filial (Cuiabá grava em Cuiabá, Campo Grande em
 // Campo Grande). IMPORTA_PARA = { filial, label, url, key } desviaria a importação para outro banco.
 const IMPORTA_PARA = null;
@@ -812,9 +832,9 @@ const supaImport = IMPORTA_PARA ? createClient(IMPORTA_PARA.url, IMPORTA_PARA.ke
 const FILIAL_IMPORT = IMPORTA_PARA ? IMPORTA_PARA.filial : FILIAL;
 let ctesDestino = []; // CT-es já gravados no destino da importação (duplicados, formatos, transportadoras)
 let transpDestino = []; // cadastro de transportadoras do destino da importação
-const T = { transp: 'frete_transportadoras', cot: 'frete_cotacoes', cte: 'frete_ctes', tab: 'frete_tabelas', fat: 'frete_faturas' };
+const T = { transp: 'frete_transportadoras', cot: 'frete_cotacoes', cte: 'frete_ctes', tab: 'frete_tabelas', fat: 'frete_faturas', cob: 'frete_cobrancas' };
 // Criadas pela migração 20261016: se ainda não existirem, a página segue sem elas (aviso no topo).
-const OPCIONAIS = new Set(['tab', 'fat']);
+const OPCIONAIS = new Set(['tab', 'fat', 'cob']);
 
 // Mesmas listas suspensas da planilha original.
 const STATUS_COT = ['Aprovado', 'Reprovado', 'Em análise', 'Aguardando'];
@@ -877,7 +897,7 @@ function msgErroBanco(error) {
 // a gravação tira a coluna que falta e grava o resto (avisando), em vez de falhar.
 const COLUNAS_NOVAS = ['remetente', 'previsao_entrega', 'numero_cotacao', 'valor_mercadoria', 'calculo_id', 'numero_cte', 'remetente_cnpj', 'destino_cnpj',
   'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base', 'cubagem_kg_m3',
-  'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos', 'origens', 'meta_mensal', 'ocorrencia_status', 'ocorrencia_prazo', 'calculo', 'adicional_pct'];
+  'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos', 'origens', 'meta_mensal', 'ocorrencia_status', 'ocorrencia_prazo', 'calculo', 'adicional_pct', 'componentes'];
 // Colunas que faltam, por banco (cliente) e tabela — descobertas ao abrir (detectarColunas)
 // ou na primeira gravação; depois são tiradas ANTES de enviar, numa tentativa só (antes era
 // uma tentativa por coluna faltando, o que deixava salvar lento, principalmente no celular).
@@ -885,7 +905,7 @@ const _faltam = new Map(); // cliente → Map(tabela → Set(colunas))
 const faltamEm = (cli, tabela) => { if (!_faltam.has(cli)) _faltam.set(cli, new Map()); const m = _faltam.get(cli); if (!m.has(tabela)) m.set(tabela, new Set()); return m.get(tabela); };
 let _avisouColunas = false;
 const COLUNAS_POR_TABELA = {
-  frete_ctes: ['remetente', 'previsao_entrega', 'numero_cotacao', 'remetente_cnpj', 'destino_cnpj', 'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'ocorrencia_status', 'ocorrencia_prazo'],
+  frete_ctes: ['remetente', 'previsao_entrega', 'numero_cotacao', 'remetente_cnpj', 'destino_cnpj', 'peso_kg', 'ocorrencia', 'ocorrencia_custo', 'ocorrencia_obs', 'chave_nfe', 'ocorrencia_status', 'ocorrencia_prazo', 'componentes'],
   frete_transportadoras: ['meta_mensal'],
   frete_cotacoes: ['valor_mercadoria', 'calculo_id', 'numero_cte'],
   frete_tabelas: ['anexo_url', 'anexo_nome', 'nf_ate', 'minimo_base', 'cubagem_kg_m3', 'pedagio_valor', 'pedagio_fracao_kg', 'gris_pct', 'gris_min', 'coleta_valor', 'icms_modo', 'icms_pct', 'vigencia_fim', 'destinos', 'origens', 'calculo', 'adicional_pct'],
@@ -1162,6 +1182,135 @@ async function verificarBanco() {
   $('aviso-banco').classList.toggle('show', !!avisos.length);
 }
 
+function aplicarMudanca(k, p) {
+  const lista = data[k] || (data[k] = []);
+  const id = p.new?.id ?? p.old?.id;
+  const i = lista.findIndex(r => r.id === id);
+  if (p.eventType === 'DELETE') { if (i < 0) return; lista.splice(i, 1); }
+  else {
+    const row = p.new; if (!row || row.filial !== FILIAL) return;
+    if (k === 'cte') { const t = canonTipoSaida(row.tipo_saida); if (t !== row.tipo_saida) row.tipo_saida = t; }
+    if (i >= 0) lista[i] = row; else lista.push(row);
+  }
+  if (['transp', 'cte', 'cot', 'fat', 'tab'].includes(k)) canonizarTransportadoras();
+  agendarRender();
+}
+let _renderPendente = false, _timerRender = null;
+function agendarRender() {
+  if (document.hidden) { _renderPendente = true; return; }
+  clearTimeout(_timerRender);
+  _timerRender = setTimeout(() => { montarFiltros(); render(); }, 400); // vários eventos seguidos (ex.: importação) = 1 redesenho
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && _renderPendente) { _renderPendente = false; agendarRender(); } });
+// ═════════════ Componentes do CT-e × tabela, conferência por transportadora e cobranças ═════════════
+// Componentes que vêm no CT-e (XML: <Comp><xNome><vComp>; PDF: bloco "COMPONENTES DO FRETE").
+function componentesDoTexto(texto) {
+  const i = String(texto || '').search(/COMPONENTES DO FRETE/i); if (i < 0) return [];
+  const resto = texto.slice(i), fim = resto.search(/FRETE TOTAL|VALOR TOTAL DA PRESTA|VALOR A RECEBER/i);
+  const bloco = resto.slice(0, fim > 0 ? fim : 1500), out = [], vistos = new Set();
+  for (const m of bloco.matchAll(/\b(FRETE PESO|FRETE VALOR|DESPACHO|GRIS|PED[ÁA]GIO|TAS|ENTREGA|COLETA|ADIC(?:IONAL)? FRETE|SEC\/CAT|TDE|TRT|AD VALOREM|OUTROS)\s+([\d.]+,\d{2})\b/gi)) {
+    const nome = m[1].toUpperCase().replace('PEDÁGIO', 'PEDAGIO');
+    if (vistos.has(nome)) continue; vistos.add(nome);
+    out.push({ nome, valor: Number(m[2].replace(/\./g, '').replace(',', '.')) });
+  }
+  return out;
+}
+// Agrupa os componentes em GRIS, pedágio, adicional, coleta/entrega e "frete e taxas" (frete peso/valor, despacho, TAS…).
+// GRIS fica em "frete e taxas": em algumas tabelas o campo de % com mínimo guarda o frete valor (Viatur, Pantanal DF/GO)
+const grupoComp = n => { n = norm(n); return /PED/.test(n) ? 'pedagio' : /ADIC/.test(n) ? 'adicional' : /COLETA|ENTREGA/.test(n) ? 'coleta' : 'frete'; };
+const NOMES_GRUPO = { frete: 'Frete, GRIS e taxas', pedagio: 'Pedágio', adicional: 'Adicional', coleta: 'Coleta/entrega' };
+function compararComponentes(c, chk) {
+  if (!Array.isArray(c?.componentes) || !c.componentes.length || !chk?.linha || chk.preco == null) return null;
+  const d = detalheTabela(chk.linha, chk.peso, chk.nf, chk.ctx || {});
+  const cte = { frete: 0, pedagio: 0, adicional: 0, coleta: 0 };
+  c.componentes.forEach(x => { cte[grupoComp(x.nome)] += num(x.valor); });
+  // ICMS "por dentro": no CT-e ele está distribuído nos componentes — aplica o mesmo fator na tabela
+  const semIcms = d.total - (d.icms?.valor || 0), f = semIcms > 0 ? d.total / semIcms : 1;
+  const tab = { pedagio: d.pedagio * f, adicional: (d.adicional || 0) * f, coleta: d.coleta * f };
+  tab.frete = chk.preco - tab.pedagio - tab.adicional - tab.coleta;
+  return Object.keys(NOMES_GRUPO).filter(k => Math.abs(cte[k]) > 0.004 || Math.abs(tab[k]) > 0.004)
+    .map(k => ({ k, nome: NOMES_GRUPO[k], cte: cte[k], tab: tab[k], dif: cte[k] - tab[k] }));
+}
+const compDivergentes = l => (l || []).filter(x => Math.abs(x.dif) > TOLERANCIA_TABELA);
+function componentesHTML(l) {
+  if (!l) return '';
+  return `<table class="comp-tab"><thead><tr><th>Componente</th><th class="num">CT-e</th><th class="num">Tabela</th><th class="num">Diferença</th></tr></thead><tbody>
+    ${l.map(x => `<tr${Math.abs(x.dif) > TOLERANCIA_TABELA ? ' class="comp-dif"' : ''}><td>${esc(x.nome)}</td><td class="num">${brl(x.cte)}</td><td class="num">${brl(x.tab)}</td>
+      <td class="num">${Math.abs(x.dif) > TOLERANCIA_TABELA ? `<b>${x.dif > 0 ? '+' : '−'}${brl(Math.abs(x.dif))}</b>` : '✔'}</td></tr>`).join('')}</tbody></table>`;
+}
+
+// ── Conferir tabela: CT-es de uma transportadora × tabela combinada ──
+const statCard = (lbl, val, sub, cls = '') => `<div class="stat-card ${cls}"><div class="stat-lbl">${lbl}</div><div class="stat-val">${val}</div><div class="stat-sub">${sub}</div></div>`;
+let _confT = '', _confDias = 120;
+window.conferirTransp = v => { _confT = v; render(); };
+window.conferirDias = v => { _confDias = +v || 120; render(); };
+function renderConferencia() {
+  const transps = [...new Set(data.tab.map(t => canonTransp(t.transportadora)))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  if (!_confT || !transps.includes(_confT)) _confT = transps[0] || '';
+  $('conf-transp').innerHTML = transps.map(t => `<option ${t === _confT ? 'selected' : ''}>${esc(t)}</option>`).join('') || '<option value="">Nenhuma tabela cadastrada</option>';
+  $('conf-dias').value = String(_confDias);
+  const desde = new Date(Date.now() - _confDias * 864e5).toISOString().slice(0, 10);
+  const ctes = data.cte.filter(c => norm(canonTransp(c.transportadora)) === norm(_confT) && (c.data_emissao || '') >= desde)
+    .sort((a, b) => (b.data_emissao || '').localeCompare(a.data_emissao || ''));
+  const linhas = ctes.map(c => {
+    const chk = conferirTabela('cte', c);
+    const motivo = !chk ? 'sem transportadora' : chk.semTabela ? 'sem tabela p/ a rota' : chk.faltaPeso || chk.preco == null ? (num(c.peso_kg) ? 'rota/UF não reconhecida' : 'sem peso') : '';
+    const comp = motivo ? null : compararComponentes(c, chk);
+    return { c, chk, motivo, comp, dif: motivo ? null : num(c.valor_frete) - chk.preco };
+  });
+  const conf = linhas.filter(l => !l.motivo), ok = conf.filter(l => Math.abs(l.dif) <= TOLERANCIA_TABELA);
+  const acima = conf.filter(l => l.dif > TOLERANCIA_TABELA), abaixo = conf.filter(l => l.dif < -TOLERANCIA_TABELA);
+  // reajuste não comunicado: a maioria acima com % parecido
+  const pcts = acima.map(l => l.dif / l.chk.preco).sort((a, b) => a - b), med = pcts.length ? pcts[Math.floor(pcts.length / 2)] : 0;
+  const parecidos = pcts.filter(p => Math.abs(p - med) <= 0.03).length;
+  const reajuste = conf.length >= 4 && acima.length / conf.length >= 0.7 && parecidos / Math.max(1, pcts.length) >= 0.7;
+  $('conf-resumo').innerHTML = statCard('CT-es conferidos', `${conf.length} de ${linhas.length}`, linhas.length - conf.length ? `${linhas.length - conf.length} sem conferir (motivo na lista)` : 'todos conferidos')
+    + statCard('Batem com a tabela', conf.length ? `${Math.round(ok.length / conf.length * 100)}%` : '—', `${ok.length} CT-e(s) dentro de 5 centavos`, ok.length === conf.length && conf.length ? 'ok' : '')
+    + statCard('Acima da tabela', acima.length, acima.length ? `+${brl(acima.reduce((a, l) => a + l.dif, 0))} no total` : 'nenhum', acima.length ? 'crit' : '')
+    + statCard('Abaixo da tabela', abaixo.length, abaixo.length ? `${brl(abaixo.reduce((a, l) => a + l.dif, 0))} — tabela pode estar desatualizada` : 'nenhum', abaixo.length ? 'warn' : '');
+  $('conf-aviso').innerHTML = reajuste ? `<div class="aviso-reajuste">⚠ <b>Parece reajuste não cadastrado:</b> ${acima.length} de ${conf.length} CT-es estão cerca de <b>${(med * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% acima</b> da tabela.
+      Peça a tabela atual à ${esc(_confT)} — se não houve reajuste comunicado, a diferença é cobrável.</div>` : '';
+  $('cnt-conf').textContent = linhas.length;
+  $('tb-conf').innerHTML = linhas.length ? `<thead><tr><th>CT-e</th><th>Emissão</th><th>Rota</th><th class="num">Peso</th><th class="num">NF</th><th class="num">Cobrado</th><th class="num">Tabela</th><th class="num">Diferença</th><th>Componentes</th></tr></thead><tbody>
+    ${linhas.map(l => `<tr><td class="td-mono">${esc(l.c.numero_cte)}</td><td class="td-mono">${dataBR(l.c.data_emissao)}</td><td>${esc(l.c.origem || '—')}</td>
+      <td class="num">${num(l.c.peso_kg) ? num(l.c.peso_kg).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</td><td class="num">${num(l.c.valor_nfe) ? brl(l.c.valor_nfe) : '—'}</td>
+      <td class="num">${brl(l.c.valor_frete)}</td><td class="num">${l.motivo ? `<span class="td-doc">${esc(l.motivo)}</span>` : brl(l.chk.preco)}</td>
+      <td class="num">${l.motivo ? '—' : Math.abs(l.dif) <= TOLERANCIA_TABELA ? '<span class="badge b-ok">✔ bate</span>' : `<span class="badge ${l.dif > 0 ? 'b-crit' : 'b-warn'}">${l.dif > 0 ? '+' : '−'}${brl(Math.abs(l.dif))}</span>`}</td>
+      <td>${!l.comp ? `<span class="td-doc">${l.motivo ? '' : 'CT-e sem componentes (importe o XML/PDF de novo)'}</span>` : compDivergentes(l.comp).length ? compDivergentes(l.comp).map(x => `<span class="badge b-warn">${esc(x.nome)} ${x.dif > 0 ? '+' : '−'}${brl(Math.abs(x.dif))}</span>`).join(' ') : '<span class="td-doc">todos batem</span>'}</td></tr>`).join('')}</tbody>`
+    : `<tbody><tr><td><div class="empty-page">Nenhum CT-e da ${esc(_confT || '—')} nos últimos ${_confDias} dias.</div></td></tr></tbody>`;
+  renderCobrancas();
+}
+
+// ── Cobranças enviadas: enviada → respondida → creditada (ou recusada) ──
+const STATUS_COB = ['Enviada', 'Respondida', 'Creditada', 'Recusada'];
+async function registrarCobranca(reg) {
+  if (_readOnly) return;
+  const row = { filial: FILIAL, status: 'Enviada', criado_por: quemSou(), ...reg };
+  const { error } = await supabase.from(T.cob).insert(row);
+  if (error) console.warn('cobrança não registrada (rode o SQL de atualização):', error.message);
+}
+window.atualizarCobranca = async (id, campo, valor) => {
+  if (_readOnly) { toast('Seu usuário é só de visualização.', 'err'); return; }
+  const upd = { [campo]: campo === 'valor_creditado' ? (valor === '' ? null : num(valor)) : valor, atualizado_em: new Date().toISOString() };
+  if (campo === 'status' && valor === 'Creditada') { const c = data.cob.find(x => x.id === id); if (c && c.valor_creditado == null) upd.valor_creditado = num(c.valor); }
+  const { error } = await supabase.from(T.cob).update(upd).eq('id', id);
+  if (error) toast('Não salvou: ' + error.message, 'err'); else { const c = data.cob.find(x => x.id === id); if (c) Object.assign(c, upd); render(); }
+};
+function renderCobrancas() {
+  const el = $('tb-cob'); if (!el) return;
+  const l = [...(data.cob || [])].sort((a, b) => (b.criado_em || '').localeCompare(a.criado_em || ''));
+  const cred = l.filter(c => c.status === 'Creditada').reduce((a, c) => a + num(c.valor_creditado ?? c.valor), 0);
+  const aberto = l.filter(c => c.status === 'Enviada' || c.status === 'Respondida');
+  $('cob-resumo').textContent = l.length ? `${l.length} cobrança(s) · em aberto ${brl(aberto.reduce((a, c) => a + num(c.valor), 0))} · recuperado ${brl(cred)}` : '';
+  $('cnt-cob').textContent = l.length;
+  el.innerHTML = l.length ? `<thead><tr><th>Enviada em</th><th>Transportadora</th><th>Período / CT-es</th><th class="num">Valor cobrado</th><th>Situação</th><th class="num">Creditado</th><th>Obs.</th></tr></thead><tbody>
+    ${l.map(c => `<tr><td class="td-mono">${dataBR((c.criado_em || '').slice(0, 10))}<div class="td-doc">${esc(c.canal || '')}</div></td><td class="td-strong">${esc(c.transportadora)}</td>
+      <td>${esc(c.periodo || '')}${Array.isArray(c.ctes) && c.ctes.length ? `<div class="td-doc">${esc(c.ctes.join(', ')).slice(0, 120)}</div>` : ''}</td><td class="num">${brl(c.valor)}</td>
+      <td><select class="tsel" onchange="atualizarCobranca('${c.id}', 'status', this.value)">${STATUS_COB.map(s => `<option ${s === c.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+      <td class="num"><input class="finput" type="number" step="0.01" min="0" style="width:96px;text-align:right" value="${c.valor_creditado ?? ''}" placeholder="—" onchange="atualizarCobranca('${c.id}', 'valor_creditado', this.value)"></td>
+      <td><input class="finput" value="${esc(c.observacoes || '')}" placeholder="retorno da transportadora…" onchange="atualizarCobranca('${c.id}', 'observacoes', this.value)"></td></tr>`).join('')}</tbody>`
+    : '<tbody><tr><td><div class="empty-page">Nenhuma cobrança registrada ainda. Elas entram aqui sozinhas quando você usa "Cobrar no WhatsApp/e-mail" no relatório ou na auditoria.</div></td></tr></tbody>';
+}
 async function carregarTudo() {
   verificarBanco();
   detectarColunas(supabase); if (IMPORTA_PARA) detectarColunas(supaImport);
@@ -1171,14 +1320,16 @@ async function carregarTudo() {
   setTimeout(avisoDiario, 1500);
   setTimeout(() => atualizarStatusPeloRastreio(false), 5000);
   if (!window._timerRastreio) window._timerRastreio = setInterval(() => { if (!document.hidden) atualizarStatusPeloRastreio(false); }, 5 * 60e3);
-  // Tempo real: recarrega a tabela inteira a cada mudança (volumes pequenos).
+  // Tempo real: aplica SÓ a linha que mudou, e só desta filial. Antes recarregava a tabela inteira a cada
+  // mudança, em todas as abas abertas — isso esgotou o limite de leitura de disco do Supabase (22/10/2026).
+  // Com a aba escondida, só guarda; a tela é redesenhada quando ela volta a ficar visível.
   _channels.forEach(ch => supabase.removeChannel(ch));
-  _channels = Object.keys(T).map(k => supabase
-    .channel('fretes-' + k)
-    .on('postgres_changes', { event: '*', schema: 'public', table: T[k] }, async () => {
-      await carregar(k); montarFiltros(); render();
-    })
-    .subscribe());
+  _channels = Object.keys(T).flatMap(k => [
+    supabase.channel('fretes-' + k).on('postgres_changes', { event: 'INSERT', schema: 'public', table: T[k], filter: 'filial=eq.' + FILIAL }, p => aplicarMudanca(k, p))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: T[k], filter: 'filial=eq.' + FILIAL }, p => aplicarMudanca(k, p)).subscribe(),
+    // DELETE não aceita filtro no Supabase: chega de todas as filiais, mas só remove se o id estiver na lista
+    supabase.channel('fretes-del-' + k).on('postgres_changes', { event: 'DELETE', schema: 'public', table: T[k] }, p => aplicarMudanca(k, p)).subscribe(),
+  ]);
   _channels.push(supabase.channel('fretes-calculos')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'frete_calculos' }, carregarCalculos)
     .subscribe());
@@ -1339,7 +1490,7 @@ function sincronizarOrdem() {
 }
 $('f-cot-transp').onchange = e => { ui.cotTransp = e.target.value; render(); };
 
-const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete', calculo: 'Cálculo de frete', auditoria: 'Auditoria de fretes', tabelas: 'Tabelas de frete', faturas: 'Faturas das transportadoras', cirurgias: 'Frete por cirurgia, vendedor e cliente' };
+const TITULOS = { dashboard: 'Dashboard — Controle de Fretes', conferencia: 'Conferir tabela e cobranças', ctes: 'CT-e / NF-e', cotacoes: 'Cotações', comparativo: 'Comparativo de Transportadoras', transportadoras: 'Transportadoras', calculadora: 'Calculadora de frete', calculo: 'Cálculo de frete', auditoria: 'Auditoria de fretes', tabelas: 'Tabelas de frete', faturas: 'Faturas das transportadoras', cirurgias: 'Frete por cirurgia, vendedor e cliente' };
 // Cada tela entra no histórico do navegador: o "voltar" do celular/navegador e o
 // botão ⬅ Voltar levam de volta ao início do Controle de Fretes (Dashboard); no
 // Dashboard, o Voltar leva ao Monitor Cirúrgico.
@@ -1388,7 +1539,7 @@ function render() {
   { const nd = gruposDuplicados().length; $('btn-dups').textContent = nd ? `🧹 Revisar duplicados (${nd})` : '🧹 Revisar duplicados'; $('btn-dups').classList.toggle('on', nd > 0); }
   $('nb-fat').textContent = data.fat.filter(f => { const st = situacaoFatura(f); return st.vencida || st.vencendo; }).length;
   $('nb-pend').textContent = ctesTodos.filter(c => c.status_entrega === 'Pendente' || c.status_entrega === 'Em trânsito').length;
-  ({ dashboard: renderDashboard, ctes: renderCtes, cotacoes: renderCot, comparativo: renderComparativo, transportadoras: renderTransp, calculadora: renderCalc, calculo: renderCalculo, auditoria: () => { renderAuditoria(); renderOcorrencias(); }, tabelas: renderTabelas, faturas: renderFaturas, cirurgias: renderCirurgias })[ui.view]();
+  ({ dashboard: renderDashboard, ctes: renderCtes, cotacoes: renderCot, comparativo: renderComparativo, transportadoras: renderTransp, calculadora: renderCalc, calculo: renderCalculo, auditoria: () => { renderAuditoria(); renderOcorrencias(); }, tabelas: renderTabelas, conferencia: renderConferencia, faturas: renderFaturas, cirurgias: renderCirurgias })[ui.view]();
 }
 
 function agrupar(lista, chaveFn) {
@@ -1876,6 +2027,7 @@ window.mensagemAuditoria = (t, canal = 'whatsapp') => {
   if (!r) return;
   navigator.clipboard?.writeText(r.texto).catch(() => {});
   registrarLog('cobrança de frete enviada', T.cte, t, { canal, origem: 'auditoria', desconto: r.tDesc, duplicidade: r.tDobro });
+  registrarCobranca({ transportadora: t, periodo: 'auditoria', ctes: null, valor: +num(r.tDesc).toFixed(2), canal, origem: 'auditoria' });
   if (canal === 'email') {
     if (!r.tr?.email) toast(`A ${t} está sem e-mail no cadastro — preencha o destinatário (o texto também foi copiado).`, 'info');
     location.href = `mailto:${encodeURIComponent(r.tr?.email || '')}?subject=${encodeURIComponent(`Conferência de CT-es — ${t} — GF Medical ${FILIAL_LABEL}`)}&body=${encodeURIComponent(r.texto)}`;
@@ -3744,7 +3896,7 @@ function proximoNumeroCot() {
 window.abrirModal = (tipo, id = null, prefill = null) => {
   const form = FORMS[tipo];
   const reg = id ? data[tipo].find(r => r.id === id) : null;
-  _modal = { tipo, id, loteIdx: prefill?.loteIdx, importacao: !!prefill && !id, emit: prefill?.emit || null };
+  _modal = { tipo, id, loteIdx: prefill?.loteIdx, importacao: !!prefill && !id, emit: prefill?.emit || null, componentes: prefill?.valores?.componentes || null };
   $('modal-title').textContent = reg ? (_readOnly ? '👁 ' : '✏️ Editar ') + form.titulo
     : prefill ? '📄 CT-e lido do PDF — confira e salve' + (IMPORTA_PARA ? ` (será gravado em ${IMPORTA_PARA.label})` : '') : '＋ Novo(a) ' + form.titulo;
   const base = { ...(reg || (tipo === 'cot' ? { numero: proximoNumeroCot() } : {})), ...(prefill?.valores || {}) };
@@ -3947,6 +4099,7 @@ async function salvarModalInterno() {
   if (!form.reportValidity()) return;
   const row = lerForm(tipo);
   if (tipo === 'cte' && row.tipo_saida) row.tipo_saida = canonTipoSaida(row.tipo_saida);
+  if (tipo === 'cte' && _modal.componentes) row.componentes = _modal.componentes;
   if (tipo === 'cot') {
     if (row.numero_cte && ['Aguardando', 'Em análise'].includes(row.status)) row.status = 'Aprovado'; // CT-e vinculado = cotação fechada
     if (row.status === 'Aprovado' && precisaAprovacao(row) && _role !== 'admin') { row.status = 'Em análise'; toast('Acima de 5% da NF ou da tabela: salva como "Em análise" — um administrador precisa aprovar.', 'info'); }
@@ -4372,6 +4525,7 @@ function camposDoCte(doc, nomeArquivo) {
   put('destino_cnpj', docsPartes.dest);
   put('tipo_saida', canonTipoSaida(tipo));
   put('valor_frete', valorFrete);
+  { const comps = componentesDoTexto(texto); if (comps.length) valores.componentes = comps; }
   put('valor_nfe', valorNf);
   put('prazo_dias', prazo);
   put('previsao_entrega', previsao);
@@ -4441,6 +4595,8 @@ function camposDoXml(xmlTexto, nomeArquivo) {
   put('prazo_dias', emissao && previsao && previsao >= emissao ? diasEntre(emissao, previsao) : null);
   put('chave_nfe', chavesNf[0] || null);
   put('observacoes', [mCod && ini && fim ? `${ini} → ${fim}` : null, chave ? 'Chave CT-e: ' + chave : null].filter(Boolean).join(' · ') || null);
+  const comps = [...inf.getElementsByTagName('Comp')].map(c => ({ nome: (t(c, 'xNome') || '').trim().toUpperCase(), valor: Number(t(c, 'vComp')) })).filter(c => c.nome && !isNaN(c.valor));
+  if (comps.length) valores.componentes = comps;
   valores.status_entrega = 'Em trânsito';
   const fone = t(g(emit, 'enderEmit'), 'fone');
   const textoPartes = [docParte(rem), docParte(dest), ...chavesNf].join(' ');
@@ -5334,6 +5490,8 @@ window.relatorioSemanal = (offset = 0, tipo = 'semana') => {
         ${alertaItens(paraVerificar, x => `<li>CT-e ${esc(x.c.numero_cte)} · ${esc(x.c.transportadora || '—')} · ${brl(x.c.valor_frete)} · ${motivoCurto(x)}</li>`)}</div>` : ''}
       <div class="alerta ${d.atrasadas.length ? '' : 'ok'}"><b>Entregas atrasadas (hoje): ${d.atrasadas.length}</b>
         ${alertaItens(d.atrasadas, c => `<li>CT-e ${esc(c.numero_cte)} · ${esc(c.transportadora || '—')} · prev. ${dataBR(previsaoEntrega(c))}${previsaoEntrega(c) ? ` (${Math.max(0, diasEntre(previsaoEntrega(c), hojeISO()))}d)` : ''}</li>`)}</div>
+      ${(() => { const cs = (data.cob || []).filter(c => (c.criado_em || '').slice(0, 10) >= d.s.ini && (c.criado_em || '').slice(0, 10) <= d.s.fim), cr = (data.cob || []).filter(c => c.status === 'Creditada' && (c.atualizado_em || '').slice(0, 10) >= d.s.ini && (c.atualizado_em || '').slice(0, 10) <= d.s.fim);
+        return cs.length || cr.length ? `<div class="alerta ok"><b>Cobranças às transportadoras:</b> ${cs.length} enviada(s) no período · <b>recuperado ${brl(cr.reduce((a, c) => a + num(c.valor_creditado ?? c.valor), 0))}</b> (${cr.length} creditada(s))</div>` : ''; })()}
       <div class="alerta ${d.faturas.length ? '' : 'ok'}"><b>Faturas vencidas/vencendo: ${d.faturas.length}</b>${d.faturas.length ? ` · ${brl(d.faturas.reduce((a, f) => a + num(f.valor), 0))}` : ''}
         ${alertaItens(d.faturas, f => `<li>${esc(f.transportadora)} ${esc(f.numero || '')} · ${brl(f.valor)} · vence ${dataBR(f.vencimento)}</li>`)}</div>
       ${d.tabelas.length ? `<div class="alerta"><b>Tabelas a renovar: ${d.tabelas.length}</b>${alertaItens(d.tabelas, t => `<li>${esc(t.transportadora)}: ${esc(tabelaAntiga(t))}</li>`)}</div>` : ''}
@@ -5416,7 +5574,8 @@ function textoCobranca(nome, itens, periodo) {
   let total = 0;
   L.push('');
   let tCob = 0;
-  itens.forEach(x => { L.push(`• ${ctNf(x.c)}`, `   Cobrado: ${brl(x.c.valor_frete)}  →  Tabela combinada: ${brl(x.cl.tabela.preco)}  →  Desconto: *${brl(x.cl.tabela.dif)}*`); total += x.cl.tabela.dif; tCob += num(x.c.valor_frete); });
+  itens.forEach(x => { L.push(`• ${ctNf(x.c)}`, `   Cobrado: ${brl(x.c.valor_frete)}  →  Tabela combinada: ${brl(x.cl.tabela.preco)}  →  Desconto: *${brl(x.cl.tabela.dif)}*`);
+    { const dv = compDivergentes(compararComponentes(x.c, conferirTabela('cte', x.c))).filter(y => y.k !== 'frete'); if (dv.length) L.push(`   Onde está a diferença: ${dv.map(y => `${y.nome} cobrado ${brl(y.cte)}, pela tabela ${brl(y.tab)}`).join(' · ')}`); } total += x.cl.tabela.dif; tCob += num(x.c.valor_frete); });
   L.push('', '*Resumo:*', `• Total cobrado: ${brl(tCob)}`, `• Pela tabela combinada: ${brl(tCob - total)}`, `• Desconto solicitado: *${brl(total)}*`, '', 'Podem nos retornar com o CT-e substituto ou o abatimento na próxima fatura?', '', 'Obrigado!', assinaturaGF());
   return { texto: L.join('\n'), t, total };
 }
@@ -5427,6 +5586,7 @@ window.linkCobranca = (nome, canal) => {
   const periodo = _relTipo === 'mes' ? d.s.nome : `${dataBR(d.s.ini)} a ${dataBR(d.s.fim)}`;
   const { texto, t, total } = textoCobranca(nome, g.itens, periodo);
   registrarLog('cobrança de frete enviada', T.cte, nome, { canal, periodo, ctes: g.itens.map(x => x.c.numero_cte), total });
+  registrarCobranca({ transportadora: nome, periodo, ctes: g.itens.map(x => x.c.numero_cte), valor: +total.toFixed(2), canal, origem: 'relatório' });
   if (canal === 'email') {
     const assunto = `Revisão de cobrança de frete — ${nome} — CT-e ${g.itens.map(x => x.c.numero_cte).join(', ')} — GF Medical ${FILIAL_LABEL}`;
     return { texto: texto.replace(/\*/g, ''), url: `mailto:${encodeURIComponent(t?.email || '')}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(texto.replace(/\*/g, ''))}`,
