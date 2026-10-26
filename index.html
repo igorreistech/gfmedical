@@ -22868,7 +22868,7 @@ else init();
         desenhar();
     };
     // ── Remessas sem cirurgia (consignação, comodato…): mesmas caixas/bags e etiquetas QR, com controle de retorno ──
-    const TIPOS_REMESSA = ['Remessa em consignação', 'Remessa em comodato', 'Reposição de consignado', 'Remessa para conserto', 'Outra remessa'];
+    const TIPOS_REMESSA = ['Remessa em consignação', 'Remessa para conserto', 'Remessa em comodato'];
     const STATUS_REMESSA = ['No cliente', 'Retornou parcial', 'Retornou', 'Cancelada'];
     const procDaRemessa = r => ({ _docId: 'rem:' + r.id, nf: r.nf || '', nfData: r.nf_data || '', hospital: r.cliente || '', cidade: r.cidade || '',
         _remessa: r.tipo || 'Remessa', _envio: r.data_envio || '', obs: r.obs || '', _filial: r.filial, paciente: '', medico: '', convenio: '' });
@@ -22946,7 +22946,7 @@ else init();
             r = r || { tipo: TIPOS_REMESSA[0], data_envio: hoje, status: 'No cliente' };
             const campo = (l, html, w) => `<label style="display:flex;flex-direction:column;gap:3px;font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;${w ? 'flex:' + w : ''}">${l}${html}</label>`;
             $('[data-form]').innerHTML = `<div style="margin:12px 18px 0;padding:12px 14px;border:1px solid var(--border,#ccc);border-radius:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-                ${campo('Tipo', `<select data-f="tipo" style="${inp}">${TIPOS_REMESSA.map(t => `<option${t === r.tipo ? ' selected' : ''}>${t}</option>`).join('')}</select>`)}
+                ${campo('Tipo', `<select data-f="tipo" style="${inp}">${(TIPOS_REMESSA.includes(r.tipo) ? TIPOS_REMESSA : [...TIPOS_REMESSA, r.tipo]).map(t => `<option${t === r.tipo ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`)}
                 ${campo('NF', `<input data-f="nf" value="${esc(r.nf || '')}" style="${inp};width:110px">`)}
                 ${campo('Emissão NF', `<input type="date" data-f="nf_data" value="${esc(r.nf_data || '')}" style="${inp}">`)}
                 ${campo('Cliente / hospital', `<input data-f="cliente" value="${esc(r.cliente || '')}" list="hospital-list" style="${inp};min-width:200px">`, '1')}
