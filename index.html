@@ -22354,24 +22354,108 @@ else init();
         const coleta = typeof _ehColeta === 'function' && _ehColeta(p);
         const dataCir = coleta ? (p.coletaDataCirurgia || p.data) : p.data, horaCir = coleta ? p.coletaHoraCirurgia : p.inicio;
         return {
-            nf: p.nf || '', nfData: dataBR(p.nfData), paciente: p.paciente || '', medico: p.medico || '',
+            nf: p.nf || '', nfData: dataBR(p.nfData), paciente: p.paciente || '', medico: p.medico || '', vendedor: p.vendedor || '',
             hospital: p.hospital || '', cidade: p.cidade || '', convenio: p.convenio && p.convenio !== '—' ? p.convenio : '',
             cirurgia: [dataBR(dataCir), horaCir || ''].filter(Boolean).join(' às '), procedimento: p.procedimento || '', filial: filialNome(p),
-            caixa: String(caixa || '').trim(), remessa: p._remessa || '', envio: dataBR(p._envio),
+            caixa: String(caixa || '').trim(), remessa: p._remessa || '', envio: dataBR(p._envio), emp: empresaDe(p),
         };
     }
+
+    // ── Empresa emitente por filial (cabeçalho da etiqueta e dentro do QR) ──
+    const EMPRESA = {
+        CGR: { razao: 'GF MEDICAL COMÉRCIO E REPRESENTAÇÕES LTDA', cnpj: '07.356.800/0001-99', end: 'Av. Mato Grosso, 3049 - Loja 01 - Campo Grande/MS' },
+        CBA: { razao: 'GF MEDICAL COMÉRCIO E REPRESENTAÇÕES LTDA', cnpj: '07.356.800/0002-70', end: 'Av. Historiador Rubens de Mendonça, 2000 - Salas 1207 a 1210 - Cuiabá/MT' },
+    };
+    const empresaDe = p => EMPRESA[filialAtual(p)] || EMPRESA.CGR;
+    // ── Item por foto: lê código de fábrica (REF), lote e quantidade da etiqueta do produto ──
+    let _tess = null;
+    const carregarTesseract = () => _tess || (_tess = new Promise((ok, erro) => {
+        if (window.Tesseract) return ok(window.Tesseract);
+        const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+        s.onload = () => ok(window.Tesseract); s.onerror = () => { _tess = null; erro(new Error('Sem internet para ler a foto.')); }; document.head.appendChild(s);
+    }));
+    function lerGS1(t) {   // (01)GTIN (10)LOTE (17)VALIDADE (30)/(37)QTD — código de barras GS1 das etiquetas OPME
+        const s = String(t || '').replace(/[\u001d]/g, '|'), out = {};
+        const m10 = /\(10\)\s*([A-Z0-9\-\/]{2,20})/i.exec(s) || /(?:^|\|)10([A-Z0-9\-\/]{2,20})/i.exec(s); if (m10) out.lote = m10[1];
+        const m01 = /\(01\)\s*(\d{14})/.exec(s) || /^01(\d{14})/.exec(s); if (m01) out.gtin = m01[1];
+        const mq = /\((?:30|37)\)\s*(\d{1,6})/.exec(s); if (mq) out.qtd = +mq[1];
+        if (!m10 && /^01\d{14}/.test(s)) { const r = s.slice(16).match(/^(?:17\d{6})?10([^|]{1,20})/); if (r) out.lote = r[1]; }
+        return out;
+    }
+    function lerTextoEtiqueta(txt) {
+        const t = String(txt || '').replace(/[|]/g, ' ').replace(/[ \t]+/g, ' ');
+        const pega = re => { const m = re.exec(t); return m ? m[1].replace(/[.,;:]+$/, '') : ''; };
+        const cod = [/\bREF\.?\s*[:#]?\s*([A-Z0-9][A-Z0-9\-\.\/]{2,24})/i, /\bC[ÓO]D(?:IGO)?\.?\s*(?:DE\s*)?(?:F[ÁA]BRICA|PRODUTO|REF)\s*[:#.]?\s*([A-Z0-9][A-Z0-9\-\.\/]{2,24})/i,
+            /\bCAT(?:ALOG)?(?:\.|\s+N[OºO°.]+)\s*[:#]?\s*([A-Z0-9][A-Z0-9\-\.\/]{2,24})/i, /\bPART\s*(?:N[OºO°]|NUMBER)\s*[:#.]?\s*([A-Z0-9][A-Z0-9\-\.\/]{2,24})/i, /\bMODELO?\s*[:#.]\s*([A-Z0-9][A-Z0-9\-\.\/]{2,24})/i].map(pega).find(Boolean) || '';
+        const lote = pega(/\b(?:LOT(?:E)?|LT|BATCH|PARTIDA)\s*[:#.]?\s*([A-Z0-9][A-Z0-9\-\/]{2,20})/i);
+        const qtd = parseInt(pega(/\b(?:QTY|QTD[EA]?|QUANT(?:IDADE)?|CONT[ÉE]M|UNIDADES?|UN)\s*[:.]?\s*(\d{1,4})/i), 10) || 0;
+        const gs = lerGS1(t);
+        const nome = (t.split('\n').map(l => l.trim()).filter(l => l.length > 8 && /[A-Za-zÀ-ú]{4,}/.test(l) && !/REF|LOT|LOTE|QTY|FAB|VAL|EXP|STERIL|CNPJ|ANVISA/i.test(l))[0] || '').slice(0, 80);
+        return { cod, lote: lote || gs.lote || '', qtd: qtd || gs.qtd || 1, nome, gtin: gs.gtin || '' };
+    }
+    window.lerFotoProduto = function (aoAdicionar) {
+        const inpF = document.createElement('input'); inpF.type = 'file'; inpF.accept = 'image/*'; inpF.setAttribute('capture', 'environment');
+        inpF.onchange = async () => {
+            const f = inpF.files[0]; if (!f) return;
+            const url = URL.createObjectURL(f);
+            const ov = document.createElement('div');
+            ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10050;display:flex;align-items:center;justify-content:center;padding:16px';
+            const inp = 'width:100%;padding:8px 10px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.85rem;font-weight:700';
+            const bt = 'padding:9px 14px;border-radius:10px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-weight:700;font-size:.8rem;cursor:pointer';
+            ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(560px,100%);max-height:94vh;overflow:auto;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.3)">
+              <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-bottom:10px">📷 Item pela foto da etiqueta</div>
+              <img src="${url}" style="width:100%;max-height:220px;object-fit:contain;border-radius:10px;background:#000">
+              <div data-st style="font-size:.76rem;color:var(--text-dim);margin:8px 0">⏳ Lendo a foto… (pode levar alguns segundos)</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <label style="font-size:.66rem;font-weight:800;color:var(--text-dim)">CÓDIGO DE FÁBRICA (REF)<input data-k="cod" style="${inp}"></label>
+                <label style="font-size:.66rem;font-weight:800;color:var(--text-dim)">LOTE<input data-k="lote" style="${inp}"></label>
+                <label style="font-size:.66rem;font-weight:800;color:var(--text-dim);grid-column:1/-1">DESCRIÇÃO<input data-k="nome" style="${inp}"></label>
+                <label style="font-size:.66rem;font-weight:800;color:var(--text-dim)">QUANTIDADE<input data-k="qtd" type="number" min="1" value="1" style="${inp}"></label>
+              </div>
+              <details style="margin-top:8px"><summary style="font-size:.7rem;color:var(--text-dim);cursor:pointer">texto lido da foto</summary><pre data-raw style="white-space:pre-wrap;font-size:.68rem;max-height:140px;overflow:auto;background:var(--bg,#f5f5f5);padding:6px;border-radius:6px"></pre></details>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;justify-content:flex-end">
+                <button data-a="x" style="${bt}">Cancelar</button>
+                <button data-a="outra" style="${bt}">➕ Adicionar e ler outra</button>
+                <button data-a="ok" style="${bt};background:#111827;color:#fff;border-color:#111827">✔ Adicionar item</button></div></div>`;
+            document.body.appendChild(ov);
+            const $ = s => ov.querySelector(s), val = k => $(`[data-k="${k}"]`).value.trim();
+            const preencher = r => { ['cod', 'lote', 'nome'].forEach(k => { if (r[k] && !val(k)) $(`[data-k="${k}"]`).value = r[k]; }); if (r.qtd && r.qtd > 1) $('[data-k="qtd"]').value = r.qtd; };
+            (async () => {
+                // 1) código de barras/DataMatrix GS1, quando o navegador sabe ler (Android/Mac)
+                try { if ('BarcodeDetector' in window) { const det = new BarcodeDetector({ formats: ['data_matrix', 'code_128', 'qr_code', 'ean_13'] }); const bmp = await createImageBitmap(f); const cs = await det.detect(bmp);
+                    cs.forEach(c => preencher(lerGS1(c.rawValue))); } } catch (e) {}
+                // 2) texto da etiqueta (REF, LOT, QTY…)
+                try {
+                    const T = await carregarTesseract(); const { data } = await T.recognize(f, 'por+eng');
+                    $('[data-raw]').textContent = data.text || ''; const r = lerTextoEtiqueta(data.text); preencher(r);
+                    $('[data-st]').innerHTML = val('cod') || val('lote') ? '✅ Confira e corrija se precisar.' : '⚠️ Não achei o código/lote na foto — digite (ou tire outra foto mais de perto, com boa luz).';
+                } catch (e) { $('[data-st]').innerHTML = '⚠️ ' + esc(e.message || e) + ' Digite os dados.'; }
+            })();
+            ov.addEventListener('click', e => {
+                const a = e.target.closest('button')?.dataset.a; if (!a) return;
+                if (a === 'x') { ov.remove(); URL.revokeObjectURL(url); return; }
+                if (!val('cod') && !val('nome')) return alert('Informe pelo menos o código ou a descrição.');
+                aoAdicionar({ cod: val('cod'), lote: val('lote'), nome: val('nome') || val('cod'), qtd: Math.max(1, parseInt(val('qtd'), 10) || 1) });
+                ov.remove(); URL.revokeObjectURL(url);
+                if (a === 'outra') window.lerFotoProduto(aoAdicionar);
+            });
+        };
+        inpF.click();
+    };
     function textoQR(c) {
         return [c.remessa ? 'GF MEDICAL - ' + c.remessa.toUpperCase() : 'GF MEDICAL - MATERIAL CIRURGICO',
+            c.emp ? `${c.emp.razao} - CNPJ ${c.emp.cnpj}` : '', c.emp ? c.emp.end : '',
             `NF: ${c.nf || '-'}${c.nfData ? ' (emissão ' + c.nfData + ')' : ''}`,
             c.caixa ? `${c.tipo || 'Caixa'}: ${c.caixa}${c.volume ? ' (' + c.volume + ')' : ''}` : '',
             c.remessa && !c.paciente ? '' : `Paciente: ${c.paciente || '-'}`,
             c.remessa && !c.medico ? '' : `Médico: ${c.medico || '-'}`,
+            c.vendedor ? `Vendedor: ${c.vendedor}` : '',
             `${c.remessa ? 'Cliente' : 'Hospital'}: ${c.hospital || '-'}${c.cidade ? ' - ' + c.cidade : ''}`,
             c.remessa && !c.convenio ? '' : `Convênio: ${c.convenio || '-'}`,
             c.remessa && !c.cirurgia ? '' : `Cirurgia: ${c.cirurgia || '-'}`,
             c.envio ? `Envio: ${c.envio}` : '',
             c.procedimento ? `Procedimento: ${c.procedimento}` : '',
-            c.itens && c.itens.length ? 'Itens:\n' + c.itens.map(i => `- ${i.qtd}x ${i.nome || i.cod}${i.lote ? ' (lote ' + i.lote + ')' : ''}`).join('\n') : '',
+            c.itens && c.itens.length ? 'Itens:\n' + c.itens.slice(0, 20).map(i => `- ${i.qtd}x ${(i.nome || i.cod).slice(0, 60)}${i.cod && i.nome ? ' [' + i.cod + ']' : ''}${i.lote ? ' (lote ' + i.lote + ')' : ''}`).join('\n') + (c.itens.length > 20 ? `\n... +${c.itens.length - 20} item(ns)` : '') : '',
             c.filial ? `Filial: ${c.filial}` : ''].filter(Boolean).join('\n');
     }
     const chaveCaixa = p => 'gf_caixa_' + (p._docId || p.id || p.nf || '');
@@ -22389,35 +22473,38 @@ else init();
         qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
         const gerados = [];
         const etiquetas = procs.map(({ p, caixa: cxVol, tipo, itens, volume }) => {
-            const c = Object.assign(camposEtiqueta(p, cxVol ?? caixa ?? caixaSalva(p)), { tipo: tipo || '', itens: itens || [], volume: volume || '' }), qr = qrcode(0, 'M');
+            const c = Object.assign(camposEtiqueta(p, cxVol ?? caixa ?? caixaSalva(p)), { tipo: tipo || '', itens: itens || itensDoProc(p).filter(i => i.nome || i.cod), volume: volume || '' }), qr = qrcode(0, 'M');
             gerados.push({ p, c });
             qr.addData(textoQR(c)); qr.make();
             const linha = (r, v) => v ? `<tr><th>${r}</th><td>${esc(v)}</td></tr>` : '';
             return `<section class="et${c.itens.length ? ' v' : ''}">
-              <div class="topo"><b>GF Medical</b><span>${esc(c.remessa || 'Material cirúrgico')}${c.filial ? ' · ' + esc(c.filial) : ''}</span></div>
+              <div class="topo"><div class="emp"><b>${esc(c.emp.razao)}</b><span>CNPJ ${esc(c.emp.cnpj)}</span><span>${esc(c.emp.end)}</span></div><span class="tp">${esc(c.remessa || 'Material cirúrgico')}${c.nf ? '' : '<br><b>SEM NF</b>'}</span></div>
               <div class="nfl"><div class="nf">NF <b>${esc(c.nf || '—')}</b>${c.nfData ? `<span>emissão ${esc(c.nfData)}</span>` : ''}</div>${c.caixa ? `<div class="cx"><small>${esc((c.tipo || 'Caixa').toUpperCase())}</small><b>${esc(c.caixa)}</b></div>` : ''}</div>
-              <div class="qr">${qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div>
-              <table>${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}${linha('Procedimento', c.procedimento)}</table>${c.itens.length ? `<div class="its"><b>Itens neste volume${c.volume ? ' · ' + esc(c.volume) : ''}</b><ul>${c.itens.map(i => `<li>${esc(i.qtd)}× ${esc(i.nome || i.cod)}${i.lote ? ' · lote ' + esc(i.lote) : ''}</li>`).join('')}</ul></div>` : ''}
+              <div class="meio"><div class="qr">${qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div>
+              <table>${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Vendedor', c.vendedor)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}${linha('Procedimento', c.procedimento)}</table></div>${c.itens.length ? `<div class="its"><b>${c.volume ? 'Itens neste volume · ' + esc(c.volume) : 'Itens da NF'} (${c.itens.reduce((a, i) => a + (+i.qtd || 0), 0)} un)</b><ul>${c.itens.map(i => `<li>${esc(i.qtd)}× ${esc(i.nome || i.cod)}${i.lote ? ' · lote ' + esc(i.lote) : ''}</li>`).join('')}</ul></div>` : ''}
               <div class="rod">Aponte a câmera do celular para o QR Code para ver os dados.</div>
             </section>`;
         }).join('');
         w.document.open();
         w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiqueta NF ${esc([...new Set(procs.map(x => x.p.nf))].join(', '))}</title><style>
-          @page{size:100mm 150mm;margin:0}
+          @page{size:85mm 100mm;margin:0}
           *{box-sizing:border-box;margin:0;padding:0}
           body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#eee}
-          .et{width:100mm;height:150mm;padding:6mm;background:#fff;margin:0 auto 8px;display:flex;flex-direction:column;gap:3mm;page-break-after:always;break-after:page;overflow:hidden}
-          .topo{display:flex;justify-content:space-between;align-items:baseline;border-bottom:.6mm solid #000;padding-bottom:2mm}
-          .topo b{font-size:15pt}.topo span{font-size:8pt}
-          .nfl{display:flex;justify-content:space-between;align-items:center;gap:3mm}.cx{border:.6mm solid #000;border-radius:2mm;padding:1mm 3mm;text-align:center;line-height:1}.cx small{display:block;font-size:6.5pt;font-weight:bold;letter-spacing:.5pt}.cx b{font-size:18pt}
-          .nf{font-size:13pt}.nf b{font-size:20pt;letter-spacing:.5pt}.nf span{font-size:9pt;margin-left:3mm}
-          .qr{display:flex;justify-content:center}.qr svg{width:52mm;height:52mm}
-          table{border-collapse:collapse;width:100%;font-size:9.5pt}
-          th{text-align:left;width:24mm;padding:1.2mm 2mm 1.2mm 0;vertical-align:top;font-size:7.5pt;text-transform:uppercase;color:#333}
-          td{padding:1.2mm 0;font-weight:bold;border-bottom:.2mm solid #bbb;word-break:break-word}
-          .et.v .qr svg{width:38mm;height:38mm}.et.v table{font-size:8.5pt}.et.v th,.et.v td{padding:.7mm 0}
-          .its{font-size:7.5pt;border-top:.3mm solid #000;padding-top:1.2mm}.its ul{padding-left:4mm;margin-top:.8mm}.its li{margin:.2mm 0}
-          .rod{margin-top:auto;font-size:7pt;color:#444;text-align:center}
+          .et{width:85mm;height:100mm;padding:3mm 3.5mm;background:#fff;margin:0 auto 6px;display:flex;flex-direction:column;gap:1.4mm;page-break-after:always;break-after:page;overflow:hidden}
+          .topo{display:flex;justify-content:space-between;align-items:flex-start;gap:2mm;border-bottom:.5mm solid #000;padding-bottom:1.2mm}
+          .topo .emp{display:flex;flex-direction:column;line-height:1.12}.topo .emp b{font-size:7.2pt}.topo .emp span{font-size:5.8pt}
+          .topo .tp{font-size:6pt;text-align:right;flex:none;max-width:20mm;line-height:1.15}.topo .tp b{font-size:7.5pt}
+          .nfl{display:flex;justify-content:space-between;align-items:center;gap:2mm}
+          .nf{font-size:9pt}.nf b{font-size:14pt;letter-spacing:.3pt}.nf span{font-size:6.5pt;margin-left:2mm}
+          .cx{border:.5mm solid #000;border-radius:1.5mm;padding:.6mm 2.4mm;text-align:center;line-height:1}.cx small{display:block;font-size:5.5pt;font-weight:bold;letter-spacing:.4pt}.cx b{font-size:14pt}
+          .meio{display:flex;gap:2.4mm;align-items:flex-start}
+          .qr{flex:none;width:31mm;height:31mm}.qr svg{width:31mm;height:31mm}
+          table{border-collapse:collapse;width:100%;font-size:7pt;flex:1}
+          th{text-align:left;width:15mm;padding:.5mm 1mm .5mm 0;vertical-align:top;font-size:5.4pt;text-transform:uppercase;color:#333}
+          td{padding:.5mm 0;font-weight:bold;border-bottom:.15mm solid #bbb;word-break:break-word;line-height:1.1}
+          .its{font-size:6.2pt;border-top:.3mm solid #000;padding-top:.8mm;line-height:1.15;overflow:hidden;flex:1;min-height:0}
+          .its ul{padding-left:3mm;margin-top:.4mm}.its li{margin:0}.its .mais{font-style:italic;color:#333}
+          .rod{font-size:5.5pt;color:#444;text-align:center;flex:none}
           @media print{body{background:#fff}.et{margin:0}}
         </style></head><body>${etiquetas}<script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
         w.document.close();
@@ -22435,23 +22522,26 @@ else init();
         try { qrcode = await carregarLib(); } catch (e) { alert('⚠️ ' + e.message); return; }
         qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
         const svgQR = c => { const qr = qrcode(0, 'M'); qr.addData(textoQR(c)); qr.make(); return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace('<svg ', '<svg style="width:100%;height:100%" '); };
-        const c = camposEtiqueta(proc, caixaSalva(proc));
+        const c = Object.assign(camposEtiqueta(proc, caixaSalva(proc)), { itens: itensDoProc(proc).filter(i => i.nome || i.cod) });
         const linha = (r, v) => v ? `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border,#ddd)"><span style="min-width:78px;color:var(--text-dim,#666);font-size:.7rem;text-transform:uppercase">${r}</span><b style="font-size:.8rem;text-align:left">${esc(v)}</b></div>` : '';
         const ov = document.createElement('div');
         ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px';
         ov.innerHTML = `<div style="background:var(--surface,#f0faf3);border:1px solid var(--border,#ccc);border-radius:18px;padding:22px;max-width:360px;width:100%;max-height:92vh;overflow:auto;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.25);">
           <div style="font-family:var(--mono);font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:2px">QR Code — ${c.nf ? 'NF ' + esc(c.nf) : 'Ficha'}</div>
-          <div style="font-family:var(--mono);font-size:.66rem;color:var(--text-dim);margin-bottom:12px">${c.nf ? 'para colar na caixa do material' : 'sem Nº de NF ainda — preencha a NF para a etiqueta sair completa'}</div>
+          <div style="font-size:.66rem;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:2px">${esc(c.emp.razao)}<br><span style="font-weight:400;color:var(--text-dim)">CNPJ ${esc(c.emp.cnpj)} · ${esc(c.emp.end)}</span></div>
+          <div style="font-family:var(--mono);font-size:.66rem;color:var(--text-dim);margin-bottom:12px">${c.nf ? 'para colar na caixa do material' : 'material SEM NOTA FISCAL — monte os volumes para listar os itens (dá para ler por foto)'}</div>
           <div style="background:#fff;border:1px solid var(--border,#ccc);border-radius:10px;padding:10px;width:220px;height:220px;margin:0 auto" data-qr>${svgQR(c)}</div>
           <label style="display:flex;align-items:center;gap:8px;margin:12px 0 0;text-align:left;font-size:.72rem;font-weight:700;color:var(--text)">📦 Nº da caixa
             <input type="text" data-caixa value="${esc(c.caixa)}" placeholder="ex.: 1/3, CX 2, 045" maxlength="30" style="flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.85rem;font-weight:700"></label>
-          <div style="margin:12px 0 4px">${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}</div>
+          <div style="margin:12px 0 4px">${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Vendedor', c.vendedor)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}</div>
+          ${c.itens.length ? `<details style="margin-top:8px;text-align:left" open><summary style="font-size:.72rem;font-weight:800;color:var(--text);cursor:pointer">📋 Itens da NF (${c.itens.length} · ${c.itens.reduce((a, i) => a + (+i.qtd || 0), 0)} un)</summary>
+            <div style="max-height:160px;overflow:auto;margin-top:4px">${c.itens.map(i => `<div style="display:flex;gap:6px;padding:3px 0;border-bottom:1px solid var(--border,#ddd);font-size:.72rem"><b style="min-width:28px;text-align:right">${esc(i.qtd)}×</b><span style="flex:1">${esc(i.nome || i.cod)}${i.cod && i.nome ? ` <span style="color:var(--text-dim)">${esc(i.cod)}</span>` : ''}${i.lote ? `<div style="color:var(--text-dim);font-size:.66rem">lote ${esc(i.lote)}</div>` : ''}</span></div>`).join('')}</div></details>` : `<div style="margin-top:8px;font-size:.7rem;color:var(--text-dim)">Sem itens lançados — use "Várias caixas / bags" para adicionar (dá para ler por foto).</div>`}
           <button type="button" data-a="vol" style="margin-top:12px;width:100%;padding:9px;border-radius:10px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-weight:700;font-size:.78rem;cursor:pointer">📦🎒 Várias caixas / bags (montar volumes)</button>
           <button type="button" data-a="print" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:0;background:#111827;color:#fff;font-weight:700;font-size:.8rem;cursor:pointer">🏷 Imprimir etiqueta</button>
           <button type="button" data-a="x" style="margin-top:8px;width:100%;padding:9px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:.75rem;cursor:pointer">Fechar</button></div>`;
         const inp = ov.querySelector('[data-caixa]'), caixaAtual = () => inp.value.trim();
         let _t = null;
-        inp.addEventListener('input', () => { clearTimeout(_t); _t = setTimeout(() => { guardarCaixa(proc, caixaAtual()); ov.querySelector('[data-qr]').innerHTML = svgQR(camposEtiqueta(proc, caixaAtual())); }, 250); });
+        inp.addEventListener('input', () => { clearTimeout(_t); _t = setTimeout(() => { guardarCaixa(proc, caixaAtual()); ov.querySelector('[data-qr]').innerHTML = svgQR(Object.assign(camposEtiqueta(proc, caixaAtual()), { itens: c.itens })); }, 250); });
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
         ov.addEventListener('click', e => { const a = e.target.closest('button')?.dataset.a; if (e.target === ov || a === 'x') ov.remove(); else if (a === 'vol') { ov.remove(); window.abrirVolumes(proc); } else if (a === 'print') { guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
         document.body.appendChild(ov);
@@ -22479,18 +22569,18 @@ else init();
             const box = tr.querySelector('.table-actions');
             if (!box || box.querySelector('.btn-etq-qr')) return;
             const id = ((tr.getAttribute('onclick') || '').match(/\('([^']+)'\)/) || [])[1];
-            const p = id && procPorId(id); if (!temNF(p)) return;
+            const p = id && procPorId(id); if (!p) return;
             const b = document.createElement('button');
-            b.className = 'table-btn btn-etq-qr'; b.style.cssText = BTN_QR; b.title = 'Etiqueta QR da NF ' + p.nf; b.textContent = '🏷 QR';
+            b.className = 'table-btn btn-etq-qr'; b.style.cssText = BTN_QR; b.title = p.nf ? 'Etiqueta QR da NF ' + p.nf : 'Etiqueta QR (material sem NF)'; b.textContent = p.nf ? '🏷 QR' : '🏷 QR s/NF';
             b.onclick = e => { e.stopPropagation(); window.abrirQRCode(p); };
             box.insertBefore(b, box.querySelector('.t-edit') || null);
         });
         document.querySelectorAll('.proc-card[data-id]').forEach(card => {
             const act = card.querySelector('.card-actions');
             if (!act || act.querySelector('.btn-etq-qr,.btn-mod-qr,[onclick^="abrirQRCode"]')) return;
-            const p = procPorId(card.getAttribute('data-id')); if (!temNF(p)) return;
+            const p = procPorId(card.getAttribute('data-id')); if (!p) return;
             const b = document.createElement('button');
-            b.className = 'btn-act btn-etq-qr'; b.style.cssText = BTN_QR; b.title = 'Etiqueta QR da NF ' + p.nf; b.textContent = '🏷 Etiqueta QR';
+            b.className = 'btn-act btn-etq-qr'; b.style.cssText = BTN_QR; b.title = p.nf ? 'Etiqueta QR da NF ' + p.nf : 'Etiqueta QR (material sem NF)'; b.textContent = p.nf ? '🏷 Etiqueta QR' : '🏷 Etiqueta QR (sem NF)';
             b.onclick = e => { e.stopPropagation(); window.abrirQRCode(p); };
             act.insertBefore(b, act.querySelector('.del') || null);
         });
@@ -22746,6 +22836,8 @@ else init();
         document.getElementById('vol-montar')?.remove();
         const itens = itensDoProc(p).map(i => ({ ...i, total: i.qtd }));
         let vols = [], semBanco = false;
+        const cadastro = await carregarCaixas(true).catch(() => null), cads = cadastro && !cadastro.erro ? cadastro : [];
+        const ehCad = id => cads.some(c => c.codigo === id);
         if (pid && sb) {
             try {
                 const { data, error } = await sb.from('volumes_cirurgia').select('*').eq('proc_id', pid).order('ordem');
@@ -22758,12 +22850,12 @@ else init();
                         if (itens[k].avulso) itens[k].total += +s.qtd || 0;
                         q[k] = +s.qtd || 0;
                     });
-                    return { tipo: v.tipo, ident: v.identificacao || '', auto: /^\d+\/\d+$/.test(v.identificacao || ''), q };
+                    return { tipo: v.tipo, ident: v.identificacao || '', auto: /^\d+(\/\d+)?$/.test(v.identificacao || ''), q };
                 });
             } catch (e) { semBanco = true; }
         }
         if (!vols.length) vols = [{ tipo: 'Caixa', ident: '', auto: true, q: Object.fromEntries(itens.map((i, k) => [k, i.total])) }];
-        const numerar = () => ['Caixa', 'Bag'].forEach(t => { const vs = vols.filter(v => v.tipo === t); vs.forEach((v, n) => { if (v.auto || !v.ident) { v.ident = `${n + 1}/${vs.length}`; v.auto = true; } }); });
+        const numerar = () => vols.forEach((v, n) => { if (v.auto || !v.ident) { v.ident = String(n + 1); v.auto = true; } });
         const conta = t => vols.filter(v => v.tipo === t).length;
         const setConta = (t, n) => {
             n = Math.max(0, Math.min(30, n));
@@ -22808,10 +22900,13 @@ else init();
                   <thead><tr><th style="${th};text-align:left;min-width:220px">Item</th><th style="${th}">Qtd NF</th>
                     ${vols.map((v, j) => `<th style="${th};text-align:center"><div>${v.tipo === 'Caixa' ? '📦 Caixa' : '🎒 Bag'}</div>
                       <input data-ident="${j}" value="${esc(v.ident)}" maxlength="20" style="width:70px;margin-top:4px;padding:4px 5px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.74rem;font-weight:800;text-align:center">
+                      ${cads.length ? `<div><select data-cad="${j}" title="Qual caixa/bag cadastrada vai neste volume (registra a saída para o rastreio)" style="width:84px;margin-top:4px;padding:3px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.66rem">
+                        <option value="">— cadastro —</option>${cads.filter(c => c.tipo === v.tipo && c.status !== 'Baixada' && (c.status !== 'Fora' || c.proc_id_atual === pid || c.codigo === v.ident)).map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.ident ? 'selected' : ''}>${esc(c.codigo)}${c.status === 'Manutenção' ? ' 🔧' : ''}</option>`).join('')}</select></div>` : ''}
                       <div><button data-printvol="${j}" title="Imprimir só esta etiqueta" style="${bt};padding:3px 8px;margin-top:4px;font-size:.66rem">🏷</button></div></th>`).join('')}
                     <th style="${th}">Fora</th></tr></thead>
                   <tbody>${itens.map((i, k) => `<tr>
-                    <td style="${td}">${i.avulso ? `<input data-nome="${k}" value="${esc(i.nome)}" placeholder="Descrição do item" style="width:100%;padding:5px 7px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.78rem">`
+                    <td style="${td}">${i.avulso ? `<input data-nome="${k}" value="${esc(i.nome)}" placeholder="Descrição do item" style="width:100%;padding:5px 7px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.78rem">
+                        <div style="display:flex;gap:4px;margin-top:3px"><input data-cod="${k}" value="${esc(i.cod)}" placeholder="Cód. fábrica" style="flex:1;min-width:0;padding:4px 6px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.7rem"><input data-lote="${k}" value="${esc(i.lote)}" placeholder="Lote" style="flex:1;min-width:0;padding:4px 6px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.7rem"></div>`
                         : `<b>${esc(i.nome || i.cod)}</b>${i.cod && i.nome ? ` <span style="color:var(--text-dim);font-size:.7rem">${esc(i.cod)}</span>` : ''}${i.lote ? `<div style="color:var(--text-dim);font-size:.68rem">lote ${esc(i.lote)}</div>` : ''}`}</td>
                     <td style="${td};text-align:center">${i.avulso ? `<input type="number" min="0" data-total="${k}" value="${i.total}" style="${num}">` : `<b>${i.total}</b>`}</td>
                     ${vols.map((v, j) => `<td style="${td};text-align:center"><input type="number" min="0" data-q="${j}:${k}" value="${+v.q[k] || ''}" placeholder="0" style="${num}"></td>`).join('')}
@@ -22821,6 +22916,7 @@ else init();
               </div>
               <div style="padding:12px 18px;border-top:1px solid var(--border,#ccc);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
                 <button data-a="avulso" style="${bt}">+ Item avulso</button>
+                <button data-a="foto" style="${bt}" title="Tira/escolhe a foto da etiqueta do produto: lê código de fábrica, lote e quantidade">📷 Item por foto</button>
                 <button data-a="tudo1" style="${bt}">Tudo no 1º volume</button>
                 <div data-status style="font-size:.76rem;font-weight:700;margin-right:auto;margin-left:6px"></div>
                 <button data-a="salvar" style="${bt}">💾 Salvar</button>
@@ -22835,6 +22931,7 @@ else init();
                 let r = await sb.from('volumes_cirurgia').delete().eq('proc_id', pid); if (r.error) throw r.error;
                 r = await sb.from('volumes_cirurgia').insert(rows); if (r.error) throw r.error;
                 window.showSyncToast && window.showSyncToast(`📦 ${rows.length} volume(s) salvos`);
+                saidaCaixasDaCirurgia(p, vols.map(v => v.ident).filter(ehCad));
                 return true;
             } catch (e) { alert('Erro ao salvar os volumes: ' + (e.message || e)); return false; }
         }
@@ -22843,9 +22940,14 @@ else init();
             if (d.q) { const [j, k] = d.q.split(':').map(Number); vols[j].q[k] = Math.max(0, parseInt(t.value, 10) || 0); status(); }
             else if (d.total) { itens[+d.total].total = Math.max(0, parseInt(t.value, 10) || 0); status(); }
             else if (d.nome) itens[+d.nome].nome = t.value;
+            else if (d.cod) itens[+d.cod].cod = t.value.trim();
+            else if (d.lote) itens[+d.lote].lote = t.value.trim();
             else if (d.ident) { vols[+d.ident].ident = t.value.trim(); vols[+d.ident].auto = false; }
         });
-        ov.addEventListener('change', e => { const d = e.target.dataset; if (d.conta) { setConta(d.conta, parseInt(e.target.value, 10) || 0); desenhar(); } });
+        ov.addEventListener('change', e => { const d = e.target.dataset;
+            if (d.cad !== undefined) { const v = vols[+d.cad]; if (e.target.value && vols.some((x, j) => j !== +d.cad && x.ident === e.target.value)) { alert(e.target.value + ' já está em outro volume.'); e.target.value = ''; return; }
+                v.ident = e.target.value || ''; v.auto = !e.target.value; numerar(); desenhar(); return; }
+            if (d.conta) { setConta(d.conta, parseInt(e.target.value, 10) || 0); desenhar(); } });
         ov.addEventListener('click', async e => {
             if (e.target === ov) return ov.remove();
             const b = e.target.closest('button'); if (!b) return;
@@ -22854,6 +22956,7 @@ else init();
             else if (d.mais) { setConta(d.mais, conta(d.mais) + 1); desenhar(); }
             else if (d.printvol) imprimir(etiquetasDe([vols[+d.printvol]]));
             else if (d.a === 'x') ov.remove();
+            else if (d.a === 'foto') window.lerFotoProduto(it => { itens.push({ cod: it.cod, nome: it.nome, lote: it.lote, total: it.qtd, avulso: true }); vols[0].q[itens.length - 1] = it.qtd; desenhar(); });
             else if (d.a === 'avulso') { itens.push({ cod: '', nome: '', lote: '', total: 1, avulso: true }); vols[0].q[itens.length - 1] = 1; desenhar(); ov.querySelector(`[data-nome="${itens.length - 1}"]`)?.focus(); }
             else if (d.a === 'tudo1') { vols.forEach((v, j) => { v.q = j ? {} : Object.fromEntries(itens.map((i, k) => [k, i.total])); }); desenhar(); }
             else if (d.a === 'salvar') { if (await salvar()) ov.remove(); }
@@ -23001,6 +23104,244 @@ else init();
         let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
         carregar();
     };
+
+    // ── Caixas e bags cadastradas: código + QR em cada uma, rastreio de saída e retorno ──
+    const CX_ATRASO = 15;   // dias fora para destacar
+    const CX_PREF = { Caixa: 'CX', Bag: 'BG' };
+    let _cxCache = null;
+    async function carregarCaixas(forcar) {
+        const sb = window._supabase; if (!sb) return null;
+        if (_cxCache && !forcar) return _cxCache;
+        const { data, error } = await sb.from('caixas_bags').select('*').order('codigo').limit(5000);
+        if (error) { _cxCache = null; return { erro: error }; }
+        _cxCache = data || []; return _cxCache;
+    }
+    const codigoBipado = t => { const m = /\b(CX|BG)[-\s]?(\d{1,5})\b/i.exec(String(t || '')); return m ? `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}` : String(t || '').trim().toUpperCase(); };
+    const diasDesde = d => d ? Math.floor((Date.now() - new Date(d).getTime()) / 864e5) : null;
+    async function movCaixa(cx, tipo, campos) {
+        const sb = window._supabase, agora = new Date().toISOString();
+        const mov = { filial: filialAtual(null), caixa_id: cx.id, codigo: cx.codigo, tipo_mov: tipo, data: campos.data || agora, destino: campos.destino || null, cidade: campos.cidade || null,
+            proc_id: campos.proc_id || null, nf: campos.nf || null, paciente: campos.paciente || null, obs: campos.obs || null, responsavel: operador() };
+        let r = await sb.from('caixas_bags_mov').insert(mov); if (r.error) throw r.error;
+        const upd = tipo === 'Saída' ? { status: 'Fora', local_atual: [campos.destino, campos.cidade].filter(Boolean).join(' — ') || 'Fora', saida_em: mov.data, proc_id_atual: campos.proc_id || null, nf_atual: campos.nf || null }
+            : tipo === 'Retorno' ? { status: campos.manutencao ? 'Manutenção' : 'Disponível', local_atual: 'Estoque', saida_em: null, proc_id_atual: null, nf_atual: null, retorno_em: mov.data }
+            : tipo === 'Manutenção' ? { status: 'Manutenção', local_atual: campos.destino || 'Manutenção' }
+            : tipo === 'Baixa' ? { status: 'Baixada', local_atual: campos.obs || 'Baixada' } : {};
+        r = await sb.from('caixas_bags').update({ ...upd, atualizado_em: agora }).eq('id', cx.id); if (r.error) throw r.error;
+    }
+    // saída automática quando a caixa/bag cadastrada vai num volume da cirurgia
+    async function saidaCaixasDaCirurgia(p, codigos) {
+        const lista = await carregarCaixas(true); if (!lista || lista.erro || !codigos.length) return;
+        const pid = String(p._docId || p.id || ''); let n = 0;
+        for (const cod of codigos) {
+            const cx = lista.find(c => c.codigo === cod); if (!cx) continue;
+            if (cx.status === 'Fora' && cx.proc_id_atual === pid) continue;   // já está nesta cirurgia
+            try { await movCaixa(cx, 'Saída', { destino: p.hospital || '', cidade: p.cidade || '', proc_id: pid, nf: p.nf || '', paciente: p.paciente || '', obs: [p.medico, p.procedimento].filter(Boolean).join(' · ') }); n++; }
+            catch (e) { console.warn('caixas_bags:', e.message || e); }
+        }
+        if (n) { _cxCache = null; window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s) registradas saindo para ${p.hospital || 'a cirurgia'}`); }
+    }
+    window.abrirCaixasBags = async function (modoIni) {
+        document.getElementById('cx-lista')?.remove();
+        const sb = window._supabase;
+        const ov = document.createElement('div'); ov.id = 'cx-lista';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px';
+        const inp = 'padding:7px 9px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.78rem';
+        const bt = 'padding:7px 12px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap';
+        const chip = 'padding:5px 10px;border-radius:999px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap';
+        ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1180px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">📦 Caixas e bags — cadastro e rastreio</div>
+            <input type="search" data-busca placeholder="Buscar código, hospital, NF…" style="${inp};width:210px">
+            <button data-a="novo" style="${bt};background:#111827;color:#fff;border-color:#111827">+ Cadastrar</button>
+            <button data-a="etq" style="${bt}" title="Etiquetas com QR para colar nas caixas/bags (as da lista filtrada)">🏷 Etiquetas</button>
+            <button data-a="xlsx" style="${bt};border-color:#16a34a;color:#16a34a">⬇ Excel</button>
+            <button data-a="x" style="${bt}">✕</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--border,#e5e7eb);background:var(--bg,#f9fafb)">
+            <span style="font-size:.72rem;font-weight:800;color:var(--text)">Bipar:</span>
+            <div data-modo style="display:inline-flex;border:1px solid var(--border,#ccc);border-radius:9px;overflow:hidden"></div>
+            <input data-bip placeholder="Bipe o QR da caixa/bag ou digite o código (ex.: CX-003) e Enter" style="${inp};flex:1;min-width:240px;font-weight:700">
+            <span data-bipmsg style="font-size:.74rem;font-weight:700"></span>
+          </div>
+          <div data-filtros style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 18px 0;align-items:center"></div>
+          <div data-form></div>
+          <div data-corpo style="overflow:auto;padding:12px 18px 18px;flex:1"><p style="color:var(--text-dim);font-size:.8rem">Carregando…</p></div>
+        </div>`;
+        document.body.appendChild(ov);
+        const $ = s => ov.querySelector(s);
+        let cxs = [], fSt = '', modo = 'Retorno', linhas = [];
+        const ST_COR = { 'Disponível': '#16a34a', 'Fora': '#2563eb', 'Manutenção': '#b45309', 'Baixada': '#6b7280' };
+        const atrasada = c => c.status === 'Fora' && diasDesde(c.saida_em) > CX_ATRASO;
+        async function carregar() {
+            const r = await carregarCaixas(true);
+            if (!r || r.erro) { $('[data-corpo]').innerHTML = '<p style="color:#b45309;font-size:.85rem">⚠️ O banco ainda não tem as tabelas de caixas e bags. Rode o SQL <b>20261102_caixas_bags.sql</b> no Supabase desta filial.</p>'; return; }
+            cxs = r; desenhar();
+        }
+        function desenharModo() {
+            $('[data-modo]').innerHTML = ['Saída', 'Retorno'].map(m => `<button data-modo-b="${m}" style="padding:6px 12px;border:0;font-size:.72rem;font-weight:800;cursor:pointer;background:${modo === m ? (m === 'Saída' ? '#2563eb' : '#16a34a') : 'transparent'};color:${modo === m ? '#fff' : 'var(--text)'}">${m === 'Saída' ? '⬆ Saída' : '⬇ Retorno'}</button>`).join('');
+        }
+        function desenhar() {
+            const q = String($('[data-busca]').value || '').toUpperCase();
+            const cont = s => s === 'atraso' ? cxs.filter(atrasada).length : s ? cxs.filter(c => c.status === s).length : cxs.length;
+            $('[data-filtros]').innerHTML = [['', 'Todas'], ['Disponível', '✅ Disponíveis'], ['Fora', '🚚 Fora'], ['atraso', `⏰ Fora há +${CX_ATRASO} dias`], ['Manutenção', '🔧 Manutenção'], ['Baixada', '🗑 Baixadas']]
+                .map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? 'background:#111827;color:#fff;border-color:#111827' : ''}">${n} <b>${cont(s)}</b></button>`).join('')
+                + `<span style="margin-left:auto;font-size:.72rem;color:var(--text-dim)">${cxs.filter(c => c.tipo === 'Caixa').length} caixa(s) · ${cxs.filter(c => c.tipo === 'Bag').length} bag(s)</span>`;
+            linhas = cxs.filter(c => !fSt || (fSt === 'atraso' ? atrasada(c) : c.status === fSt))
+                .filter(c => !q || [c.codigo, c.descricao, c.local_atual, c.nf_atual, c.tipo].some(v => String(v || '').toUpperCase().includes(q)));
+            const th = 'padding:7px 8px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);text-align:left;position:sticky;top:0;background:var(--surface,#fff)';
+            const td = 'padding:7px 8px;border-bottom:1px solid var(--border,#e5e7eb);font-size:.78rem;color:var(--text);vertical-align:middle';
+            $('[data-corpo]').innerHTML = !cxs.length ? `<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:.85rem">Nenhuma caixa ou bag cadastrada ainda.<br><br><button data-a="novo" style="${bt};background:#111827;color:#fff">+ Cadastrar as primeiras</button></div>`
+              : `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr><th style="${th}">Código</th><th style="${th}">Descrição</th><th style="${th}">Situação</th><th style="${th}">Onde está</th><th style="${th}">Desde</th><th style="${th}">NF</th><th style="${th};text-align:right">Ações</th></tr></thead><tbody>
+                ${linhas.map(c => { const d = diasDesde(c.saida_em), at = atrasada(c);
+                  return `<tr style="${at ? 'background:rgba(220,38,38,.06)' : ''}"><td style="${td}"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${c.tipo === 'Caixa' ? '📦' : '🎒'} ${esc(c.tipo)}</span></td>
+                    <td style="${td}">${esc(c.descricao || '')}</td>
+                    <td style="${td}"><span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>${at ? ' <span style="color:#dc2626;font-size:.7rem;font-weight:800">⏰ atrasada</span>' : ''}</td>
+                    <td style="${td}">${esc(c.local_atual || 'Estoque')}</td>
+                    <td style="${td}">${c.status === 'Fora' && c.saida_em ? `${new Date(c.saida_em).toLocaleDateString('pt-BR')} <span style="color:${at ? '#dc2626' : 'var(--text-dim)'};font-size:.7rem">(${d} dia${d === 1 ? '' : 's'})</span>` : c.retorno_em ? `<span style="color:var(--text-dim);font-size:.72rem">voltou ${new Date(c.retorno_em).toLocaleDateString('pt-BR')}</span>` : '—'}</td>
+                    <td style="${td};font-family:var(--mono)">${esc(c.nf_atual || '')}</td>
+                    <td style="${td};text-align:right;white-space:nowrap">
+                      ${c.status !== 'Fora' && c.status !== 'Baixada' ? `<button data-saida="${c.id}" style="${bt};padding:4px 9px;color:#2563eb;border-color:#2563eb">⬆ Saída</button>` : ''}
+                      ${c.status === 'Fora' || c.status === 'Manutenção' ? `<button data-retorno="${c.id}" style="${bt};padding:4px 9px;color:#16a34a;border-color:#16a34a">⬇ Retorno</button>` : ''}
+                      <button data-hist="${c.id}" style="${bt};padding:4px 9px" title="Histórico: para onde foi e quando voltou">🕘</button>
+                      <button data-etq1="${c.id}" style="${bt};padding:4px 9px" title="Etiqueta QR desta caixa/bag">🏷</button>
+                      <button data-edit="${c.id}" style="${bt};padding:4px 9px" title="Editar / manutenção / baixa">✎</button></td></tr>`; }).join('') || `<tr><td colspan="7" style="${td};text-align:center;color:var(--text-dim);padding:18px">Nada com esses filtros.</td></tr>`}
+              </tbody></table>`;
+        }
+        const form = html => { $('[data-form]').innerHTML = html ? `<div style="margin:10px 18px 0;padding:12px 14px;border:1px solid var(--border,#ccc);border-radius:12px;background:var(--bg,#f9fafb)">${html}</div>` : ''; };
+        const campo = (rot, h) => `<label style="display:flex;flex-direction:column;gap:3px;font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase">${rot}${h}</label>`;
+        function proximoCodigo(tipo) { const pf = CX_PREF[tipo], ns = cxs.filter(c => c.codigo.startsWith(pf + '-')).map(c => parseInt(c.codigo.slice(3), 10) || 0); return `${pf}-${String((ns.length ? Math.max(...ns) : 0) + 1).padStart(3, '0')}`; }
+        function formNovo(c) {
+            form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:var(--text)">${c ? '✎ ' + esc(c.codigo) : '+ Cadastrar caixas / bags'}</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option>Caixa</option><option>Bag</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`)}
+                ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c?.descricao || '')}" placeholder="ex.: caixa térmica grande, bag azul" style="${inp};width:260px">`)}
+                ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
+                <span data-prev style="font-size:.74rem;color:var(--text-dim);margin-bottom:8px"></span>
+                <button data-a="${c ? 'gravarEdit' : 'gravarNovo'}" data-id="${c?.id || ''}" style="${bt};background:#111827;color:#fff;border-color:#111827">💾 Salvar</button>
+                <button data-a="cancela" style="${bt}">Cancelar</button></div>`);
+            if (!c) { const prev = () => { const t = $('[data-f="tipo"]').value, n = Math.max(1, parseInt($('[data-f="qtd"]').value, 10) || 1), ini = proximoCodigo(t), pf = CX_PREF[t], i0 = parseInt(ini.slice(3), 10);
+                $('[data-prev]').textContent = n === 1 ? `código: ${ini}` : `códigos: ${ini} a ${pf}-${String(i0 + n - 1).padStart(3, '0')}`; };
+                $('[data-f="tipo"]').onchange = prev; $('[data-f="qtd"]').oninput = prev; prev(); }
+        }
+        function formSaida(c) {
+            const hosp = [...new Set((window.procedimentos || []).map(p => p.hospital).filter(Boolean))].sort();
+            const hoje = new Date().toISOString().slice(0, 10), procs = (window.procedimentos || []).filter(p => p.data && p.data >= new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10) && p.data <= new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10)).slice(0, 80);
+            form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:#2563eb">⬆ Saída de ${esc(c.codigo)} ${esc(c.descricao || '')}</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                ${campo('Cirurgia (opcional)', `<select data-f="proc" style="${inp};width:280px"><option value="">— sem cirurgia (remessa, conserto…) —</option>${procs.map(p => `<option value="${esc(p._docId || p.id)}">${esc([dataBR(p.data), p.hospital, p.paciente].filter(Boolean).join(' · '))}</option>`).join('')}</select>`)}
+                ${campo('Para onde (hospital / cliente)', `<input data-f="destino" list="cx-hosp" style="${inp};width:240px"><datalist id="cx-hosp">${hosp.map(h => `<option value="${esc(h)}">`).join('')}</datalist>`)}
+                ${campo('Cidade', `<input data-f="cidade" style="${inp};width:130px">`)}
+                ${campo('NF', `<input data-f="nf" style="${inp};width:100px">`)}
+                ${campo('Data', `<input data-f="data" type="date" value="${hoje}" style="${inp}">`)}
+                ${campo('Obs', `<input data-f="obs" style="${inp};width:180px">`)}
+                <button data-a="gravarSaida" data-id="${c.id}" style="${bt};background:#2563eb;color:#fff;border-color:#2563eb">⬆ Registrar saída</button>
+                <button data-a="cancela" style="${bt}">Cancelar</button></div>`);
+            $('[data-f="proc"]').onchange = e => { const p = procPorId(e.target.value); if (!p) return; $('[data-f="destino"]').value = p.hospital || ''; $('[data-f="cidade"]').value = p.cidade || ''; $('[data-f="nf"]').value = p.nf || ''; };
+            $('[data-f="destino"]').focus();
+        }
+        async function historico(c) {
+            const { data, error } = await sb.from('caixas_bags_mov').select('*').eq('caixa_id', c.id).order('data', { ascending: false }).limit(300);
+            if (error) return alert('Erro: ' + error.message);
+            const cor = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Manutenção': '#b45309', 'Baixa': '#6b7280', 'Cadastro': '#111827' };
+            form(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b style="font-size:.85rem;color:var(--text)">🕘 Histórico de ${esc(c.codigo)}</b><span style="font-size:.72rem;color:var(--text-dim)">${(data || []).filter(m => m.tipo_mov === 'Saída').length} saída(s)</span><button data-a="cancela" style="${bt};margin-left:auto">Fechar</button></div>
+              <div style="max-height:260px;overflow:auto">${(data || []).map(m => `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border,#e5e7eb);font-size:.76rem;color:var(--text)">
+                <span style="min-width:120px;font-family:var(--mono);color:var(--text-dim)">${new Date(m.data).toLocaleString('pt-BR').slice(0, 17)}</span>
+                <b style="min-width:90px;color:${cor[m.tipo_mov] || 'inherit'}">${m.tipo_mov === 'Saída' ? '⬆' : m.tipo_mov === 'Retorno' ? '⬇' : '•'} ${esc(m.tipo_mov)}</b>
+                <span style="flex:1">${esc([m.destino, m.cidade].filter(Boolean).join(' — '))}${m.nf ? ` · NF ${esc(m.nf)}` : ''}${m.paciente ? ` · ${esc(m.paciente)}` : ''}${m.obs ? ` <span style="color:var(--text-dim)">· ${esc(m.obs)}</span>` : ''}</span>
+                <span style="color:var(--text-dim)">${esc(m.responsavel || '')}</span></div>`).join('') || '<p style="font-size:.78rem;color:var(--text-dim)">Sem movimentações ainda.</p>'}</div>`);
+        }
+        async function retorno(c, silencioso) {
+            const man = silencioso ? false : !confirm(`⬇ Retorno de ${c.codigo}${c.local_atual ? ' (estava em ' + c.local_atual + ')' : ''}.\n\nOK = voltou em ordem (fica Disponível)\nCancelar = voltou com problema (vai para Manutenção)`);
+            await movCaixa(c, 'Retorno', { destino: c.local_atual || '', proc_id: c.proc_id_atual, nf: c.nf_atual, manutencao: man, obs: man ? 'voltou com problema' : '' });
+        }
+        async function etiquetas(lista) {
+            if (!lista.length) return alert('Nada para imprimir.');
+            let qrcode; try { qrcode = await carregarLib(); } catch (e) { return alert('⚠️ ' + e.message); }
+            qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+            const w = window.open('', '_blank'); if (!w) return alert('Libere as janelas pop-up para imprimir.');
+            const cards = lista.map(c => { const q = qrcode(0, 'M'); q.addData(`GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
+                return `<div class="e"><div class="qr">${q.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div><div class="t"><div class="g">GF MEDICAL</div><div class="c">${esc(c.codigo)}</div><div class="d">${c.tipo === 'Caixa' ? '📦 Caixa' : '🎒 Bag'}${c.descricao ? ' · ' + esc(c.descricao) : ''}</div><div class="f">${esc(filialAtual(null) === 'CBA' ? 'Cuiabá' : 'Campo Grande')} · se encontrar, devolver à GF Medical</div></div></div>`; }).join('');
+            w.document.write(`<!doctype html><meta charset="utf-8"><title>Etiquetas caixas e bags</title><style>body{font-family:Arial,sans-serif;margin:8mm}.e{display:inline-flex;gap:10px;align-items:center;width:88mm;height:38mm;border:1px dashed #999;border-radius:6px;padding:4mm;margin:2mm;box-sizing:border-box;vertical-align:top;page-break-inside:avoid}.qr{width:30mm;height:30mm;flex:none}.qr svg{width:100%;height:100%}.g{font-size:9pt;font-weight:700;color:#555}.c{font-size:22pt;font-weight:800;letter-spacing:1px}.d{font-size:9pt}.f{font-size:7pt;color:#666;margin-top:3px}@media print{.e{border-color:#ccc}}</style>${cards}<script>setTimeout(()=>print(),300)<\/script>`);
+            w.document.close();
+        }
+        async function bipar(texto) {
+            const cod = codigoBipado(texto), msg = $('[data-bipmsg]'); $('[data-bip]').value = '';
+            const c = cxs.find(x => x.codigo === cod);
+            if (!c) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`; return; }
+            if (modo === 'Retorno') {
+                if (c.status !== 'Fora' && c.status !== 'Manutenção') { msg.innerHTML = `<span style="color:#b45309">⚠ ${esc(c.codigo)} já está ${esc(c.status)}</span>`; return; }
+                const de = c.local_atual; try { await retorno(c, true); msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(c.codigo)} voltou${de ? ' de ' + esc(de) : ''}</span>`; await carregar(); } catch (e) { msg.innerHTML = `<span style="color:#dc2626">Erro: ${esc(e.message || e)}</span>`; }
+            } else {
+                if (c.status === 'Fora') { msg.innerHTML = `<span style="color:#b45309">⚠ ${esc(c.codigo)} já está fora (${esc(c.local_atual || '')})</span>`; return; }
+                msg.textContent = ''; formSaida(c);
+            }
+            $('[data-bip]').focus();
+        }
+        ov.addEventListener('keydown', e => { if (e.target.matches('[data-bip]') && e.key === 'Enter') { e.preventDefault(); if (e.target.value.trim()) bipar(e.target.value); } });
+        ov.addEventListener('click', async e => {
+            if (e.target === ov) return ov.remove();
+            const b = e.target.closest('button'); if (!b) return; const d = b.dataset, porId = id => cxs.find(c => c.id === id);
+            try {
+                if (d.a === 'x') return ov.remove();
+                if (d.modoB) { modo = d.modoB; desenharModo(); $('[data-bip]').focus(); return; }
+                if (d.st !== undefined) { fSt = d.st; return desenhar(); }
+                if (d.a === 'novo') return formNovo();
+                if (d.a === 'cancela') return form('');
+                if (d.saida) return formSaida(porId(d.saida));
+                if (d.retorno) { await retorno(porId(d.retorno)); await carregar(); return; }
+                if (d.hist) return historico(porId(d.hist));
+                if (d.etq1) return etiquetas([porId(d.etq1)]);
+                if (d.edit) return formNovo(porId(d.edit));
+                if (d.a === 'etq') return etiquetas(linhas);
+                if (d.a === 'gravarNovo') {
+                    const tipo = $('[data-f="tipo"]').value, n = Math.max(1, Math.min(100, parseInt($('[data-f="qtd"]').value, 10) || 1)), desc = $('[data-f="descricao"]').value.trim();
+                    const ini = parseInt(proximoCodigo(tipo).slice(3), 10), rows = Array.from({ length: n }, (_, i) => ({ filial: filialAtual(null), codigo: `${CX_PREF[tipo]}-${String(ini + i).padStart(3, '0')}`, tipo, descricao: desc || null, status: 'Disponível', local_atual: 'Estoque', criado_por: operador() }));
+                    const { data, error } = await sb.from('caixas_bags').insert(rows).select(); if (error) throw error;
+                    await sb.from('caixas_bags_mov').insert((data || []).map(c => ({ filial: c.filial, caixa_id: c.id, codigo: c.codigo, tipo_mov: 'Cadastro', data: new Date().toISOString(), responsavel: operador() })));
+                    form(''); await carregar();
+                    if (confirm(`✅ ${n} ${tipo.toLowerCase()}(s) cadastrada(s): ${rows[0].codigo}${n > 1 ? ' a ' + rows[n - 1].codigo : ''}.\n\nImprimir as etiquetas com QR agora?`)) etiquetas(cxs.filter(c => rows.some(r => r.codigo === c.codigo)));
+                    return;
+                }
+                if (d.a === 'gravarEdit') {
+                    const c = porId(d.id), st = $('[data-f="status"]').value, obs = $('[data-f="obs"]').value.trim();
+                    const { error } = await sb.from('caixas_bags').update({ descricao: $('[data-f="descricao"]').value.trim() || null, atualizado_em: new Date().toISOString() }).eq('id', c.id); if (error) throw error;
+                    if (st !== c.status) {
+                        if (st === 'Disponível' && (c.status === 'Fora' || c.status === 'Manutenção')) await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual' });
+                        else if (st === 'Manutenção') await movCaixa(c, 'Manutenção', { obs, destino: 'Manutenção' });
+                        else if (st === 'Baixada') await movCaixa(c, 'Baixa', { obs: obs || 'baixada' });
+                        else if (st === 'Fora') { form(''); await carregar(); return formSaida(cxs.find(x => x.id === c.id)); }
+                    }
+                    form(''); return carregar();
+                }
+                if (d.a === 'gravarSaida') {
+                    const c = porId(d.id), v = k => $(`[data-f="${k}"]`).value.trim(), p = procPorId(v('proc'));
+                    if (!v('destino')) return alert('Informe para onde a caixa/bag está indo.');
+                    await movCaixa(c, 'Saída', { destino: v('destino'), cidade: v('cidade'), nf: v('nf'), proc_id: v('proc') || null, paciente: p?.paciente || '', obs: v('obs'), data: new Date(v('data') + 'T' + new Date().toTimeString().slice(0, 8)).toISOString() });
+                    form(''); return carregar();
+                }
+                if (d.a === 'xlsx') {
+                    if (!window.XLSX) return alert('Biblioteca do Excel não carregou. Recarregue a página.');
+                    const ws = XLSX.utils.json_to_sheet(linhas.map(c => ({ Código: c.codigo, Tipo: c.tipo, Descrição: c.descricao || '', Situação: c.status, 'Onde está': c.local_atual || '', 'Saiu em': c.saida_em ? new Date(c.saida_em).toLocaleDateString('pt-BR') : '', 'Dias fora': c.status === 'Fora' ? diasDesde(c.saida_em) : '', NF: c.nf_atual || '', 'Voltou em': c.retorno_em ? new Date(c.retorno_em).toLocaleDateString('pt-BR') : '' })));
+                    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Caixas e bags'); XLSX.writeFile(wb, 'caixas-e-bags.xlsx'); return;
+                }
+            } catch (err) { alert('Erro: ' + (err.message || err)); }
+        });
+        let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
+        desenharModo(); await carregar();
+        if (modoIni) { modo = modoIni; desenharModo(); }
+        setTimeout(() => $('[data-bip]')?.focus(), 50);
+    };
+    function botaoCaixas() {
+        const barra = document.getElementById('barra-rapida-acoes');
+        if (!barra || document.getElementById('btn-caixas')) return;
+        const b = document.createElement('button');
+        b.id = 'btn-caixas'; b.textContent = '📦 Caixas e bags'; b.title = 'Cadastro das caixas e bags (código + QR) e rastreio: para onde foram e quando voltaram';
+        b.style.cssText = 'flex-shrink:0;padding:5px 11px;border-radius:999px;border:1px solid rgba(17,24,39,0.3);background:transparent;color:var(--text);font-family:var(--mono);font-size:0.65rem;font-weight:700;cursor:pointer;white-space:nowrap;';
+        b.onclick = () => window.abrirCaixasBags();
+        barra.appendChild(b);
+    }
+    new MutationObserver(() => botaoCaixas()).observe(document.body, { childList: true, subtree: true });
     // Atalho na barra rápida
     function botaoRemessas() {
         const barra = document.getElementById('barra-rapida-acoes');
@@ -23012,7 +23353,7 @@ else init();
         barra.appendChild(b);
     }
     new MutationObserver(() => botaoRemessas()).observe(document.body, { childList: true, subtree: true });
-    botaoRemessas();
+    botaoRemessas(); botaoCaixas();
 })();
 </script>
 <script src="fretes-config.js"></script>
