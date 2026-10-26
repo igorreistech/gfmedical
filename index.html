@@ -22463,6 +22463,52 @@ else init();
         document.body.appendChild(d);
         setTimeout(() => d.remove(), 30000);
     };
+    // Botão 🏷 em toda NF já salva: na tabela (ao lado de "Editar"), nos cards e no campo NF da ficha aberta
+    const temNF = p => p && String(p.nf || '').trim();
+    const BTN_QR = 'background:rgba(17,24,39,.08);border-color:rgba(17,24,39,.35);color:var(--text);font-weight:700;';
+    function injetarBotoesEtiqueta() {
+        document.querySelectorAll('#procTable tbody tr').forEach(tr => {
+            const box = tr.querySelector('.table-actions');
+            if (!box || box.querySelector('.btn-etq-qr')) return;
+            const id = ((tr.getAttribute('onclick') || '').match(/\('([^']+)'\)/) || [])[1];
+            const p = id && procPorId(id); if (!temNF(p)) return;
+            const b = document.createElement('button');
+            b.className = 'table-btn btn-etq-qr'; b.style.cssText = BTN_QR; b.title = 'Etiqueta QR da NF ' + p.nf; b.textContent = '🏷 QR';
+            b.onclick = e => { e.stopPropagation(); window.abrirQRCode(p); };
+            box.insertBefore(b, box.querySelector('.t-edit') || null);
+        });
+        document.querySelectorAll('.proc-card[data-id]').forEach(card => {
+            const act = card.querySelector('.card-actions');
+            if (!act || act.querySelector('.btn-etq-qr,.btn-mod-qr,[onclick^="abrirQRCode"]')) return;
+            const p = procPorId(card.getAttribute('data-id')); if (!temNF(p)) return;
+            const b = document.createElement('button');
+            b.className = 'btn-act btn-etq-qr'; b.style.cssText = BTN_QR; b.title = 'Etiqueta QR da NF ' + p.nf; b.textContent = '🏷 Etiqueta QR';
+            b.onclick = e => { e.stopPropagation(); window.abrirQRCode(p); };
+            act.insertBefore(b, act.querySelector('.del') || null);
+        });
+        // Ficha aberta: botão ao lado do Nº da NF (usa o que está digitado agora, mesmo antes de salvar)
+        const fnf = document.getElementById('f-nf');
+        if (fnf && !document.getElementById('btn-etq-qr-ficha')) {
+            const b = document.createElement('button');
+            b.type = 'button'; b.id = 'btn-etq-qr-ficha'; b.textContent = '🏷 Etiqueta QR';
+            b.style.cssText = 'margin-top:6px;padding:6px 10px;border-radius:8px;border:1px solid rgba(17,24,39,.35);background:rgba(17,24,39,.08);color:var(--text);font-size:.72rem;font-weight:700;cursor:pointer';
+            b.onclick = () => {
+                const v = id => document.getElementById(id)?.value || '';
+                let base = null; try { base = typeof editingDocId !== 'undefined' && editingDocId ? procPorId(editingDocId) : null; } catch (e) {}
+                const p = Object.assign({}, base || {}, { nf: v('f-nf').trim(), nfData: v('f-nf-data') || (base && base.nfData) || '' });
+                ['paciente', 'medico', 'hospital', 'convenio', 'data', 'inicio'].forEach(k => { const x = v('f-' + k); if (x && !x.startsWith('__')) p[k] = x; });
+                if (!p.nf) { alert('Digite o número da NF primeiro.'); return; }
+                window.abrirQRCode(p);
+            };
+            fnf.insertAdjacentElement('afterend', b);
+            const vis = () => { b.style.display = fnf.value.trim() ? '' : 'none'; };
+            fnf.addEventListener('input', vis); vis();
+            new MutationObserver(vis).observe(fnf, { attributes: true }); setInterval(vis, 800);
+        }
+    }
+    let _tq = null;
+    new MutationObserver(() => { clearTimeout(_tq); _tq = setTimeout(injetarBotoesEtiqueta, 120); }).observe(document.body, { childList: true, subtree: true });
+    injetarBotoesEtiqueta();
 })();
 </script>
 <script src="fretes-config.js"></script>
