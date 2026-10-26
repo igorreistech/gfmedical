@@ -23141,6 +23141,30 @@ else init();
         }
         if (n) { _cxCache = null; window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s) registradas saindo para ${p.hospital || 'a cirurgia'}`); }
     }
+
+    // cirurgia concluída → as caixas/bags que saíram para ela voltam sozinhas para o estoque
+    let _cxAutoRodando = false;
+    async function retornoAutomaticoCaixas() {
+        const sb = window._supabase; if (_cxAutoRodando || !sb || !(window.procedimentos || []).length) return;
+        _cxAutoRodando = true;
+        try {
+            const { data, error } = await sb.from('caixas_bags').select('*').eq('status', 'Fora').limit(2000);
+            if (error || !data?.length) return;
+            let n = 0;
+            for (const cx of data) {
+                if (!cx.proc_id_atual) continue;
+                const p = procPorId(cx.proc_id_atual); if (!p || p.status !== 'concluido') continue;
+                try { await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: cx.proc_id_atual, nf: cx.nf_atual, obs: 'retorno automático — cirurgia concluída' }); n++; }
+                catch (e) { console.warn('caixas_bags auto:', e.message || e); }
+            }
+            if (n) { _cxCache = null; window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s) voltaram para o estoque (cirurgia concluída)`); if (document.getElementById('cx-lista')) window.abrirCaixasBags(); }
+        } catch (e) { console.warn('caixas_bags auto:', e); }
+        finally { _cxAutoRodando = false; }
+    }
+    window.retornoAutomaticoCaixas = retornoAutomaticoCaixas;
+    // confere ao abrir e a cada 30 s (pega a mudança de status feita aqui ou em outro computador)
+    setTimeout(retornoAutomaticoCaixas, 8000);
+    setInterval(retornoAutomaticoCaixas, 30000);
     window.abrirCaixasBags = async function (modoIni) {
         document.getElementById('cx-lista')?.remove();
         const sb = window._supabase;
@@ -23328,7 +23352,7 @@ else init();
             } catch (err) { alert('Erro: ' + (err.message || err)); }
         });
         let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
-        desenharModo(); await carregar();
+        desenharModo(); await retornoAutomaticoCaixas(); await carregar();
         if (modoIni) { modo = modoIni; desenharModo(); }
         setTimeout(() => $('[data-bip]')?.focus(), 50);
     };
