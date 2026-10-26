@@ -22385,8 +22385,10 @@ else init();
         let qrcode;
         try { qrcode = await carregarLib(); } catch (e) { w.close(); alert('⚠️ ' + e.message); return; }
         qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+        const gerados = [];
         const etiquetas = procs.map(p => {
             const c = camposEtiqueta(p, caixa ?? caixaSalva(p)), qr = qrcode(0, 'M');
+            gerados.push({ p, c });
             qr.addData(textoQR(c)); qr.make();
             const linha = (r, v) => v ? `<tr><th>${r}</th><td>${esc(v)}</td></tr>` : '';
             return `<section class="et">
@@ -22415,6 +22417,7 @@ else init();
           @media print{body{background:#fff}.et{margin:0}}
         </style></head><body>${etiquetas}<script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
         w.document.close();
+        registrarEtiquetas(gerados);
     }
     const procPorId = id => (window.procedimentos || []).find(p => (p._docId || String(p.id)) === String(id));
     window.etiquetaQR = id => imprimir([procPorId(id)]);
@@ -22509,6 +22512,169 @@ else init();
     let _tq = null;
     new MutationObserver(() => { clearTimeout(_tq); _tq = setTimeout(injetarBotoesEtiqueta, 120); }).observe(document.body, { childList: true, subtree: true });
     injetarBotoesEtiqueta();
+    // ── Relatório de etiquetas QR: cada impressão fica registrada na tabela etiquetas_qr ──
+    const filialAtual = p => {
+        const f = String((p && (p._filialOrigem || p._filial)) || window._activeBranch || '').toUpperCase();
+        if (f === 'CBA' || f === 'CGR') return f;
+        const u = String(window._supabase?.supabaseUrl || window._supabase?.rest?.url || '');
+        return u.includes('cyztucqhfotqhauavepu') ? 'CBA' : u.includes('rqzqetfoxiutabsooqqn') ? 'CGR' : f;
+    };
+    const operador = () => window._operadorNome || window._currentUser?.nome || window._currentUser?.email || '';
+    async function registrarEtiquetas(gerados) {
+        const sb = window._supabase; if (!sb || !gerados.length) return;
+        const rows = gerados.map(({ p, c }) => ({ filial: filialAtual(p), proc_id: String(p._docId || p.id || ''), nf: c.nf, nf_data: c.nfData,
+            caixa: c.caixa || null, paciente: c.paciente, medico: c.medico, hospital: c.hospital, cidade: c.cidade, convenio: c.convenio,
+            cirurgia: c.cirurgia, procedimento: c.procedimento, impresso_por: operador() }));
+        try { const { error } = await sb.from('etiquetas_qr').insert(rows); if (error) console.warn('etiquetas_qr:', error.message); }
+        catch (e) { console.warn('etiquetas_qr:', e); }
+    }
+
+    window.abrirRelatorioEtiquetas = async function () {
+        document.getElementById('rel-etq-qr')?.remove();
+        const hoje = new Date(), iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+        const ov = document.createElement('div');
+        ov.id = 'rel-etq-qr';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px';
+        const inp = 'padding:7px 9px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.78rem';
+        const bt = 'padding:7px 12px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap';
+        ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1180px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">🏷 Relatório de etiquetas QR</div>
+            <div style="display:flex;border:1px solid var(--border,#ccc);border-radius:8px;overflow:hidden">
+              <button data-modo="impressas" style="${bt};border:0;border-radius:0">Impressas</button><button data-modo="sem" style="${bt};border:0;border-radius:0;border-left:1px solid var(--border,#ccc)">NFs sem etiqueta</button></div>
+            <label style="font-size:.72rem;color:var(--text-dim)">De <input type="date" data-de value="${iso(new Date(hoje.getTime() - 30 * 864e5))}" style="${inp}"></label>
+            <label style="font-size:.72rem;color:var(--text-dim)">até <input type="date" data-ate value="${iso(hoje)}" style="${inp}"></label>
+            <input type="search" data-busca placeholder="Buscar NF, paciente, hospital…" style="${inp};width:220px">
+            <button data-a="xlsx" style="${bt};border-color:#16a34a;color:#16a34a">⬇ Excel</button>
+            <button data-a="x" style="${bt}">✕</button>
+          </div>
+          <div data-kpis style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 18px 0"></div>
+          <div data-corpo style="overflow:auto;padding:12px 18px 18px;flex:1"><p style="color:var(--text-dim);font-size:.8rem">Carregando…</p></div>
+        </div>`;
+        document.body.appendChild(ov);
+        const $ = s => ov.querySelector(s);
+        let modo = 'impressas', regs = [], linhas = [];
+        const kpi = (l, v) => `<div style="border:1px solid var(--border,#ccc);border-radius:10px;padding:8px 14px;min-width:120px"><div style="font-size:.64rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em">${l}</div><div style="font-size:1.2rem;font-weight:800;color:var(--text)">${v}</div></div>`;
+        const dataHora = s => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+        async function carregar() {
+            const de = $('[data-de]').value, ate = $('[data-ate]').value;
+            let q = window._supabase.from('etiquetas_qr').select('*').order('impresso_em', { ascending: false }).limit(5000);
+            if (de) q = q.gte('impresso_em', new Date(de + 'T00:00:00').toISOString());
+            if (ate) q = q.lt('impresso_em', new Date(new Date(ate + 'T00:00:00').getTime() + 864e5).toISOString());
+            const { data, error } = await q;
+            if (error) {
+                regs = null;
+                $('[data-kpis]').innerHTML = '';
+                $('[data-corpo]').innerHTML = /etiquetas_qr|PGRST205|schema cache|does not exist/i.test(error.message)
+                    ? '<p style="color:#b45309;font-size:.85rem">⚠️ O banco ainda não tem a tabela do relatório. Rode o SQL <b>20261031_etiquetas_qr.sql</b> no Supabase desta filial.</p>'
+                    : `<p style="color:#b91c1c;font-size:.85rem">Erro ao carregar: ${esc(error.message)}</p>`;
+                return;
+            }
+            regs = data || []; desenhar();
+        }
+        function desenhar() {
+            if (!regs) return;
+            ov.querySelectorAll('[data-modo]').forEach(b => { const on = b.dataset.modo === modo; b.style.background = on ? '#111827' : 'transparent'; b.style.color = on ? '#fff' : 'var(--text)'; });
+            const termo = $('[data-busca]').value.trim().toLowerCase();
+            const casa = o => !termo || Object.values(o).join(' ').toLowerCase().includes(termo);
+            const th = 'text-align:left;padding:8px 10px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);position:sticky;top:0;background:var(--surface,#fff);white-space:nowrap';
+            const td = 'padding:7px 10px;font-size:.78rem;color:var(--text);border-bottom:1px solid var(--border,#e5e7eb);vertical-align:top';
+            if (modo === 'impressas') {
+                linhas = regs.map(r => ({ 'Impressa em': dataHora(r.impresso_em), NF: r.nf || '', Caixa: r.caixa || '', Paciente: r.paciente || '', Médico: r.medico || '',
+                    Hospital: r.hospital || '', Cidade: r.cidade || '', Convênio: r.convenio || '', Cirurgia: r.cirurgia || '', Procedimento: r.procedimento || '', Filial: r.filial || '', 'Impressa por': r.impresso_por || '', _proc: r.proc_id })).filter(casa);
+                const nfs = new Set(linhas.map(l => l.NF)), cxs = linhas.filter(l => l.Caixa).length;
+                $('[data-kpis]').innerHTML = kpi('Etiquetas impressas', linhas.length) + kpi('NFs diferentes', nfs.size) + kpi('Com nº de caixa', cxs) + kpi('Reimpressões', linhas.length - nfs.size);
+            } else {
+                // NFs do período (pela data de emissão) que ainda não tiveram etiqueta impressa
+                const de = $('[data-de]').value, ate = $('[data-ate]').value;
+                const feitas = new Set(regs.map(r => r.proc_id).concat(regs.map(r => 'nf:' + r.nf)));
+                linhas = (window.procedimentos || []).filter(p => String(p.nf || '').trim() && p.status !== 'cancelado'
+                        && (!de || !p.nfData || p.nfData >= de) && (!ate || !p.nfData || p.nfData <= ate)
+                        && !feitas.has(String(p._docId || p.id)) && !feitas.has('nf:' + p.nf))
+                    .map(p => { const c = camposEtiqueta(p, ''); return { 'Emissão NF': c.nfData, NF: c.nf, Paciente: c.paciente, Médico: c.medico, Hospital: c.hospital, Cidade: c.cidade,
+                        Convênio: c.convenio, Cirurgia: c.cirurgia, Procedimento: c.procedimento, Status: p.status || '', _proc: String(p._docId || p.id) }; })
+                    .filter(casa);
+                $('[data-kpis]').innerHTML = kpi('NFs sem etiqueta', linhas.length) + '<div style="align-self:center;font-size:.72rem;color:var(--text-dim)">NFs do Monitor com emissão no período que ainda não tiveram etiqueta impressa.</div>';
+            }
+            if (!linhas.length) { $('[data-corpo]').innerHTML = '<p style="color:var(--text-dim);font-size:.85rem;padding:20px 0;text-align:center">Nada encontrado neste período.</p>'; return; }
+            const cols = Object.keys(linhas[0]).filter(k => k !== '_proc');
+            $('[data-corpo]').innerHTML = `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr>${cols.map(c => `<th style="${th}">${c}</th>`).join('')}<th style="${th}"></th></tr></thead><tbody>${
+                linhas.map((l, i) => `<tr>${cols.map(c => `<td style="${td}${c === 'NF' || c === 'Caixa' ? ';font-weight:800;white-space:nowrap' : ''}">${esc(l[c])}</td>`).join('')}<td style="${td}">${procPorId(l._proc) ? `<button data-reimp="${i}" style="${bt};padding:5px 9px">🏷 ${modo === 'impressas' ? 'Reimprimir' : 'Gerar'}</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
+        }
+        ov.addEventListener('click', e => {
+            if (e.target === ov) return ov.remove();
+            const b = e.target.closest('button'); if (!b) return;
+            if (b.dataset.a === 'x') ov.remove();
+            else if (b.dataset.modo) { modo = b.dataset.modo; desenhar(); }
+            else if (b.dataset.reimp) { const l = linhas[+b.dataset.reimp], p = procPorId(l._proc); if (p) { if (l.Caixa) guardarCaixa(p, l.Caixa); ov.remove(); window.abrirQRCode(p); } }
+            else if (b.dataset.a === 'xlsx') {
+                if (!linhas.length) return alert('Nada para exportar.');
+                if (!window.XLSX) return alert('Biblioteca do Excel não carregou. Recarregue a página.');
+                const ws = XLSX.utils.json_to_sheet(linhas.map(({ _proc, ...l }) => l)), wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, modo === 'impressas' ? 'Etiquetas impressas' : 'NFs sem etiqueta');
+                XLSX.writeFile(wb, `etiquetas-qr-${modo}-${$('[data-de]').value}_a_${$('[data-ate]').value}.xlsx`);
+            }
+        });
+        $('[data-de]').addEventListener('change', carregar); $('[data-ate]').addEventListener('change', carregar);
+        let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
+        carregar();
+    };
+    // Atalho na barra rápida (ao lado de 📊 Relatório)
+    function botaoRelatorio() {
+        const barra = document.getElementById('barra-rapida-acoes');
+        if (!barra || document.getElementById('btn-rel-etq-qr')) return;
+        const b = document.createElement('button');
+        b.id = 'btn-rel-etq-qr'; b.textContent = '🏷 Etiquetas QR'; b.title = 'Relatório das etiquetas QR impressas';
+        b.style.cssText = 'flex-shrink:0;padding:5px 11px;border-radius:999px;border:1px solid rgba(17,24,39,0.3);background:transparent;color:var(--text);font-family:var(--mono);font-size:0.65rem;font-weight:700;cursor:pointer;white-space:nowrap;';
+        b.onclick = () => window.abrirRelatorioEtiquetas();
+        barra.appendChild(b);
+    }
+    new MutationObserver(() => botaoRelatorio()).observe(document.body, { childList: true, subtree: true });
+    botaoRelatorio();
+    // ── "Aguardando retirada": ao clicar na linha, a confirmação mostra também a ficha completa da cirurgia já gravada ──
+    function fichaGravadaHTML(p) {
+        const c = camposEtiqueta(p, caixaSalva(p));
+        const brl = v => { const n = parseFloat(v); return isNaN(n) || !n ? '' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); };
+        const itens = String(p.itens || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+            const cod = (l.match(/\[COD:([^\]]*)\]/) || [])[1], lote = (l.match(/\[LOTE:([^\]]*)\]/) || [])[1], q = (l.match(/\[QTY:(\d+)\]/) || [])[1] || '1';
+            const nome = l.replace(/\[(COD|LOTE|QTY):[^\]]*\]/g, '').trim();
+            return `<li>${esc(q)}× ${esc(nome || cod || '')}${cod && nome ? ` <span style="opacity:.6">(${esc(cod)})</span>` : ''}${lote ? ` <span style="opacity:.6">lote ${esc(lote)}</span>` : ''}</li>`;
+        });
+        const linha = (r, v) => v ? `<tr><th style="text-align:left;padding:5px 10px 5px 0;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);vertical-align:top;white-space:nowrap">${r}</th><td style="padding:5px 0;font-size:.8rem;color:var(--text);font-weight:600;border-bottom:1px solid var(--border);word-break:break-word">${v}</td></tr>` : '';
+        return `<div id="ficha-gravada-ret" style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;padding:10px 14px;max-height:42vh;overflow:auto">
+            <div style="font-family:var(--mono);font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px">📋 Cirurgia gravada</div>
+            <table style="width:100%;border-collapse:collapse">
+              ${linha('Paciente', esc(c.paciente))}${linha('Médico', esc(c.medico))}${linha('Hospital', esc(c.hospital + (c.cidade ? ' — ' + c.cidade : '')))}
+              ${linha('Convênio', esc(c.convenio))}${linha('Cirurgia', esc(c.cirurgia))}${linha('Procedimento', esc([p.tipoCirurgia, c.procedimento].filter(Boolean).join(' · ')))}
+              ${linha('Linha', esc(p.linha))}${linha('NF', c.nf ? `<b>${esc(c.nf)}</b>${c.nfData ? ' · emissão ' + esc(c.nfData) : ''}` : '')}${linha('Caixa', esc(c.caixa))}
+              ${linha('Valor', esc(brl(p.valor)))}${linha('Vendedor', esc(p.vendedor))}${linha('Equipe', esc(p.equipe))}
+              ${linha('Itens', itens.length ? `<ul style="margin:0;padding-left:16px;font-weight:500">${itens.join('')}</ul>` : '')}${linha('Observações', esc(p.obs).replace(/\n/g, '<br>'))}
+            </table>
+            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+              <button type="button" data-ficha="editar" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:var(--mono);font-size:.72rem;font-weight:700;cursor:pointer">✏️ Abrir ficha completa</button>
+              ${c.nf ? `<button type="button" data-ficha="qr" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:var(--mono);font-size:.72rem;font-weight:700;cursor:pointer">🏷 Etiqueta QR</button>` : ''}
+            </div></div>`;
+    }
+    if (typeof window.confirmarRetiradaCirurgia === 'function') {
+        const _origConfRet = window.confirmarRetiradaCirurgia;
+        window.confirmarRetiradaCirurgia = function (docId) {
+            const r = _origConfRet.apply(this, arguments);
+            const ov = document.getElementById('modalConfRetiradaCirurgia'), p = procPorId(docId);
+            if (ov && p && !ov.querySelector('#ficha-gravada-ret')) {
+                const box = ov.firstElementChild;
+                box.style.maxWidth = '560px'; box.style.maxHeight = '92vh'; box.style.overflow = 'auto';
+                const resumo = box.children[1];
+                resumo.insertAdjacentHTML('afterend', fichaGravadaHTML(p));
+                ov.querySelector('#ficha-gravada-ret').addEventListener('click', e => {
+                    const a = e.target.closest('[data-ficha]')?.dataset.ficha; if (!a) return;
+                    ov.querySelector('#btnFecharConfCir')?.click();
+                    if (a === 'editar' && typeof editProc === 'function') editProc(docId);
+                    else if (a === 'qr') window.abrirQRCode(p);
+                });
+            }
+            return r;
+        };
+    }
 })();
 </script>
 <script src="fretes-config.js"></script>
