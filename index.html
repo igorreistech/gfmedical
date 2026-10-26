@@ -22529,6 +22529,11 @@ else init();
         catch (e) { console.warn('etiquetas_qr:', e); }
     }
 
+    const STATUS_NOME = { a_agendar: 'Autorizado', preparacao: 'Em Separação', agendado: 'Agendado', reagendado: 'Reagendado', urgencia: '🚨 Urgência', em_transito: 'Em Trânsito',
+        andamento: 'Em Procedimento', a_retirar: 'Aguardando Retirada', aguardando_ficha_opme: 'Aguardando Ficha OPME', coleta_urgente: '✈️ Retirada de Material', concluido: 'Concluído', cancelado: 'Cancelado' };
+    const ORDEM_STATUS = Object.keys(STATUS_NOME);
+    const nomeStatus = s => STATUS_NOME[s] || s || '—';
+
     window.abrirRelatorioEtiquetas = async function () {
         document.getElementById('rel-etq-qr')?.remove();
         const hoje = new Date(), iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
@@ -22537,34 +22542,37 @@ else init();
         ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px';
         const inp = 'padding:7px 9px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.78rem';
         const bt = 'padding:7px 12px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap';
-        ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1180px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
+        const chip = 'padding:5px 10px;border-radius:999px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap';
+        ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1240px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">🏷 Relatório de etiquetas QR</div>
+            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">🏷 Relatório de QR Code das cirurgias</div>
             <div style="display:flex;border:1px solid var(--border,#ccc);border-radius:8px;overflow:hidden">
-              <button data-modo="impressas" style="${bt};border:0;border-radius:0">Impressas</button><button data-modo="sem" style="${bt};border:0;border-radius:0;border-left:1px solid var(--border,#ccc)">NFs sem etiqueta</button></div>
+              <button data-modo="cirurgias" style="${bt};border:0;border-radius:0" title="Cada cirurgia com NF, agrupada por status">Cirurgias por status</button><button data-modo="impressas" style="${bt};border:0;border-radius:0;border-left:1px solid var(--border,#ccc)" title="Cada etiqueta impressa (com reimpressões)">Histórico de impressões</button></div>
             <label style="font-size:.72rem;color:var(--text-dim)">De <input type="date" data-de value="${iso(new Date(hoje.getTime() - 30 * 864e5))}" style="${inp}"></label>
             <label style="font-size:.72rem;color:var(--text-dim)">até <input type="date" data-ate value="${iso(hoje)}" style="${inp}"></label>
-            <input type="search" data-busca placeholder="Buscar NF, paciente, hospital…" style="${inp};width:220px">
+            <input type="search" data-busca placeholder="Buscar NF, paciente, hospital…" style="${inp};width:200px">
             <button data-a="xlsx" style="${bt};border-color:#16a34a;color:#16a34a">⬇ Excel</button>
             <button data-a="x" style="${bt}">✕</button>
           </div>
           <div data-kpis style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 18px 0"></div>
+          <div data-filtros style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 18px 0;align-items:center"></div>
           <div data-corpo style="overflow:auto;padding:12px 18px 18px;flex:1"><p style="color:var(--text-dim);font-size:.8rem">Carregando…</p></div>
         </div>`;
         document.body.appendChild(ov);
         const $ = s => ov.querySelector(s);
-        let modo = 'impressas', regs = [], linhas = [];
-        const kpi = (l, v) => `<div style="border:1px solid var(--border,#ccc);border-radius:10px;padding:8px 14px;min-width:120px"><div style="font-size:.64rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em">${l}</div><div style="font-size:1.2rem;font-weight:800;color:var(--text)">${v}</div></div>`;
+        let modo = 'cirurgias', fStatus = '', fEtq = '', regs = [], linhas = [];
+        const kpi = (l, v, cor) => `<div style="border:1px solid var(--border,#ccc);border-radius:10px;padding:8px 14px;min-width:120px"><div style="font-size:.64rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em">${l}</div><div style="font-size:1.2rem;font-weight:800;color:${cor || 'var(--text)'}">${v}</div></div>`;
         const dataHora = s => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+        const noDia = (s, de, ate) => { const d = iso(new Date(s)); return (!de || d >= de) && (!ate || d <= ate); };
         async function carregar() {
-            const de = $('[data-de]').value, ate = $('[data-ate]').value;
-            let q = window._supabase.from('etiquetas_qr').select('*').order('impresso_em', { ascending: false }).limit(5000);
+            // Impressões desde o início do período (sem limite final: a etiqueta de uma NF do período pode ter saído depois)
+            const de = $('[data-de]').value;
+            let q = window._supabase.from('etiquetas_qr').select('*').order('impresso_em', { ascending: false }).limit(10000);
             if (de) q = q.gte('impresso_em', new Date(de + 'T00:00:00').toISOString());
-            if (ate) q = q.lt('impresso_em', new Date(new Date(ate + 'T00:00:00').getTime() + 864e5).toISOString());
             const { data, error } = await q;
             if (error) {
                 regs = null;
-                $('[data-kpis]').innerHTML = '';
+                $('[data-kpis]').innerHTML = ''; $('[data-filtros]').innerHTML = '';
                 $('[data-corpo]').innerHTML = /etiquetas_qr|PGRST205|schema cache|does not exist/i.test(error.message)
                     ? '<p style="color:#b45309;font-size:.85rem">⚠️ O banco ainda não tem a tabela do relatório. Rode o SQL <b>20261031_etiquetas_qr.sql</b> no Supabase desta filial.</p>'
                     : `<p style="color:#b91c1c;font-size:.85rem">Erro ao carregar: ${esc(error.message)}</p>`;
@@ -22575,47 +22583,82 @@ else init();
         function desenhar() {
             if (!regs) return;
             ov.querySelectorAll('[data-modo]').forEach(b => { const on = b.dataset.modo === modo; b.style.background = on ? '#111827' : 'transparent'; b.style.color = on ? '#fff' : 'var(--text)'; });
+            const de = $('[data-de]').value, ate = $('[data-ate]').value;
             const termo = $('[data-busca]').value.trim().toLowerCase();
             const casa = o => !termo || Object.values(o).join(' ').toLowerCase().includes(termo);
-            const th = 'text-align:left;padding:8px 10px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);position:sticky;top:0;background:var(--surface,#fff);white-space:nowrap';
-            const td = 'padding:7px 10px;font-size:.78rem;color:var(--text);border-bottom:1px solid var(--border,#e5e7eb);vertical-align:top';
-            if (modo === 'impressas') {
-                linhas = regs.map(r => ({ 'Impressa em': dataHora(r.impresso_em), NF: r.nf || '', Caixa: r.caixa || '', Paciente: r.paciente || '', Médico: r.medico || '',
-                    Hospital: r.hospital || '', Cidade: r.cidade || '', Convênio: r.convenio || '', Cirurgia: r.cirurgia || '', Procedimento: r.procedimento || '', Filial: r.filial || '', 'Impressa por': r.impresso_por || '', _proc: r.proc_id })).filter(casa);
-                const nfs = new Set(linhas.map(l => l.NF)), cxs = linhas.filter(l => l.Caixa).length;
-                $('[data-kpis]').innerHTML = kpi('Etiquetas impressas', linhas.length) + kpi('NFs diferentes', nfs.size) + kpi('Com nº de caixa', cxs) + kpi('Reimpressões', linhas.length - nfs.size);
+            let base;
+            if (modo === 'cirurgias') {
+                // Toda cirurgia com NF emitida no período, com o status atual e se a etiqueta já foi impressa
+                const porProc = {}, porNF = {};
+                regs.forEach(r => { (porProc[r.proc_id] = porProc[r.proc_id] || []).push(r); (porNF[r.nf] = porNF[r.nf] || []).push(r); });
+                base = (window.procedimentos || []).filter(p => String(p.nf || '').trim() && (!p.nfData || ((!de || p.nfData >= de) && (!ate || p.nfData <= ate))))
+                    .map(p => {
+                        const c = camposEtiqueta(p, ''), imps = porProc[String(p._docId || p.id)] || porNF[p.nf] || [], ult = imps[0];
+                        return { _st: p.status || '', Status: nomeStatus(p.status), Etiqueta: imps.length ? 'Impressa' : 'Pendente', 'Impressões': imps.length || '',
+                            'Última impressão': ult ? dataHora(ult.impresso_em) : '', Caixa: (ult && ult.caixa) || caixaSalva(p), NF: c.nf, 'Emissão NF': c.nfData, Paciente: c.paciente,
+                            Médico: c.medico, Hospital: c.hospital, Convênio: c.convenio, Cirurgia: c.cirurgia, _proc: String(p._docId || p.id) };
+                    });
             } else {
-                // NFs do período (pela data de emissão) que ainda não tiveram etiqueta impressa
-                const de = $('[data-de]').value, ate = $('[data-ate]').value;
-                const feitas = new Set(regs.map(r => r.proc_id).concat(regs.map(r => 'nf:' + r.nf)));
-                linhas = (window.procedimentos || []).filter(p => String(p.nf || '').trim() && p.status !== 'cancelado'
-                        && (!de || !p.nfData || p.nfData >= de) && (!ate || !p.nfData || p.nfData <= ate)
-                        && !feitas.has(String(p._docId || p.id)) && !feitas.has('nf:' + p.nf))
-                    .map(p => { const c = camposEtiqueta(p, ''); return { 'Emissão NF': c.nfData, NF: c.nf, Paciente: c.paciente, Médico: c.medico, Hospital: c.hospital, Cidade: c.cidade,
-                        Convênio: c.convenio, Cirurgia: c.cirurgia, Procedimento: c.procedimento, Status: p.status || '', _proc: String(p._docId || p.id) }; })
-                    .filter(casa);
-                $('[data-kpis]').innerHTML = kpi('NFs sem etiqueta', linhas.length) + '<div style="align-self:center;font-size:.72rem;color:var(--text-dim)">NFs do Monitor com emissão no período que ainda não tiveram etiqueta impressa.</div>';
+                base = regs.filter(r => noDia(r.impresso_em, de, ate)).map(r => { const p = procPorId(r.proc_id);
+                    return { _st: p ? p.status || '' : '_excl', 'Impressa em': dataHora(r.impresso_em), Status: p ? nomeStatus(p.status) : 'Excluída', NF: r.nf || '', Caixa: r.caixa || '',
+                        Paciente: r.paciente || '', Médico: r.medico || '', Hospital: r.hospital || '', Convênio: r.convenio || '', Cirurgia: r.cirurgia || '', Filial: r.filial || '', 'Impressa por': r.impresso_por || '', _proc: r.proc_id }; });
+            }
+            base = base.filter(casa);
+            // Chips de status (com contagem) e, em cirurgias, de etiqueta
+            const cont = {}; base.forEach(l => { cont[l._st] = (cont[l._st] || 0) + 1; });
+            const sts = Object.keys(cont).sort((a, b) => (ORDEM_STATUS.indexOf(a) + 1 || 99) - (ORDEM_STATUS.indexOf(b) + 1 || 99));
+            if (fStatus && !cont[fStatus]) fStatus = '';
+            const ch = (attr, val, txt, on) => `<button ${attr}="${esc(val)}" style="${chip}${on ? ';background:#111827;color:#fff;border-color:#111827' : ''}">${txt}</button>`;
+            $('[data-filtros]').innerHTML = '<span style="font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin-right:4px">Status</span>'
+                + ch('data-st', '', `Todos (${base.length})`, !fStatus) + sts.map(s => ch('data-st', s, `${esc(s === '_excl' ? 'Excluída' : nomeStatus(s))} (${cont[s]})`, fStatus === s)).join('')
+                + (modo === 'cirurgias' ? '<span style="font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin:0 4px 0 12px">Etiqueta</span>'
+                    + ch('data-etq', '', 'Todas', !fEtq) + ch('data-etq', 'Impressa', '✅ Impressa', fEtq === 'Impressa') + ch('data-etq', 'Pendente', '⏳ Pendente', fEtq === 'Pendente') : '');
+            linhas = base.filter(l => (!fStatus || l._st === fStatus) && (!fEtq || modo !== 'cirurgias' || l.Etiqueta === fEtq))
+                .sort((a, b) => (ORDEM_STATUS.indexOf(a._st) + 1 || 99) - (ORDEM_STATUS.indexOf(b._st) + 1 || 99));
+            if (modo === 'cirurgias') {
+                const imp = linhas.filter(l => l.Etiqueta === 'Impressa').length;
+                $('[data-kpis]').innerHTML = kpi('Cirurgias com NF', linhas.length) + kpi('Etiqueta impressa', imp, '#16a34a') + kpi('Sem etiqueta', linhas.length - imp, linhas.length - imp ? '#b45309' : '')
+                    + kpi('Cobertura', linhas.length ? Math.round(imp / linhas.length * 100) + '%' : '—');
+            } else {
+                const nfs = new Set(linhas.map(l => l.NF));
+                $('[data-kpis]').innerHTML = kpi('Etiquetas impressas', linhas.length) + kpi('NFs diferentes', nfs.size) + kpi('Com nº de caixa', linhas.filter(l => l.Caixa).length) + kpi('Reimpressões', linhas.length - nfs.size);
             }
             if (!linhas.length) { $('[data-corpo]').innerHTML = '<p style="color:var(--text-dim);font-size:.85rem;padding:20px 0;text-align:center">Nada encontrado neste período.</p>'; return; }
-            const cols = Object.keys(linhas[0]).filter(k => k !== '_proc');
-            $('[data-corpo]').innerHTML = `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr>${cols.map(c => `<th style="${th}">${c}</th>`).join('')}<th style="${th}"></th></tr></thead><tbody>${
-                linhas.map((l, i) => `<tr>${cols.map(c => `<td style="${td}${c === 'NF' || c === 'Caixa' ? ';font-weight:800;white-space:nowrap' : ''}">${esc(l[c])}</td>`).join('')}<td style="${td}">${procPorId(l._proc) ? `<button data-reimp="${i}" style="${bt};padding:5px 9px">🏷 ${modo === 'impressas' ? 'Reimprimir' : 'Gerar'}</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
+            const th = 'text-align:left;padding:8px 10px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);position:sticky;top:0;background:var(--surface,#fff);white-space:nowrap;z-index:1';
+            const td = 'padding:7px 10px;font-size:.78rem;color:var(--text);border-bottom:1px solid var(--border,#e5e7eb);vertical-align:top';
+            const cols = Object.keys(linhas[0]).filter(k => k[0] !== '_' && k !== 'Status');
+            const cel = (c, v) => c === 'Etiqueta' ? `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;${v === 'Impressa' ? 'background:#dcfce7;color:#166534' : 'background:#fef3c7;color:#92400e'}">${v === 'Impressa' ? '✅' : '⏳'} ${v}</span>` : esc(v);
+            let html = '', grupo = null;
+            linhas.forEach((l, i) => {
+                if (l._st !== grupo) {
+                    grupo = l._st;
+                    const n = linhas.filter(x => x._st === grupo).length, nImp = modo === 'cirurgias' ? linhas.filter(x => x._st === grupo && x.Etiqueta === 'Impressa').length : null;
+                    html += `<tr><td colspan="${cols.length + 1}" style="padding:12px 10px 6px;font-size:.8rem;font-weight:800;color:var(--text);border-bottom:2px solid var(--text)">${esc(l.Status)} <span style="font-weight:600;color:var(--text-dim);font-size:.72rem">· ${n} ${n === 1 ? 'registro' : 'registros'}${nImp !== null ? ` · ${nImp} com etiqueta` : ''}</span></td></tr>`;
+                }
+                html += `<tr>${cols.map(c => `<td style="${td}${c === 'NF' || c === 'Caixa' ? ';font-weight:800;white-space:nowrap' : ''}">${cel(c, l[c])}</td>`).join('')}<td style="${td};white-space:nowrap">${procPorId(l._proc) ? `<button data-reimp="${i}" style="${bt};padding:5px 9px">🏷 ${modo === 'cirurgias' && l.Etiqueta === 'Pendente' ? 'Gerar' : 'Reimprimir'}</button>` : ''}</td></tr>`;
+            });
+            $('[data-corpo]').innerHTML = `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr>${cols.map(c => `<th style="${th}">${c}</th>`).join('')}<th style="${th}"></th></tr></thead><tbody>${html}</tbody></table>`;
         }
         ov.addEventListener('click', e => {
             if (e.target === ov) return ov.remove();
             const b = e.target.closest('button'); if (!b) return;
             if (b.dataset.a === 'x') ov.remove();
-            else if (b.dataset.modo) { modo = b.dataset.modo; desenhar(); }
+            else if (b.dataset.modo) { modo = b.dataset.modo; fStatus = ''; fEtq = ''; desenhar(); }
+            else if (b.hasAttribute('data-st')) { fStatus = b.dataset.st; desenhar(); }
+            else if (b.hasAttribute('data-etq')) { fEtq = b.dataset.etq; desenhar(); }
             else if (b.dataset.reimp) { const l = linhas[+b.dataset.reimp], p = procPorId(l._proc); if (p) { if (l.Caixa) guardarCaixa(p, l.Caixa); ov.remove(); window.abrirQRCode(p); } }
             else if (b.dataset.a === 'xlsx') {
                 if (!linhas.length) return alert('Nada para exportar.');
                 if (!window.XLSX) return alert('Biblioteca do Excel não carregou. Recarregue a página.');
-                const ws = XLSX.utils.json_to_sheet(linhas.map(({ _proc, ...l }) => l)), wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, modo === 'impressas' ? 'Etiquetas impressas' : 'NFs sem etiqueta');
-                XLSX.writeFile(wb, `etiquetas-qr-${modo}-${$('[data-de]').value}_a_${$('[data-ate]').value}.xlsx`);
+                const sem = o => Object.fromEntries(Object.entries(o).filter(([k]) => k[0] !== '_'));
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhas.map(sem)), modo === 'cirurgias' ? 'Cirurgias por status' : 'Impressões');
+                const resumo = {}; linhas.forEach(l => { const r = resumo[l.Status] = resumo[l.Status] || { Status: l.Status, Total: 0 }; r.Total++; if (modo === 'cirurgias') { r['Com etiqueta'] = (r['Com etiqueta'] || 0) + (l.Etiqueta === 'Impressa' ? 1 : 0); r['Sem etiqueta'] = r.Total - r['Com etiqueta']; } });
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(Object.values(resumo)), 'Resumo por status');
+                XLSX.writeFile(wb, `qrcode-${modo}-${$('[data-de]').value}_a_${$('[data-ate]').value}.xlsx`);
             }
         });
-        $('[data-de]').addEventListener('change', carregar); $('[data-ate]').addEventListener('change', carregar);
+        $('[data-de]').addEventListener('change', carregar); $('[data-ate]').addEventListener('change', desenhar);
         let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
         carregar();
     };
@@ -22624,7 +22667,7 @@ else init();
         const barra = document.getElementById('barra-rapida-acoes');
         if (!barra || document.getElementById('btn-rel-etq-qr')) return;
         const b = document.createElement('button');
-        b.id = 'btn-rel-etq-qr'; b.textContent = '🏷 Etiquetas QR'; b.title = 'Relatório das etiquetas QR impressas';
+        b.id = 'btn-rel-etq-qr'; b.textContent = '🏷 Etiquetas QR'; b.title = 'Relatório de QR Code das cirurgias (por status)';
         b.style.cssText = 'flex-shrink:0;padding:5px 11px;border-radius:999px;border:1px solid rgba(17,24,39,0.3);background:transparent;color:var(--text);font-family:var(--mono);font-size:0.65rem;font-weight:700;cursor:pointer;white-space:nowrap;';
         b.onclick = () => window.abrirRelatorioEtiquetas();
         barra.appendChild(b);
