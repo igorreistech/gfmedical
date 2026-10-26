@@ -9929,6 +9929,8 @@ async function _saveProcedureImpl(e) {
     try {
         await fbSaveProc(proc);
         closeModal();
+        // NF nova ou trocada: oferece a etiqueta com QR Code para a caixa do material
+        if (proc.nf && String(proc.nf).trim() && (!existingProc || String(existingProc.nf || '').trim() !== String(proc.nf).trim()) && typeof window.oferecerEtiquetaQR === 'function') window.oferecerEtiquetaQR(proc);
     } catch(err) {
         console.error('Erro ao salvar:', err);
         alert('❌ Erro ao salvar: ' + (err.message || err));
@@ -22325,6 +22327,142 @@ else init();
     if (tv) tv.style.display = 'none'; if (tb) tb.classList.remove('active');
     return base.apply(this, arguments);
   };
+})();
+</script>
+<script id="etiqueta-qr-nf">
+// ═══════════════════════════════════════════════════════════════════
+// ETIQUETA QR DA NOTA FISCAL (26/10/2026)
+// Para cada NF emitida, uma etiqueta para colar na caixa do material: QR Code com NF, paciente, médico,
+// hospital, convênio, data da cirurgia e Nº da caixa (editável) — qualquer câmera de celular lê, sem internet e sem login.
+// O PDF da nota anexada não é alterado.
+// ═══════════════════════════════════════════════════════════════════
+(function () {
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const dataBR = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '';
+    const filialNome = p => { const f = String(p._filialOrigem || p._filial || window._activeBranch || '').toLowerCase();
+        return f === 'cba' ? 'Cuiabá · MT' : f === 'cgr' ? 'Campo Grande · MS' : ''; };
+    let _lib = null;
+    const carregarLib = () => _lib || (_lib = new Promise((ok, erro) => {
+        if (window.qrcode) return ok(window.qrcode);
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+        s.onload = () => ok(window.qrcode); s.onerror = () => { _lib = null; erro(new Error('Sem internet para gerar o QR Code.')); };
+        document.head.appendChild(s);
+    }));
+    // Campos da etiqueta (cirurgia normal ou retirada de material vinculada a uma cirurgia)
+    function camposEtiqueta(p, caixa) {
+        const coleta = typeof _ehColeta === 'function' && _ehColeta(p);
+        const dataCir = coleta ? (p.coletaDataCirurgia || p.data) : p.data, horaCir = coleta ? p.coletaHoraCirurgia : p.inicio;
+        return {
+            nf: p.nf || '', nfData: dataBR(p.nfData), paciente: p.paciente || '', medico: p.medico || '',
+            hospital: p.hospital || '', cidade: p.cidade || '', convenio: p.convenio && p.convenio !== '—' ? p.convenio : '',
+            cirurgia: [dataBR(dataCir), horaCir || ''].filter(Boolean).join(' às '), procedimento: p.procedimento || '', filial: filialNome(p),
+            caixa: String(caixa || '').trim(),
+        };
+    }
+    function textoQR(c) {
+        return ['GF MEDICAL - MATERIAL CIRURGICO',
+            `NF: ${c.nf || '-'}${c.nfData ? ' (emissão ' + c.nfData + ')' : ''}`,
+            c.caixa ? `Caixa: ${c.caixa}` : '',
+            `Paciente: ${c.paciente || '-'}`,
+            `Médico: ${c.medico || '-'}`,
+            `Hospital: ${c.hospital || '-'}${c.cidade ? ' - ' + c.cidade : ''}`,
+            `Convênio: ${c.convenio || '-'}`,
+            `Cirurgia: ${c.cirurgia || '-'}`,
+            c.procedimento ? `Procedimento: ${c.procedimento}` : '',
+            c.filial ? `Filial: ${c.filial}` : ''].filter(Boolean).join('\n');
+    }
+    const chaveCaixa = p => 'gf_caixa_' + (p._docId || p.id || p.nf || '');
+    const caixaSalva = p => { try { return localStorage.getItem(chaveCaixa(p)) || ''; } catch (e) { return ''; } };
+    const guardarCaixa = (p, v) => { try { v ? localStorage.setItem(chaveCaixa(p), v) : localStorage.removeItem(chaveCaixa(p)); } catch (e) {} };
+    async function imprimir(procs, caixa) {
+        procs = procs.filter(Boolean);
+        if (!procs.length) return;
+        // abre a janela já no clique (senão o navegador bloqueia o pop-up) e preenche depois de gerar o QR
+        const w = window.open('', '_blank');
+        if (!w) { alert('O navegador bloqueou a janela da etiqueta. Libere pop-ups para este site.'); return; }
+        w.document.write('<p style="font-family:sans-serif;padding:20px">Gerando etiqueta…</p>');
+        let qrcode;
+        try { qrcode = await carregarLib(); } catch (e) { w.close(); alert('⚠️ ' + e.message); return; }
+        qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+        const etiquetas = procs.map(p => {
+            const c = camposEtiqueta(p, caixa ?? caixaSalva(p)), qr = qrcode(0, 'M');
+            qr.addData(textoQR(c)); qr.make();
+            const linha = (r, v) => v ? `<tr><th>${r}</th><td>${esc(v)}</td></tr>` : '';
+            return `<section class="et">
+              <div class="topo"><b>GF Medical</b><span>Material cirúrgico${c.filial ? ' · ' + esc(c.filial) : ''}</span></div>
+              <div class="nfl"><div class="nf">NF <b>${esc(c.nf || '—')}</b>${c.nfData ? `<span>emissão ${esc(c.nfData)}</span>` : ''}</div>${c.caixa ? `<div class="cx"><small>CAIXA</small><b>${esc(c.caixa)}</b></div>` : ''}</div>
+              <div class="qr">${qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div>
+              <table>${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Procedimento', c.procedimento)}</table>
+              <div class="rod">Aponte a câmera do celular para o QR Code para ver os dados.</div>
+            </section>`;
+        }).join('');
+        w.document.open();
+        w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiqueta NF ${esc(procs.map(p => p.nf).join(', '))}</title><style>
+          @page{size:100mm 150mm;margin:0}
+          *{box-sizing:border-box;margin:0;padding:0}
+          body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#eee}
+          .et{width:100mm;height:150mm;padding:6mm;background:#fff;margin:0 auto 8px;display:flex;flex-direction:column;gap:3mm;page-break-after:always;break-after:page;overflow:hidden}
+          .topo{display:flex;justify-content:space-between;align-items:baseline;border-bottom:.6mm solid #000;padding-bottom:2mm}
+          .topo b{font-size:15pt}.topo span{font-size:8pt}
+          .nfl{display:flex;justify-content:space-between;align-items:center;gap:3mm}.cx{border:.6mm solid #000;border-radius:2mm;padding:1mm 3mm;text-align:center;line-height:1}.cx small{display:block;font-size:6.5pt;font-weight:bold;letter-spacing:.5pt}.cx b{font-size:18pt}
+          .nf{font-size:13pt}.nf b{font-size:20pt;letter-spacing:.5pt}.nf span{font-size:9pt;margin-left:3mm}
+          .qr{display:flex;justify-content:center}.qr svg{width:52mm;height:52mm}
+          table{border-collapse:collapse;width:100%;font-size:9.5pt}
+          th{text-align:left;width:24mm;padding:1.2mm 2mm 1.2mm 0;vertical-align:top;font-size:7.5pt;text-transform:uppercase;color:#333}
+          td{padding:1.2mm 0;font-weight:bold;border-bottom:.2mm solid #bbb;word-break:break-word}
+          .rod{margin-top:auto;font-size:7pt;color:#444;text-align:center}
+          @media print{body{background:#fff}.et{margin:0}}
+        </style></head><body>${etiquetas}<script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
+        w.document.close();
+    }
+    const procPorId = id => (window.procedimentos || []).find(p => (p._docId || String(p.id)) === String(id));
+    window.etiquetaQR = id => imprimir([procPorId(id)]);
+
+    // Substitui o "⬡ QR Code" da ficha (botão já existente nos cards e na tabela): antes a imagem era gerada
+    // num site externo (api.qrserver.com), mandando os dados do paciente para fora. Agora é gerado aqui mesmo,
+    // inclui NF e convênio, e tem o botão de imprimir a etiqueta.
+    window.abrirQRCode = async function (docId) {
+        const proc = typeof docId === 'object' ? docId : procPorId(docId); if (!proc) return;
+        let qrcode;
+        try { qrcode = await carregarLib(); } catch (e) { alert('⚠️ ' + e.message); return; }
+        qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+        const svgQR = c => { const qr = qrcode(0, 'M'); qr.addData(textoQR(c)); qr.make(); return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace('<svg ', '<svg style="width:100%;height:100%" '); };
+        const c = camposEtiqueta(proc, caixaSalva(proc));
+        const linha = (r, v) => v ? `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border,#ddd)"><span style="min-width:78px;color:var(--text-dim,#666);font-size:.7rem;text-transform:uppercase">${r}</span><b style="font-size:.8rem;text-align:left">${esc(v)}</b></div>` : '';
+        const ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px';
+        ov.innerHTML = `<div style="background:var(--surface,#f0faf3);border:1px solid var(--border,#ccc);border-radius:18px;padding:22px;max-width:360px;width:100%;max-height:92vh;overflow:auto;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.25);">
+          <div style="font-family:var(--mono);font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:2px">QR Code — ${c.nf ? 'NF ' + esc(c.nf) : 'Ficha'}</div>
+          <div style="font-family:var(--mono);font-size:.66rem;color:var(--text-dim);margin-bottom:12px">${c.nf ? 'para colar na caixa do material' : 'sem Nº de NF ainda — preencha a NF para a etiqueta sair completa'}</div>
+          <div style="background:#fff;border:1px solid var(--border,#ccc);border-radius:10px;padding:10px;width:220px;height:220px;margin:0 auto" data-qr>${svgQR(c)}</div>
+          <label style="display:flex;align-items:center;gap:8px;margin:12px 0 0;text-align:left;font-size:.72rem;font-weight:700;color:var(--text)">📦 Nº da caixa
+            <input type="text" data-caixa value="${esc(c.caixa)}" placeholder="ex.: 1/3, CX 2, 045" maxlength="30" style="flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.85rem;font-weight:700"></label>
+          <div style="margin:12px 0 4px">${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}</div>
+          <button type="button" data-a="print" style="margin-top:12px;width:100%;padding:10px;border-radius:10px;border:0;background:#111827;color:#fff;font-weight:700;font-size:.8rem;cursor:pointer">🏷 Imprimir etiqueta</button>
+          <button type="button" data-a="x" style="margin-top:8px;width:100%;padding:9px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:.75rem;cursor:pointer">Fechar</button></div>`;
+        const inp = ov.querySelector('[data-caixa]'), caixaAtual = () => inp.value.trim();
+        let _t = null;
+        inp.addEventListener('input', () => { clearTimeout(_t); _t = setTimeout(() => { guardarCaixa(proc, caixaAtual()); ov.querySelector('[data-qr]').innerHTML = svgQR(camposEtiqueta(proc, caixaAtual())); }, 250); });
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
+        ov.addEventListener('click', e => { const a = e.target.closest('button')?.dataset.a; if (e.target === ov || a === 'x') ov.remove(); else if (a === 'print') { guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
+        document.body.appendChild(ov);
+        setTimeout(() => inp.focus(), 50);
+    };
+
+    // Depois de salvar com NF nova (ou trocada): oferece imprimir a etiqueta na hora
+    window.oferecerEtiquetaQR = function (proc) {
+        document.getElementById('aviso-etiqueta-qr')?.remove();
+        const d = document.createElement('div');
+        d.id = 'aviso-etiqueta-qr';
+        d.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:10000;max-width:340px;background:#111827;color:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.35);font-family:Inter,Arial,sans-serif;font-size:13px;line-height:1.45';
+        d.innerHTML = `<div style="font-weight:700;margin-bottom:4px">🏷 NF ${esc(proc.nf)} salva</div><div style="opacity:.85;margin-bottom:10px">${esc(proc.paciente || '')}${proc.hospital ? ' · ' + esc(proc.hospital) : ''}</div>
+          <div style="display:flex;gap:8px"><button type="button" data-a="print" style="flex:1;padding:8px 10px;border:0;border-radius:8px;background:#22c55e;color:#06140c;font-weight:700;cursor:pointer">Etiqueta QR (nº da caixa)</button>
+          <button type="button" data-a="x" style="padding:8px 10px;border:1px solid rgba(255,255,255,.3);border-radius:8px;background:transparent;color:#fff;cursor:pointer">Agora não</button></div>`;
+        d.onclick = e => { const a = e.target.closest('button')?.dataset.a; if (!a) return; d.remove(); if (a === 'print') window.abrirQRCode(proc); };
+        document.body.appendChild(d);
+        setTimeout(() => d.remove(), 30000);
+    };
 })();
 </script>
 <script src="fretes-config.js"></script>
