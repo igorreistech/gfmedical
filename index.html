@@ -22443,20 +22443,19 @@ else init();
         inpF.click();
     };
     function textoQR(c) {
+        // curto de propósito: QR com muito texto fica denso demais e a câmera não lê na etiqueta 85x100
+        const un = (c.itens || []).reduce((a, i) => a + (+i.qtd || 0), 0), corta = (v, n) => String(v || '').slice(0, n);
         return [c.remessa ? 'GF MEDICAL - ' + c.remessa.toUpperCase() : 'GF MEDICAL - MATERIAL CIRURGICO',
-            c.emp ? `${c.emp.razao} - CNPJ ${c.emp.cnpj}` : '', c.emp ? c.emp.end : '',
-            `NF: ${c.nf || '-'}${c.nfData ? ' (emissão ' + c.nfData + ')' : ''}`,
-            c.caixa ? `${c.tipo || 'Caixa'}: ${c.caixa}${c.volume ? ' (' + c.volume + ')' : ''}` : '',
-            c.remessa && !c.paciente ? '' : `Paciente: ${c.paciente || '-'}`,
-            c.remessa && !c.medico ? '' : `Médico: ${c.medico || '-'}`,
-            c.vendedor ? `Vendedor: ${c.vendedor}` : '',
-            `${c.remessa ? 'Cliente' : 'Hospital'}: ${c.hospital || '-'}${c.cidade ? ' - ' + c.cidade : ''}`,
-            c.remessa && !c.convenio ? '' : `Convênio: ${c.convenio || '-'}`,
-            c.remessa && !c.cirurgia ? '' : `Cirurgia: ${c.cirurgia || '-'}`,
-            c.envio ? `Envio: ${c.envio}` : '',
-            c.procedimento ? `Procedimento: ${c.procedimento}` : '',
-            c.itens && c.itens.length ? 'Itens:\n' + c.itens.slice(0, 20).map(i => `- ${i.qtd}x ${(i.nome || i.cod).slice(0, 60)}${i.cod && i.nome ? ' [' + i.cod + ']' : ''}${i.lote ? ' (lote ' + i.lote + ')' : ''}`).join('\n') + (c.itens.length > 20 ? `\n... +${c.itens.length - 20} item(ns)` : '') : '',
-            c.filial ? `Filial: ${c.filial}` : ''].filter(Boolean).join('\n');
+            c.emp ? `CNPJ ${c.emp.cnpj}` : '',
+            `NF: ${c.nf || 'SEM NF'}${c.nfData ? ' (' + c.nfData + ')' : ''}`,
+            c.caixa ? `${c.tipo || 'Caixa'}: ${c.caixa}` : '',
+            c.paciente ? `Paciente: ${corta(c.paciente, 40)}` : '',
+            c.medico ? `Medico: ${corta(c.medico, 40)}` : '',
+            c.vendedor ? `Vendedor: ${corta(c.vendedor, 30)}` : '',
+            `${c.remessa ? 'Cliente' : 'Hospital'}: ${corta(c.hospital, 45) || '-'}`,
+            c.convenio ? `Convenio: ${corta(c.convenio, 25)}` : '',
+            c.cirurgia ? `Cirurgia: ${c.cirurgia}` : '',
+            c.itens && c.itens.length ? `Itens: ${c.itens.length} (${un} un)` : ''].filter(Boolean).join('\n');
     }
     const chaveCaixa = p => 'gf_caixa_' + (p._docId || p.id || p.nf || '');
     const caixaSalva = p => { try { return localStorage.getItem(chaveCaixa(p)) || ''; } catch (e) { return ''; } };
@@ -22472,17 +22471,18 @@ else init();
         try { qrcode = await carregarLib(); } catch (e) { w.close(); alert('⚠️ ' + e.message); return; }
         qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
         const gerados = [];
+        for (const x of procs) if (!x.itens) x.itens = await itensParaEtiqueta(x.p);
         const etiquetas = procs.map(({ p, caixa: cxVol, tipo, itens, volume }) => {
-            const c = Object.assign(camposEtiqueta(p, cxVol ?? caixa ?? caixaSalva(p)), { tipo: tipo || '', itens: itens || itensDoProc(p).filter(i => i.nome || i.cod), volume: volume || '' }), qr = qrcode(0, 'M');
+            const c = Object.assign(camposEtiqueta(p, cxVol ?? caixa ?? caixaSalva(p)), { tipo: tipo || '', itens: itens || itensDoProc(p).filter(i => i.nome || i.cod), volume: volume || '' }), qr = qrcode(0, 'L');
             gerados.push({ p, c });
-            qr.addData(textoQR(c)); qr.make();
+            c.etqId = novoIdEtiqueta(); qr.addData(linkEtiqueta(c, p)); qr.make();
             const linha = (r, v) => v ? `<tr><th>${r}</th><td>${esc(v)}</td></tr>` : '';
             return `<section class="et${c.itens.length ? ' v' : ''}">
               <div class="topo"><div class="emp"><b>${esc(c.emp.razao)}</b><span>CNPJ ${esc(c.emp.cnpj)}</span><span>${esc(c.emp.end)}</span></div><span class="tp">${esc(c.remessa || 'Material cirúrgico')}${c.nf ? '' : '<br><b>SEM NF</b>'}</span></div>
               <div class="nfl"><div class="nf">NF <b>${esc(c.nf || '—')}</b>${c.nfData ? `<span>emissão ${esc(c.nfData)}</span>` : ''}</div>${c.caixa ? `<div class="cx"><small>${esc((c.tipo || 'Caixa').toUpperCase())}</small><b>${esc(c.caixa)}</b></div>` : ''}</div>
               <div class="meio"><div class="qr">${qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div>
               <table>${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Vendedor', c.vendedor)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}${linha('Procedimento', c.procedimento)}</table></div>${c.itens.length ? `<div class="its"><b>${c.volume ? 'Itens neste volume · ' + esc(c.volume) : 'Itens da NF'} (${c.itens.reduce((a, i) => a + (+i.qtd || 0), 0)} un)</b><ul>${c.itens.map(i => `<li>${esc(i.qtd)}× ${esc(i.nome || i.cod)}${i.lote ? ' · lote ' + esc(i.lote) : ''}</li>`).join('')}</ul></div>` : ''}
-              <div class="rod">Aponte a câmera do celular para o QR Code para ver os dados.</div>
+              <div class="rod">Aponte a câmera do celular para o QR Code para ver todos os itens.</div>
             </section>`;
         }).join('');
         w.document.open();
@@ -22521,8 +22521,8 @@ else init();
         let qrcode;
         try { qrcode = await carregarLib(); } catch (e) { alert('⚠️ ' + e.message); return; }
         qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
-        const svgQR = c => { const qr = qrcode(0, 'M'); qr.addData(textoQR(c)); qr.make(); return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace('<svg ', '<svg style="width:100%;height:100%" '); };
-        const c = Object.assign(camposEtiqueta(proc, caixaSalva(proc)), { itens: itensDoProc(proc).filter(i => i.nome || i.cod) });
+        const svgQR = c => { const qr = qrcode(0, 'L'); qr.addData(textoQR(c)); qr.make(); return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace('<svg ', '<svg style="width:100%;height:100%" '); };
+        const c = Object.assign(camposEtiqueta(proc, caixaSalva(proc)), { itens: await itensParaEtiqueta(proc) });
         const linha = (r, v) => v ? `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border,#ddd)"><span style="min-width:78px;color:var(--text-dim,#666);font-size:.7rem;text-transform:uppercase">${r}</span><b style="font-size:.8rem;text-align:left">${esc(v)}</b></div>` : '';
         const ov = document.createElement('div');
         ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px';
@@ -22535,7 +22535,7 @@ else init();
             <input type="text" data-caixa value="${esc(c.caixa)}" placeholder="ex.: 1/3, CX 2, 045" maxlength="30" style="flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.85rem;font-weight:700"></label>
           <div style="margin:12px 0 4px">${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Vendedor', c.vendedor)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}</div>
           ${c.itens.length ? `<details style="margin-top:8px;text-align:left" open><summary style="font-size:.72rem;font-weight:800;color:var(--text);cursor:pointer">📋 Itens da NF (${c.itens.length} · ${c.itens.reduce((a, i) => a + (+i.qtd || 0), 0)} un)</summary>
-            <div style="max-height:160px;overflow:auto;margin-top:4px">${c.itens.map(i => `<div style="display:flex;gap:6px;padding:3px 0;border-bottom:1px solid var(--border,#ddd);font-size:.72rem"><b style="min-width:28px;text-align:right">${esc(i.qtd)}×</b><span style="flex:1">${esc(i.nome || i.cod)}${i.cod && i.nome ? ` <span style="color:var(--text-dim)">${esc(i.cod)}</span>` : ''}${i.lote ? `<div style="color:var(--text-dim);font-size:.66rem">lote ${esc(i.lote)}</div>` : ''}</span></div>`).join('')}</div></details>` : `<div style="margin-top:8px;font-size:.7rem;color:var(--text-dim)">Sem itens lançados — use "Várias caixas / bags" para adicionar (dá para ler por foto).</div>`}
+            <div style="max-height:160px;overflow:auto;margin-top:4px">${c.itens.map(i => `<div style="display:flex;gap:6px;padding:3px 0;border-bottom:1px solid var(--border,#ddd);font-size:.72rem"><b style="min-width:28px;text-align:right">${esc(i.qtd)}×</b><span style="flex:1">${esc(i.nome || i.cod)}${i.cod && i.nome ? ` <span style="color:var(--text-dim)">${esc(i.cod)}</span>` : ''}${i.lote ? `<div style="color:var(--text-dim);font-size:.66rem">lote ${esc(i.lote)}</div>` : ''}</span></div>`).join('')}</div></details>` : `<div style="margin-top:8px;font-size:.7rem;color:var(--text-dim)">Sem itens lançados nesta cirurgia.</div><button type="button" data-pdfitens style="margin-top:6px;width:100%;padding:9px;border-radius:10px;border:1px solid #2563eb;background:transparent;color:#2563eb;font-weight:700;font-size:.78rem;cursor:pointer">📄 Importar itens do PDF da NF (código, lote e quantidade)</button>`}
           <button type="button" data-a="vol" style="margin-top:12px;width:100%;padding:9px;border-radius:10px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-weight:700;font-size:.78rem;cursor:pointer">📦🎒 Várias caixas / bags (montar volumes)</button>
           <button type="button" data-a="print" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:0;background:#111827;color:#fff;font-weight:700;font-size:.8rem;cursor:pointer">🏷 Imprimir etiqueta</button>
           <button type="button" data-a="x" style="margin-top:8px;width:100%;padding:9px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:.75rem;cursor:pointer">Fechar</button></div>`;
@@ -22544,6 +22544,7 @@ else init();
         inp.addEventListener('input', () => { clearTimeout(_t); _t = setTimeout(() => { guardarCaixa(proc, caixaAtual()); ov.querySelector('[data-qr]').innerHTML = svgQR(Object.assign(camposEtiqueta(proc, caixaAtual()), { itens: c.itens })); }, 250); });
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
         ov.addEventListener('click', e => { const a = e.target.closest('button')?.dataset.a; if (e.target === ov || a === 'x') ov.remove(); else if (a === 'vol') { ov.remove(); window.abrirVolumes(proc); } else if (a === 'print') { guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
+        ov.querySelector('[data-pdfitens]')?.addEventListener('click', async () => { const its = await itensDoPdfNF(proc); if (its) { ov.remove(); window.abrirQRCode(proc); } });
         document.body.appendChild(ov);
         setTimeout(() => inp.focus(), 50);
     };
@@ -22615,12 +22616,24 @@ else init();
         return u.includes('cyztucqhfotqhauavepu') ? 'CBA' : u.includes('rqzqetfoxiutabsooqqn') ? 'CGR' : f;
     };
     const operador = () => window._operadorNome || window._currentUser?.nome || window._currentUser?.email || '';
+    const novoIdEtiqueta = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, ch => { const r = Math.random() * 16 | 0; return (ch === 'x' ? r : (r & 3 | 8)).toString(16); }));
+    // link curto no QR: o celular abre etiqueta.html e vê a etiqueta completa, com todos os itens (o QR fica pequeno e fácil de ler)
+    const linkEtiqueta = (c, p) => location.origin + location.pathname.replace(/[^/]*$/, '') + `etiqueta.html?f=${(filialAtual(p) || 'CGR').toLowerCase()}&id=${c.etqId}`;
     async function registrarEtiquetas(gerados) {
         const sb = window._supabase; if (!sb || !gerados.length) return;
         const rows = gerados.map(({ p, c }) => ({ filial: filialAtual(p), proc_id: String(p._docId || p.id || ''), nf: c.nf, nf_data: c.nfData,
             caixa: c.caixa ? (c.tipo ? c.tipo + ' ' : '') + c.caixa : null, paciente: c.paciente, medico: c.medico, hospital: c.hospital, cidade: c.cidade, convenio: c.convenio,
-            cirurgia: c.cirurgia, procedimento: c.procedimento, impresso_por: operador() }));
-        try { const { error } = await sb.from('etiquetas_qr').insert(rows); if (error) console.warn('etiquetas_qr:', error.message); }
+            cirurgia: c.cirurgia, procedimento: c.procedimento, impresso_por: operador(),
+            ...(c.etqId ? { id: c.etqId } : {}), vendedor: c.vendedor || null, tipo: c.remessa || 'Material cirúrgico', emp: c.emp || null,
+            itens: (c.itens || []).map(i => ({ cod: i.cod || '', nome: i.nome || '', lote: i.lote || '', qtd: +i.qtd || 0 })) }));
+        try {
+            let { error } = await sb.from('etiquetas_qr').insert(rows);
+            if (error && /vendedor|tipo|emp|itens|column/i.test(error.message || '')) {   // banco sem as colunas novas: grava o básico
+                console.warn('etiquetas_qr: rode o SQL 20261103_etiqueta_publica.sql —', error.message);
+                ({ error } = await sb.from('etiquetas_qr').insert(rows.map(({ vendedor, tipo, emp, itens, ...r }) => r)));
+            }
+            if (error) console.warn('etiquetas_qr:', error.message);
+        }
         catch (e) { console.warn('etiquetas_qr:', e); }
     }
 
@@ -22828,6 +22841,49 @@ else init();
             cod: (l.match(/\[COD:([^\]]*)\]/) || [])[1] || '', lote: (l.match(/\[LOTE:([^\]]*)\]/) || [])[1] || '',
             qtd: parseInt((l.match(/\[QTY:(\d+)\]/) || [])[1] || '1', 10), nome: l.replace(/\[(COD|LOTE|QTY):[^\]]*\]/g, '').trim(),
         })).filter(i => i.nome || i.cod);
+    }
+
+    // Itens da etiqueta: 1) ficha da cirurgia; 2) volumes já montados; 3) Ficha OPME do mesmo paciente (REF + lote)
+    const _itEtq = new Map();
+    async function itensParaEtiqueta(p) {
+        const base = itensDoProc(p).filter(i => i.nome || i.cod); if (base.length) return base;
+        const pid = String(p._docId || p.id || ''), sb = window._supabase; if (!sb) return [];
+        if (_itEtq.has(pid)) return _itEtq.get(pid);
+        let out = [];
+        try {
+            const { data } = await sb.from('volumes_cirurgia').select('itens').eq('proc_id', pid);
+            const m = new Map(); (data || []).forEach(v => (v.itens || []).forEach(i => { const k = [i.cod, i.nome, i.lote].join('|'), x = m.get(k) || { cod: i.cod || '', nome: i.nome || '', lote: i.lote || '', qtd: 0 }; x.qtd += +i.qtd || 0; m.set(k, x); }));
+            out = [...m.values()].filter(i => i.qtd > 0);
+        } catch (e) {}
+        if (!out.length && p.paciente && String(p.paciente).trim().length > 3) {
+            try {
+                const { data } = await sb.from('fichas_opme').select('*').ilike('paciente', String(p.paciente).trim()).limit(30);
+                const dataDe = f => f.data_cirurgia || f.dataISO || (f.data && /\d{2}\/\d{2}\/\d{4}/.test(f.data) ? f.data.split('/').reverse().join('-') : '') || String(f.criado_em || '').slice(0, 10);
+                const dist = f => { const d = dataDe(f); return d && p.data ? Math.abs(new Date(d) - new Date(p.data)) : 9e15; };
+                const f = (data || []).filter(f => Array.isArray(f.itens) && f.itens.length).sort((a, b) => dist(a) - dist(b))[0];
+                if (f && dist(f) < 45 * 864e5) out = f.itens.map(i => ({ cod: i.ref || i.cod || '', nome: i.desc || i.nome || '', lote: i.lote || '', qtd: +i.qty || +i.qtd || 1 })).filter(i => i.nome || i.cod);
+            } catch (e) {}
+        }
+        _itEtq.set(pid, out); return out;
+    }
+    // Lê os produtos (código, lote, quantidade) do PDF da NF e guarda como os itens do volume 1 da cirurgia
+    async function itensDoPdfNF(p) {
+        if (!window.NFImport?.textoDoPdf) { alert('Recarregue a página (Ctrl+F5) para usar a leitura do PDF.'); return null; }
+        const f = await new Promise(ok => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'application/pdf'; i.onchange = () => ok(i.files[0] || null); i.click(); });
+        if (!f) return null;
+        try {
+            const prods = window.NFImport.parsearProdutos(await window.NFImport.textoDoPdf(f)) || [];
+            if (!prods.length) { alert('Não achei produtos neste PDF. Confira se é o DANFE da NF.'); return null; }
+            const itens = prods.map(x => ({ cod: x.code || '', nome: (window._prodMap && window._prodMap[String(x.code || '').toUpperCase()]) || x.desc || x.code || '', lote: x.lote || '', qtd: +x.qty || 1 }));
+            const sb = window._supabase, pid = String(p._docId || p.id || '');
+            if (sb && pid) {
+                const r0 = await sb.from('volumes_cirurgia').select('id').eq('proc_id', pid);
+                if (!r0.error && !(r0.data || []).length) await sb.from('volumes_cirurgia').insert({ filial: filialAtual(p), proc_id: pid, nf: p.nf || '', ordem: 1, tipo: 'Caixa', identificacao: '1', itens, montado_por: operador() });
+            }
+            _itEtq.set(pid, itens);
+            window.showSyncToast && window.showSyncToast(`📄 ${itens.length} item(ns) lidos do PDF da NF`);
+            return itens;
+        } catch (e) { alert('Erro ao ler o PDF: ' + (e.message || e)); return null; }
     }
     const chaveItem = i => [i.cod, i.nome, i.lote].join('|');
     window.abrirVolumes = async function (alvo) {

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Etiqueta do material — GF Medical</title>
+<style>
+  :root{--bg:#eef7f1;--card:#fff;--txt:#0a2a18;--dim:#5a7a66;--bd:#cfe5d6;--ac:#1a7a4a}
+  @media (prefers-color-scheme:dark){:root{--bg:#0e1712;--card:#14211a;--txt:#e2f1e7;--dim:#8fb39c;--bd:#2a4233;--ac:#3fbf7f}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt);padding:16px;line-height:1.35}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;max-width:640px;margin:0 auto 12px}
+  .emp b{display:block;font-size:.95rem}.emp span{display:block;font-size:.75rem;color:var(--dim)}
+  .tag{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:999px;background:var(--ac);color:#fff;font-size:.72rem;font-weight:700}
+  .nf{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}.nf b{font-size:1.8rem}.nf span{color:var(--dim);font-size:.8rem}
+  .cx{margin-left:auto;border:2px solid var(--txt);border-radius:8px;padding:2px 10px;font-weight:800}
+  dl{display:grid;grid-template-columns:92px 1fr;gap:6px 10px;font-size:.88rem}dt{color:var(--dim);font-size:.72rem;text-transform:uppercase;padding-top:2px}dd{font-weight:700}
+  h2{font-size:.85rem;margin-bottom:8px;display:flex;justify-content:space-between}
+  table{width:100%;border-collapse:collapse;font-size:.84rem}
+  th{text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--bd);padding:6px 4px}
+  td{border-bottom:1px solid var(--bd);padding:7px 4px;vertical-align:top}td.q{text-align:right;font-weight:800;white-space:nowrap}
+  .cod{font-family:ui-monospace,Consolas,monospace;font-size:.76rem;color:var(--dim)}
+  .msg{text-align:center;color:var(--dim);padding:30px 10px}
+  .rod{text-align:center;font-size:.7rem;color:var(--dim);margin-top:6px}
+</style>
+</head>
+<body>
+<div id="app"><div class="card msg">Carregando a etiqueta…</div></div>
+<script>
+(function () {
+  var BANCOS = {
+    cgr: { url: 'https://rqzqetfoxiutabsooqqn.supabase.co', key: 'sb_publishable_P3EggMdsxQUoKnX_pLMaRQ_ZrGEYpIP' },
+    cba: { url: 'https://cyztucqhfotqhauavepu.supabase.co', key: 'sb_publishable_LnJYIlIDvTF6l4MMQwZ-Kg_uCBXnZRM' }
+  };
+  var q = new URLSearchParams(location.search), f = (q.get('f') || '').toLowerCase(), id = q.get('id') || '', app = document.getElementById('app');
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var erro = function (t) { app.innerHTML = '<div class="card msg">' + t + '</div>'; };
+  var b = BANCOS[f];
+  if (!b || !/^[0-9a-f-]{36}$/i.test(id)) return erro('Link de etiqueta inválido.');
+  fetch(b.url + '/rest/v1/rpc/etiqueta_publica', { method: 'POST', headers: { apikey: b.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: id }) })
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      var e = res.j;
+      if (!res.ok || !e || typeof e !== 'object' || !e.id) return erro('Etiqueta não encontrada.<br><small>Se acabou de imprimir, tente de novo em instantes.</small>');
+      var emp = e.emp || {}, itens = Array.isArray(e.itens) ? e.itens : [], un = itens.reduce(function (a, i) { return a + (+i.qtd || 0); }, 0);
+      var linha = function (r, v) { return v ? '<dt>' + r + '</dt><dd>' + esc(v) + '</dd>' : ''; };
+      document.title = 'NF ' + (e.nf || 'sem NF') + ' — ' + (e.paciente || 'GF Medical');
+      app.innerHTML =
+        '<div class="card"><div class="emp"><b>' + esc(emp.razao || 'GF MEDICAL COMÉRCIO E REPRESENTAÇÕES LTDA') + '</b>' + (emp.cnpj ? '<span>CNPJ ' + esc(emp.cnpj) + '</span>' : '') + (emp.end ? '<span>' + esc(emp.end) + '</span>' : '') + '</div>' +
+        '<span class="tag">' + esc(e.tipo || 'Material cirúrgico') + '</span></div>' +
+        '<div class="card"><div class="nf">NF <b>' + esc(e.nf || 'SEM NF') + '</b>' + (e.nf_data ? '<span>emissão ' + esc(e.nf_data) + '</span>' : '') + (e.caixa ? '<span class="cx">' + esc(e.caixa) + '</span>' : '') + '</div>' +
+        '<dl>' + linha('Paciente', e.paciente) + linha('Médico', e.medico) + linha('Vendedor', e.vendedor) + linha('Hospital', [e.hospital, e.cidade].filter(Boolean).join(' — ')) + linha('Convênio', e.convenio) + linha('Cirurgia', e.cirurgia) + linha('Procedimento', e.procedimento) + '</dl></div>' +
+        '<div class="card"><h2><span>📋 Itens' + (e.caixa ? ' deste volume' : ' da NF') + '</span><span>' + itens.length + ' item(ns) · ' + un + ' un</span></h2>' +
+        (itens.length ? '<table><thead><tr><th>Qtd</th><th>Produto</th><th>Lote</th></tr></thead><tbody>' + itens.map(function (i) {
+          return '<tr><td class="q">' + esc(i.qtd) + '×</td><td>' + esc(i.nome || i.cod) + (i.cod && i.nome ? '<div class="cod">' + esc(i.cod) + '</div>' : '') + '</td><td class="cod">' + esc(i.lote || '—') + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<div class="msg" style="padding:12px">Sem itens registrados nesta etiqueta.</div>') + '</div>' +
+        '<div class="rod">Etiqueta impressa em ' + new Date(e.impresso_em).toLocaleString('pt-BR') + '</div>';
+    })
+    .catch(function () { erro('Sem conexão para carregar a etiqueta.'); });
+})();
+</script>
+</body>
+</html>

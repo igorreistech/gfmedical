@@ -528,5 +528,21 @@
     };
 
     // Reaproveitado por fretes.html (importação do PDF do CT-e no Controle de Fretes).
-    window.NFImport = { carregarPdfJs: carregarPdfJs, parsearTextoNF: parsearTextoNF };
+    // Texto do PDF (mesma leitura do importarPdfNF), para outras telas lerem os produtos da NF
+    async function textoDoPdf(file) {
+        await carregarPdfJs();
+        var pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise, texto = '';
+        for (var i = 1; i <= pdf.numPages; i++) {
+            var content = await (await pdf.getPage(i)).getTextContent({ includeMarkedContent: false });
+            var items = (content.items || []).filter(function (it) { return it && typeof it.str === 'string' && it.str !== ''; });
+            items.sort(function (a, b) { var dy = (b.transform[5] || 0) - (a.transform[5] || 0); return Math.abs(dy) > 3 ? dy : (a.transform[4] || 0) - (b.transform[4] || 0); });
+            var t = '', prevY = null, prevEnd = 0;
+            items.forEach(function (it) { var x = it.transform[4] || 0, y = it.transform[5] || 0;
+                if (prevY !== null) { if (Math.abs(y - prevY) > 3) t += '\n'; else if (x - prevEnd >= 1) t += ' '; }
+                t += it.str; prevY = y; prevEnd = x + (it.width || 0); });
+            texto += t + '\n';
+        }
+        return texto;
+    }
+    window.NFImport = { carregarPdfJs: carregarPdfJs, parsearTextoNF: parsearTextoNF, parsearProdutos: parsearProdutos, textoDoPdf: textoDoPdf };
 })();
