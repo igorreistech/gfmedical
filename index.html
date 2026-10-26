@@ -22357,26 +22357,28 @@ else init();
             nf: p.nf || '', nfData: dataBR(p.nfData), paciente: p.paciente || '', medico: p.medico || '',
             hospital: p.hospital || '', cidade: p.cidade || '', convenio: p.convenio && p.convenio !== '—' ? p.convenio : '',
             cirurgia: [dataBR(dataCir), horaCir || ''].filter(Boolean).join(' às '), procedimento: p.procedimento || '', filial: filialNome(p),
-            caixa: String(caixa || '').trim(),
+            caixa: String(caixa || '').trim(), remessa: p._remessa || '', envio: dataBR(p._envio),
         };
     }
     function textoQR(c) {
-        return ['GF MEDICAL - MATERIAL CIRURGICO',
+        return [c.remessa ? 'GF MEDICAL - ' + c.remessa.toUpperCase() : 'GF MEDICAL - MATERIAL CIRURGICO',
             `NF: ${c.nf || '-'}${c.nfData ? ' (emissão ' + c.nfData + ')' : ''}`,
-            c.caixa ? `Caixa: ${c.caixa}` : '',
-            `Paciente: ${c.paciente || '-'}`,
-            `Médico: ${c.medico || '-'}`,
-            `Hospital: ${c.hospital || '-'}${c.cidade ? ' - ' + c.cidade : ''}`,
-            `Convênio: ${c.convenio || '-'}`,
-            `Cirurgia: ${c.cirurgia || '-'}`,
+            c.caixa ? `${c.tipo || 'Caixa'}: ${c.caixa}${c.volume ? ' (' + c.volume + ')' : ''}` : '',
+            c.remessa && !c.paciente ? '' : `Paciente: ${c.paciente || '-'}`,
+            c.remessa && !c.medico ? '' : `Médico: ${c.medico || '-'}`,
+            `${c.remessa ? 'Cliente' : 'Hospital'}: ${c.hospital || '-'}${c.cidade ? ' - ' + c.cidade : ''}`,
+            c.remessa && !c.convenio ? '' : `Convênio: ${c.convenio || '-'}`,
+            c.remessa && !c.cirurgia ? '' : `Cirurgia: ${c.cirurgia || '-'}`,
+            c.envio ? `Envio: ${c.envio}` : '',
             c.procedimento ? `Procedimento: ${c.procedimento}` : '',
+            c.itens && c.itens.length ? 'Itens:\n' + c.itens.map(i => `- ${i.qtd}x ${i.nome || i.cod}${i.lote ? ' (lote ' + i.lote + ')' : ''}`).join('\n') : '',
             c.filial ? `Filial: ${c.filial}` : ''].filter(Boolean).join('\n');
     }
     const chaveCaixa = p => 'gf_caixa_' + (p._docId || p.id || p.nf || '');
     const caixaSalva = p => { try { return localStorage.getItem(chaveCaixa(p)) || ''; } catch (e) { return ''; } };
     const guardarCaixa = (p, v) => { try { v ? localStorage.setItem(chaveCaixa(p), v) : localStorage.removeItem(chaveCaixa(p)); } catch (e) {} };
     async function imprimir(procs, caixa) {
-        procs = procs.filter(Boolean);
+        procs = procs.filter(Boolean).map(x => x.p ? x : { p: x });
         if (!procs.length) return;
         // abre a janela já no clique (senão o navegador bloqueia o pop-up) e preenche depois de gerar o QR
         const w = window.open('', '_blank');
@@ -22386,21 +22388,21 @@ else init();
         try { qrcode = await carregarLib(); } catch (e) { w.close(); alert('⚠️ ' + e.message); return; }
         qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
         const gerados = [];
-        const etiquetas = procs.map(p => {
-            const c = camposEtiqueta(p, caixa ?? caixaSalva(p)), qr = qrcode(0, 'M');
+        const etiquetas = procs.map(({ p, caixa: cxVol, tipo, itens, volume }) => {
+            const c = Object.assign(camposEtiqueta(p, cxVol ?? caixa ?? caixaSalva(p)), { tipo: tipo || '', itens: itens || [], volume: volume || '' }), qr = qrcode(0, 'M');
             gerados.push({ p, c });
             qr.addData(textoQR(c)); qr.make();
             const linha = (r, v) => v ? `<tr><th>${r}</th><td>${esc(v)}</td></tr>` : '';
-            return `<section class="et">
-              <div class="topo"><b>GF Medical</b><span>Material cirúrgico${c.filial ? ' · ' + esc(c.filial) : ''}</span></div>
-              <div class="nfl"><div class="nf">NF <b>${esc(c.nf || '—')}</b>${c.nfData ? `<span>emissão ${esc(c.nfData)}</span>` : ''}</div>${c.caixa ? `<div class="cx"><small>CAIXA</small><b>${esc(c.caixa)}</b></div>` : ''}</div>
+            return `<section class="et${c.itens.length ? ' v' : ''}">
+              <div class="topo"><b>GF Medical</b><span>${esc(c.remessa || 'Material cirúrgico')}${c.filial ? ' · ' + esc(c.filial) : ''}</span></div>
+              <div class="nfl"><div class="nf">NF <b>${esc(c.nf || '—')}</b>${c.nfData ? `<span>emissão ${esc(c.nfData)}</span>` : ''}</div>${c.caixa ? `<div class="cx"><small>${esc((c.tipo || 'Caixa').toUpperCase())}</small><b>${esc(c.caixa)}</b></div>` : ''}</div>
               <div class="qr">${qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div>
-              <table>${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Procedimento', c.procedimento)}</table>
+              <table>${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}${linha('Procedimento', c.procedimento)}</table>${c.itens.length ? `<div class="its"><b>Itens neste volume${c.volume ? ' · ' + esc(c.volume) : ''}</b><ul>${c.itens.map(i => `<li>${esc(i.qtd)}× ${esc(i.nome || i.cod)}${i.lote ? ' · lote ' + esc(i.lote) : ''}</li>`).join('')}</ul></div>` : ''}
               <div class="rod">Aponte a câmera do celular para o QR Code para ver os dados.</div>
             </section>`;
         }).join('');
         w.document.open();
-        w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiqueta NF ${esc(procs.map(p => p.nf).join(', '))}</title><style>
+        w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiqueta NF ${esc([...new Set(procs.map(x => x.p.nf))].join(', '))}</title><style>
           @page{size:100mm 150mm;margin:0}
           *{box-sizing:border-box;margin:0;padding:0}
           body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#eee}
@@ -22413,6 +22415,8 @@ else init();
           table{border-collapse:collapse;width:100%;font-size:9.5pt}
           th{text-align:left;width:24mm;padding:1.2mm 2mm 1.2mm 0;vertical-align:top;font-size:7.5pt;text-transform:uppercase;color:#333}
           td{padding:1.2mm 0;font-weight:bold;border-bottom:.2mm solid #bbb;word-break:break-word}
+          .et.v .qr svg{width:38mm;height:38mm}.et.v table{font-size:8.5pt}.et.v th,.et.v td{padding:.7mm 0}
+          .its{font-size:7.5pt;border-top:.3mm solid #000;padding-top:1.2mm}.its ul{padding-left:4mm;margin-top:.8mm}.its li{margin:.2mm 0}
           .rod{margin-top:auto;font-size:7pt;color:#444;text-align:center}
           @media print{body{background:#fff}.et{margin:0}}
         </style></head><body>${etiquetas}<script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
@@ -22441,14 +22445,15 @@ else init();
           <div style="background:#fff;border:1px solid var(--border,#ccc);border-radius:10px;padding:10px;width:220px;height:220px;margin:0 auto" data-qr>${svgQR(c)}</div>
           <label style="display:flex;align-items:center;gap:8px;margin:12px 0 0;text-align:left;font-size:.72rem;font-weight:700;color:var(--text)">📦 Nº da caixa
             <input type="text" data-caixa value="${esc(c.caixa)}" placeholder="ex.: 1/3, CX 2, 045" maxlength="30" style="flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.85rem;font-weight:700"></label>
-          <div style="margin:12px 0 4px">${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}</div>
-          <button type="button" data-a="print" style="margin-top:12px;width:100%;padding:10px;border-radius:10px;border:0;background:#111827;color:#fff;font-weight:700;font-size:.8rem;cursor:pointer">🏷 Imprimir etiqueta</button>
+          <div style="margin:12px 0 4px">${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}</div>
+          <button type="button" data-a="vol" style="margin-top:12px;width:100%;padding:9px;border-radius:10px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-weight:700;font-size:.78rem;cursor:pointer">📦🎒 Várias caixas / bags (montar volumes)</button>
+          <button type="button" data-a="print" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:0;background:#111827;color:#fff;font-weight:700;font-size:.8rem;cursor:pointer">🏷 Imprimir etiqueta</button>
           <button type="button" data-a="x" style="margin-top:8px;width:100%;padding:9px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:.75rem;cursor:pointer">Fechar</button></div>`;
         const inp = ov.querySelector('[data-caixa]'), caixaAtual = () => inp.value.trim();
         let _t = null;
         inp.addEventListener('input', () => { clearTimeout(_t); _t = setTimeout(() => { guardarCaixa(proc, caixaAtual()); ov.querySelector('[data-qr]').innerHTML = svgQR(camposEtiqueta(proc, caixaAtual())); }, 250); });
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
-        ov.addEventListener('click', e => { const a = e.target.closest('button')?.dataset.a; if (e.target === ov || a === 'x') ov.remove(); else if (a === 'print') { guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
+        ov.addEventListener('click', e => { const a = e.target.closest('button')?.dataset.a; if (e.target === ov || a === 'x') ov.remove(); else if (a === 'vol') { ov.remove(); window.abrirVolumes(proc); } else if (a === 'print') { guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
         document.body.appendChild(ov);
         setTimeout(() => inp.focus(), 50);
     };
@@ -22523,7 +22528,7 @@ else init();
     async function registrarEtiquetas(gerados) {
         const sb = window._supabase; if (!sb || !gerados.length) return;
         const rows = gerados.map(({ p, c }) => ({ filial: filialAtual(p), proc_id: String(p._docId || p.id || ''), nf: c.nf, nf_data: c.nfData,
-            caixa: c.caixa || null, paciente: c.paciente, medico: c.medico, hospital: c.hospital, cidade: c.cidade, convenio: c.convenio,
+            caixa: c.caixa ? (c.tipo ? c.tipo + ' ' : '') + c.caixa : null, paciente: c.paciente, medico: c.medico, hospital: c.hospital, cidade: c.cidade, convenio: c.convenio,
             cirurgia: c.cirurgia, procedimento: c.procedimento, impresso_por: operador() }));
         try { const { error } = await sb.from('etiquetas_qr').insert(rows); if (error) console.warn('etiquetas_qr:', error.message); }
         catch (e) { console.warn('etiquetas_qr:', e); }
@@ -22560,6 +22565,13 @@ else init();
         </div>`;
         document.body.appendChild(ov);
         const $ = s => ov.querySelector(s);
+        let volsPorProc = {};
+        async function carregarVols() {
+            try { const { data } = await window._supabase.from('volumes_cirurgia').select('proc_id,tipo').limit(20000);
+                const m = {}; (data || []).forEach(v => { const o = m[v.proc_id] = m[v.proc_id] || { Caixa: 0, Bag: 0 }; o[v.tipo] = (o[v.tipo] || 0) + 1; });
+                volsPorProc = Object.fromEntries(Object.entries(m).map(([k, o]) => [k, [o.Caixa ? o.Caixa + ' cx' : '', o.Bag ? o.Bag + (o.Bag > 1 ? ' bags' : ' bag') : ''].filter(Boolean).join(' · ')]));
+            } catch (e) { volsPorProc = {}; }
+        }
         let modo = 'cirurgias', fStatus = '', fEtq = '', regs = [], linhas = [];
         const kpi = (l, v, cor) => `<div style="border:1px solid var(--border,#ccc);border-radius:10px;padding:8px 14px;min-width:120px"><div style="font-size:.64rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em">${l}</div><div style="font-size:1.2rem;font-weight:800;color:${cor || 'var(--text)'}">${v}</div></div>`;
         const dataHora = s => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
@@ -22578,7 +22590,7 @@ else init();
                     : `<p style="color:#b91c1c;font-size:.85rem">Erro ao carregar: ${esc(error.message)}</p>`;
                 return;
             }
-            regs = data || []; desenhar();
+            regs = data || []; await carregarVols(); desenhar();
         }
         function desenhar() {
             if (!regs) return;
@@ -22595,7 +22607,7 @@ else init();
                     .map(p => {
                         const c = camposEtiqueta(p, ''), imps = porProc[String(p._docId || p.id)] || porNF[p.nf] || [], ult = imps[0];
                         return { _st: p.status || '', Status: nomeStatus(p.status), Etiqueta: imps.length ? 'Impressa' : 'Pendente', 'Impressões': imps.length || '',
-                            'Última impressão': ult ? dataHora(ult.impresso_em) : '', Caixa: (ult && ult.caixa) || caixaSalva(p), NF: c.nf, 'Emissão NF': c.nfData, Paciente: c.paciente,
+                            'Última impressão': ult ? dataHora(ult.impresso_em) : '', Caixa: (ult && ult.caixa) || caixaSalva(p), Volumes: volsPorProc[String(p._docId || p.id)] || '', NF: c.nf, 'Emissão NF': c.nfData, Paciente: c.paciente,
                             Médico: c.medico, Hospital: c.hospital, Convênio: c.convenio, Cirurgia: c.cirurgia, _proc: String(p._docId || p.id) };
                     });
             } else {
@@ -22696,6 +22708,7 @@ else init();
             <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
               <button type="button" data-ficha="editar" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:var(--mono);font-size:.72rem;font-weight:700;cursor:pointer">✏️ Abrir ficha completa</button>
               ${c.nf ? `<button type="button" data-ficha="qr" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:var(--mono);font-size:.72rem;font-weight:700;cursor:pointer">🏷 Etiqueta QR</button>` : ''}
+              <button type="button" data-ficha="vol" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:var(--mono);font-size:.72rem;font-weight:700;cursor:pointer">📦 Caixas / bags</button>
             </div></div>`;
     }
     if (typeof window.confirmarRetiradaCirurgia === 'function') {
@@ -22713,11 +22726,293 @@ else init();
                     ov.querySelector('#btnFecharConfCir')?.click();
                     if (a === 'editar' && typeof editProc === 'function') editProc(docId);
                     else if (a === 'qr') window.abrirQRCode(p);
+                    else if (a === 'vol') window.abrirVolumes(p);
                 });
             }
             return r;
         };
     }
+    // ── Volumes da cirurgia: várias caixas e bags saindo, cada uma com seus itens e a própria etiqueta QR ──
+    function itensDoProc(p) {
+        return String(p.itens || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => ({
+            cod: (l.match(/\[COD:([^\]]*)\]/) || [])[1] || '', lote: (l.match(/\[LOTE:([^\]]*)\]/) || [])[1] || '',
+            qtd: parseInt((l.match(/\[QTY:(\d+)\]/) || [])[1] || '1', 10), nome: l.replace(/\[(COD|LOTE|QTY):[^\]]*\]/g, '').trim(),
+        })).filter(i => i.nome || i.cod);
+    }
+    const chaveItem = i => [i.cod, i.nome, i.lote].join('|');
+    window.abrirVolumes = async function (alvo) {
+        const p = typeof alvo === 'object' ? alvo : procPorId(alvo); if (!p) return;
+        const pid = String(p._docId || p.id || ''), sb = window._supabase;
+        document.getElementById('vol-montar')?.remove();
+        const itens = itensDoProc(p).map(i => ({ ...i, total: i.qtd }));
+        let vols = [], semBanco = false;
+        if (pid && sb) {
+            try {
+                const { data, error } = await sb.from('volumes_cirurgia').select('*').eq('proc_id', pid).order('ordem');
+                if (error) semBanco = true;
+                else vols = (data || []).map(v => {
+                    const q = {};
+                    (v.itens || []).forEach(s => {
+                        let k = itens.findIndex(i => chaveItem(i) === chaveItem(s));
+                        if (k < 0) { itens.push({ cod: s.cod || '', nome: s.nome || '', lote: s.lote || '', total: 0, avulso: true }); k = itens.length - 1; }
+                        if (itens[k].avulso) itens[k].total += +s.qtd || 0;
+                        q[k] = +s.qtd || 0;
+                    });
+                    return { tipo: v.tipo, ident: v.identificacao || '', auto: /^\d+\/\d+$/.test(v.identificacao || ''), q };
+                });
+            } catch (e) { semBanco = true; }
+        }
+        if (!vols.length) vols = [{ tipo: 'Caixa', ident: '', auto: true, q: Object.fromEntries(itens.map((i, k) => [k, i.total])) }];
+        const numerar = () => ['Caixa', 'Bag'].forEach(t => { const vs = vols.filter(v => v.tipo === t); vs.forEach((v, n) => { if (v.auto || !v.ident) { v.ident = `${n + 1}/${vs.length}`; v.auto = true; } }); });
+        const conta = t => vols.filter(v => v.tipo === t).length;
+        const setConta = (t, n) => {
+            n = Math.max(0, Math.min(30, n));
+            const outros = vols.filter(v => v.tipo !== t), meus = vols.filter(v => v.tipo === t).slice(0, n);
+            while (meus.length < n) meus.push({ tipo: t, ident: '', auto: true, q: {} });
+            vols = [...outros, ...meus].sort((a, b) => (a.tipo === 'Caixa' ? 0 : 1) - (b.tipo === 'Caixa' ? 0 : 1));
+            if (!vols.length) vols = [{ tipo: t === 'Caixa' ? 'Bag' : 'Caixa', ident: '', auto: true, q: {} }];
+            vols.forEach(v => { if (v.auto) v.ident = ''; }); numerar();
+        };
+        numerar();
+        const fora = k => (+itens[k].total || 0) - vols.reduce((s, v) => s + (+v.q[k] || 0), 0);
+        const itensDoVol = v => itens.map((i, k) => ({ cod: i.cod, nome: i.nome, lote: i.lote, qtd: +v.q[k] || 0 })).filter(i => i.qtd > 0 && (i.nome || i.cod));
+        const etiquetasDe = lista => lista.map(v => ({ p, tipo: v.tipo, caixa: v.ident, itens: itensDoVol(v), volume: `volume ${vols.indexOf(v) + 1} de ${vols.length}` }));
+
+        const ov = document.createElement('div');
+        ov.id = 'vol-montar';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px';
+        const bt = 'padding:7px 12px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap';
+        const num = 'width:56px;padding:5px 6px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.8rem;text-align:center';
+        function status() {
+            itens.forEach((_, k) => { const c = ov.querySelector(`[data-fora="${k}"]`); if (!c) return; const f = fora(k);
+                c.textContent = f; c.style.color = f > 0 ? '#b45309' : f < 0 ? '#b91c1c' : '#16a34a'; });
+            const sobra = itens.reduce((s, _, k) => s + Math.max(0, fora(k)), 0), passa = itens.some((_, k) => fora(k) < 0);
+            ov.querySelector('[data-status]').innerHTML = !itens.length ? '' : passa ? '<span style="color:#b91c1c">⚠️ Tem item com mais unidades nos volumes do que na NF.</span>'
+                : sobra ? `<span style="color:#b45309">⚠️ ${sobra} unidade(s) ainda fora dos volumes.</span>` : '<span style="color:#16a34a">✅ Todos os itens distribuídos.</span>';
+        }
+        function desenhar() {
+            const th = 'padding:7px 8px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);background:var(--surface,#fff);position:sticky;top:0;z-index:1;white-space:nowrap';
+            const td = 'padding:6px 8px;border-bottom:1px solid var(--border,#e5e7eb);font-size:.78rem;color:var(--text);vertical-align:middle';
+            const cont = t => `<div style="display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;color:var(--text)">${t === 'Caixa' ? '📦 Caixas' : '🎒 Bags'}
+                <button data-menos="${t}" style="${bt};padding:4px 10px">−</button><input type="number" min="0" max="30" data-conta="${t}" value="${conta(t)}" style="${num}"><button data-mais="${t}" style="${bt};padding:4px 10px">+</button></div>`;
+            ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1100px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
+              <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                <div style="margin-right:auto"><div style="font-weight:800;font-size:.95rem;color:var(--text)">📦 Volumes que estão saindo — NF ${esc(p.nf || '—')}</div>
+                  <div style="font-size:.72rem;color:var(--text-dim)">${esc([p.paciente, p.hospital, p.medico].filter(Boolean).join(' · '))}</div></div>
+                ${cont('Caixa')}${cont('Bag')}
+                <button data-a="x" style="${bt}">✕</button>
+              </div>
+              ${semBanco ? '<div style="padding:8px 18px;background:#fef3c7;color:#92400e;font-size:.74rem">⚠️ Para guardar os volumes, rode o SQL <b>20261101_volumes_cirurgia.sql</b> no Supabase desta filial. A impressão funciona mesmo assim.</div>' : ''}
+              <div style="overflow:auto;flex:1;padding:0 18px">
+                <table style="width:100%;border-collapse:separate;border-spacing:0;margin:10px 0">
+                  <thead><tr><th style="${th};text-align:left;min-width:220px">Item</th><th style="${th}">Qtd NF</th>
+                    ${vols.map((v, j) => `<th style="${th};text-align:center"><div>${v.tipo === 'Caixa' ? '📦 Caixa' : '🎒 Bag'}</div>
+                      <input data-ident="${j}" value="${esc(v.ident)}" maxlength="20" style="width:70px;margin-top:4px;padding:4px 5px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.74rem;font-weight:800;text-align:center">
+                      <div><button data-printvol="${j}" title="Imprimir só esta etiqueta" style="${bt};padding:3px 8px;margin-top:4px;font-size:.66rem">🏷</button></div></th>`).join('')}
+                    <th style="${th}">Fora</th></tr></thead>
+                  <tbody>${itens.map((i, k) => `<tr>
+                    <td style="${td}">${i.avulso ? `<input data-nome="${k}" value="${esc(i.nome)}" placeholder="Descrição do item" style="width:100%;padding:5px 7px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.78rem">`
+                        : `<b>${esc(i.nome || i.cod)}</b>${i.cod && i.nome ? ` <span style="color:var(--text-dim);font-size:.7rem">${esc(i.cod)}</span>` : ''}${i.lote ? `<div style="color:var(--text-dim);font-size:.68rem">lote ${esc(i.lote)}</div>` : ''}`}</td>
+                    <td style="${td};text-align:center">${i.avulso ? `<input type="number" min="0" data-total="${k}" value="${i.total}" style="${num}">` : `<b>${i.total}</b>`}</td>
+                    ${vols.map((v, j) => `<td style="${td};text-align:center"><input type="number" min="0" data-q="${j}:${k}" value="${+v.q[k] || ''}" placeholder="0" style="${num}"></td>`).join('')}
+                    <td style="${td};text-align:center;font-weight:800" data-fora="${k}"></td></tr>`).join('')
+                    || `<tr><td colspan="${vols.length + 3}" style="${td};color:var(--text-dim);text-align:center;padding:18px">Esta cirurgia não tem itens cadastrados. Dá para imprimir só a identificação de cada volume, ou adicionar itens avulsos.</td></tr>`}</tbody>
+                </table>
+              </div>
+              <div style="padding:12px 18px;border-top:1px solid var(--border,#ccc);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <button data-a="avulso" style="${bt}">+ Item avulso</button>
+                <button data-a="tudo1" style="${bt}">Tudo no 1º volume</button>
+                <div data-status style="font-size:.76rem;font-weight:700;margin-right:auto;margin-left:6px"></div>
+                <button data-a="salvar" style="${bt}">💾 Salvar</button>
+                <button data-a="imprimir" style="${bt};background:#111827;color:#fff;border-color:#111827">🏷 Salvar e imprimir ${vols.length} etiqueta${vols.length > 1 ? 's' : ''}</button>
+              </div></div>`;
+            status();
+        }
+        async function salvar(silencioso) {
+            if (semBanco || !sb || !pid) { if (!silencioso) alert('Os volumes não foram guardados: falta rodar o SQL 20261101_volumes_cirurgia.sql nesta filial.'); return false; }
+            const rows = vols.map((v, j) => ({ filial: filialAtual(p), proc_id: pid, nf: p.nf || '', ordem: j + 1, tipo: v.tipo, identificacao: v.ident, itens: itensDoVol(v), montado_por: operador() }));
+            try {
+                let r = await sb.from('volumes_cirurgia').delete().eq('proc_id', pid); if (r.error) throw r.error;
+                r = await sb.from('volumes_cirurgia').insert(rows); if (r.error) throw r.error;
+                window.showSyncToast && window.showSyncToast(`📦 ${rows.length} volume(s) salvos`);
+                return true;
+            } catch (e) { alert('Erro ao salvar os volumes: ' + (e.message || e)); return false; }
+        }
+        ov.addEventListener('input', e => {
+            const t = e.target, d = t.dataset;
+            if (d.q) { const [j, k] = d.q.split(':').map(Number); vols[j].q[k] = Math.max(0, parseInt(t.value, 10) || 0); status(); }
+            else if (d.total) { itens[+d.total].total = Math.max(0, parseInt(t.value, 10) || 0); status(); }
+            else if (d.nome) itens[+d.nome].nome = t.value;
+            else if (d.ident) { vols[+d.ident].ident = t.value.trim(); vols[+d.ident].auto = false; }
+        });
+        ov.addEventListener('change', e => { const d = e.target.dataset; if (d.conta) { setConta(d.conta, parseInt(e.target.value, 10) || 0); desenhar(); } });
+        ov.addEventListener('click', async e => {
+            if (e.target === ov) return ov.remove();
+            const b = e.target.closest('button'); if (!b) return;
+            const d = b.dataset;
+            if (d.menos) { setConta(d.menos, conta(d.menos) - 1); desenhar(); }
+            else if (d.mais) { setConta(d.mais, conta(d.mais) + 1); desenhar(); }
+            else if (d.printvol) imprimir(etiquetasDe([vols[+d.printvol]]));
+            else if (d.a === 'x') ov.remove();
+            else if (d.a === 'avulso') { itens.push({ cod: '', nome: '', lote: '', total: 1, avulso: true }); vols[0].q[itens.length - 1] = 1; desenhar(); ov.querySelector(`[data-nome="${itens.length - 1}"]`)?.focus(); }
+            else if (d.a === 'tudo1') { vols.forEach((v, j) => { v.q = j ? {} : Object.fromEntries(itens.map((i, k) => [k, i.total])); }); desenhar(); }
+            else if (d.a === 'salvar') { if (await salvar()) ov.remove(); }
+            else if (d.a === 'imprimir') {
+                if (itens.some((_, k) => fora(k) < 0)) return alert('Tem item com mais unidades nos volumes do que na NF. Corrija antes de imprimir.');
+                if (itens.some((_, k) => fora(k) > 0) && !confirm('Ainda tem item fora dos volumes. Imprimir assim mesmo?')) return;
+                imprimir(etiquetasDe(vols));           // abre a janela já no clique (antes de esperar o banco)
+                await salvar(true); ov.remove();
+            }
+        });
+        document.body.appendChild(ov);
+        desenhar();
+    };
+    // ── Remessas sem cirurgia (consignação, comodato…): mesmas caixas/bags e etiquetas QR, com controle de retorno ──
+    const TIPOS_REMESSA = ['Remessa em consignação', 'Remessa em comodato', 'Reposição de consignado', 'Remessa para conserto', 'Outra remessa'];
+    const STATUS_REMESSA = ['No cliente', 'Retornou parcial', 'Retornou', 'Cancelada'];
+    const procDaRemessa = r => ({ _docId: 'rem:' + r.id, nf: r.nf || '', nfData: r.nf_data || '', hospital: r.cliente || '', cidade: r.cidade || '',
+        _remessa: r.tipo || 'Remessa', _envio: r.data_envio || '', obs: r.obs || '', _filial: r.filial, paciente: '', medico: '', convenio: '' });
+    window.abrirRemessas = async function () {
+        document.getElementById('rem-lista')?.remove();
+        const sb = window._supabase;
+        const ov = document.createElement('div');
+        ov.id = 'rem-lista';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px';
+        const inp = 'padding:7px 9px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.78rem';
+        const bt = 'padding:7px 12px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap';
+        const chip = 'padding:5px 10px;border-radius:999px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap';
+        ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1180px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">🚚 Remessas — consignação, comodato e outras saídas</div>
+            <input type="search" data-busca placeholder="Buscar NF, cliente, cidade…" style="${inp};width:220px">
+            <button data-a="nova" style="${bt};background:#111827;color:#fff;border-color:#111827">+ Nova remessa</button>
+            <button data-a="xlsx" style="${bt};border-color:#16a34a;color:#16a34a">⬇ Excel</button>
+            <button data-a="x" style="${bt}">✕</button>
+          </div>
+          <div data-filtros style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 18px 0;align-items:center"></div>
+          <div data-form></div>
+          <div data-corpo style="overflow:auto;padding:12px 18px 18px;flex:1"><p style="color:var(--text-dim);font-size:.8rem">Carregando…</p></div>
+        </div>`;
+        document.body.appendChild(ov);
+        const $ = s => ov.querySelector(s);
+        let rems = null, vols = {}, fSt = 'No cliente', fTipo = '', linhas = [];
+        async function carregar() {
+            const { data, error } = await sb.from('remessas_volumes').select('*').order('data_envio', { ascending: false }).limit(5000);
+            if (error) {
+                rems = null;
+                $('[data-corpo]').innerHTML = /remessas_volumes|PGRST205|schema cache|does not exist/i.test(error.message)
+                    ? '<p style="color:#b45309;font-size:.85rem">⚠️ O banco ainda não tem as tabelas de remessas. Rode o SQL <b>20261101_volumes_cirurgia.sql</b> no Supabase desta filial.</p>'
+                    : `<p style="color:#b91c1c;font-size:.85rem">Erro ao carregar: ${esc(error.message)}</p>`;
+                return;
+            }
+            rems = data || [];
+            vols = {};
+            try {
+                const { data: vs } = await sb.from('volumes_cirurgia').select('proc_id,tipo').like('proc_id', 'rem:%').limit(20000);
+                (vs || []).forEach(v => { const o = vols[v.proc_id] = vols[v.proc_id] || { Caixa: 0, Bag: 0 }; o[v.tipo] = (o[v.tipo] || 0) + 1; });
+            } catch (e) {}
+            desenhar();
+        }
+        const volTxt = id => { const o = vols['rem:' + id]; return o ? [o.Caixa ? o.Caixa + ' cx' : '', o.Bag ? o.Bag + (o.Bag > 1 ? ' bags' : ' bag') : ''].filter(Boolean).join(' · ') : ''; };
+        const diasFora = r => r.data_envio && (r.status === 'No cliente' || r.status === 'Retornou parcial') ? Math.floor((Date.now() - new Date(r.data_envio + 'T00:00:00')) / 864e5) : null;
+        function desenhar() {
+            if (!rems) return;
+            const termo = $('[data-busca]').value.trim().toLowerCase();
+            const casa = r => !termo || [r.nf, r.cliente, r.cidade, r.tipo, r.obs].join(' ').toLowerCase().includes(termo);
+            const base = rems.filter(casa);
+            const cont = s => base.filter(r => (!fTipo || r.tipo === fTipo) && (!s || r.status === s)).length;
+            const ch = (attr, val, txt, on) => `<button ${attr}="${esc(val)}" style="${chip}${on ? ';background:#111827;color:#fff;border-color:#111827' : ''}">${txt}</button>`;
+            const tipos = [...new Set(base.map(r => r.tipo))];
+            $('[data-filtros]').innerHTML = '<span style="font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin-right:4px">Status</span>'
+                + ch('data-st', '', `Todas (${cont('')})`, !fSt) + STATUS_REMESSA.map(s => ch('data-st', s, `${s} (${cont(s)})`, fSt === s)).join('')
+                + (tipos.length > 1 ? '<span style="font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin:0 4px 0 12px">Tipo</span>'
+                    + ch('data-tp', '', 'Todos', !fTipo) + tipos.map(t => ch('data-tp', t, esc(t), fTipo === t)).join('') : '');
+            linhas = base.filter(r => (!fSt || r.status === fSt) && (!fTipo || r.tipo === fTipo));
+            if (!linhas.length) { $('[data-corpo]').innerHTML = '<p style="color:var(--text-dim);font-size:.85rem;padding:20px 0;text-align:center">Nenhuma remessa aqui. Use <b>+ Nova remessa</b> para lançar.</p>'; return; }
+            const th = 'text-align:left;padding:8px 10px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);position:sticky;top:0;background:var(--surface,#fff);white-space:nowrap';
+            const td = 'padding:7px 10px;font-size:.78rem;color:var(--text);border-bottom:1px solid var(--border,#e5e7eb);vertical-align:middle';
+            const corSt = { 'No cliente': 'background:#dbeafe;color:#1e40af', 'Retornou parcial': 'background:#fef3c7;color:#92400e', Retornou: 'background:#dcfce7;color:#166534', Cancelada: 'background:#f3f4f6;color:#6b7280' };
+            $('[data-corpo]').innerHTML = `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr>${['Envio', 'Tipo', 'NF', 'Cliente', 'Cidade', 'Volumes', 'Status', 'Dias fora', 'Obs', ''].map(c => `<th style="${th}">${c}</th>`).join('')}</tr></thead><tbody>${
+                linhas.map((r, i) => { const d = diasFora(r); return `<tr>
+                  <td style="${td};white-space:nowrap">${esc(dataBR(r.data_envio))}</td><td style="${td}">${esc(r.tipo)}</td><td style="${td};font-weight:800">${esc(r.nf)}</td>
+                  <td style="${td}">${esc(r.cliente)}</td><td style="${td}">${esc(r.cidade)}</td><td style="${td};white-space:nowrap;font-weight:700">${esc(volTxt(r.id)) || '<span style="color:#b45309">—</span>'}</td>
+                  <td style="${td}"><select data-mudast="${i}" style="${inp};padding:3px 6px;font-weight:700;${corSt[r.status] || ''}">${STATUS_REMESSA.map(s => `<option${s === r.status ? ' selected' : ''}>${s}</option>`).join('')}</select>${r.data_retorno ? `<div style="font-size:.66rem;color:var(--text-dim)">retorno ${esc(dataBR(r.data_retorno))}</div>` : ''}</td>
+                  <td style="${td};font-weight:700;${d > 60 ? 'color:#b91c1c' : d > 30 ? 'color:#b45309' : ''}">${d ?? ''}</td>
+                  <td style="${td};max-width:200px;font-size:.72rem;color:var(--text-dim)">${esc(r.obs)}</td>
+                  <td style="${td};white-space:nowrap"><button data-vol="${i}" style="${bt};padding:5px 9px">📦 Volumes / 🏷</button> <button data-edit="${i}" style="${bt};padding:5px 9px">✏️</button></td></tr>`; }).join('')}</tbody></table>`;
+        }
+        function formulario(r) {
+            const hoje = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+            r = r || { tipo: TIPOS_REMESSA[0], data_envio: hoje, status: 'No cliente' };
+            const campo = (l, html, w) => `<label style="display:flex;flex-direction:column;gap:3px;font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;${w ? 'flex:' + w : ''}">${l}${html}</label>`;
+            $('[data-form]').innerHTML = `<div style="margin:12px 18px 0;padding:12px 14px;border:1px solid var(--border,#ccc);border-radius:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                ${campo('Tipo', `<select data-f="tipo" style="${inp}">${TIPOS_REMESSA.map(t => `<option${t === r.tipo ? ' selected' : ''}>${t}</option>`).join('')}</select>`)}
+                ${campo('NF', `<input data-f="nf" value="${esc(r.nf || '')}" style="${inp};width:110px">`)}
+                ${campo('Emissão NF', `<input type="date" data-f="nf_data" value="${esc(r.nf_data || '')}" style="${inp}">`)}
+                ${campo('Cliente / hospital', `<input data-f="cliente" value="${esc(r.cliente || '')}" list="hospital-list" style="${inp};min-width:200px">`, '1')}
+                ${campo('Cidade', `<input data-f="cidade" value="${esc(r.cidade || '')}" style="${inp};width:140px">`)}
+                ${campo('Envio', `<input type="date" data-f="data_envio" value="${esc(r.data_envio || '')}" style="${inp}">`)}
+                ${campo('Obs', `<input data-f="obs" value="${esc(r.obs || '')}" style="${inp};min-width:160px">`, '1')}
+                <button data-a="gravar" style="${bt};background:#111827;color:#fff;border-color:#111827">${r.id ? '💾 Salvar' : '💾 Salvar e montar volumes'}</button>
+                <button data-a="cancelar" style="${bt}">Cancelar</button></div>`;
+            $('[data-form]').dataset.id = r.id || '';
+            $('[data-f="nf"]').focus();
+        }
+        ov.addEventListener('change', async e => {
+            const i = e.target.dataset.mudast; if (i === undefined) return;
+            const r = linhas[+i], st = e.target.value;
+            const upd = { status: st, data_retorno: st === 'Retornou' || st === 'Retornou parcial' ? (r.data_retorno || new Date().toISOString().slice(0, 10)) : null, atualizado_em: new Date().toISOString() };
+            const { error } = await sb.from('remessas_volumes').update(upd).eq('id', r.id);
+            if (error) return alert('Erro ao salvar: ' + error.message);
+            Object.assign(r, upd); desenhar();
+        });
+        ov.addEventListener('click', async e => {
+            if (e.target === ov) return ov.remove();
+            const b = e.target.closest('button'); if (!b) return;
+            const d = b.dataset;
+            if (d.a === 'x') ov.remove();
+            else if (d.a === 'nova') formulario();
+            else if (d.a === 'cancelar') $('[data-form]').innerHTML = '';
+            else if (d.edit) formulario(linhas[+d.edit]);
+            else if (d.vol) window.abrirVolumes(procDaRemessa(linhas[+d.vol]));
+            else if (d.st !== undefined) { fSt = d.st; desenhar(); }
+            else if (d.tp !== undefined) { fTipo = d.tp; desenhar(); }
+            else if (d.a === 'gravar') {
+                const v = {}; ov.querySelectorAll('[data-f]').forEach(x => { v[x.dataset.f] = x.value.trim() || null; });
+                if (!v.nf && !v.cliente) return alert('Informe ao menos a NF ou o cliente.');
+                const id = $('[data-form]').dataset.id;
+                let res;
+                if (id) res = await sb.from('remessas_volumes').update({ ...v, atualizado_em: new Date().toISOString() }).eq('id', id).select().single();
+                else res = await sb.from('remessas_volumes').insert({ ...v, filial: filialAtual(null), status: 'No cliente', criado_por: operador() }).select().single();
+                if (res.error) return alert('Erro ao salvar: ' + res.error.message);
+                $('[data-form]').innerHTML = '';
+                await carregar();
+                if (!id) window.abrirVolumes(procDaRemessa(res.data));
+            }
+            else if (d.a === 'xlsx') {
+                if (!linhas.length) return alert('Nada para exportar.');
+                if (!window.XLSX) return alert('Biblioteca do Excel não carregou. Recarregue a página.');
+                const ws = XLSX.utils.json_to_sheet(linhas.map(r => ({ Envio: dataBR(r.data_envio), Tipo: r.tipo, NF: r.nf, 'Emissão NF': dataBR(r.nf_data), Cliente: r.cliente, Cidade: r.cidade,
+                    Volumes: volTxt(r.id), Status: r.status, Retorno: dataBR(r.data_retorno), 'Dias fora': diasFora(r) ?? '', Obs: r.obs, 'Lançado por': r.criado_por })));
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Remessas');
+                XLSX.writeFile(wb, `remessas-${(fSt || 'todas').toLowerCase().replace(/\s+/g, '-')}.xlsx`);
+            }
+        });
+        let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
+        carregar();
+    };
+    // Atalho na barra rápida
+    function botaoRemessas() {
+        const barra = document.getElementById('barra-rapida-acoes');
+        if (!barra || document.getElementById('btn-remessas')) return;
+        const b = document.createElement('button');
+        b.id = 'btn-remessas'; b.textContent = '🚚 Remessas / consignado'; b.title = 'Caixas e bags de remessas em consignação, comodato e outras saídas';
+        b.style.cssText = 'flex-shrink:0;padding:5px 11px;border-radius:999px;border:1px solid rgba(17,24,39,0.3);background:transparent;color:var(--text);font-family:var(--mono);font-size:0.65rem;font-weight:700;cursor:pointer;white-space:nowrap;';
+        b.onclick = () => window.abrirRemessas();
+        barra.appendChild(b);
+    }
+    new MutationObserver(() => botaoRemessas()).observe(document.body, { childList: true, subtree: true });
+    botaoRemessas();
 })();
 </script>
 <script src="fretes-config.js"></script>
