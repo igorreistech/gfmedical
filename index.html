@@ -7214,7 +7214,7 @@ async function fbSaveProc(proc) {
         if (_docId) {
             await setDoc(doc(db, COLL, _docId), data);
         } else {
-            await addDoc(col(db, COLL), data);
+            const _ref = await addDoc(col(db, COLL), data); if (_ref && _ref.id) proc._docId = _ref.id;
         }
     } catch(err) {
         console.error('Erro fbSaveProc:', err);
@@ -9928,6 +9928,7 @@ async function _saveProcedureImpl(e) {
 
     try {
         await fbSaveProc(proc);
+        try { window._volumeFichaSalvar && window._volumeFichaSalvar(proc); } catch (e) {}
         closeModal();
         // NF nova ou trocada: oferece a etiqueta com QR Code para a caixa do material
         if (proc.nf && String(proc.nf).trim() && (!existingProc || String(existingProc.nf || '').trim() !== String(proc.nf).trim()) && typeof window.oferecerEtiquetaQR === 'function') window.oferecerEtiquetaQR(proc);
@@ -22509,7 +22510,7 @@ else init();
     const caixaSalva = p => { try { return localStorage.getItem(chaveCaixa(p)) || ''; } catch (e) { return ''; } };
     const guardarCaixa = (p, v) => { try { v ? localStorage.setItem(chaveCaixa(p), v) : localStorage.removeItem(chaveCaixa(p)); } catch (e) {} agendarSaidaCaixa(p, v); };
     // códigos cadastrados citados no texto (ex.: "CX-001", "cx 5", "BG-002, CX-010") → saída automática para a cirurgia
-    const codigosNoTexto = t => [...String(t || '').matchAll(/\b(CX|BG)[-\s]?(\d{1,5})\b/gi)].map(m => `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}`);
+    const codigosNoTexto = t => [...String(t || '').matchAll(/\b(CX|BG|SC)[-\s]?(\d{1,5})\b/gi)].map(m => `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}`);
     const _cxTimers = {};
     function agendarSaidaCaixa(p, v) {
         const cods = codigosNoTexto(v), pid = String(p?._docId || p?.id || ''); if (!pid) return;
@@ -22639,7 +22640,42 @@ else init();
     // Botão 🏷 em toda NF já salva: na tabela (ao lado de "Editar"), nos cards e no campo NF da ficha aberta
     const temNF = p => p && String(p.nf || '').trim();
     const BTN_QR = 'background:rgba(17,24,39,.08);border-color:rgba(17,24,39,.35);color:var(--text);font-weight:700;';
+
+    // ── Cadastro da cirurgia: escolher o volume (Caixa / Bag / Sacola cadastrada) → saída automática ao salvar ──
+    function injetarVolumeFicha() {
+        const fnf = document.getElementById('f-nf'); if (!fnf || document.getElementById('f-volume-cad')) return;
+        const box = document.createElement('div'); box.id = 'f-volume-cad';
+        box.style.cssText = 'margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.72rem;font-weight:700;color:var(--text)';
+        const sel = 'padding:6px 8px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--bg,#fff);color:var(--text);font-size:.74rem';
+        box.innerHTML = `<span>📦 Volume que vai:</span>
+          <select id="f-vol-tipo" style="${sel}"><option value="">— nenhum —</option><option value="Caixa">📦 Caixa</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>
+          <select id="f-vol-cod" style="${sel};min-width:120px;display:none"></select><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span>`;
+        (document.getElementById('btn-etq-qr-ficha') || fnf).insertAdjacentElement('afterend', box);
+        const tipoEl = box.querySelector('#f-vol-tipo'), codEl = box.querySelector('#f-vol-cod'), info = box.querySelector('#f-vol-info');
+        let lista = [], ultimoId = null;
+        const pidAtual = () => { try { return typeof editingDocId !== 'undefined' && editingDocId ? String(editingDocId) : ''; } catch (e) { return ''; } };
+        const montar = (manter) => {
+            const t = tipoEl.value, pid = pidAtual(), atual = manter ? codEl.value : '';
+            codEl.style.display = t ? '' : 'none'; if (!t) { codEl.innerHTML = ''; info.textContent = ''; return; }
+            const ops = lista.filter(c => c.tipo === t && c.status !== 'Baixada' && (c.status === 'Disponível' || (pid && c.proc_id_atual === pid)));
+            codEl.innerHTML = `<option value="">— escolha a ${t.toLowerCase()} —</option>` + ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === atual ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${pid && c.proc_id_atual === pid ? ' (já nesta cirurgia)' : ''}</option>`).join('');
+            info.textContent = ops.length ? '' : `nenhuma ${t.toLowerCase()} disponível no cadastro`;
+        };
+        const recarregar = async () => {
+            const r = await carregarCaixas(true).catch(() => null); lista = r && !r.erro ? r : [];
+            const pid = pidAtual(), ja = pid ? lista.find(c => c.status === 'Fora' && c.proc_id_atual === pid) : null;
+            tipoEl.value = ja ? ja.tipo : ''; montar(false); if (ja) codEl.value = ja.codigo;
+        };
+        tipoEl.onchange = () => montar(false);
+        // ficha aberta para outra cirurgia (ou nova): recarrega
+        setInterval(() => { const id = pidAtual() + '|' + (document.getElementById('f-nf') ? '' : 'x'); if (id !== ultimoId && box.offsetParent) { ultimoId = id; recarregar(); } }, 700);
+    }
+    window._volumeFichaSalvar = function (proc) {
+        const cod = document.getElementById('f-vol-cod')?.value; if (!cod || !proc || !(proc._docId || proc.id)) return;
+        try { guardarCaixa(proc, cod); saidaCaixasDaCirurgia(proc, [cod]); } catch (e) { console.warn('volume da ficha:', e); }
+    };
     function injetarBotoesEtiqueta() {
+        try { injetarVolumeFicha(); } catch (e) {}
         document.querySelectorAll('#procTable tbody tr').forEach(tr => {
             const box = tr.querySelector('.table-actions');
             if (!box || box.querySelector('.btn-etq-qr')) return;
@@ -23033,7 +23069,7 @@ else init();
                   <thead><tr><th style="${th};text-align:left;min-width:220px">Item</th><th style="${th}">Qtd NF</th>
                     ${vols.map((v, j) => `<th style="${th};text-align:center"><div>${ICONE[v.tipo] || '📦'} ${esc(v.tipo)}</div>
                       <input data-ident="${j}" value="${esc(v.ident)}" maxlength="20" style="width:70px;margin-top:4px;padding:4px 5px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.74rem;font-weight:800;text-align:center">
-                      ${cads.length && v.tipo !== 'Sacola' ? `<div><select data-cad="${j}" title="Qual caixa/bag cadastrada vai neste volume (registra a saída para o rastreio)" style="width:84px;margin-top:4px;padding:3px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.66rem">
+                      ${cads.length ? `<div><select data-cad="${j}" title="Qual caixa/bag cadastrada vai neste volume (registra a saída para o rastreio)" style="width:84px;margin-top:4px;padding:3px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.66rem">
                         <option value="">— cadastro —</option>${cads.filter(c => c.tipo === v.tipo && c.status !== 'Baixada' && (c.status !== 'Fora' || c.proc_id_atual === pid || c.codigo === v.ident)).map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.ident ? 'selected' : ''}>${esc(c.codigo)}${c.status === 'Manutenção' ? ' 🔧' : ''}</option>`).join('')}</select></div>` : ''}
                       <div><button data-printvol="${j}" title="Imprimir só esta etiqueta" style="${bt};padding:3px 8px;margin-top:4px;font-size:.66rem">🏷</button></div></th>`).join('')}
                     <th style="${th}">Fora</th><th style="${th}"></th></tr></thead>
@@ -23249,7 +23285,8 @@ else init();
 
     // ── Caixas e bags cadastradas: código + QR em cada uma, rastreio de saída e retorno ──
     const CX_ATRASO = 15;   // dias fora para destacar
-    const CX_PREF = { Caixa: 'CX', Bag: 'BG' };
+    const CX_PREF = { Caixa: 'CX', Bag: 'BG', Sacola: 'SC' };
+    const CX_ICO = { Caixa: '📦', Bag: '🎒', Sacola: '🛍️' };
     let _cxCache = null;
     async function carregarCaixas(forcar) {
         const sb = window._supabase; if (!sb) return null;
@@ -23258,7 +23295,7 @@ else init();
         if (error) { _cxCache = null; return { erro: error }; }
         _cxCache = data || []; return _cxCache;
     }
-    const codigoBipado = t => { const m = /\b(CX|BG)[-\s]?(\d{1,5})\b/i.exec(String(t || '')); return m ? `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}` : String(t || '').trim().toUpperCase(); };
+    const codigoBipado = t => { const m = /\b(CX|BG|SC)[-\s]?(\d{1,5})\b/i.exec(String(t || '')); return m ? `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}` : String(t || '').trim().toUpperCase(); };
     const diasDesde = d => d ? Math.floor((Date.now() - new Date(d).getTime()) / 864e5) : null;
     async function movCaixa(cx, tipo, campos) {
         const sb = window._supabase, agora = new Date().toISOString();
@@ -23281,7 +23318,7 @@ else init();
             try { await movCaixa(cx, 'Saída', { destino: p.hospital || '', cidade: p.cidade || '', proc_id: pid, nf: p.nf || '', paciente: p.paciente || '', obs: [p.medico, p.procedimento].filter(Boolean).join(' · ') }); n++; }
             catch (e) { console.warn('caixas_bags:', e.message || e); }
         }
-        if (n) { _cxCache = null; window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s) registradas saindo para ${p.hospital || 'a cirurgia'}`); }
+        if (n) { _cxCache = null; window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s)/sacola(s) registradas saindo para ${p.hospital || 'a cirurgia'}`); atualizarBadgeCaixas(); }
     }
 
     // cirurgia concluída → as caixas/bags que saíram para ela voltam sozinhas para o estoque
@@ -23299,7 +23336,7 @@ else init();
                 try { await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: cx.proc_id_atual, nf: cx.nf_atual, obs: 'retorno automático — cirurgia concluída' }); n++; }
                 catch (e) { console.warn('caixas_bags auto:', e.message || e); }
             }
-            if (n) { _cxCache = null; window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s) voltaram para o estoque (cirurgia concluída)`); if (document.getElementById('cx-lista')) window.abrirCaixasBags(); }
+            if (n) { _cxCache = null; atualizarBadgeCaixas(); window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s)/sacola(s) voltaram para o estoque (cirurgia concluída)`); if (document.getElementById('cx-lista')) window.abrirCaixasBags(); }
         } catch (e) { console.warn('caixas_bags auto:', e); }
         finally { _cxAutoRodando = false; if (_cxAutoDeNovo) { _cxAutoDeNovo = false; setTimeout(retornoAutomaticoCaixas, 50); } }
     }
@@ -23317,7 +23354,7 @@ else init();
         const chip = 'padding:5px 10px;border-radius:999px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap';
         ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1180px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">📦 Caixas e bags — cadastro e rastreio</div>
+            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">📦 Caixas, bags e sacolas — cadastro e rastreio</div>
             <input type="search" data-busca placeholder="Buscar código, hospital, NF…" style="${inp};width:210px">
             <button data-a="novo" style="${bt};background:#111827;color:#fff;border-color:#111827">+ Cadastrar</button>
             <button data-a="etq" style="${bt}" title="Etiquetas com QR para colar nas caixas/bags (as da lista filtrada)">🏷 Etiquetas</button>
@@ -23342,7 +23379,7 @@ else init();
         async function carregar() {
             const r = await carregarCaixas(true);
             if (!r || r.erro) { $('[data-corpo]').innerHTML = '<p style="color:#b45309;font-size:.85rem">⚠️ O banco ainda não tem as tabelas de caixas e bags. Rode o SQL <b>20261102_caixas_bags.sql</b> no Supabase desta filial.</p>'; return; }
-            cxs = r; desenhar();
+            cxs = r; desenhar(); atualizarBadgeCaixas();
         }
         function desenharModo() {
             const COR = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Consultar': '#7c3aed' }, ROT = { 'Saída': '⬆ Saída', 'Retorno': '⬇ Retorno', 'Consultar': '🔍 Consultar' };
@@ -23353,7 +23390,7 @@ else init();
             const cont = s => s === 'atraso' ? cxs.filter(atrasada).length : s ? cxs.filter(c => c.status === s).length : cxs.length;
             $('[data-filtros]').innerHTML = [['', 'Todas'], ['Disponível', '✅ Disponíveis'], ['Fora', '🚚 Fora'], ['atraso', `⏰ Fora há +${CX_ATRASO} dias`], ['Manutenção', '🔧 Manutenção'], ['Baixada', '🗑 Baixadas']]
                 .map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? 'background:#111827;color:#fff;border-color:#111827' : ''}">${n} <b>${cont(s)}</b></button>`).join('')
-                + `<span style="margin-left:auto;font-size:.72rem;color:var(--text-dim)">${cxs.filter(c => c.tipo === 'Caixa').length} caixa(s) · ${cxs.filter(c => c.tipo === 'Bag').length} bag(s)</span>`;
+                + `<span style="margin-left:auto;font-size:.72rem;color:var(--text-dim)">${cxs.filter(c => c.tipo === 'Caixa').length} caixa(s) · ${cxs.filter(c => c.tipo === 'Bag').length} bag(s) · ${cxs.filter(c => c.tipo === 'Sacola').length} sacola(s)</span>`;
             linhas = cxs.filter(c => !fSt || (fSt === 'atraso' ? atrasada(c) : c.status === fSt))
                 .filter(c => !q || [c.codigo, c.descricao, c.local_atual, c.nf_atual, c.tipo].some(v => String(v || '').toUpperCase().includes(q)));
             const th = 'padding:7px 8px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);text-align:left;position:sticky;top:0;background:var(--surface,#fff)';
@@ -23361,7 +23398,7 @@ else init();
             $('[data-corpo]').innerHTML = !cxs.length ? `<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:.85rem">Nenhuma caixa ou bag cadastrada ainda.<br><br><button data-a="novo" style="${bt};background:#111827;color:#fff">+ Cadastrar as primeiras</button></div>`
               : `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr><th style="${th}">Código</th><th style="${th}">Descrição</th><th style="${th}">Situação</th><th style="${th}">Onde está</th><th style="${th}">Desde</th><th style="${th}">NF</th><th style="${th};text-align:right">Ações</th></tr></thead><tbody>
                 ${linhas.map(c => { const d = diasDesde(c.saida_em), at = atrasada(c);
-                  return `<tr style="${at ? 'background:rgba(220,38,38,.06)' : ''}"><td style="${td}"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${c.tipo === 'Caixa' ? '📦' : '🎒'} ${esc(c.tipo)}</span></td>
+                  return `<tr style="${at ? 'background:rgba(220,38,38,.06)' : ''}"><td style="${td}"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${CX_ICO[c.tipo] || '📦'} ${esc(c.tipo)}</span></td>
                     <td style="${td}">${esc(c.descricao || '')}</td>
                     <td style="${td}"><span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>${at ? ' <span style="color:#dc2626;font-size:.7rem;font-weight:800">⏰ atrasada</span>' : ''}</td>
                     <td style="${td}">${esc(c.local_atual || 'Estoque')}</td>
@@ -23382,7 +23419,7 @@ else init();
         function formNovo(c) {
             form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:var(--text)">${c ? '✎ ' + esc(c.codigo) : '+ Cadastrar caixas / bags'}</div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-                ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option>Caixa</option><option>Bag</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`)}
+                ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option>Caixa</option><option>Bag</option><option>Sacola</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`)}
                 ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c?.descricao || '')}" placeholder="ex.: caixa térmica grande, bag azul" style="${inp};width:260px">`)}
                 ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
                 <span data-prev style="font-size:.74rem;color:var(--text-dim);margin-bottom:8px"></span>
@@ -23434,7 +23471,7 @@ else init();
                 q.addData(c.token ? `${pasta}etiqueta.html?f=${fil.toLowerCase()}&cx=${c.codigo}&t=${c.token}` : `GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
                 return `<section class="e">
                   <div class="topo"><b>${esc(emp.razao)}</b><span>CNPJ ${esc(emp.cnpj)}</span><span>${esc(emp.end)}</span></div>
-                  <div class="cod"><small>${c.tipo === 'Bag' ? '🎒 BAG' : '📦 CAIXA'}</small><b>${esc(c.codigo)}</b>${c.descricao ? `<span>${esc(c.descricao)}</span>` : ''}</div>
+                  <div class="cod"><small>${CX_ICO[c.tipo] || '📦'} ${esc(String(c.tipo).toUpperCase())}</small><b>${esc(c.codigo)}</b>${c.descricao ? `<span>${esc(c.descricao)}</span>` : ''}</div>
                   <div class="qr"><div style="width:44mm;height:44mm">${comLogo(q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }), logo)}</div></div>
                   <div class="rod"><b>PROPRIEDADE DA GF MEDICAL</b><span>Se encontrar, favor devolver.${c.token ? ' Leia o QR Code para ver o conteúdo.' : ''}</span></div>
                 </section>`; }).join('');
@@ -23535,14 +23572,45 @@ else init();
         if (modoIni) { modo = modoIni; desenharModo(); }
         setTimeout(() => $('[data-bip]')?.focus(), 50);
     };
+
+    // ── Visual da barra rápida: botões em destaque + contador das caixas fora / atrasadas ──
+    (function estiloBarraGF() {
+        if (document.getElementById('estilo-barra-gf')) return;
+        const st = document.createElement('style'); st.id = 'estilo-barra-gf';
+        st.textContent = `
+          #btn-rel-etq-qr,#btn-caixas,#btn-remessas{border:0!important;color:#fff!important;padding:7px 14px!important;font-size:.7rem!important;font-weight:800!important;letter-spacing:.02em;
+            box-shadow:0 3px 10px rgba(0,0,0,.18);transition:transform .15s ease,box-shadow .15s ease,filter .15s;position:relative;display:inline-flex;align-items:center;gap:4px;text-shadow:0 1px 1px rgba(0,0,0,.15)}
+          #btn-rel-etq-qr:hover,#btn-caixas:hover,#btn-remessas:hover{transform:translateY(-2px);box-shadow:0 7px 18px rgba(0,0,0,.25);filter:saturate(1.15)}
+          #btn-rel-etq-qr:active,#btn-caixas:active,#btn-remessas:active{transform:translateY(0)}
+          #btn-rel-etq-qr{background:linear-gradient(135deg,#6366f1,#a855f7)!important}
+          #btn-caixas{background:linear-gradient(135deg,#0d9488,#22c55e)!important}
+          #btn-remessas{background:linear-gradient(135deg,#f97316,#e11d48)!important}
+          #btn-caixas .bdg{display:inline-block;margin-left:4px;min-width:18px;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.95);color:#0f766e;font-size:.62rem;font-weight:900;text-shadow:none;line-height:1.5}
+          #btn-caixas .bdg.alerta{background:#fff;color:#dc2626;animation:gfPulso 1.3s ease-out infinite}
+          #btn-caixas.atrasada{box-shadow:0 0 0 2px #fecaca,0 4px 14px rgba(220,38,38,.45)}
+          @keyframes gfPulso{0%{box-shadow:0 0 0 0 rgba(255,255,255,.95)}70%{box-shadow:0 0 0 8px rgba(255,255,255,0)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}}
+          @media (prefers-reduced-motion:reduce){#btn-caixas .bdg.alerta{animation:none}}`;
+        document.head.appendChild(st);
+    })();
+    async function atualizarBadgeCaixas() {
+        const b = document.getElementById('btn-caixas'); if (!b) return;
+        const l = await carregarCaixas(true).catch(() => null); if (!l || l.erro) return;
+        const fora = l.filter(c => c.status === 'Fora'), atras = fora.filter(c => diasDesde(c.saida_em) > CX_ATRASO);
+        b.innerHTML = '📦 Caixas, bags e sacolas' + (fora.length ? `<span class="bdg" title="${fora.length} fora (em cirurgia/cliente)">${fora.length} fora</span>` : '')
+            + (atras.length ? `<span class="bdg alerta" title="${atras.length} fora há mais de ${CX_ATRASO} dias: ${atras.map(c => c.codigo).join(', ')}">⏰ ${atras.length}</span>` : '');
+        b.classList.toggle('atrasada', atras.length > 0);
+        b.title = atras.length ? `⏰ ${atras.length} caixa(s)/bag(s)/sacola(s) fora há mais de ${CX_ATRASO} dias — clique para ver` : 'Cadastro das caixas, bags e sacolas (código + QR) e rastreio: para onde foram e quando voltaram';
+    }
+    window.atualizarBadgeCaixas = atualizarBadgeCaixas;
+    setTimeout(atualizarBadgeCaixas, 6000); setInterval(atualizarBadgeCaixas, 45000);
     function botaoCaixas() {
         const barra = document.getElementById('barra-rapida-acoes');
         if (!barra || document.getElementById('btn-caixas')) return;
         const b = document.createElement('button');
-        b.id = 'btn-caixas'; b.textContent = '📦 Caixas e bags'; b.title = 'Cadastro das caixas e bags (código + QR) e rastreio: para onde foram e quando voltaram';
+        b.id = 'btn-caixas'; b.textContent = '📦 Caixas, bags e sacolas'; b.title = 'Cadastro das caixas e bags (código + QR) e rastreio: para onde foram e quando voltaram';
         b.style.cssText = 'flex-shrink:0;padding:5px 11px;border-radius:999px;border:1px solid rgba(17,24,39,0.3);background:transparent;color:var(--text);font-family:var(--mono);font-size:0.65rem;font-weight:700;cursor:pointer;white-space:nowrap;';
         b.onclick = () => window.abrirCaixasBags();
-        barra.appendChild(b);
+        barra.appendChild(b); setTimeout(atualizarBadgeCaixas, 300);
     }
     new MutationObserver(() => botaoCaixas()).observe(document.body, { childList: true, subtree: true });
     // Atalho na barra rápida
