@@ -22461,6 +22461,31 @@ else init();
         const linhas = []; for (const i of its) { const t = semAcento([...cabCurto, ...tit, ...linhas, formatos[2](i)].join('\n')); if (t.length > LIM - 40) break; linhas.push(formatos[2](i)); }
         return semAcento([...cabCurto, ...tit, ...linhas, `... +${its.length - linhas.length} item(ns) - ver etiqueta impressa`].join('\n'));
     }
+    // Conteúdo do QR: texto puro quando cabe legível (~15 itens); com muitos itens, link para etiqueta.html com
+    // todos os dados compactados no próprio link (não depende do banco nem de internet para os dados, só para abrir a página).
+    const QR_TXT_MAX = 700;
+    const b64url = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+    async function compactar(txt) {
+        if (!window.CompressionStream) return null;
+        const st = new Blob([new TextEncoder().encode(txt)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+        return b64url(new Uint8Array(await new Response(st).arrayBuffer()));
+    }
+    async function conteudoQR(c, p) {
+        const txt = textoQRCompleto(c);
+        if (txt.length <= QR_TXT_MAX && !/\+\d+ item\(ns\) - ver/.test(txt)) return txt;                       // 1) texto puro
+        const pasta = location.origin + location.pathname.replace(/[^/]*$/, ''), fil = filialAtual(p) || 'CGR';
+        const un = (c.itens || []).reduce((a, i) => a + (+i.qtd || 0), 0);
+        const cab = { f: fil, r: c.remessa || '', n: c.nf || '', d: c.nfData || '', c: c.caixa ? `${c.tipo || 'Caixa'} ${c.caixa}` : '', p: c.paciente, m: c.medico, v: c.vendedor,
+            h: [c.hospital, c.cidade].filter(Boolean).join(' - '), cv: c.convenio, ci: c.cirurgia, pr: c.procedimento, t: (c.itens || []).length, u: un };
+        const itens = nome => (c.itens || []).map(i => [+i.qtd || 0, i.cod || '', i.lote || '', nome ? String(i.nome || '').slice(0, 48) : '']);
+        for (const nome of [true, false]) {                                                                       // 2) link com tudo dentro
+            const z = await compactar(JSON.stringify({ ...cab, i: itens(nome) })); const u = pasta + 'etiqueta.html#z=' + z;
+            if (z && u.length <= 880) return u;
+        }
+        // 3) lista grande: link curto; os itens ficam guardados na impressão (etiquetas_qr) e o cabeçalho vai no link
+        const z = await compactar(JSON.stringify(cab));
+        return pasta + `etiqueta.html?f=${fil.toLowerCase()}&id=${c.etqId}` + (z ? '#z=' + z : '');
+    }
     function textoQR(c) {
         // curto de propósito: QR com muito texto fica denso demais e a câmera não lê na etiqueta 85x100
         const un = (c.itens || []).reduce((a, i) => a + (+i.qtd || 0), 0), corta = (v, n) => String(v || '').slice(0, n);
@@ -22498,11 +22523,15 @@ else init();
         try { qrcode = await carregarLib(); } catch (e) { w.close(); alert('⚠️ ' + e.message); return; }
         qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
         const gerados = [];
-        for (const x of procs) if (!x.itens) x.itens = await itensParaEtiqueta(x.p);
-        const etiquetas = procs.map(({ p, caixa: cxVol, tipo, itens, volume }) => {
-            const c = Object.assign(camposEtiqueta(p, cxVol ?? caixa ?? caixaSalva(p)), { tipo: tipo || '', itens: itens || itensDoProc(p).filter(i => i.nome || i.cod), volume: volume || '' }), qr = qrcode(0, 'L');
+        for (const x of procs) {
+            if (!x.itens) x.itens = await itensParaEtiqueta(x.p);
+            x.c = Object.assign(camposEtiqueta(x.p, x.caixa ?? caixa ?? caixaSalva(x.p)), { tipo: x.tipo || '', itens: x.itens || [], volume: x.volume || '' });
+            x.c.etqId = novoIdEtiqueta(); x.qrConteudo = await conteudoQR(x.c, x.p);
+        }
+        const etiquetas = procs.map(({ p, c, qrConteudo }) => {
+            const qr = qrcode(0, 'L');
             gerados.push({ p, c });
-            c.etqId = novoIdEtiqueta(); qr.addData(textoQRCompleto(c)); qr.make(); const grande = qr.getModuleCount() > 57, muitos = c.itens.length > 5;
+            c.etqId = c.etqId || novoIdEtiqueta(); qr.addData(qrConteudo); qr.make(); const grande = qr.getModuleCount() > 57, muitos = c.itens.length > 5;
             const linha = (r, v) => v ? `<tr><th>${r}</th><td>${esc(v)}</td></tr>` : '';
             return `<section class="et${c.itens.length ? ' v' : ''}${grande ? ' g' : ''}${muitos ? ' m' : ''}">
               <div class="topo"><div class="emp"><b>${esc(c.emp.razao)}</b><span>CNPJ ${esc(c.emp.cnpj)}</span><span>${esc(c.emp.end)}</span></div><span class="tp">${esc(c.remessa || 'Material cirúrgico')}${c.nf ? '' : '<br><b>SEM NF</b>'}</span></div>
@@ -22553,7 +22582,7 @@ else init();
         let qrcode;
         try { qrcode = await carregarLib(); } catch (e) { alert('⚠️ ' + e.message); return; }
         qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
-        const svgQR = c => { const qr = qrcode(0, 'L'); qr.addData(textoQRCompleto(c)); qr.make(); return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace('<svg ', '<svg style="width:100%;height:100%" '); };
+        const svgQR = c => { const qr = qrcode(0, 'L'); const t = textoQRCompleto(c); qr.addData(t.length <= QR_TXT_MAX ? t : textoQR(c)); qr.make(); return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace('<svg ', '<svg style="width:100%;height:100%" '); };
         const c = Object.assign(camposEtiqueta(proc, caixaSalva(proc)), { itens: await itensParaEtiqueta(proc) });
         const linha = (r, v) => v ? `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border,#ddd)"><span style="min-width:78px;color:var(--text-dim,#666);font-size:.7rem;text-transform:uppercase">${r}</span><b style="font-size:.8rem;text-align:left">${esc(v)}</b></div>` : '';
         const ov = document.createElement('div');

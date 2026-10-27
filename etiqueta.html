@@ -6,8 +6,8 @@
 <meta name="robots" content="noindex">
 <title>Etiqueta do material — GF Medical</title>
 <style>
-  :root{--bg:#eef7f1;--card:#fff;--txt:#0a2a18;--dim:#5a7a66;--bd:#cfe5d6;--ac:#1a7a4a}
-  @media (prefers-color-scheme:dark){:root{--bg:#0e1712;--card:#14211a;--txt:#e2f1e7;--dim:#8fb39c;--bd:#2a4233;--ac:#3fbf7f}}
+  :root{--bg:#eef7f1;--card:#fff;--txt:#0a2a18;--dim:#5a7a66;--bd:#cfe5d6;--ac:#1a7a4a;--warn:#b45309}
+  @media (prefers-color-scheme:dark){:root{--bg:#0e1712;--card:#14211a;--txt:#e2f1e7;--dim:#8fb39c;--bd:#2a4233;--ac:#3fbf7f;--warn:#f0b43c}}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt);padding:16px;line-height:1.35}
   .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;max-width:640px;margin:0 auto 12px}
@@ -16,12 +16,12 @@
   .nf{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}.nf b{font-size:1.8rem}.nf span{color:var(--dim);font-size:.8rem}
   .cx{margin-left:auto;border:2px solid var(--txt);border-radius:8px;padding:2px 10px;font-weight:800}
   dl{display:grid;grid-template-columns:92px 1fr;gap:6px 10px;font-size:.88rem}dt{color:var(--dim);font-size:.72rem;text-transform:uppercase;padding-top:2px}dd{font-weight:700}
-  h2{font-size:.85rem;margin-bottom:8px;display:flex;justify-content:space-between}
+  h2{font-size:.85rem;margin-bottom:8px;display:flex;justify-content:space-between;gap:8px}
   table{width:100%;border-collapse:collapse;font-size:.84rem}
   th{text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--bd);padding:6px 4px}
   td{border-bottom:1px solid var(--bd);padding:7px 4px;vertical-align:top}td.q{text-align:right;font-weight:800;white-space:nowrap}
   .cod{font-family:ui-monospace,Consolas,monospace;font-size:.76rem;color:var(--dim)}
-  .msg{text-align:center;color:var(--dim);padding:30px 10px}
+  .msg{text-align:center;color:var(--dim);padding:30px 10px}.aviso{color:var(--warn);font-size:.8rem;padding:8px 0}
   .rod{text-align:center;font-size:.7rem;color:var(--dim);margin-top:6px}
 </style>
 </head>
@@ -33,31 +33,59 @@
     cgr: { url: 'https://rqzqetfoxiutabsooqqn.supabase.co', key: 'sb_publishable_P3EggMdsxQUoKnX_pLMaRQ_ZrGEYpIP' },
     cba: { url: 'https://cyztucqhfotqhauavepu.supabase.co', key: 'sb_publishable_LnJYIlIDvTF6l4MMQwZ-Kg_uCBXnZRM' }
   };
+  var EMP = {
+    CGR: { razao: 'GF MEDICAL COMÉRCIO E REPRESENTAÇÕES LTDA', cnpj: '07.356.800/0001-99', end: 'Av. Mato Grosso, 3049 - Loja 01 - Campo Grande/MS' },
+    CBA: { razao: 'GF MEDICAL COMÉRCIO E REPRESENTAÇÕES LTDA', cnpj: '07.356.800/0002-70', end: 'Av. Historiador Rubens de Mendonça, 2000 - Salas 1207 a 1210 - Cuiabá/MT' }
+  };
   var q = new URLSearchParams(location.search), f = (q.get('f') || '').toLowerCase(), id = q.get('id') || '', app = document.getElementById('app');
+  var z = (location.hash.match(/[#&]z=([A-Za-z0-9_-]+)/) || [])[1];
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var erro = function (t) { app.innerHTML = '<div class="card msg">' + t + '</div>'; };
-  var b = BANCOS[f];
-  if (!b || !/^[0-9a-f-]{36}$/i.test(id)) return erro('Link de etiqueta inválido.');
-  fetch(b.url + '/rest/v1/rpc/etiqueta_publica', { method: 'POST', headers: { apikey: b.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: id }) })
-    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-    .then(function (res) {
-      var e = res.j;
-      if (!res.ok || !e || typeof e !== 'object' || !e.id) return erro('Etiqueta não encontrada.<br><small>Se acabou de imprimir, tente de novo em instantes.</small>');
-      var emp = e.emp || {}, itens = Array.isArray(e.itens) ? e.itens : [], un = itens.reduce(function (a, i) { return a + (+i.qtd || 0); }, 0);
-      var linha = function (r, v) { return v ? '<dt>' + r + '</dt><dd>' + esc(v) + '</dd>' : ''; };
-      document.title = 'NF ' + (e.nf || 'sem NF') + ' — ' + (e.paciente || 'GF Medical');
-      app.innerHTML =
-        '<div class="card"><div class="emp"><b>' + esc(emp.razao || 'GF MEDICAL COMÉRCIO E REPRESENTAÇÕES LTDA') + '</b>' + (emp.cnpj ? '<span>CNPJ ' + esc(emp.cnpj) + '</span>' : '') + (emp.end ? '<span>' + esc(emp.end) + '</span>' : '') + '</div>' +
-        '<span class="tag">' + esc(e.tipo || 'Material cirúrgico') + '</span></div>' +
-        '<div class="card"><div class="nf">NF <b>' + esc(e.nf || 'SEM NF') + '</b>' + (e.nf_data ? '<span>emissão ' + esc(e.nf_data) + '</span>' : '') + (e.caixa ? '<span class="cx">' + esc(e.caixa) + '</span>' : '') + '</div>' +
-        '<dl>' + linha('Paciente', e.paciente) + linha('Médico', e.medico) + linha('Vendedor', e.vendedor) + linha('Hospital', [e.hospital, e.cidade].filter(Boolean).join(' — ')) + linha('Convênio', e.convenio) + linha('Cirurgia', e.cirurgia) + linha('Procedimento', e.procedimento) + '</dl></div>' +
-        '<div class="card"><h2><span>📋 Itens' + (e.caixa ? ' deste volume' : ' da NF') + '</span><span>' + itens.length + ' item(ns) · ' + un + ' un</span></h2>' +
-        (itens.length ? '<table><thead><tr><th>Qtd</th><th>Produto</th><th>Lote</th></tr></thead><tbody>' + itens.map(function (i) {
-          return '<tr><td class="q">' + esc(i.qtd) + '×</td><td>' + esc(i.nome || i.cod) + (i.cod && i.nome ? '<div class="cod">' + esc(i.cod) + '</div>' : '') + '</td><td class="cod">' + esc(i.lote || '—') + '</td></tr>';
-        }).join('') + '</tbody></table>' : '<div class="msg" style="padding:12px">Sem itens registrados nesta etiqueta.</div>') + '</div>' +
-        '<div class="rod">Etiqueta impressa em ' + new Date(e.impresso_em).toLocaleString('pt-BR') + '</div>';
-    })
-    .catch(function () { erro('Sem conexão para carregar a etiqueta.'); });
+
+  function mostrar(e) {
+    var emp = e.emp || EMP[(f || 'cgr').toUpperCase()] || EMP.CGR, itens = Array.isArray(e.itens) ? e.itens : null;
+    var un = (itens || []).reduce(function (a, i) { return a + (+i.qtd || 0); }, 0);
+    var linha = function (r, v) { return v ? '<dt>' + r + '</dt><dd>' + esc(v) + '</dd>' : ''; };
+    document.title = 'NF ' + (e.nf || 'sem NF') + ' — ' + (e.paciente || 'GF Medical');
+    app.innerHTML =
+      '<div class="card"><div class="emp"><b>' + esc(emp.razao) + '</b>' + (emp.cnpj ? '<span>CNPJ ' + esc(emp.cnpj) + '</span>' : '') + (emp.end ? '<span>' + esc(emp.end) + '</span>' : '') + '</div>' +
+      '<span class="tag">' + esc(e.tipo || 'Material cirúrgico') + '</span></div>' +
+      '<div class="card"><div class="nf">NF <b>' + esc(e.nf || 'SEM NF') + '</b>' + (e.nf_data ? '<span>emissão ' + esc(e.nf_data) + '</span>' : '') + (e.caixa ? '<span class="cx">' + esc(e.caixa) + '</span>' : '') + '</div>' +
+      '<dl>' + linha('Paciente', e.paciente) + linha('Médico', e.medico) + linha('Vendedor', e.vendedor) + linha('Hospital', [e.hospital, e.cidade].filter(Boolean).join(' — ')) + linha('Convênio', e.convenio) + linha('Cirurgia', e.cirurgia) + linha('Procedimento', e.procedimento) + '</dl></div>' +
+      '<div class="card"><h2><span>📋 Itens da NF</span><span>' + (itens ? itens.length + ' item(ns) · ' + un + ' un' : (e.total ? e.total : '')) + '</span></h2>' +
+      (e.carregando ? '<div class="msg" style="padding:12px">Carregando os itens…</div>' :
+       e.aviso ? '<div class="aviso">' + e.aviso + '</div>' :
+       itens && itens.length ? '<table><thead><tr><th>Qtd</th><th>Produto</th><th>Lote</th></tr></thead><tbody>' + itens.map(function (i) {
+         return '<tr><td class="q">' + esc(i.qtd) + '×</td><td>' + esc(i.nome || i.cod) + (i.cod && i.nome ? '<div class="cod">' + esc(i.cod) + '</div>' : '') + '</td><td class="cod">' + esc(i.lote || '—') + '</td></tr>';
+       }).join('') + '</tbody></table>' : '<div class="msg" style="padding:12px">Sem itens registrados nesta etiqueta.</div>') + '</div>' +
+      (e.impresso_em ? '<div class="rod">Etiqueta impressa em ' + new Date(e.impresso_em).toLocaleString('pt-BR') + '</div>' : '');
+  }
+  function buscarBanco(ok, falha) {
+    var b = BANCOS[f];
+    if (!b || !/^[0-9a-f-]{36}$/i.test(id)) return falha('link sem identificação');
+    fetch(b.url + '/rest/v1/rpc/etiqueta_publica', { method: 'POST', headers: { apikey: b.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: id }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) { var e = res.j; if (res.ok && e && typeof e === 'object' && e.id) ok(e); else falha(res.ok ? 'não encontrada' : 'banco sem a função etiqueta_publica'); })
+      .catch(function () { falha('sem conexão'); });
+  }
+  function abrirZ(cb) {
+    if (!window.DecompressionStream) return erro('Abra este link num navegador atualizado (Chrome, Safari ou Edge).');
+    var bin = atob(z.replace(/-/g, '+').replace(/_/g, '/')), u8 = new Uint8Array(bin.length);
+    for (var k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+    new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text().then(function (t) { cb(JSON.parse(t)); })
+      .catch(function () { erro('Não consegui ler esta etiqueta.'); });
+  }
+
+  if (z) return abrirZ(function (d) {
+    var cab = { emp: EMP[d.f] || EMP.CGR, tipo: d.r || 'Material cirúrgico', nf: d.n, nf_data: d.d, caixa: d.c, paciente: d.p, medico: d.m, vendedor: d.v, hospital: d.h, convenio: d.cv, cirurgia: d.ci, procedimento: d.pr,
+      total: d.t ? d.t + ' item(ns) · ' + (d.u || 0) + ' un' : '' };
+    if (d.i) { cab.itens = d.i.map(function (x) { return { qtd: x[0], cod: x[1], lote: x[2], nome: x[3] }; }); return mostrar(cab); }
+    cab.carregando = true; mostrar(cab); cab.carregando = false;
+    buscarBanco(function (e) { cab.itens = e.itens || []; cab.impresso_em = e.impresso_em; mostrar(cab); },
+      function (motivo) { cab.aviso = 'Não consegui carregar a lista de itens (' + esc(motivo) + '). A etiqueta tem ' + esc(cab.total || 'vários itens') + '.'; mostrar(cab); });
+  });
+  if (id) return buscarBanco(mostrar, function (motivo) { erro('Etiqueta não encontrada (' + esc(motivo) + ').'); });
+  erro('Link de etiqueta inválido.');
 })();
 </script>
 </body>
