@@ -23001,7 +23001,7 @@ else init();
             const desenhar = () => {
                 if (!caixas.length) {   // nenhuma caixa identificada nesta cirurgia: pergunta genérica
                     const ops = cadastro.filter(c => c.status !== 'Baixada');
-                    sec.innerHTML = `<div style="font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#0d9488;margin-bottom:8px">📦 A embalagem (caixa plástica, bag ou sacola) voltou junto com o material?</div>
+                    sec.innerHTML = `<div style="font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#0d9488;margin-bottom:8px">📦 A caixa voltou junto com o material cirúrgico?</div>
                       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-gen="sim" style="${bt};${resp._gen === 'sim' ? 'background:#4db87a;color:#fff;border-color:#4db87a' : ''}">✅ Voltou / não foi embalagem</button>
                       <button type="button" data-gen="nao" style="${bt};${resp._gen === 'nao' ? 'background:#d94f4f;color:#fff;border-color:#d94f4f' : ''}">⏳ Não voltou</button></div>
                       ${resp._gen === 'nao' ? (ops.length ? `<div style="margin-top:8px;font-size:.72rem;font-weight:700;color:var(--text)">Qual ficou? <select data-gencod style="padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg,#fff);color:var(--text);font-size:.76rem">
@@ -23010,7 +23010,7 @@ else init();
                       <div style="font-size:.68rem;color:var(--text-dim);margin-top:6px">Se não voltou, fica pendente e entra na cobrança.</div>`;
                     return;
                 }
-                sec.innerHTML = `<div style="font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#0d9488;margin-bottom:8px">📦 A embalagem voltou junto com o material?</div>`
+                sec.innerHTML = `<div style="font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#0d9488;margin-bottom:8px">📦 A caixa voltou junto com o material cirúrgico?</div>`
                     + caixas.map(c => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;flex-wrap:wrap"><b style="font-family:var(--mono);flex:1;min-width:120px">${CX_ICO[c.tipo] || '📦'} ${esc(c.codigo)} <span style="font-weight:400;font-size:.7rem;color:var(--text-dim)">${c.tipo === 'Caixa' ? 'Caixa plástica' : esc(c.tipo)}</span></b>
                         <button type="button" data-cxr="${c.id}" data-v="sim" style="${bt};${resp[c.id] === 'sim' ? 'background:#4db87a;color:#fff;border-color:#4db87a' : ''}">✅ Voltou</button>
                         <button type="button" data-cxr="${c.id}" data-v="nao" style="${bt};${resp[c.id] === 'nao' ? 'background:#d94f4f;color:#fff;border-color:#d94f4f' : ''}">⏳ Não voltou</button></div>`).join('')
