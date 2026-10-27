@@ -22694,6 +22694,28 @@ else init();
     };
     function injetarBotoesEtiqueta() {
         try { injetarVolumeFicha(); } catch (e) {}
+        // Em Procedimento: botão "Retirou?" (abre a confirmação de retirada, com a pergunta das embalagens)
+        try {
+            const RET_CSS = 'background:rgba(249,115,22,0.15);border:1.5px solid #f97316;color:#f97316;font-weight:700';
+            document.querySelectorAll('#procTable tbody tr').forEach(tr => {
+                const box = tr.querySelector('.table-actions'); if (!box || box.querySelector('.btn-retirou-and')) return;
+                const id = ((tr.getAttribute('onclick') || '').match(/\('([^']+)'\)/) || [])[1], p = id && procPorId(id);
+                if (!p || p.status !== 'andamento' || box.querySelector('[onclick^="confirmarRetiradaCirurgia"]')) return;
+                const b = document.createElement('button'); b.className = 'table-btn btn-retirou-and'; b.style.cssText = RET_CSS; b.textContent = '📦 Retirou?';
+                b.title = 'O material desta cirurgia já foi retirado? (pergunta também se a caixa/bag/sacola voltou)';
+                b.onclick = e => { e.stopPropagation(); window.confirmarRetiradaCirurgia(id); };
+                box.insertBefore(b, box.firstChild);
+            });
+            document.querySelectorAll('.proc-card[data-id]').forEach(card => {
+                const act = card.querySelector('.card-actions'); if (!act || act.querySelector('.btn-retirou-and,[onclick^="confirmarRetiradaCirurgia"]')) return;
+                const id = card.getAttribute('data-id'), p = procPorId(id); if (!p || p.status !== 'andamento') return;
+                const b = document.createElement('button'); b.className = 'btn-act btn-retirou-and'; b.style.cssText = RET_CSS; b.textContent = '📦 Retirou?';
+                b.onclick = e => { e.stopPropagation(); window.confirmarRetiradaCirurgia(id); };
+                act.insertBefore(b, act.firstChild);
+            });
+            // o botão some quando a cirurgia sai de Em Procedimento
+            document.querySelectorAll('.btn-retirou-and').forEach(b => { const tr = b.closest('tr, .proc-card'); const id = tr && (tr.getAttribute('data-id') || ((tr.getAttribute('onclick') || '').match(/\('([^']+)'\)/) || [])[1]); const p = id && procPorId(id); if (p && p.status !== 'andamento') b.remove(); });
+        } catch (e) { console.warn('botão Retirou?:', e); }
         document.querySelectorAll('#procTable tbody tr').forEach(tr => {
             const box = tr.querySelector('.table-actions');
             if (!box || box.querySelector('.btn-etq-qr')) return;
@@ -22972,31 +22994,53 @@ else init();
             if (!ov || !p || ov.querySelector('#cx-ret-perg')) return r;
             const btnSim = ov.querySelector('#btnConfCirSim'), btnNao = ov.querySelector('#btnConfCirNao'), btnFinal = ov.querySelector('#btnConfirmarCirFinal');
             if (!btnSim || !btnFinal) return r;
-            const pid = String(p._docId || p.id || ''), resp = {}; let caixas = [], escolha = null;
+            const pid = String(p._docId || p.id || ''), resp = {}; let caixas = [], cadastro = [], escolha = null;
             const sec = document.createElement('div'); sec.id = 'cx-ret-perg'; sec.style.cssText = 'display:none;margin:0 0 16px;padding:12px 14px;border-radius:10px;border:2px solid #0d9488;background:rgba(13,148,136,.06)';
             btnFinal.insertAdjacentElement('beforebegin', sec);
             const bt = 'padding:7px 12px;border-radius:8px;border:2px solid var(--border);background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:.74rem;font-weight:700;cursor:pointer';
             const desenhar = () => {
+                if (!caixas.length) {   // nenhuma caixa identificada nesta cirurgia: pergunta genérica
+                    const ops = cadastro.filter(c => c.status !== 'Baixada');
+                    sec.innerHTML = `<div style="font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#0d9488;margin-bottom:8px">📦 A embalagem (caixa plástica, bag ou sacola) voltou junto com o material?</div>
+                      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-gen="sim" style="${bt};${resp._gen === 'sim' ? 'background:#4db87a;color:#fff;border-color:#4db87a' : ''}">✅ Voltou / não foi embalagem</button>
+                      <button type="button" data-gen="nao" style="${bt};${resp._gen === 'nao' ? 'background:#d94f4f;color:#fff;border-color:#d94f4f' : ''}">⏳ Não voltou</button></div>
+                      ${resp._gen === 'nao' ? (ops.length ? `<div style="margin-top:8px;font-size:.72rem;font-weight:700;color:var(--text)">Qual ficou? <select data-gencod style="padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg,#fff);color:var(--text);font-size:.76rem">
+                          <option value="">— escolha —</option>${ops.map(c => `<option value="${c.id}" ${resp._genCod === c.id ? 'selected' : ''}>${esc(c.codigo)} · ${c.tipo === 'Caixa' ? 'Caixa plástica' : esc(c.tipo)}${c.status === 'Fora' ? ' (fora: ' + esc(c.local_atual || '') + ')' : ''}</option>`).join('')}</select></div>`
+                          : '<div style="margin-top:8px;font-size:.72rem;color:#b45309">Nenhuma embalagem cadastrada: cadastre em 📦 Caixas, bags e sacolas para controlar a pendência.</div>') : ''}
+                      <div style="font-size:.68rem;color:var(--text-dim);margin-top:6px">Se não voltou, fica pendente e entra na cobrança.</div>`;
+                    return;
+                }
                 sec.innerHTML = `<div style="font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#0d9488;margin-bottom:8px">📦 A embalagem voltou junto com o material?</div>`
                     + caixas.map(c => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;flex-wrap:wrap"><b style="font-family:var(--mono);flex:1;min-width:120px">${CX_ICO[c.tipo] || '📦'} ${esc(c.codigo)} <span style="font-weight:400;font-size:.7rem;color:var(--text-dim)">${c.tipo === 'Caixa' ? 'Caixa plástica' : esc(c.tipo)}</span></b>
                         <button type="button" data-cxr="${c.id}" data-v="sim" style="${bt};${resp[c.id] === 'sim' ? 'background:#4db87a;color:#fff;border-color:#4db87a' : ''}">✅ Voltou</button>
                         <button type="button" data-cxr="${c.id}" data-v="nao" style="${bt};${resp[c.id] === 'nao' ? 'background:#d94f4f;color:#fff;border-color:#d94f4f' : ''}">⏳ Não voltou</button></div>`).join('')
                     + `<div style="font-size:.68rem;color:var(--text-dim);margin-top:4px">Se não voltou, fica pendente e entra na cobrança.</div>`;
             };
-            const mostrar = () => { sec.style.display = escolha === 'sim' && caixas.length ? '' : 'none'; };
+            const mostrar = () => { sec.style.display = escolha === 'sim' ? '' : 'none'; };
+            desenhar();
             // caixas desta cirurgia: as registradas no rastreio + as anotadas na etiqueta (Nº da caixa)
             carregarCaixas(true).then(l => {
                 if (!l || l.erro) return;
+                cadastro = l;
                 const cods = codigosNoTexto(caixaSalva(p));
                 caixas = l.filter(c => ((c.status === 'Fora' || c.status === 'Pendente') && c.proc_id_atual === pid) || (cods.includes(c.codigo) && c.status !== 'Baixada'));
                 caixas = caixas.filter((c, i) => caixas.findIndex(x => x.id === c.id) === i);
                 desenhar(); mostrar();
             }).catch(() => {});
-            sec.addEventListener('click', e => { const b = e.target.closest('[data-cxr]'); if (!b) return; resp[b.dataset.cxr] = b.dataset.v; desenhar(); });
+            sec.addEventListener('click', e => { const g = e.target.closest('[data-gen]'); if (g) { resp._gen = g.dataset.gen; desenhar(); return; }
+                const b = e.target.closest('[data-cxr]'); if (!b) return; resp[b.dataset.cxr] = b.dataset.v; desenhar(); });
+            sec.addEventListener('change', e => { if (e.target.matches('[data-gencod]')) resp._genCod = e.target.value; });
             ov.addEventListener('click', async e => {
                 if (e.target.closest('#btnConfCirSim')) { escolha = 'sim'; mostrar(); return; }
                 if (e.target.closest('#btnConfCirNao')) { escolha = 'nao'; mostrar(); return; }
-                if (!e.target.closest('#btnConfirmarCirFinal') || escolha !== 'sim' || !caixas.length) return;
+                if (!e.target.closest('#btnConfirmarCirFinal') || escolha !== 'sim') return;
+                if (!caixas.length) {
+                    const ops = cadastro.filter(c => c.status !== 'Baixada');
+                    if (!resp._gen || (resp._gen === 'nao' && ops.length && !resp._genCod)) { e.stopPropagation(); e.preventDefault(); sec.style.boxShadow = '0 0 0 3px rgba(220,38,38,.35)';
+                        alert(!resp._gen ? 'Responda se a embalagem (caixa, bag ou sacola) voltou junto com o material.' : 'Escolha qual embalagem não voltou.'); return; }
+                    if (resp._gen === 'nao' && resp._genCod) { const c = cadastro.find(x => x.id === resp._genCod); if (c) { caixas = [c]; resp[c.id] = 'nao'; } }
+                    if (!caixas.length) return;
+                }
                 const falta = caixas.filter(c => !resp[c.id]);
                 if (falta.length) { e.stopPropagation(); e.preventDefault(); sec.style.boxShadow = '0 0 0 3px rgba(220,38,38,.35)'; alert('Responda se ' + falta.map(c => c.codigo).join(', ') + ' voltou junto com o material.'); return; }
                 // registra as respostas (o fluxo normal da retirada continua)
