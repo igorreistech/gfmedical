@@ -22485,6 +22485,11 @@ else init();
         const z = await compactar(JSON.stringify(cab));
         return pasta + `etiqueta.html?f=${fil.toLowerCase()}&id=${c.etqId}` + (z ? '#z=' + z : '');
     }
+    // Logo da GF no centro do QR (embutida, para funcionar na janela de impressão)
+    let _logoQR = null;
+    const logoQR = () => _logoQR || (_logoQR = fetch('logo.jpg', { cache: 'force-cache' }).then(r => r.ok ? r.blob() : null)
+        .then(b => b ? new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = () => ok(''); fr.readAsDataURL(b); }) : '').catch(() => ''));
+    const comLogo = (svg, logo) => logo ? `<div style="position:relative;width:100%;height:100%">${svg}<img src="${logo}" alt="GF" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:23%;background:#fff;padding:2.5%;border-radius:6%;box-sizing:content-box"></div>` : svg;
     function textoQR(c) {
         // curto de propósito: QR com muito texto fica denso demais e a câmera não lê na etiqueta 85x100
         const un = (c.itens || []).reduce((a, i) => a + (+i.qtd || 0), 0), corta = (v, n) => String(v || '').slice(0, n);
@@ -22527,15 +22532,16 @@ else init();
             x.c = Object.assign(camposEtiqueta(x.p, x.caixa ?? caixa ?? caixaSalva(x.p)), { tipo: x.tipo || '', itens: x.itens || [], volume: x.volume || '' });
             x.c.etqId = novoIdEtiqueta(); x.qrConteudo = await conteudoQR(x.c, x.p);
         }
+        const logo = await logoQR();
         const etiquetas = procs.map(({ p, c, qrConteudo }) => {
-            const qr = qrcode(0, 'L');
+            const qr = qrcode(0, logo ? 'Q' : 'L');
             gerados.push({ p, c });
             c.etqId = c.etqId || novoIdEtiqueta(); qr.addData(qrConteudo); qr.make(); const grande = qr.getModuleCount() > 57, muitos = c.itens.length > 5;
             const linha = (r, v) => v ? `<tr><th>${r}</th><td>${esc(v)}</td></tr>` : '';
             return `<section class="et${c.itens.length ? ' v' : ''}${grande ? ' g' : ''}${muitos ? ' m' : ''}">
               <div class="topo"><div class="emp"><b>${esc(c.emp.razao)}</b><span>CNPJ ${esc(c.emp.cnpj)}</span><span>${esc(c.emp.end)}</span></div><span class="tp">${esc(c.remessa || 'Material cirúrgico')}${c.nf ? '' : '<br><b>SEM NF</b>'}</span></div>
               <div class="nfl"><div class="nf">NF <b>${esc(c.nf || '—')}</b>${c.nfData ? `<span>emissão ${esc(c.nfData)}</span>` : ''}</div>${c.caixa ? `<div class="cx"><small>${esc((c.tipo || 'Caixa').toUpperCase())}</small><b>${esc(c.caixa)}</b></div>` : ''}</div>
-              <div class="meio"><div class="qr">${qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div>
+              <div class="meio"><div class="qr">${comLogo(qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true }), logo)}</div>
               <table>${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Vendedor', c.vendedor)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}${linha('Procedimento', c.procedimento)}</table></div>${c.itens.length ? `<div class="its"><b>${c.volume ? 'Itens neste volume · ' + esc(c.volume) : 'Itens da NF'} (${c.itens.reduce((a, i) => a + (+i.qtd || 0), 0)} un)</b><ul>${c.itens.map(i => `<li>${esc(i.qtd)}× ${esc(i.nome || i.cod)}${i.lote ? ' · lote ' + esc(i.lote) : ''}</li>`).join('')}</ul></div>` : ''}
               <div class="itn">${c.itens.length} item(ns) · ${c.itens.reduce((a, i) => a + (+i.qtd || 0), 0)} un — lista completa no QR Code</div>
               <div class="rod">Aponte a câmera do celular para o QR Code para ver tudo o que está na NF.</div>
@@ -22581,7 +22587,8 @@ else init();
         let qrcode;
         try { qrcode = await carregarLib(); } catch (e) { alert('⚠️ ' + e.message); return; }
         qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
-        const svgQR = c => { const qr = qrcode(0, 'L'); const t = textoQRCompleto(c); qr.addData(t.length <= QR_TXT_MAX ? t : textoQR(c)); qr.make(); return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace('<svg ', '<svg style="width:100%;height:100%" '); };
+        const logoPrev = await logoQR();
+        const svgQR = c => { const qr = qrcode(0, logoPrev ? 'Q' : 'L'); const t = textoQRCompleto(c); qr.addData(t.length <= QR_TXT_MAX ? t : textoQR(c)); qr.make(); return comLogo(qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true }).replace('<svg ', '<svg style="width:100%;height:100%" '), logoPrev); };
         const c = Object.assign(camposEtiqueta(proc, caixaSalva(proc)), { itens: await itensParaEtiqueta(proc) });
         const linha = (r, v) => v ? `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border,#ddd)"><span style="min-width:78px;color:var(--text-dim,#666);font-size:.7rem;text-transform:uppercase">${r}</span><b style="font-size:.8rem;text-align:left">${esc(v)}</b></div>` : '';
         const ov = document.createElement('div');
@@ -23410,14 +23417,14 @@ else init();
             let qrcode; try { qrcode = await carregarLib(); } catch (e) { return alert('⚠️ ' + e.message); }
             qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
             const w = window.open('', '_blank'); if (!w) return alert('Libere as janelas pop-up para imprimir.');
-            const pasta = location.origin + location.pathname.replace(/[^/]*$/, '');
+            const pasta = location.origin + location.pathname.replace(/[^/]*$/, ''), logo = await logoQR();
             const cards = lista.map(c => {
-                const fil = c.filial || filialAtual(null) || 'CGR', emp = EMPRESA[fil] || EMPRESA.CGR, q = qrcode(0, 'M');
+                const fil = c.filial || filialAtual(null) || 'CGR', emp = EMPRESA[fil] || EMPRESA.CGR, q = qrcode(0, logo ? 'H' : 'M');
                 q.addData(c.token ? `${pasta}etiqueta.html?f=${fil.toLowerCase()}&cx=${c.codigo}&t=${c.token}` : `GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
                 return `<section class="e">
                   <div class="topo"><b>${esc(emp.razao)}</b><span>CNPJ ${esc(emp.cnpj)}</span><span>${esc(emp.end)}</span></div>
                   <div class="cod"><small>${c.tipo === 'Bag' ? '🎒 BAG' : '📦 CAIXA'}</small><b>${esc(c.codigo)}</b>${c.descricao ? `<span>${esc(c.descricao)}</span>` : ''}</div>
-                  <div class="qr">${q.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div>
+                  <div class="qr"><div style="width:44mm;height:44mm">${comLogo(q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }), logo)}</div></div>
                   <div class="rod"><b>PROPRIEDADE DA GF MEDICAL</b><span>Se encontrar, favor devolver.${c.token ? ' Leia o QR Code para ver o conteúdo.' : ''}</span></div>
                 </section>`; }).join('');
             w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas caixas e bags</title><style>
