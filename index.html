@@ -23645,7 +23645,24 @@ else init();
         </div>`;
         document.body.appendChild(ov);
         const $ = s => ov.querySelector(s);
+        function atualizarEtq() {
+            const b = $('[data-a="etq"]'); if (!b) return;
+            b.textContent = sel.size ? `🏷 Imprimir ${sel.size} selecionada${sel.size > 1 ? 's' : ''}` : `🏷 Etiquetas (${linhas.length})`;
+            b.title = sel.size ? 'Imprime as etiquetas das caixas/bags/sacolas marcadas' : 'Imprime as etiquetas de todas da lista filtrada';
+            b.style.background = sel.size ? '#2563eb' : 'transparent'; b.style.color = sel.size ? '#fff' : 'var(--text)'; b.style.borderColor = sel.size ? '#2563eb' : 'var(--border,#ccc)';
+        }
+        ov.addEventListener('click', e => {
+            const t = e.target;
+            if (t.matches('[data-selall]')) { linhas.forEach(c => t.checked ? sel.add(c.id) : sel.delete(c.id)); ultSel = -1; return desenhar(); }
+            if (!t.matches('[data-selcx]')) return;
+            const i = +t.dataset.idx, marcar = t.checked;
+            if (e.shiftKey && ultSel >= 0) linhas.slice(Math.min(i, ultSel), Math.max(i, ultSel) + 1).forEach(c => marcar ? sel.add(c.id) : sel.delete(c.id));
+            else marcar ? sel.add(linhas[i].id) : sel.delete(linhas[i].id);
+            ultSel = i; desenhar();
+        });
         let cxs = [], fSt = '', modo = 'Retorno', linhas = [];
+        // seleção para imprimir etiquetas em lote (caixinha em cada linha; Shift+clique marca a faixa)
+        const sel = new Set(); let ultSel = -1;
         const ST_COR = { 'Disponível': '#16a34a', 'Fora': '#2563eb', 'Pendente': '#dc2626', 'Manutenção': '#b45309', 'Baixada': '#6b7280' };
         const atrasada = c => (c.status === 'Fora' || c.status === 'Pendente') && diasDesde(c.saida_em) > CX_ATRASO;
         async function carregar() {
@@ -23662,15 +23679,18 @@ else init();
             const cont = s => s === 'atraso' ? cxs.filter(atrasada).length : s ? cxs.filter(c => c.status === s).length : cxs.length;
             $('[data-filtros]').innerHTML = [['', 'Todas'], ['Disponível', '✅ Disponíveis'], ['Fora', '🚚 Fora'], ['Pendente', '⏳ Não devolvidas'], ['atraso', `⏰ Fora há +${CX_ATRASO} dias`], ['Manutenção', '🔧 Manutenção'], ['Baixada', '🗑 Baixadas']]
                 .map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? 'background:#111827;color:#fff;border-color:#111827' : ''}">${n} <b>${cont(s)}</b></button>`).join('')
-                + `<span style="margin-left:auto;font-size:.72rem;color:var(--text-dim)">${cxs.filter(c => c.tipo === 'Caixa').length} caixa(s) · ${cxs.filter(c => c.tipo === 'Bag').length} bag(s) · ${cxs.filter(c => c.tipo === 'Sacola').length} sacola(s)</span>`;
+                + `<span style="margin-left:auto;font-size:.72rem;color:var(--text-dim)">${cxs.filter(c => c.tipo === 'Caixa').length} caixa(s) · ${cxs.filter(c => c.tipo === 'Bag').length} bag(s) · ${cxs.filter(c => c.tipo === 'Sacola').length} sacola(s)</span>`
+                + `<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px"><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏷 Etiquetas em lote:</span>`
+                + ['Caixa', 'Bag', 'Sacola'].map(t => `<button data-selt="${t}" style="${chip}">+ todas as ${t === 'Caixa' ? 'caixas' : t === 'Bag' ? 'bags' : 'sacolas'} da lista</button>`).join('')
+                + `<button data-selt="" style="${chip}">Limpar seleção</button><span style="font-size:.68rem;color:var(--text-dim)">ou marque as caixinhas (Shift+clique marca de uma até outra)</span></div>`;
             linhas = cxs.filter(c => !fSt || (fSt === 'atraso' ? atrasada(c) : c.status === fSt))
                 .filter(c => !q || [c.codigo, c.descricao, c.local_atual, c.nf_atual, c.tipo].some(v => String(v || '').toUpperCase().includes(q)));
             const th = 'padding:7px 8px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);text-align:left;position:sticky;top:0;background:var(--surface,#fff)';
             const td = 'padding:7px 8px;border-bottom:1px solid var(--border,#e5e7eb);font-size:.78rem;color:var(--text);vertical-align:middle';
             $('[data-corpo]').innerHTML = !cxs.length ? `<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:.85rem">Nenhuma caixa ou bag cadastrada ainda.<br><br><button data-a="novo" style="${bt};background:#111827;color:#fff">+ Cadastrar as primeiras</button></div>`
-              : `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr><th style="${th}">Código</th><th style="${th}">Descrição</th><th style="${th}">Situação</th><th style="${th}">Onde está</th><th style="${th}">Desde</th><th style="${th}">NF</th><th style="${th};text-align:right">Ações</th></tr></thead><tbody>
-                ${linhas.map(c => { const d = diasDesde(c.saida_em), at = atrasada(c);
-                  return `<tr style="${at ? 'background:rgba(220,38,38,.06)' : ''}"><td style="${td}"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${CX_ICO[c.tipo] || '📦'} ${esc(c.tipo)}</span></td>
+              : `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr><th style="${th};width:28px"><input type="checkbox" data-selall title="Marcar todas da lista" ${linhas.length && linhas.every(c => sel.has(c.id)) ? 'checked' : ''}></th><th style="${th}">Código</th><th style="${th}">Descrição</th><th style="${th}">Situação</th><th style="${th}">Onde está</th><th style="${th}">Desde</th><th style="${th}">NF</th><th style="${th};text-align:right">Ações</th></tr></thead><tbody>
+                ${linhas.map((c, iL) => { const d = diasDesde(c.saida_em), at = atrasada(c);
+                  return `<tr style="${at ? 'background:rgba(220,38,38,.06)' : sel.has(c.id) ? 'background:rgba(37,99,235,.08)' : ''}"><td style="${td}"><input type="checkbox" data-selcx="${c.id}" data-idx="${iL}" ${sel.has(c.id) ? 'checked' : ''}></td><td style="${td}"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${CX_ICO[c.tipo] || '📦'} ${esc(c.tipo)}</span></td>
                     <td style="${td}">${esc(c.descricao || '')}</td>
                     <td style="${td}"><span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>${at ? ' <span style="color:#dc2626;font-size:.7rem;font-weight:800">⏰ atrasada</span>' : ''}</td>
                     <td style="${td}">${esc(c.local_atual || 'Estoque')}</td>
@@ -23682,8 +23702,9 @@ else init();
                       ${c.status === 'Fora' ? `<button data-cons="${c.id}" style="${bt};padding:4px 9px" title="Ver a cirurgia e os itens desta caixa">🔍</button>` : ''}
                       <button data-hist="${c.id}" style="${bt};padding:4px 9px" title="Histórico: para onde foi e quando voltou">🕘</button>
                       <button data-etq1="${c.id}" style="${bt};padding:4px 9px" title="Etiqueta QR desta caixa/bag">🏷</button>
-                      <button data-edit="${c.id}" style="${bt};padding:4px 9px" title="Editar / manutenção / baixa">✎</button></td></tr>`; }).join('') || `<tr><td colspan="7" style="${td};text-align:center;color:var(--text-dim);padding:18px">Nada com esses filtros.</td></tr>`}
+                      <button data-edit="${c.id}" style="${bt};padding:4px 9px" title="Editar / manutenção / baixa">✎</button></td></tr>`; }).join('') || `<tr><td colspan="8" style="${td};text-align:center;color:var(--text-dim);padding:18px">Nada com esses filtros.</td></tr>`}
               </tbody></table>`;
+            atualizarEtq();
         }
         const form = html => { $('[data-form]').innerHTML = html ? `<div style="margin:10px 18px 0;padding:12px 14px;border:1px solid var(--border,#ccc);border-radius:12px;background:var(--bg,#f9fafb)">${html}</div>` : ''; };
         const campo = (rot, h) => `<label style="display:flex;flex-direction:column;gap:3px;font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase">${rot}${h}</label>`;
@@ -23805,7 +23826,8 @@ else init();
                 if (d.etqcir) { const pc = procPorId(d.etqcir); if (pc) window.abrirQRCode(pc); return; }
                 if (d.etq1) return etiquetas([porId(d.etq1)]);
                 if (d.edit) return formNovo(porId(d.edit));
-                if (d.a === 'etq') return etiquetas(linhas);
+                if (d.selt !== undefined) { if (!d.selt) sel.clear(); else linhas.filter(c => c.tipo === d.selt).forEach(c => sel.add(c.id)); ultSel = -1; return desenhar(); }
+                if (d.a === 'etq') return etiquetas(sel.size ? cxs.filter(c => sel.has(c.id)).sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt-BR', { numeric: true })) : linhas);
                 if (d.a === 'gravarNovo') {
                     if (b.disabled) return; b.disabled = true; const txtB = b.textContent; b.textContent = '⏳ Salvando…';
                     try {
