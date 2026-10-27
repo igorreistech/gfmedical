@@ -22963,6 +22963,60 @@ else init();
             return r;
         };
     }
+    // ── "Confirmar retirada": a caixa/bag/sacola voltou junto com o material? ──
+    if (typeof window.confirmarRetiradaCirurgia === 'function') {
+        const _origConfRet2 = window.confirmarRetiradaCirurgia;
+        window.confirmarRetiradaCirurgia = function (docId) {
+            const r = _origConfRet2.apply(this, arguments);
+            const ov = document.getElementById('modalConfRetiradaCirurgia'), p = procPorId(docId);
+            if (!ov || !p || ov.querySelector('#cx-ret-perg')) return r;
+            const btnSim = ov.querySelector('#btnConfCirSim'), btnNao = ov.querySelector('#btnConfCirNao'), btnFinal = ov.querySelector('#btnConfirmarCirFinal');
+            if (!btnSim || !btnFinal) return r;
+            const pid = String(p._docId || p.id || ''), resp = {}; let caixas = [], escolha = null;
+            const sec = document.createElement('div'); sec.id = 'cx-ret-perg'; sec.style.cssText = 'display:none;margin:0 0 16px;padding:12px 14px;border-radius:10px;border:2px solid #0d9488;background:rgba(13,148,136,.06)';
+            btnFinal.insertAdjacentElement('beforebegin', sec);
+            const bt = 'padding:7px 12px;border-radius:8px;border:2px solid var(--border);background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:.74rem;font-weight:700;cursor:pointer';
+            const desenhar = () => {
+                sec.innerHTML = `<div style="font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#0d9488;margin-bottom:8px">📦 A embalagem voltou junto com o material?</div>`
+                    + caixas.map(c => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;flex-wrap:wrap"><b style="font-family:var(--mono);flex:1;min-width:120px">${CX_ICO[c.tipo] || '📦'} ${esc(c.codigo)} <span style="font-weight:400;font-size:.7rem;color:var(--text-dim)">${c.tipo === 'Caixa' ? 'Caixa plástica' : esc(c.tipo)}</span></b>
+                        <button type="button" data-cxr="${c.id}" data-v="sim" style="${bt};${resp[c.id] === 'sim' ? 'background:#4db87a;color:#fff;border-color:#4db87a' : ''}">✅ Voltou</button>
+                        <button type="button" data-cxr="${c.id}" data-v="nao" style="${bt};${resp[c.id] === 'nao' ? 'background:#d94f4f;color:#fff;border-color:#d94f4f' : ''}">⏳ Não voltou</button></div>`).join('')
+                    + `<div style="font-size:.68rem;color:var(--text-dim);margin-top:4px">Se não voltou, fica pendente e entra na cobrança.</div>`;
+            };
+            const mostrar = () => { sec.style.display = escolha === 'sim' && caixas.length ? '' : 'none'; };
+            // caixas desta cirurgia: as registradas no rastreio + as anotadas na etiqueta (Nº da caixa)
+            carregarCaixas(true).then(l => {
+                if (!l || l.erro) return;
+                const cods = codigosNoTexto(caixaSalva(p));
+                caixas = l.filter(c => ((c.status === 'Fora' || c.status === 'Pendente') && c.proc_id_atual === pid) || (cods.includes(c.codigo) && c.status !== 'Baixada'));
+                caixas = caixas.filter((c, i) => caixas.findIndex(x => x.id === c.id) === i);
+                desenhar(); mostrar();
+            }).catch(() => {});
+            sec.addEventListener('click', e => { const b = e.target.closest('[data-cxr]'); if (!b) return; resp[b.dataset.cxr] = b.dataset.v; desenhar(); });
+            ov.addEventListener('click', async e => {
+                if (e.target.closest('#btnConfCirSim')) { escolha = 'sim'; mostrar(); return; }
+                if (e.target.closest('#btnConfCirNao')) { escolha = 'nao'; mostrar(); return; }
+                if (!e.target.closest('#btnConfirmarCirFinal') || escolha !== 'sim' || !caixas.length) return;
+                const falta = caixas.filter(c => !resp[c.id]);
+                if (falta.length) { e.stopPropagation(); e.preventDefault(); sec.style.boxShadow = '0 0 0 3px rgba(220,38,38,.35)'; alert('Responda se ' + falta.map(c => c.codigo).join(', ') + ' voltou junto com o material.'); return; }
+                // registra as respostas (o fluxo normal da retirada continua)
+                for (const c of caixas) {
+                    try {
+                        let cx = c;
+                        if (cx.status !== 'Fora' && cx.status !== 'Pendente') {   // anotada na etiqueta mas sem saída registrada
+                            if (resp[c.id] === 'sim') continue;
+                            await movCaixa(cx, 'Saída', { destino: p.hospital || '', cidade: p.cidade || '', proc_id: pid, nf: p.nf || '', paciente: p.paciente || '' });
+                            cx = { ...cx, status: 'Fora', local_atual: [p.hospital, p.cidade].filter(Boolean).join(' — '), proc_id_atual: pid, nf_atual: p.nf || '' };
+                        }
+                        if (resp[c.id] === 'sim') await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: pid, nf: cx.nf_atual, obs: 'voltou junto com o material (confirmação de retirada)' });
+                        else if (cx.status !== 'Pendente') await movCaixa(cx, 'Pendente', { destino: cx.local_atual || '', proc_id: pid, nf: cx.nf_atual, obs: 'NÃO voltou com o material (confirmação de retirada)' });
+                    } catch (err) { console.warn('caixa na retirada:', err); if (/caixas_bags_status_check/.test(String(err.message || err))) alert('Rode o SQL 20261107_caixas_pendente.sql no Supabase para registrar caixa pendente.'); }
+                }
+                _cxCache = null; atualizarBadgeCaixas();
+            }, true);
+            return r;
+        };
+    }
     // ── Volumes da cirurgia: várias caixas e bags saindo, cada uma com seus itens e a própria etiqueta QR ──
     function itensDoProc(p) {
         return String(p.itens || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => ({
