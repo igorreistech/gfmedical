@@ -24212,6 +24212,7 @@ else init();
           <div data-filtros style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 18px 0;align-items:center"></div>
           <div data-onde style="padding:8px 18px 0"></div>
           <div data-form></div>
+          <div data-dlg></div>
           <div data-corpo style="overflow:auto;padding:12px 18px 18px;flex:1"><p style="color:var(--text-dim);font-size:.8rem">Carregando…</p></div>
         </div>`;
         document.body.appendChild(ov);
@@ -24296,6 +24297,7 @@ else init();
                     .map(([t, n, k]) => `<button data-tp="${t}" style="${chip};${fTipo === t ? chipOn : ''}">${n} <b>${k}</b></button>`).join('')
                 + `<span style="width:14px"></span><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏷 Etiquetas em lote:</span>`
                 + ['Caixa', 'Bag', 'Sacola'].map(t => `<button data-selt="${t}" style="${chip}">+ todas as ${nomeTipo(t, 2)} da lista</button>`).join('')
+                + (sel.size ? `<button data-a="excluirSel" style="${chip};color:#dc2626;border-color:#dc2626" title="Apaga do cadastro as marcadas">🗑 Excluir ${sel.size} selecionada${sel.size > 1 ? 's' : ''}</button>` : '')
                 + `<button data-selt="" style="${chip}">Limpar seleção</button><span style="font-size:.68rem;color:var(--text-dim)">ou marque as caixinhas (Shift+clique marca de uma até outra)</span></div>`;
             desenharOnde();
             linhas = doTipo.filter(c => !fSt || (fSt === 'atraso' ? atrasada(c) : c.status === fSt))
@@ -24329,7 +24331,37 @@ else init();
         const form = html => { $('[data-form]').innerHTML = html ? `<div style="margin:10px 18px 0;padding:12px 14px;border:1px solid var(--border,#ccc);border-radius:12px;background:var(--bg,#f9fafb);max-height:52vh;overflow:auto">${html}</div>` : ''; if (!html) { lote = null; inv = null; } };
         const campo = (rot, h) => `<label style="display:flex;flex-direction:column;gap:3px;font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase">${rot}${h}</label>`;
         function proximoCodigo(tipo) { const pf = CX_PREF[tipo], ns = cxs.filter(c => c.codigo.startsWith(pf + '-')).map(c => parseInt(c.codigo.slice(3), 10) || 0); return `${pf}-${String((ns.length ? Math.max(...ns) : 0) + 1).padStart(3, '0')}`; }
+        // janela no meio da tela (edição): não fica escondida lá em cima quando a lista está rolada
+        const dlg = html => { $('[data-dlg]').innerHTML = html ? `<div data-dlgfundo style="position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px"><div style="background:var(--surface,#fff);border-radius:14px;padding:18px 20px;width:min(620px,100%);max-height:90vh;overflow:auto;box-shadow:0 16px 50px rgba(0,0,0,.35)">${html}</div></div>` : ''; };
+        function formEditar(c) {
+            form('');
+            dlg(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><b style="font-size:1.05rem;color:var(--text);font-family:var(--mono)">✎ ${CX_ICO[c.tipo] || '📦'} ${esc(c.codigo)}</b>
+                <span style="font-size:.74rem;color:var(--text-dim)">${c.tipo === 'Caixa' ? 'Caixa plástica' : esc(c.tipo)}</span>
+                <span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>
+                <button data-a="fechadlg" style="${bt};margin-left:auto;padding:4px 10px">✕</button></div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c.descricao || '')}" placeholder="ex.: caixa plástica grande azul, bag térmica" style="${inp}">`)}
+                <div style="display:flex;gap:10px;flex-wrap:wrap">${campo('Situação', `<select data-f="status" style="${inp};width:170px">${['Disponível', 'Fora', 'Pendente', 'Em limpeza', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`)}
+                  <div style="flex:1;min-width:200px">${campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção / baixa / ajuste" style="${inp}">`)}</div></div>
+                <div style="font-size:.7rem;color:var(--text-dim)">Perdeu ou quebrou? Prefira a situação <b>Baixada</b>: sai do uso e o histórico fica guardado.</div></div>
+              <div style="display:flex;gap:8px;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border,#e5e7eb)">
+                <button data-a="excluir" data-id="${c.id}" style="${bt};color:#dc2626;border-color:#dc2626">🗑 Excluir</button>
+                <button data-a="fechadlg" style="${bt};margin-left:auto">Cancelar</button>
+                <button data-a="gravarEdit" data-id="${c.id}" style="${bt};background:#111827;color:#fff;border-color:#111827">💾 Salvar</button></div>`);
+            setTimeout(() => $('[data-dlg] [data-f="descricao"]')?.focus(), 30);
+        }
+        async function excluir(lista) {
+            lista = lista.filter(Boolean); if (!lista.length) return;
+            const fora = lista.filter(c => c.status === 'Fora' || c.status === 'Pendente'), nomes = lista.map(c => c.codigo).join(', ');
+            if (!confirm(`🗑 Excluir ${lista.length === 1 ? nomes : lista.length + ' embalagens (' + nomes + ')'} do cadastro?\n\nO histórico de saídas e retornos também é apagado e não dá para desfazer.`
+                + (fora.length ? `\n\n⚠ ${fora.map(c => c.codigo).join(', ')} consta${fora.length > 1 ? 'm' : ''} como FORA / NÃO DEVOLVIDA.` : '')
+                + '\n\nSe só foi perdida ou quebrou, cancele e use a situação "Baixada" (mantém o histórico).')) return;
+            const { error } = await sb.from('caixas_bags').delete().in('id', lista.map(c => c.id)); if (error) throw error;
+            lista.forEach(c => sel.delete(c.id)); dlg(''); await carregar();
+            window.showSyncToast && window.showSyncToast(`🗑 ${lista.length} embalagem(ns) excluída(s): ${nomes}`);
+        }
         function formNovo(c) {
+            if (c) return formEditar(c);
             lote = null; inv = null;
             form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:var(--text)">${c ? '✎ ' + esc(c.codigo) : '+ Cadastrar caixas / bags'}</div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -24566,6 +24598,7 @@ else init();
         ov.addEventListener('change', e => { if (e.target.matches('[data-limptog]')) { try { localStorage.setItem('gf_cx_limpeza', e.target.checked ? '1' : '0'); } catch (er) {} if (e.target.checked) _cxSemControle = false; desenhar(); } });
         ov.addEventListener('click', async e => {
             if (e.target === ov) return fechar();
+            if (e.target.matches('[data-dlgfundo]')) return dlg('');
             const b = e.target.closest('button'); if (!b) return; const d = b.dataset, porId = id => cxs.find(c => c.id === id);
             try {
                 if (d.a === 'x') return fechar();
@@ -24576,6 +24609,9 @@ else init();
                 if (d.a === 'limpsessao') { sessao.length = 0; desenharSessao(); aviso(''); return; }
                 if (d.a === 'novo') return formNovo();
                 if (d.a === 'cancela') return form('');
+                if (d.a === 'fechadlg') return dlg('');
+                if (d.a === 'excluir') return excluir([porId(d.id)]);
+                if (d.a === 'excluirSel') return excluir(cxs.filter(c => sel.has(c.id)).sort(porCodigo));
                 if (d.a === 'inv') return abrirInventario();
                 if (d.a === 'invfim') return concluirInventario();
                 if (d.a === 'rel') return relatorio();
@@ -24633,8 +24669,8 @@ else init();
                     return;
                 }
                 if (d.a === 'gravarEdit') {
-                    const c = porId(d.id), st = $('[data-f="status"]').value, obs = $('[data-f="obs"]').value.trim();
-                    const { error } = await sb.from('caixas_bags').update({ descricao: $('[data-f="descricao"]').value.trim() || null, atualizado_em: new Date().toISOString() }).eq('id', c.id); if (error) throw error;
+                    const c = porId(d.id), f = k => $(`[data-dlg] [data-f="${k}"]`) || $(`[data-f="${k}"]`), st = f('status').value, obs = f('obs').value.trim();
+                    const { error } = await sb.from('caixas_bags').update({ descricao: f('descricao').value.trim() || null, atualizado_em: new Date().toISOString() }).eq('id', c.id); if (error) throw error;
                     if (st !== c.status) {
                         if (st === 'Disponível' && c.status === 'Em limpeza') await movCaixa(c, 'Limpeza', { obs: obs || 'limpa' });
                         else if (st === 'Disponível' && (c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Manutenção' || c.status === 'Baixada')) await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual', semLimpeza: true });
@@ -24642,9 +24678,9 @@ else init();
                         else if (st === 'Pendente') await movCaixa(c, 'Pendente', { obs: obs || 'ajuste manual' });
                         else if (st === 'Manutenção') await movCaixa(c, 'Manutenção', { obs, destino: 'Manutenção' });
                         else if (st === 'Baixada') await movCaixa(c, 'Baixa', { obs: obs || 'baixada' });
-                        else if (st === 'Fora') { form(''); await carregar(); return formSaida([cxs.find(x => x.id === c.id)]); }
+                        else if (st === 'Fora') { dlg(''); form(''); await carregar(); return formSaida([cxs.find(x => x.id === c.id)]); }
                     }
-                    form(''); return carregar();
+                    dlg(''); form(''); return carregar();
                 }
                 if (d.a === 'gravarSaida') {
                     if (b.disabled) return;
@@ -24668,7 +24704,7 @@ else init();
         });
         let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
         const fechar = () => { ov.remove(); document.removeEventListener('keydown', escFecha, true); if (window._cxRecarregar === carregar) window._cxRecarregar = null; };
-        const escFecha = e => { if (e.key === 'Escape' && document.body.contains(ov) && !document.querySelector('#vol-montar')) { e.stopPropagation(); fechar(); } };
+        const escFecha = e => { if (e.key !== 'Escape' || !document.body.contains(ov) || document.querySelector('#vol-montar')) return; e.stopPropagation(); if ($('[data-dlgfundo]')) return dlg(''); fechar(); };
         document.addEventListener('keydown', escFecha, true);
         ov.querySelector('button[data-a="x"]').onclick = e => { e.stopPropagation(); fechar(); };
         window._cxRecarregar = () => document.body.contains(ov) ? carregar() : null;
