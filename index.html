@@ -23369,7 +23369,7 @@ else init();
                 try { await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: cx.proc_id_atual, nf: cx.nf_atual, obs: 'retorno automático — cirurgia concluída' }); n++; }
                 catch (e) { console.warn('caixas_bags auto:', e.message || e); }
             }
-            if (n) { _cxCache = null; atualizarBadgeCaixas(); window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s)/sacola(s) voltaram para o estoque (cirurgia concluída)`); if (document.getElementById('cx-lista')) window.abrirCaixasBags(); }
+            if (n) { _cxCache = null; atualizarBadgeCaixas(); window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s)/sacola(s) voltaram para o estoque (cirurgia concluída)`); if (document.getElementById('cx-lista') && window._cxRecarregar) window._cxRecarregar(); }
         } catch (e) { console.warn('caixas_bags auto:', e); }
         finally { _cxAutoRodando = false; if (_cxAutoDeNovo) { _cxAutoDeNovo = false; setTimeout(retornoAutomaticoCaixas, 50); } }
     }
@@ -23615,7 +23615,12 @@ else init();
                 alert(/caixas_bags_tipo_check/.test(m) ? 'O banco desta filial ainda não aceita Sacola: rode o SQL 20261106_sacola_rastreio.sql no Supabase (Campo Grande e Cuiabá) e tente de novo.' : 'Erro: ' + m); }
         });
         let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
-        desenharModo(); await retornoAutomaticoCaixas(); await carregar();
+        const fechar = () => { ov.remove(); document.removeEventListener('keydown', escFecha, true); if (window._cxRecarregar === carregar) window._cxRecarregar = null; };
+        const escFecha = e => { if (e.key === 'Escape' && document.body.contains(ov) && !document.querySelector('#vol-montar')) { e.stopPropagation(); fechar(); } };
+        document.addEventListener('keydown', escFecha, true);
+        ov.querySelector('button[data-a="x"]').onclick = e => { e.stopPropagation(); fechar(); };
+        window._cxRecarregar = () => document.body.contains(ov) ? carregar() : null;
+        desenharModo(); await carregar(); retornoAutomaticoCaixas();
         if (modoIni) { modo = modoIni; desenharModo(); }
         setTimeout(() => $('[data-bip]')?.focus(), 50);
     };
