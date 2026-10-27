@@ -7752,7 +7752,7 @@ async function exportarWhatsApp(filtro, vendedorFiltro) {
 
     if (filtro === undefined && typeof window.linhasCaixasPendentes === 'function') {
         var cxL = window.linhasCaixasPendentes();
-        if (cxL.length) { linhas.push(''); linhas.push('*CAIXAS / BAGS / SACOLAS NÃO DEVOLVIDAS* (o material voltou, a caixa não)'); cxL.forEach(function (l) { linhas.push(l); }); }
+        if (cxL.length) { linhas.push(''); linhas.push('*CAIXAS / BAGS / SACOLAS NÃO DEVOLVIDAS* (o material voltou, mas a caixa/bag/sacola não)'); cxL.forEach(function (l) { linhas.push(l); }); }
     }
 
     linhas.push('');
@@ -11492,7 +11492,7 @@ function atualizarBannerPendencias() {
             <span style="font-size:1.3rem;">🧳</span>
             <div style="flex:1;">
                 <div style="font-size:0.8rem;font-weight:800;letter-spacing:0.06em;">CAIXAS / BAGS / SACOLAS NÃO DEVOLVIDAS</div>
-                <div style="font-size:0.72rem;opacity:0.85;margin-top:1px;">${caixasPendentes.length} embalagem(ns) — o material voltou, a embalagem não: ${caixasPendentes.map(c => c.codigo).join(', ')}</div>
+                <div style="font-size:0.72rem;opacity:0.85;margin-top:1px;">${caixasPendentes.length} embalagem(ns) — o material voltou, mas a caixa/bag/sacola não: ${caixasPendentes.map(c => c.codigo).join(', ')}</div>
             </div>
             <button onclick="cobrarCaixasPendentesWhatsApp()" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:6px 12px;border-radius:8px;font-family:var(--mono);font-size:0.68rem;font-weight:700;cursor:pointer;white-space:nowrap;">💬 Cobrar</button>
         </div>`;
@@ -23569,7 +23569,7 @@ else init();
     };
     window.cobrarCaixasPendentesWhatsApp = function () {
         const L = window.linhasCaixasPendentes(); if (!L.length) { alert('Nenhuma caixa, bag ou sacola pendente de devolução.'); return; }
-        window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(['Olá!', 'Segue a pendência de *caixas, bags e sacolas* do *Monitor Cirúrgico* (o material voltou, mas a caixa não):', ...L].join('\n')), '_blank');
+        window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(['Olá!', 'Segue a pendência de *caixas, bags e sacolas* do *Monitor Cirúrgico* (o material voltou, mas a caixa/bag/sacola não):', ...L].join('\n')), '_blank');
     };
     window.retornoAutomaticoCaixas = retornoAutomaticoCaixas;
     // confere ao abrir e a cada 30 s (pega a mudança de status feita aqui ou em outro computador)
