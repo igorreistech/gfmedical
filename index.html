@@ -22509,6 +22509,27 @@ else init();
         const z = await compactar(JSON.stringify(cab));
         return pasta + `etiqueta.html?f=${fil.toLowerCase()}&id=${c.etqId}` + (z ? '#z=' + z : '');
     }
+    // Formato da impressão das etiquetas: Zebra 85x100 (uma por etiqueta) ou folha A4 comum (4 por folha, com linha de corte).
+    // A escolha fica lembrada neste computador e pode ser trocada na própria janela de impressão.
+    const paginaEtiquetas = (sel, corpo) => '<style id="pg">@page{size:85mm 100mm;margin:0}</style><style>'
+        + '.barra{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;padding:10px;background:#111827;color:#fff;font:600 13px Arial,sans-serif}'
+        + '.barra button{padding:7px 12px;border-radius:8px;border:1px solid #4b5563;background:transparent;color:#fff;font:700 13px Arial,sans-serif;cursor:pointer}'
+        + '.barra button.on{background:#fff;color:#111827;border-color:#fff}.barra .imp{background:#22c55e;border-color:#22c55e;color:#06140c}'
+        + '#folhas{padding:10px 0}body.a4 .folha{width:194mm;height:281mm;margin:0 auto 10px;background:#fff;display:grid;grid-template-columns:85mm 85mm;grid-auto-rows:100mm;gap:8mm 10mm;justify-content:center;align-content:start;padding-top:2mm;break-after:page;page-break-after:always;box-shadow:0 1px 6px rgba(0,0,0,.2)}'
+        + 'body.a4 .folha:last-child{break-after:auto;page-break-after:auto}'
+        + 'body.a4 ' + sel + '{margin:0;outline:.25mm dashed #888;break-after:auto;page-break-after:auto}'
+        + '@media print{.barra{display:none}#folhas{padding:0}body.a4 .folha{margin:0;box-shadow:none}}'
+        + '</style></head><body><div class="barra">Formato: <button data-fmt="zebra">Zebra 85×100</button><button data-fmt="a4">Folha A4 (4 por folha)</button>'
+        + '<button class="imp" onclick="print()">🖨 Imprimir</button></div><div id="folhas">' + corpo + '</div><script>(function(){'
+        + 'var secs=[].slice.call(document.querySelectorAll("' + sel + '")),box=document.getElementById("folhas"),pg=document.getElementById("pg");'
+        + 'function aplicar(f){try{localStorage.setItem("gf_formato_etq",f)}catch(e){}'
+        + 'document.body.classList.toggle("a4",f==="a4");pg.textContent=f==="a4"?"@page{size:A4;margin:8mm}":"@page{size:85mm 100mm;margin:0}";box.innerHTML="";'
+        + 'if(f==="a4"){for(var i=0;i<secs.length;i+=4){var d=document.createElement("div");d.className="folha";secs.slice(i,i+4).forEach(function(s){d.appendChild(s)});box.appendChild(d)}}'
+        + 'else secs.forEach(function(s){box.appendChild(s)});'
+        + '[].forEach.call(document.querySelectorAll("[data-fmt]"),function(b){b.classList.toggle("on",b.dataset.fmt===f)})}'
+        + '[].forEach.call(document.querySelectorAll("[data-fmt]"),function(b){b.onclick=function(){aplicar(b.dataset.fmt)}});'
+        + 'var f="zebra";try{f=localStorage.getItem("gf_formato_etq")||"zebra"}catch(e){}aplicar(f);'
+        + 'window.onload=function(){setTimeout(function(){print()},300)}})();<\/script></body>';
     // Logo da GF no centro do QR: retirada a pedido (27/10) — os QR saem limpos, sem logo.
     // Para voltar, basta trocar logoQR por _logoQRGF.
     let _logoQR = null;
@@ -22575,7 +22596,7 @@ else init();
         }).join('');
         w.document.open();
         w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiqueta NF ${esc([...new Set(procs.map(x => x.p.nf))].join(', '))}</title><style>
-          @page{size:85mm 100mm;margin:0}
+          
           *{box-sizing:border-box;margin:0;padding:0}
           body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#eee}
           .et{width:85mm;height:100mm;padding:3mm 3.5mm;background:#fff;margin:0 auto 6px;display:flex;flex-direction:column;gap:1.4mm;page-break-after:always;break-after:page;overflow:hidden}
@@ -22598,7 +22619,7 @@ else init();
           .et.g.m .its{display:none}.et.g.m .itn{display:block}.et.g:not(.m) .qr,.et.g:not(.m) .qr svg{width:39mm;height:39mm}.et.g:not(.m) .its{flex:none;min-height:5mm}.itn{display:none;font-size:6.5pt;font-weight:bold;text-align:center;border-top:.3mm solid #000;padding-top:.8mm}
 
           @media print{body{background:#fff}.et{margin:0}}
-        </style></head><body>${etiquetas}<script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
+        </style>${paginaEtiquetas('.et', etiquetas)}</html>`);
         w.document.close();
         registrarEtiquetas(gerados);
     }
@@ -23721,7 +23742,7 @@ else init();
                   <div class="rod"><b>PROPRIEDADE DA GF MEDICAL</b><span>Se encontrar, favor devolver.${c.token ? ' Leia o QR Code para ver o conteúdo.' : ''}</span></div>
                 </section>`; }).join('');
             w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas caixas e bags</title><style>
-              @page{size:85mm 100mm;margin:0}
+              
               *{box-sizing:border-box;margin:0;padding:0}
               body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#eee}
               .e{width:85mm;height:100mm;padding:3.5mm 4mm;background:#fff;margin:0 auto 6px;display:flex;flex-direction:column;align-items:center;gap:2mm;page-break-after:always;break-after:page;overflow:hidden}
@@ -23730,7 +23751,7 @@ else init();
               .qr{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}.qr svg{width:44mm;height:44mm}
               .rod{width:100%;text-align:center;border-top:.4mm solid #000;padding-top:1.3mm;line-height:1.2}.rod b{display:block;font-size:7.5pt}.rod span{display:block;font-size:6.2pt}
               @media print{body{background:#fff}.e{margin:0}}
-            </style></head><body>${cards}<script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
+            </style>${paginaEtiquetas('.e', cards)}</html>`);
             w.document.close();
         }
         async function consultar(c) {
