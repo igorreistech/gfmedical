@@ -23385,8 +23385,9 @@ else init();
                     perguntar.push({ cx, motivo: 'remessa ' + st.toLowerCase() });
                     continue;
                 }
-                const p = procPorId(cx.proc_id_atual); if (!p || p.status !== 'concluido') continue;
-                perguntar.push({ cx, motivo: 'cirurgia concluída' });
+                const p = procPorId(cx.proc_id_atual); if (!p) continue;
+                if (p.status === 'concluido' || p.status === 'aguardando_ficha_opme') perguntar.push({ cx, motivo: p.status === 'concluido' ? 'cirurgia concluída' : 'material retirado (aguardando ficha OPME)' });
+                else if (p.status === 'andamento' && cirurgiaJaRealizada(p)) perguntar.push({ cx, motivo: 'cirurgia em procedimento', emProc: true });
             }
             if (perguntar.length) perguntarRetornoCaixas(perguntar);
             if (n) { _cxCache = null; atualizarBadgeCaixas(); window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s)/sacola(s) voltaram para o estoque (cirurgia concluída)`); if (document.getElementById('cx-lista') && window._cxRecarregar) window._cxRecarregar(); }
@@ -23395,7 +23396,15 @@ else init();
     }
 
     // ── Material voltou: a caixa/bag/sacola voltou junto? (se não, fica Pendente e entra na cobrança) ──
-    const _cxAdiado = {};   // id → horário até quando não perguntar de novo ("responder depois")
+    const _cxAdiado = (() => { try { return JSON.parse(localStorage.getItem('gf_cx_adiado') || '{}'); } catch (e) { return {}; } })();   // id → até quando não perguntar
+    const adiarCaixa = (id, min) => { _cxAdiado[id] = Date.now() + min * 60000; try { localStorage.setItem('gf_cx_adiado', JSON.stringify(_cxAdiado)); } catch (e) {} };
+    // cirurgia já aconteceu: data anterior a hoje, ou hoje e já passaram 2 h do início (sem horário: a partir das 18h)
+    function cirurgiaJaRealizada(p) {
+        const d0 = new Date(), hoje = d0.getFullYear() + '-' + String(d0.getMonth() + 1).padStart(2, '0') + '-' + String(d0.getDate()).padStart(2, '0');
+        if (!p.data || p.data > hoje) return false; if (p.data < hoje) return true;
+        const h = /^(\d{1,2}):(\d{2})/.exec(p.inicio || ''), agora = new Date(), min = agora.getHours() * 60 + agora.getMinutes();
+        return h ? min >= (+h[1] * 60 + +h[2]) + 120 : agora.getHours() >= 18;
+    }
     let _cxPerguntas = new Map();
     function descCaixaProc(cx) {
         if (String(cx.proc_id_atual || '').startsWith('rem:')) return [cx.local_atual, cx.nf_atual ? 'NF ' + cx.nf_atual : ''].filter(Boolean).join(' · ') + ' (remessa)';
@@ -23410,16 +23419,20 @@ else init();
         const bt = 'padding:8px 12px;border-radius:9px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.74rem;font-weight:800;cursor:pointer;white-space:nowrap';
         const lista = [..._cxPerguntas.values()];
         ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;border-top:5px solid #0d9488;width:min(640px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);padding:20px">
-          <div style="font-weight:800;font-size:1rem;color:var(--text)">📦 O material voltou para o estoque</div>
+          <div style="font-weight:800;font-size:1rem;color:var(--text)">📦 ${lista.every(x => x.emProc) ? 'Material em cirurgia — já foi retirado?' : 'O material voltou para o estoque'}</div>
           <div style="font-size:.8rem;color:var(--text-dim);margin:4px 0 14px">A caixa, bag ou sacola voltou <b>junto com os itens</b>? Se não voltou, ela fica <b>pendente</b> e entra na cobrança.</div>
           ${lista.map(({ cx }) => `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border,#e5e7eb);flex-wrap:wrap">
               <div style="flex:1;min-width:220px"><b style="font-family:var(--mono);font-size:.95rem">${CX_ICO[cx.tipo] || '📦'} ${esc(cx.codigo)}</b> <span style="font-size:.72rem;color:var(--text-dim)">${cx.tipo === 'Caixa' ? 'Caixa plástica' : esc(cx.tipo)}</span>
                 <div style="font-size:.74rem;color:var(--text-dim);margin-top:2px">${esc(descCaixaProc(cx))}</div></div>
-              <button data-voltou="${cx.id}" style="${bt};background:#16a34a;color:#fff;border-color:#16a34a">✅ Voltou junto</button>
-              <button data-naovoltou="${cx.id}" style="${bt};color:#dc2626;border-color:#dc2626">⏳ Não voltou</button></div>`).join('')}
+              ${_cxPerguntas.get(cx.id)?.emProc ? `<div style="width:100%;font-size:.76rem;font-weight:800;color:#b45309">🏥 Cirurgia em procedimento — já retirou o material?</div>
+                <button data-voltou="${cx.id}" style="${bt};background:#16a34a;color:#fff;border-color:#16a34a">✅ Retirou — embalagem voltou junto</button>
+                <button data-naovoltou="${cx.id}" style="${bt};color:#dc2626;border-color:#dc2626">⏳ Retirou — embalagem não voltou</button>
+                <button data-ainda="${cx.id}" style="${bt}">🕐 Ainda não retirou</button>`
+              : `<button data-voltou="${cx.id}" style="${bt};background:#16a34a;color:#fff;border-color:#16a34a">✅ Voltou junto</button>
+                <button data-naovoltou="${cx.id}" style="${bt};color:#dc2626;border-color:#dc2626">⏳ Não voltou</button>`}</div>`).join('')}
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;border-top:1px solid var(--border,#e5e7eb);padding-top:12px">
             <button data-depois style="${bt}">Responder depois</button>
-            ${lista.length > 1 ? `<button data-todas style="${bt};background:#16a34a;color:#fff;border-color:#16a34a">✅ Todas voltaram</button>` : ''}</div></div>`;
+            ${lista.filter(x => !x.emProc).length > 1 ? `<button data-todas style="${bt};background:#16a34a;color:#fff;border-color:#16a34a">✅ Todas voltaram</button>` : ''}</div></div>`;
         ov.onclick = async e => {
             const b = e.target.closest('button'); if (!b) return; b.disabled = true;
             const responder = async (id, voltou) => {
@@ -23432,8 +23445,9 @@ else init();
             };
             if (b.dataset.voltou) await responder(b.dataset.voltou, true);
             else if (b.dataset.naovoltou) await responder(b.dataset.naovoltou, false);
-            else if (b.dataset.todas !== undefined) { for (const id of [..._cxPerguntas.keys()]) await responder(id, true); }
-            else if (b.dataset.depois !== undefined) { const ate = Date.now() + 15 * 60000; _cxPerguntas.forEach((_, id) => { _cxAdiado[id] = ate; }); _cxPerguntas.clear(); }
+            else if (b.dataset.todas !== undefined) { for (const [id, x] of [..._cxPerguntas]) if (!x.emProc) await responder(id, true); }
+            else if (b.dataset.ainda) { adiarCaixa(b.dataset.ainda, 120); _cxPerguntas.delete(b.dataset.ainda); }
+            else if (b.dataset.depois !== undefined) { _cxPerguntas.forEach((_, id) => adiarCaixa(id, 15)); _cxPerguntas.clear(); }
             _cxCache = null; atualizarBadgeCaixas(); if (window._cxRecarregar) window._cxRecarregar();
             if (!_cxPerguntas.size) ov.remove(); else perguntarRetornoCaixas([]);
         };
