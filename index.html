@@ -22509,22 +22509,28 @@ else init();
         const z = await compactar(JSON.stringify(cab));
         return pasta + `etiqueta.html?f=${fil.toLowerCase()}&id=${c.etqId}` + (z ? '#z=' + z : '');
     }
-    // Formato da impressão das etiquetas: Zebra 85x100 (uma por etiqueta) ou folha A4 comum (4 por folha, com linha de corte).
+    // Formato da impressão das etiquetas: Zebra 85x100 ou folha A4 comum (1 ampliada, 2 ou 4 por folha, com linha de corte).
     // A escolha fica lembrada neste computador e pode ser trocada na própria janela de impressão.
     const paginaEtiquetas = (sel, corpo) => '<style id="pg">@page{size:85mm 100mm;margin:0}</style><style>'
         + '.barra{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;padding:10px;background:#111827;color:#fff;font:600 13px Arial,sans-serif}'
         + '.barra button{padding:7px 12px;border-radius:8px;border:1px solid #4b5563;background:transparent;color:#fff;font:700 13px Arial,sans-serif;cursor:pointer}'
         + '.barra button.on{background:#fff;color:#111827;border-color:#fff}.barra .imp{background:#22c55e;border-color:#22c55e;color:#06140c}'
-        + '#folhas{padding:10px 0}body.a4 .folha{width:194mm;height:281mm;margin:0 auto 10px;background:#fff;display:grid;grid-template-columns:85mm 85mm;grid-auto-rows:100mm;gap:8mm 10mm;justify-content:center;align-content:start;padding-top:2mm;break-after:page;page-break-after:always;box-shadow:0 1px 6px rgba(0,0,0,.2)}'
+        + '#folhas{padding:10px 0}body.a4 .folha{width:194mm;height:281mm;margin:0 auto 10px;background:#fff;display:grid;justify-content:center;align-content:center;break-after:page;page-break-after:always;box-shadow:0 1px 6px rgba(0,0,0,.2)}'
         + 'body.a4 .folha:last-child{break-after:auto;page-break-after:auto}'
         + 'body.a4 ' + sel + '{margin:0;outline:.25mm dashed #888;break-after:auto;page-break-after:auto}'
+        // 1 por folha: etiqueta ampliada 2,2x (187x220 mm); 2 por folha: 1,38x (117x138 mm); 4 por folha: tamanho real
+        + 'body.f1 .folha{grid-template-columns:187mm;grid-auto-rows:220mm}body.f1 ' + sel + '{zoom:2.2}'
+        + 'body.f2 .folha{grid-template-columns:117.3mm;grid-auto-rows:138mm;row-gap:4mm}body.f2 ' + sel + '{zoom:1.38}'
+        + 'body.f4 .folha{grid-template-columns:85mm 85mm;grid-auto-rows:100mm;gap:8mm 10mm;align-content:start;padding-top:2mm}'
         + '@media print{.barra{display:none}#folhas{padding:0}body.a4 .folha{margin:0;box-shadow:none}}'
-        + '</style></head><body><div class="barra">Formato: <button data-fmt="zebra">Zebra 85×100</button><button data-fmt="a4">Folha A4 (4 por folha)</button>'
+        + '</style></head><body><div class="barra">Formato: <button data-fmt="zebra">Zebra 85×100</button><button data-fmt="a4-1">A4 · 1 grande por folha</button>'
+        + '<button data-fmt="a4-2">A4 · 2 por folha</button><button data-fmt="a4-4">A4 · 4 por folha</button>'
         + '<button class="imp" onclick="print()">🖨 Imprimir</button></div><div id="folhas">' + corpo + '</div><script>(function(){'
         + 'var secs=[].slice.call(document.querySelectorAll("' + sel + '")),box=document.getElementById("folhas"),pg=document.getElementById("pg");'
-        + 'function aplicar(f){try{localStorage.setItem("gf_formato_etq",f)}catch(e){}'
-        + 'document.body.classList.toggle("a4",f==="a4");pg.textContent=f==="a4"?"@page{size:A4;margin:8mm}":"@page{size:85mm 100mm;margin:0}";box.innerHTML="";'
-        + 'if(f==="a4"){for(var i=0;i<secs.length;i+=4){var d=document.createElement("div");d.className="folha";secs.slice(i,i+4).forEach(function(s){d.appendChild(s)});box.appendChild(d)}}'
+        + 'function aplicar(f){if(["zebra","a4-1","a4-2","a4-4"].indexOf(f)<0)f="a4-1";try{localStorage.setItem("gf_formato_etq",f)}catch(e){}'
+        + 'var n=f==="zebra"?0:+f.slice(3),cl=document.body.classList;cl.toggle("a4",n>0);cl.toggle("f1",n===1);cl.toggle("f2",n===2);cl.toggle("f4",n===4);'
+        + 'pg.textContent=n?"@page{size:A4;margin:8mm}":"@page{size:85mm 100mm;margin:0}";box.innerHTML="";'
+        + 'if(n){for(var i=0;i<secs.length;i+=n){var d=document.createElement("div");d.className="folha";secs.slice(i,i+n).forEach(function(s){d.appendChild(s)});box.appendChild(d)}}'
         + 'else secs.forEach(function(s){box.appendChild(s)});'
         + '[].forEach.call(document.querySelectorAll("[data-fmt]"),function(b){b.classList.toggle("on",b.dataset.fmt===f)})}'
         + '[].forEach.call(document.querySelectorAll("[data-fmt]"),function(b){b.onclick=function(){aplicar(b.dataset.fmt)}});'
