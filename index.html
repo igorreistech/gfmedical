@@ -22964,7 +22964,9 @@ else init();
         const p = typeof alvo === 'object' ? alvo : procPorId(alvo); if (!p) return;
         const pid = String(p._docId || p.id || ''), sb = window._supabase;
         document.getElementById('vol-montar')?.remove();
-        const itens = itensDoProc(p).map(i => ({ ...i, total: i.qtd }));
+        const chaveRem = 'gf_vol_rem_' + String(p._docId || p.id || p.nf || '');
+        const removidos = (() => { try { return new Set(JSON.parse(localStorage.getItem(chaveRem) || '[]')); } catch (e) { return new Set(); } })();
+        const itens = itensDoProc(p).map(i => ({ ...i, total: i.qtd })).filter(i => !removidos.has([i.cod, i.nome, i.lote].join('|')));
         let vols = [], semBanco = false;
         const cadastro = await carregarCaixas(true).catch(() => null), cads = cadastro && !cadastro.erro ? cadastro : [];
         const ehCad = id => cads.some(c => c.codigo === id);
@@ -23034,15 +23036,16 @@ else init();
                       ${cads.length && v.tipo !== 'Sacola' ? `<div><select data-cad="${j}" title="Qual caixa/bag cadastrada vai neste volume (registra a saída para o rastreio)" style="width:84px;margin-top:4px;padding:3px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.66rem">
                         <option value="">— cadastro —</option>${cads.filter(c => c.tipo === v.tipo && c.status !== 'Baixada' && (c.status !== 'Fora' || c.proc_id_atual === pid || c.codigo === v.ident)).map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.ident ? 'selected' : ''}>${esc(c.codigo)}${c.status === 'Manutenção' ? ' 🔧' : ''}</option>`).join('')}</select></div>` : ''}
                       <div><button data-printvol="${j}" title="Imprimir só esta etiqueta" style="${bt};padding:3px 8px;margin-top:4px;font-size:.66rem">🏷</button></div></th>`).join('')}
-                    <th style="${th}">Fora</th></tr></thead>
+                    <th style="${th}">Fora</th><th style="${th}"></th></tr></thead>
                   <tbody>${itens.map((i, k) => `<tr>
                     <td style="${td}">${i.avulso ? `<input data-nome="${k}" value="${esc(i.nome)}" placeholder="Descrição do item" style="width:100%;padding:5px 7px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.78rem">
                         <div style="display:flex;gap:4px;margin-top:3px"><input data-cod="${k}" value="${esc(i.cod)}" placeholder="Cód. fábrica" style="flex:1;min-width:0;padding:4px 6px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.7rem"><input data-lote="${k}" value="${esc(i.lote)}" placeholder="Lote" style="flex:1;min-width:0;padding:4px 6px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.7rem"></div>`
                         : `<b>${esc(i.nome || i.cod)}</b>${i.cod && i.nome ? ` <span style="color:var(--text-dim);font-size:.7rem">${esc(i.cod)}</span>` : ''}${i.lote ? `<div style="color:var(--text-dim);font-size:.68rem">lote ${esc(i.lote)}</div>` : ''}`}</td>
                     <td style="${td};text-align:center">${i.avulso ? `<input type="number" min="0" data-total="${k}" value="${i.total}" style="${num}">` : `<b>${i.total}</b>`}</td>
                     ${vols.map((v, j) => `<td style="${td};text-align:center"><input type="number" min="0" data-q="${j}:${k}" value="${+v.q[k] || ''}" placeholder="0" style="${num}"></td>`).join('')}
-                    <td style="${td};text-align:center;font-weight:800" data-fora="${k}"></td></tr>`).join('')
-                    || `<tr><td colspan="${vols.length + 3}" style="${td};color:var(--text-dim);text-align:center;padding:18px">Esta cirurgia não tem itens cadastrados. Dá para imprimir só a identificação de cada volume, ou adicionar itens avulsos.</td></tr>`}</tbody>
+                    <td style="${td};text-align:center;font-weight:800" data-fora="${k}"></td>
+                    <td style="${td};text-align:center"><button data-rem="${k}" title="Remover este item" style="${bt};padding:3px 9px;color:#dc2626;border-color:rgba(220,38,38,.35)">✕</button></td></tr>`).join('')
+                    || `<tr><td colspan="${vols.length + 4}" style="${td};color:var(--text-dim);text-align:center;padding:18px">Esta cirurgia não tem itens cadastrados. Dá para imprimir só a identificação de cada volume, ou adicionar itens avulsos.</td></tr>`}</tbody>
                 </table>
               </div>
               <div style="padding:12px 18px;border-top:1px solid var(--border,#ccc);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -23087,6 +23090,14 @@ else init();
             else if (d.mais) { setConta(d.mais, conta(d.mais) + 1); desenhar(); }
             else if (d.printvol) imprimir(etiquetasDe([vols[+d.printvol]]));
             else if (d.a === 'x') ov.remove();
+            else if (b.dataset.rem !== undefined) {
+                const k = +b.dataset.rem, it = itens[k]; if (!it) return;
+                if (!confirm(`Remover "${it.nome || it.cod}"${it.lote ? ' (lote ' + it.lote + ')' : ''} dos volumes?`)) return;
+                if (!it.avulso) { removidos.add([it.cod, it.nome, it.lote].join('|')); try { localStorage.setItem(chaveRem, JSON.stringify([...removidos])); } catch (e) {} }
+                itens.splice(k, 1);
+                vols.forEach(v => { const nq = {}; Object.entries(v.q).forEach(([kk, val]) => { kk = +kk; if (kk < k) nq[kk] = val; else if (kk > k) nq[kk - 1] = val; }); v.q = nq; });
+                desenhar();
+            }
             else if (d.a === 'foto') window.lerFotoProduto(it => { itens.push({ cod: it.cod, nome: it.nome, lote: it.lote, total: it.qtd, avulso: true }); vols[0].q[itens.length - 1] = it.qtd; desenhar(); });
             else if (d.a === 'avulso') { itens.push({ cod: '', nome: '', lote: '', total: 1, avulso: true }); vols[0].q[itens.length - 1] = 1; desenhar(); ov.querySelector(`[data-nome="${itens.length - 1}"]`)?.focus(); }
             else if (d.a === 'tudo1') { vols.forEach((v, j) => { v.q = j ? {} : Object.fromEntries(itens.map((i, k) => [k, i.total])); }); desenhar(); }
