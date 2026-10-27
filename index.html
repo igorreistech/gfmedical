@@ -7639,6 +7639,7 @@ window.abrirCobrarWhatsApp = function() {
             '<div style="display:flex;flex-direction:column;gap:10px;">' +
                 '<button id="btnCobrarSoRetirada" style="padding:13px;border-radius:10px;border:2px solid #f97316;background:transparent;color:#f97316;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">📦 Só Aguardando Retirada</button>' +
                 '<button id="btnCobrarSoFicha" style="padding:13px;border-radius:10px;border:2px solid #a855f7;background:transparent;color:#a855f7;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">📋 Só Ficha OPME</button>' +
+                ((window._cxPendentes || []).length ? '<button id="btnCobrarCaixas" style="padding:13px;border-radius:10px;border:2px solid #dc2626;background:transparent;color:#dc2626;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">🧳 Caixas/bags/sacolas não devolvidas (' + window._cxPendentes.length + ')</button>' : '') +
                 '<button id="btnCobrarAmbos" style="padding:13px;border-radius:10px;border:2px solid #25D366;background:#25D366;color:#fff;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">📦📋 Os Dois Juntos</button>' +
                 '<button id="btnCobrarCancelar" style="padding:10px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-dim,#6b7280);font-family:var(--mono);font-size:0.78rem;font-weight:700;cursor:pointer;">Cancelar</button>' +
             '</div>' +
@@ -7654,6 +7655,8 @@ window.abrirCobrarWhatsApp = function() {
     overlay.querySelector('#btnCobrarSoRetirada').onclick = () => escolher('retirada');
     overlay.querySelector('#btnCobrarSoFicha').onclick = () => escolher('ficha');
     overlay.querySelector('#btnCobrarAmbos').onclick = () => escolher(undefined);
+    const btnCx = overlay.querySelector('#btnCobrarCaixas');
+    if (btnCx) btnCx.onclick = () => { fechar(); window.cobrarCaixasPendentesWhatsApp && window.cobrarCaixasPendentesWhatsApp(); if (opts.aoEscolher) opts.aoEscolher(); };
     overlay.querySelector('#btnCobrarCancelar').onclick = fechar;
 };
 
@@ -11432,7 +11435,9 @@ function atualizarBannerPendencias() {
         !_ehColeta(p) && p.status === 'aguardando_ficha_opme'
     );
 
-    const total = retiradas.length + coletasAtivas.length + agendadosHojeAmanha.length + fichasOpmePendentes.length;
+    // 5. Caixas/bags/sacolas que não voltaram com o material
+    const caixasPendentes = window._cxPendentes || [];
+    const total = retiradas.length + coletasAtivas.length + agendadosHojeAmanha.length + fichasOpmePendentes.length + caixasPendentes.length;
 
     let banner = document.getElementById('banner-pendencias');
     if (total === 0) {
@@ -11473,6 +11478,18 @@ function atualizarBannerPendencias() {
                 <div style="font-size:0.72rem;opacity:0.85;margin-top:1px;">${fichasOpmePendentes.length} ficha(s) pendente(s) de entrega ao estoque</div>
             </div>
             <button onclick="exportarWhatsApp('ficha')" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:6px 12px;border-radius:8px;font-family:var(--mono);font-size:0.68rem;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:0.05em;">💬 Cobrar</button>
+        </div>`;
+    }
+
+    // ── Bloco 1c: Caixas, bags e sacolas não devolvidas ──
+    if (caixasPendentes.length > 0) {
+        itens += `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.15);">
+            <span style="font-size:1.3rem;">🧳</span>
+            <div style="flex:1;">
+                <div style="font-size:0.8rem;font-weight:800;letter-spacing:0.06em;">CAIXAS / BAGS / SACOLAS NÃO DEVOLVIDAS</div>
+                <div style="font-size:0.72rem;opacity:0.85;margin-top:1px;">${caixasPendentes.length} embalagem(ns) — o material voltou, a embalagem não: ${caixasPendentes.map(c => c.codigo).join(', ')}</div>
+            </div>
+            <button onclick="cobrarCaixasPendentesWhatsApp()" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:6px 12px;border-radius:8px;font-family:var(--mono);font-size:0.68rem;font-weight:700;cursor:pointer;white-space:nowrap;">💬 Cobrar</button>
         </div>`;
     }
 
@@ -11687,7 +11704,8 @@ function verificarLembreteCobrancaDiario(depois) {
 
     const pendRetirada = procedimentos.filter(p => !_ehColeta(p) && p.status === 'a_retirar').length;
     const pendFicha = procedimentos.filter(p => !_ehColeta(p) && p.status === 'aguardando_ficha_opme').length;
-    if (pendRetirada === 0 && pendFicha === 0) { finalizarSemMostrar(); return; }
+    const pendCaixas = (window._cxPendentes || []).length;
+    if (pendRetirada === 0 && pendFicha === 0 && pendCaixas === 0) { finalizarSemMostrar(); return; }
 
     mostrarSugestaoCobranca(pendRetirada, pendFicha);
     finalizarSemMostrar();
@@ -23268,7 +23286,8 @@ else init();
             const { error } = await sb.from('remessas_volumes').update(upd).eq('id', r.id);
             if (error) return alert('Erro ao salvar: ' + error.message);
             Object.assign(r, upd); desenhar();
-            if (st === 'Retornou' || st === 'Cancelada') retornoDaRemessa(r.id, st === 'Retornou' ? 'retorno automático — remessa retornou' : 'retorno automático — remessa cancelada');
+            if (st === 'Retornou' || st === 'Cancelada') { const r0 = await carregarCaixas(true).catch(() => null); const fora = r0 && !r0.erro ? r0.filter(c => c.status === 'Fora' && c.proc_id_atual === 'rem:' + r.id) : [];
+                if (fora.length) perguntarRetornoCaixas(fora.map(cx => ({ cx, motivo: 'remessa ' + st.toLowerCase() }))); }
         });
         ov.addEventListener('click', async e => {
             if (e.target === ov) return ov.remove();
@@ -23329,6 +23348,7 @@ else init();
         let r = await sb.from('caixas_bags_mov').insert(mov); if (r.error) throw r.error;
         const upd = tipo === 'Saída' ? { status: 'Fora', local_atual: [campos.destino, campos.cidade].filter(Boolean).join(' — ') || 'Fora', saida_em: mov.data, proc_id_atual: campos.proc_id || null, nf_atual: campos.nf || null }
             : tipo === 'Retorno' ? { status: campos.manutencao ? 'Manutenção' : 'Disponível', local_atual: 'Estoque', saida_em: null, proc_id_atual: null, nf_atual: null, retorno_em: mov.data }
+            : tipo === 'Pendente' ? { status: 'Pendente' }
             : tipo === 'Manutenção' ? { status: 'Manutenção', local_atual: campos.destino || 'Manutenção' }
             : tipo === 'Baixa' ? { status: 'Baixada', local_atual: campos.obs || 'Baixada' } : {};
         r = await sb.from('caixas_bags').update({ ...upd, atualizado_em: agora }).eq('id', cx.id); if (r.error) throw r.error;
@@ -23354,7 +23374,7 @@ else init();
         try {
             const { data, error } = await sb.from('caixas_bags').select('*').eq('status', 'Fora').limit(2000);
             if (error || !data?.length) return;
-            let n = 0;
+            let n = 0; const perguntar = [];
             // remessas (proc_id "rem:<id>") que já retornaram ou foram canceladas
             const remIds = [...new Set(data.map(c => c.proc_id_atual).filter(x => String(x || '').startsWith('rem:')).map(x => x.slice(4)))], remSt = {};
             if (remIds.length) { try { const { data: rs } = await sb.from('remessas_volumes').select('id,status').in('id', remIds); (rs || []).forEach(r => { remSt[r.id] = r.status; }); } catch (e) {} }
@@ -23362,17 +23382,74 @@ else init();
                 if (!cx.proc_id_atual) continue;
                 if (cx.proc_id_atual.startsWith('rem:')) {
                     const st = remSt[cx.proc_id_atual.slice(4)]; if (st !== 'Retornou' && st !== 'Cancelada') continue;
-                    try { await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: cx.proc_id_atual, nf: cx.nf_atual, obs: 'retorno automático — remessa ' + st.toLowerCase() }); n++; } catch (e) { console.warn('caixas_bags auto:', e.message || e); }
+                    perguntar.push({ cx, motivo: 'remessa ' + st.toLowerCase() });
                     continue;
                 }
                 const p = procPorId(cx.proc_id_atual); if (!p || p.status !== 'concluido') continue;
-                try { await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: cx.proc_id_atual, nf: cx.nf_atual, obs: 'retorno automático — cirurgia concluída' }); n++; }
-                catch (e) { console.warn('caixas_bags auto:', e.message || e); }
+                perguntar.push({ cx, motivo: 'cirurgia concluída' });
             }
+            if (perguntar.length) perguntarRetornoCaixas(perguntar);
             if (n) { _cxCache = null; atualizarBadgeCaixas(); window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s)/sacola(s) voltaram para o estoque (cirurgia concluída)`); if (document.getElementById('cx-lista') && window._cxRecarregar) window._cxRecarregar(); }
         } catch (e) { console.warn('caixas_bags auto:', e); }
         finally { _cxAutoRodando = false; if (_cxAutoDeNovo) { _cxAutoDeNovo = false; setTimeout(retornoAutomaticoCaixas, 50); } }
     }
+
+    // ── Material voltou: a caixa/bag/sacola voltou junto? (se não, fica Pendente e entra na cobrança) ──
+    const _cxAdiado = {};   // id → horário até quando não perguntar de novo ("responder depois")
+    let _cxPerguntas = new Map();
+    function descCaixaProc(cx) {
+        if (String(cx.proc_id_atual || '').startsWith('rem:')) return [cx.local_atual, cx.nf_atual ? 'NF ' + cx.nf_atual : ''].filter(Boolean).join(' · ') + ' (remessa)';
+        const p = procPorId(cx.proc_id_atual); return p ? [p.paciente, p.hospital, p.nf ? 'NF ' + p.nf : ''].filter(Boolean).join(' · ') : (cx.local_atual || '');
+    }
+    function perguntarRetornoCaixas(novas) {
+        const agora = Date.now();
+        novas.filter(x => !(_cxAdiado[x.cx.id] > agora)).forEach(x => _cxPerguntas.set(x.cx.id, x));
+        if (!_cxPerguntas.size) return;
+        let ov = document.getElementById('cx-pergunta');
+        if (!ov) { ov = document.createElement('div'); ov.id = 'cx-pergunta'; ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px'; document.body.appendChild(ov); }
+        const bt = 'padding:8px 12px;border-radius:9px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.74rem;font-weight:800;cursor:pointer;white-space:nowrap';
+        const lista = [..._cxPerguntas.values()];
+        ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;border-top:5px solid #0d9488;width:min(640px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);padding:20px">
+          <div style="font-weight:800;font-size:1rem;color:var(--text)">📦 O material voltou para o estoque</div>
+          <div style="font-size:.8rem;color:var(--text-dim);margin:4px 0 14px">A caixa, bag ou sacola voltou <b>junto com os itens</b>? Se não voltou, ela fica <b>pendente</b> e entra na cobrança.</div>
+          ${lista.map(({ cx }) => `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border,#e5e7eb);flex-wrap:wrap">
+              <div style="flex:1;min-width:220px"><b style="font-family:var(--mono);font-size:.95rem">${CX_ICO[cx.tipo] || '📦'} ${esc(cx.codigo)}</b> <span style="font-size:.72rem;color:var(--text-dim)">${cx.tipo === 'Caixa' ? 'Caixa plástica' : esc(cx.tipo)}</span>
+                <div style="font-size:.74rem;color:var(--text-dim);margin-top:2px">${esc(descCaixaProc(cx))}</div></div>
+              <button data-voltou="${cx.id}" style="${bt};background:#16a34a;color:#fff;border-color:#16a34a">✅ Voltou junto</button>
+              <button data-naovoltou="${cx.id}" style="${bt};color:#dc2626;border-color:#dc2626">⏳ Não voltou</button></div>`).join('')}
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;border-top:1px solid var(--border,#e5e7eb);padding-top:12px">
+            <button data-depois style="${bt}">Responder depois</button>
+            ${lista.length > 1 ? `<button data-todas style="${bt};background:#16a34a;color:#fff;border-color:#16a34a">✅ Todas voltaram</button>` : ''}</div></div>`;
+        ov.onclick = async e => {
+            const b = e.target.closest('button'); if (!b) return; b.disabled = true;
+            const responder = async (id, voltou) => {
+                const x = _cxPerguntas.get(id); if (!x) return; _cxPerguntas.delete(id);
+                const r = await window._supabase.from('caixas_bags').select('*').eq('id', id);   // confere de novo (outro operador pode ter respondido)
+                const cx = (r.data || [])[0] || x.cx; if (cx.status !== 'Fora') return;
+                try { voltou ? await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: cx.proc_id_atual, nf: cx.nf_atual, obs: 'voltou junto com o material — ' + x.motivo })
+                             : await movCaixa(cx, 'Pendente', { destino: cx.local_atual || '', proc_id: cx.proc_id_atual, nf: cx.nf_atual, obs: 'NÃO voltou com o material — ' + x.motivo }); }
+                catch (err) { alert(/caixas_bags_status_check/.test(String(err.message || err)) ? 'Rode o SQL 20261107_caixas_pendente.sql no Supabase para registrar caixa pendente.' : 'Erro: ' + (err.message || err)); }
+            };
+            if (b.dataset.voltou) await responder(b.dataset.voltou, true);
+            else if (b.dataset.naovoltou) await responder(b.dataset.naovoltou, false);
+            else if (b.dataset.todas !== undefined) { for (const id of [..._cxPerguntas.keys()]) await responder(id, true); }
+            else if (b.dataset.depois !== undefined) { const ate = Date.now() + 15 * 60000; _cxPerguntas.forEach((_, id) => { _cxAdiado[id] = ate; }); _cxPerguntas.clear(); }
+            _cxCache = null; atualizarBadgeCaixas(); if (window._cxRecarregar) window._cxRecarregar();
+            if (!_cxPerguntas.size) ov.remove(); else perguntarRetornoCaixas([]);
+        };
+    }
+    // cobrança das caixas/bags/sacolas que não voltaram (WhatsApp)
+    window.cobrarCaixasPendentesWhatsApp = function () {
+        const l = window._cxPendentes || []; if (!l.length) { alert('Nenhuma caixa, bag ou sacola pendente de devolução.'); return; }
+        const L = ['Olá!', 'Segue a pendência de *caixas, bags e sacolas* do *Monitor Cirúrgico* (o material voltou, mas a embalagem não):'];
+        l.forEach(cx => { const p = String(cx.proc_id_atual || '').startsWith('rem:') ? null : procPorId(cx.proc_id_atual); const d = diasDesde(cx.saida_em);
+            L.push('', '---', `*${cx.tipo === 'Caixa' ? 'Caixa plástica' : cx.tipo}:* ${cx.codigo}${cx.descricao ? ' (' + cx.descricao + ')' : ''}`,
+                `*Hospital/cliente:* ${(p && p.hospital) || cx.local_atual || '—'}`, `*Nº da Nota Fiscal:* ${(p && p.nf) || cx.nf_atual || '—'}`);
+            if (p) L.push(`*Paciente:* ${p.paciente || '—'}`, `*Vendedor:* ${p.vendedor || '—'}`);
+            if (d != null) L.push(`*Saiu há:* ${d} dia(s)`); });
+        L.push('', '---', `Total: *${l.length} pendente(s)*`, '', 'Por favor, providencie a devolução das embalagens ao estoque. 🙏');
+        window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(L.join('\n')), '_blank');
+    };
     window.retornoAutomaticoCaixas = retornoAutomaticoCaixas;
     // confere ao abrir e a cada 30 s (pega a mudança de status feita aqui ou em outro computador)
     setTimeout(retornoAutomaticoCaixas, 8000);
@@ -23407,8 +23484,8 @@ else init();
         document.body.appendChild(ov);
         const $ = s => ov.querySelector(s);
         let cxs = [], fSt = '', modo = 'Retorno', linhas = [];
-        const ST_COR = { 'Disponível': '#16a34a', 'Fora': '#2563eb', 'Manutenção': '#b45309', 'Baixada': '#6b7280' };
-        const atrasada = c => c.status === 'Fora' && diasDesde(c.saida_em) > CX_ATRASO;
+        const ST_COR = { 'Disponível': '#16a34a', 'Fora': '#2563eb', 'Pendente': '#dc2626', 'Manutenção': '#b45309', 'Baixada': '#6b7280' };
+        const atrasada = c => (c.status === 'Fora' || c.status === 'Pendente') && diasDesde(c.saida_em) > CX_ATRASO;
         async function carregar() {
             const r = await carregarCaixas(true);
             if (!r || r.erro) { $('[data-corpo]').innerHTML = '<p style="color:#b45309;font-size:.85rem">⚠️ O banco ainda não tem as tabelas de caixas e bags. Rode o SQL <b>20261102_caixas_bags.sql</b> no Supabase desta filial.</p>'; return; }
@@ -23421,7 +23498,7 @@ else init();
         function desenhar() {
             const q = String($('[data-busca]').value || '').toUpperCase();
             const cont = s => s === 'atraso' ? cxs.filter(atrasada).length : s ? cxs.filter(c => c.status === s).length : cxs.length;
-            $('[data-filtros]').innerHTML = [['', 'Todas'], ['Disponível', '✅ Disponíveis'], ['Fora', '🚚 Fora'], ['atraso', `⏰ Fora há +${CX_ATRASO} dias`], ['Manutenção', '🔧 Manutenção'], ['Baixada', '🗑 Baixadas']]
+            $('[data-filtros]').innerHTML = [['', 'Todas'], ['Disponível', '✅ Disponíveis'], ['Fora', '🚚 Fora'], ['Pendente', '⏳ Não devolvidas'], ['atraso', `⏰ Fora há +${CX_ATRASO} dias`], ['Manutenção', '🔧 Manutenção'], ['Baixada', '🗑 Baixadas']]
                 .map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? 'background:#111827;color:#fff;border-color:#111827' : ''}">${n} <b>${cont(s)}</b></button>`).join('')
                 + `<span style="margin-left:auto;font-size:.72rem;color:var(--text-dim)">${cxs.filter(c => c.tipo === 'Caixa').length} caixa(s) · ${cxs.filter(c => c.tipo === 'Bag').length} bag(s) · ${cxs.filter(c => c.tipo === 'Sacola').length} sacola(s)</span>`;
             linhas = cxs.filter(c => !fSt || (fSt === 'atraso' ? atrasada(c) : c.status === fSt))
@@ -23438,8 +23515,8 @@ else init();
                     <td style="${td}">${c.status === 'Fora' && c.saida_em ? `${new Date(c.saida_em).toLocaleDateString('pt-BR')} <span style="color:${at ? '#dc2626' : 'var(--text-dim)'};font-size:.7rem">(${d} dia${d === 1 ? '' : 's'})</span>` : c.retorno_em ? `<span style="color:var(--text-dim);font-size:.72rem">voltou ${new Date(c.retorno_em).toLocaleDateString('pt-BR')}</span>` : '—'}</td>
                     <td style="${td};font-family:var(--mono)">${esc(c.nf_atual || '')}</td>
                     <td style="${td};text-align:right;white-space:nowrap">
-                      ${c.status !== 'Fora' && c.status !== 'Baixada' ? `<button data-saida="${c.id}" style="${bt};padding:4px 9px;color:#2563eb;border-color:#2563eb">⬆ Saída</button>` : ''}
-                      ${c.status === 'Fora' || c.status === 'Manutenção' ? `<button data-retorno="${c.id}" style="${bt};padding:4px 9px;color:#16a34a;border-color:#16a34a">⬇ Retorno</button>` : ''}
+                      ${c.status !== 'Fora' && c.status !== 'Pendente' && c.status !== 'Baixada' ? `<button data-saida="${c.id}" style="${bt};padding:4px 9px;color:#2563eb;border-color:#2563eb">⬆ Saída</button>` : ''}
+                      ${c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Manutenção' ? `<button data-retorno="${c.id}" style="${bt};padding:4px 9px;color:#16a34a;border-color:#16a34a">⬇ Retorno</button>` : ''}
                       ${c.status === 'Fora' ? `<button data-cons="${c.id}" style="${bt};padding:4px 9px" title="Ver a cirurgia e os itens desta caixa">🔍</button>` : ''}
                       <button data-hist="${c.id}" style="${bt};padding:4px 9px" title="Histórico: para onde foi e quando voltou">🕘</button>
                       <button data-etq1="${c.id}" style="${bt};padding:4px 9px" title="Etiqueta QR desta caixa/bag">🏷</button>
@@ -23454,7 +23531,7 @@ else init();
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
                 ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`)}
                 ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c?.descricao || '')}" placeholder="ex.: caixa plástica grande azul, bag térmica" style="${inp};width:260px">`)}
-                ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
+                ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Pendente', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
                 <span data-prev style="font-size:.74rem;color:var(--text-dim);margin-bottom:8px"></span>
                 <button data-a="${c ? 'gravarEdit' : 'gravarNovo'}" data-id="${c?.id || ''}" style="${bt};background:#111827;color:#fff;border-color:#111827">💾 Salvar</button>
                 <button data-a="cancela" style="${bt}">Cancelar</button></div>`);
@@ -23541,7 +23618,7 @@ else init();
             if (!c) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`; return; }
             if (modo === 'Consultar') { msg.textContent = ''; await consultar(c); $('[data-bip]').focus(); return; }
             if (modo === 'Retorno') {
-                if (c.status !== 'Fora' && c.status !== 'Manutenção') { msg.innerHTML = `<span style="color:#b45309">⚠ ${esc(c.codigo)} já está ${esc(c.status)}</span>`; return; }
+                if (c.status !== 'Fora' && c.status !== 'Pendente' && c.status !== 'Manutenção') { msg.innerHTML = `<span style="color:#b45309">⚠ ${esc(c.codigo)} já está ${esc(c.status)}</span>`; return; }
                 const de = c.local_atual; try { await retorno(c, true); msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(c.codigo)} voltou${de ? ' de ' + esc(de) : ''}</span>`; await carregar(); } catch (e) { msg.innerHTML = `<span style="color:#dc2626">Erro: ${esc(e.message || e)}</span>`; }
             } else {
                 if (c.status === 'Fora') { msg.innerHTML = `<span style="color:#b45309">⚠ ${esc(c.codigo)} já está fora (${esc(c.local_atual || '')})</span>`; return; }
@@ -23593,7 +23670,7 @@ else init();
                     const c = porId(d.id), st = $('[data-f="status"]').value, obs = $('[data-f="obs"]').value.trim();
                     const { error } = await sb.from('caixas_bags').update({ descricao: $('[data-f="descricao"]').value.trim() || null, atualizado_em: new Date().toISOString() }).eq('id', c.id); if (error) throw error;
                     if (st !== c.status) {
-                        if (st === 'Disponível' && (c.status === 'Fora' || c.status === 'Manutenção')) await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual' });
+                        if (st === 'Disponível' && (c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Manutenção')) await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual' });
                         else if (st === 'Manutenção') await movCaixa(c, 'Manutenção', { obs, destino: 'Manutenção' });
                         else if (st === 'Baixada') await movCaixa(c, 'Baixa', { obs: obs || 'baixada' });
                         else if (st === 'Fora') { form(''); await carregar(); return formSaida(cxs.find(x => x.id === c.id)); }
@@ -23647,10 +23724,13 @@ else init();
     async function atualizarBadgeCaixas() {
         const b = document.getElementById('btn-caixas'); if (!b) return;
         const l = await carregarCaixas(true).catch(() => null); if (!l || l.erro) return;
-        const fora = l.filter(c => c.status === 'Fora'), atras = fora.filter(c => diasDesde(c.saida_em) > CX_ATRASO);
+        const fora = l.filter(c => c.status === 'Fora'), atras = fora.filter(c => diasDesde(c.saida_em) > CX_ATRASO), pend = l.filter(c => c.status === 'Pendente');
+        const mudou = (window._cxPendentes || []).length !== pend.length; window._cxPendentes = pend;
+        if (mudou && typeof atualizarBannerPendencias === 'function') try { atualizarBannerPendencias(); } catch (e) {}
         b.innerHTML = '📦 Caixas, bags e sacolas' + (fora.length ? `<span class="bdg" title="${fora.length} fora (em cirurgia/cliente)">${fora.length} fora</span>` : '')
+            + (pend.length ? `<span class="bdg alerta" title="${pend.length} não devolvida(s): ${pend.map(c => c.codigo).join(', ')}">⏳ ${pend.length} pendente${pend.length > 1 ? 's' : ''}</span>` : '')
             + (atras.length ? `<span class="bdg alerta" title="${atras.length} fora há mais de ${CX_ATRASO} dias: ${atras.map(c => c.codigo).join(', ')}">⏰ ${atras.length}</span>` : '');
-        b.classList.toggle('atrasada', atras.length > 0);
+        b.classList.toggle('atrasada', atras.length > 0 || pend.length > 0);
         b.title = atras.length ? `⏰ ${atras.length} caixa(s)/bag(s)/sacola(s) fora há mais de ${CX_ATRASO} dias — clique para ver` : 'Cadastro das caixas, bags e sacolas (código + QR) e rastreio: para onde foram e quando voltaram';
     }
     window.atualizarBadgeCaixas = atualizarBadgeCaixas;
