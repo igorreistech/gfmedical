@@ -23570,7 +23570,13 @@ else init();
                 `*Hospital/cliente:* ${(p && p.hospital) || cx.local_atual || '—'}`, `*Nº da Nota Fiscal:* ${(p && p.nf) || cx.nf_atual || '—'}`);
             if (p) L.push(`*Paciente:* ${p.paciente || '—'}`, `*Vendedor:* ${p.vendedor || '—'}`);
             if (d != null) L.push(`*Saiu há:* ${d} dia(s)`); });
-        L.push('', '---', `Total: *${l.length} caixa(s)/bag(s)/sacola(s) pendente(s)*`, '', 'Por favor, providencie a devolução das caixas ao estoque. 🙏');
+        // conforme o tipo: 'da caixa', 'das bags e da sacola'…
+        const junta = arr => arr.length > 1 ? arr.slice(0, -1).join(', ') + ' e ' + arr[arr.length - 1] : (arr[0] || '');
+        const cont = ['Caixa', 'Bag', 'Sacola'].map(t => [t, l.filter(c => c.tipo === t).length]).filter(([, n]) => n);
+        const NOMES = { Caixa: ['caixa', 'caixas'], Bag: ['bag', 'bags'], Sacola: ['sacola', 'sacolas'] };
+        const total = junta(cont.map(([t, n]) => n + ' ' + NOMES[t][n > 1 ? 1 : 0]));
+        const devol = junta(cont.map(([t, n]) => (n > 1 ? 'das ' : 'da ') + NOMES[t][n > 1 ? 1 : 0]));
+        L.push('', '---', `Total: *${total} pendente${l.length > 1 ? 's' : ''}*`, '', `Por favor, providencie a devolução ${devol} ao estoque. 🙏`);
         return L;
     };
     window.cobrarCaixasPendentesWhatsApp = function () {
