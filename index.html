@@ -22596,7 +22596,7 @@ else init();
           <div style="margin:12px 0 4px">${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Vendedor', c.vendedor)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}</div>
           ${c.itens.length ? `<details style="margin-top:8px;text-align:left" open><summary style="font-size:.72rem;font-weight:800;color:var(--text);cursor:pointer">📋 Itens da NF (${c.itens.length} · ${c.itens.reduce((a, i) => a + (+i.qtd || 0), 0)} un)</summary>
             <div style="max-height:160px;overflow:auto;margin-top:4px">${c.itens.map(i => `<div style="display:flex;gap:6px;padding:3px 0;border-bottom:1px solid var(--border,#ddd);font-size:.72rem"><b style="min-width:28px;text-align:right">${esc(i.qtd)}×</b><span style="flex:1">${esc(i.nome || i.cod)}${i.cod && i.nome ? ` <span style="color:var(--text-dim)">${esc(i.cod)}</span>` : ''}${i.lote ? `<div style="color:var(--text-dim);font-size:.66rem">lote ${esc(i.lote)}</div>` : ''}</span></div>`).join('')}</div></details>` : `<div style="margin-top:8px;font-size:.7rem;color:var(--text-dim)">Sem itens lançados nesta cirurgia.</div><button type="button" data-pdfitens style="margin-top:6px;width:100%;padding:9px;border-radius:10px;border:1px solid #2563eb;background:transparent;color:#2563eb;font-weight:700;font-size:.78rem;cursor:pointer">📄 Importar itens do PDF da NF (código, lote e quantidade)</button>`}
-          <button type="button" data-a="vol" style="margin-top:12px;width:100%;padding:9px;border-radius:10px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-weight:700;font-size:.78rem;cursor:pointer">📦🎒 Várias caixas / bags (montar volumes)</button>
+          <button type="button" data-a="vol" style="margin-top:12px;width:100%;padding:9px;border-radius:10px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-weight:700;font-size:.78rem;cursor:pointer">📦🎒🛍️ Várias caixas, bags ou sacolas (montar volumes)</button>
           <button type="button" data-a="print" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:0;background:#111827;color:#fff;font-weight:700;font-size:.8rem;cursor:pointer">🏷 Imprimir etiqueta</button>
           <button type="button" data-a="x" style="margin-top:8px;width:100%;padding:9px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:.75rem;cursor:pointer">Fechar</button></div>`;
         const inp = ov.querySelector('[data-caixa]'), caixaAtual = () => inp.value.trim();
@@ -22980,11 +22980,12 @@ else init();
         if (!vols.length) vols = [{ tipo: 'Caixa', ident: '', auto: true, q: Object.fromEntries(itens.map((i, k) => [k, i.total])) }];
         const numerar = () => vols.forEach((v, n) => { if (v.auto || !v.ident) { v.ident = String(n + 1); v.auto = true; } });
         const conta = t => vols.filter(v => v.tipo === t).length;
+        const ICONE = { Caixa: '📦', Bag: '🎒', Sacola: '🛍️' }, ORD = { Caixa: 0, Bag: 1, Sacola: 2 };
         const setConta = (t, n) => {
             n = Math.max(0, Math.min(30, n));
             const outros = vols.filter(v => v.tipo !== t), meus = vols.filter(v => v.tipo === t).slice(0, n);
             while (meus.length < n) meus.push({ tipo: t, ident: '', auto: true, q: {} });
-            vols = [...outros, ...meus].sort((a, b) => (a.tipo === 'Caixa' ? 0 : 1) - (b.tipo === 'Caixa' ? 0 : 1));
+            vols = [...outros, ...meus].sort((a, b) => (ORD[a.tipo] ?? 9) - (ORD[b.tipo] ?? 9));
             if (!vols.length) vols = [{ tipo: t === 'Caixa' ? 'Bag' : 'Caixa', ident: '', auto: true, q: {} }];
             vols.forEach(v => { if (v.auto) v.ident = ''; }); numerar();
         };
@@ -23008,22 +23009,22 @@ else init();
         function desenhar() {
             const th = 'padding:7px 8px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);background:var(--surface,#fff);position:sticky;top:0;z-index:1;white-space:nowrap';
             const td = 'padding:6px 8px;border-bottom:1px solid var(--border,#e5e7eb);font-size:.78rem;color:var(--text);vertical-align:middle';
-            const cont = t => `<div style="display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;color:var(--text)">${t === 'Caixa' ? '📦 Caixas' : '🎒 Bags'}
+            const cont = t => `<div style="display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;color:var(--text)">${ICONE[t]} ${t === 'Bag' ? 'Bags' : t + 's'}
                 <button data-menos="${t}" style="${bt};padding:4px 10px">−</button><input type="number" min="0" max="30" data-conta="${t}" value="${conta(t)}" style="${num}"><button data-mais="${t}" style="${bt};padding:4px 10px">+</button></div>`;
             ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1100px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
               <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
                 <div style="margin-right:auto"><div style="font-weight:800;font-size:.95rem;color:var(--text)">📦 Volumes que estão saindo — NF ${esc(p.nf || '—')}</div>
                   <div style="font-size:.72rem;color:var(--text-dim)">${esc([p.paciente, p.hospital, p.medico].filter(Boolean).join(' · '))}</div></div>
-                ${cont('Caixa')}${cont('Bag')}
+                ${cont('Caixa')}${cont('Bag')}${cont('Sacola')}
                 <button data-a="x" style="${bt}">✕</button>
               </div>
               ${semBanco ? '<div style="padding:8px 18px;background:#fef3c7;color:#92400e;font-size:.74rem">⚠️ Para guardar os volumes, rode o SQL <b>20261101_volumes_cirurgia.sql</b> no Supabase desta filial. A impressão funciona mesmo assim.</div>' : ''}
               <div style="overflow:auto;flex:1;padding:0 18px">
                 <table style="width:100%;border-collapse:separate;border-spacing:0;margin:10px 0">
                   <thead><tr><th style="${th};text-align:left;min-width:220px">Item</th><th style="${th}">Qtd NF</th>
-                    ${vols.map((v, j) => `<th style="${th};text-align:center"><div>${v.tipo === 'Caixa' ? '📦 Caixa' : '🎒 Bag'}</div>
+                    ${vols.map((v, j) => `<th style="${th};text-align:center"><div>${ICONE[v.tipo] || '📦'} ${esc(v.tipo)}</div>
                       <input data-ident="${j}" value="${esc(v.ident)}" maxlength="20" style="width:70px;margin-top:4px;padding:4px 5px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.74rem;font-weight:800;text-align:center">
-                      ${cads.length ? `<div><select data-cad="${j}" title="Qual caixa/bag cadastrada vai neste volume (registra a saída para o rastreio)" style="width:84px;margin-top:4px;padding:3px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.66rem">
+                      ${cads.length && v.tipo !== 'Sacola' ? `<div><select data-cad="${j}" title="Qual caixa/bag cadastrada vai neste volume (registra a saída para o rastreio)" style="width:84px;margin-top:4px;padding:3px;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--bg,#fff);color:var(--text);font-size:.66rem">
                         <option value="">— cadastro —</option>${cads.filter(c => c.tipo === v.tipo && c.status !== 'Baixada' && (c.status !== 'Fora' || c.proc_id_atual === pid || c.codigo === v.ident)).map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.ident ? 'selected' : ''}>${esc(c.codigo)}${c.status === 'Manutenção' ? ' 🔧' : ''}</option>`).join('')}</select></div>` : ''}
                       <div><button data-printvol="${j}" title="Imprimir só esta etiqueta" style="${bt};padding:3px 8px;margin-top:4px;font-size:.66rem">🏷</button></div></th>`).join('')}
                     <th style="${th}">Fora</th></tr></thead>
@@ -23410,9 +23411,26 @@ else init();
             qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
             const w = window.open('', '_blank'); if (!w) return alert('Libere as janelas pop-up para imprimir.');
             const pasta = location.origin + location.pathname.replace(/[^/]*$/, '');
-            const cards = lista.map(c => { const q = qrcode(0, 'M'); q.addData(c.token ? `${pasta}etiqueta.html?f=${(c.filial || filialAtual(null) || 'CGR').toLowerCase()}&cx=${c.codigo}&t=${c.token}` : `GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
-                return `<div class="e"><div class="qr">${q.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div><div class="t"><div class="g">GF MEDICAL</div><div class="c">${esc(c.codigo)}</div><div class="d">${c.tipo === 'Caixa' ? '📦 Caixa' : '🎒 Bag'}${c.descricao ? ' · ' + esc(c.descricao) : ''}</div><div class="f">${esc(filialAtual(null) === 'CBA' ? 'Cuiabá' : 'Campo Grande')} · se encontrar, devolver à GF Medical${c.token ? ' · leia o QR para ver o conteúdo' : ''}</div></div></div>`; }).join('');
-            w.document.write(`<!doctype html><meta charset="utf-8"><title>Etiquetas caixas e bags</title><style>body{font-family:Arial,sans-serif;margin:8mm}.e{display:inline-flex;gap:10px;align-items:center;width:88mm;height:38mm;border:1px dashed #999;border-radius:6px;padding:4mm;margin:2mm;box-sizing:border-box;vertical-align:top;page-break-inside:avoid}.qr{width:30mm;height:30mm;flex:none}.qr svg{width:100%;height:100%}.g{font-size:9pt;font-weight:700;color:#555}.c{font-size:22pt;font-weight:800;letter-spacing:1px}.d{font-size:9pt}.f{font-size:7pt;color:#666;margin-top:3px}@media print{.e{border-color:#ccc}}</style>${cards}<script>setTimeout(()=>print(),300)<\/script>`);
+            const cards = lista.map(c => {
+                const fil = c.filial || filialAtual(null) || 'CGR', emp = EMPRESA[fil] || EMPRESA.CGR, q = qrcode(0, 'M');
+                q.addData(c.token ? `${pasta}etiqueta.html?f=${fil.toLowerCase()}&cx=${c.codigo}&t=${c.token}` : `GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
+                return `<section class="e">
+                  <div class="topo"><b>${esc(emp.razao)}</b><span>CNPJ ${esc(emp.cnpj)}</span><span>${esc(emp.end)}</span></div>
+                  <div class="cod"><small>${c.tipo === 'Bag' ? '🎒 BAG' : '📦 CAIXA'}</small><b>${esc(c.codigo)}</b>${c.descricao ? `<span>${esc(c.descricao)}</span>` : ''}</div>
+                  <div class="qr">${q.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div>
+                  <div class="rod"><b>PROPRIEDADE DA GF MEDICAL</b><span>Se encontrar, favor devolver.${c.token ? ' Leia o QR Code para ver o conteúdo.' : ''}</span></div>
+                </section>`; }).join('');
+            w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas caixas e bags</title><style>
+              @page{size:85mm 100mm;margin:0}
+              *{box-sizing:border-box;margin:0;padding:0}
+              body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#eee}
+              .e{width:85mm;height:100mm;padding:3.5mm 4mm;background:#fff;margin:0 auto 6px;display:flex;flex-direction:column;align-items:center;gap:2mm;page-break-after:always;break-after:page;overflow:hidden}
+              .topo{width:100%;text-align:center;border-bottom:.5mm solid #000;padding-bottom:1.5mm;line-height:1.15}.topo b{display:block;font-size:8pt}.topo span{display:block;font-size:6.2pt}
+              .cod{text-align:center;line-height:1}.cod small{display:block;font-size:8pt;font-weight:bold;letter-spacing:1pt}.cod b{display:block;font-size:32pt;letter-spacing:1pt;margin-top:.5mm}.cod span{display:block;font-size:7.5pt;margin-top:1mm}
+              .qr{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}.qr svg{width:44mm;height:44mm}
+              .rod{width:100%;text-align:center;border-top:.4mm solid #000;padding-top:1.3mm;line-height:1.2}.rod b{display:block;font-size:7.5pt}.rod span{display:block;font-size:6.2pt}
+              @media print{body{background:#fff}.e{margin:0}}
+            </style></head><body>${cards}<script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
             w.document.close();
         }
         async function consultar(c) {
