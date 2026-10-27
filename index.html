@@ -22693,38 +22693,66 @@ else init();
     const temNF = p => p && String(p.nf || '').trim();
     const BTN_QR = 'background:rgba(17,24,39,.08);border-color:rgba(17,24,39,.35);color:var(--text);font-weight:700;';
 
-    // ── Cadastro da cirurgia: escolher o volume (Caixa / Bag / Sacola cadastrada) → saída automática ao salvar ──
+    // ── Cadastro da cirurgia: escolher os volumes (várias Caixas / Bags / Sacolas cadastradas) → saída automática ao salvar ──
     function injetarVolumeFicha() {
         const fnf = document.getElementById('f-nf'); if (!fnf || document.getElementById('f-volume-cad')) return;
         const box = document.createElement('div'); box.id = 'f-volume-cad';
-        box.style.cssText = 'margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.72rem;font-weight:700;color:var(--text)';
+        box.style.cssText = 'margin-top:8px;font-size:.72rem;font-weight:700;color:var(--text)';
         const sel = 'padding:6px 8px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--bg,#fff);color:var(--text);font-size:.74rem';
-        box.innerHTML = `<span>📦 Volume que vai:</span>
-          <select id="f-vol-tipo" style="${sel}"><option value="">— nenhum —</option><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>
-          <select id="f-vol-cod" style="${sel};min-width:120px;display:none"></select><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span>`;
+        const bt = 'padding:5px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.72rem;font-weight:700;cursor:pointer';
+        box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span>📦 Volumes que vão:</span><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span></div>
+          <div id="f-vol-linhas" style="display:flex;flex-direction:column;gap:5px"></div>
+          <button type="button" id="f-vol-add" style="${bt};margin-top:5px">+ adicionar caixa, bag ou sacola</button>`;
         (document.getElementById('btn-etq-qr-ficha') || fnf).insertAdjacentElement('afterend', box);
-        const tipoEl = box.querySelector('#f-vol-tipo'), codEl = box.querySelector('#f-vol-cod'), info = box.querySelector('#f-vol-info');
-        let lista = [], ultimoId = null;
+        const linhasEl = box.querySelector('#f-vol-linhas'), info = box.querySelector('#f-vol-info');
+        let lista = [], vols = [], carregou = false, ultimoId = null;
         const pidAtual = () => { try { return typeof editingDocId !== 'undefined' && editingDocId ? String(editingDocId) : ''; } catch (e) { return ''; } };
-        const montar = (manter) => {
-            const t = tipoEl.value, pid = pidAtual(), atual = manter ? codEl.value : '';
-            codEl.style.display = t ? '' : 'none'; if (!t) { codEl.innerHTML = ''; info.textContent = ''; return; }
-            const ops = lista.filter(c => c.tipo === t && c.status !== 'Baixada' && (c.status === 'Disponível' || (pid && c.proc_id_atual === pid)));
-            codEl.innerHTML = `<option value="">— escolha a ${t.toLowerCase()} —</option>` + ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === atual ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${pid && c.proc_id_atual === pid ? ' (já nesta cirurgia)' : ''}</option>`).join('');
-            info.textContent = ops.length ? '' : `nenhuma ${t.toLowerCase()} disponível no cadastro`;
+        const desenhar = () => {
+            const pid = pidAtual();
+            linhasEl.innerHTML = vols.map((v, i) => {
+                const usados = vols.filter((x, j) => j !== i).map(x => x.cod);
+                const ops = v.tipo ? lista.filter(c => c.tipo === v.tipo && c.status !== 'Baixada' && !usados.includes(c.codigo) && (c.status === 'Disponível' || (pid && c.proc_id_atual === pid))) : [];
+                return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  <select data-vtipo="${i}" style="${sel}"><option value="">— tipo —</option>${['Caixa', 'Bag', 'Sacola'].map(t => `<option value="${t}" ${v.tipo === t ? 'selected' : ''}>${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t}</option>`).join('')}</select>
+                  ${v.tipo ? `<select data-vcod="${i}" style="${sel};min-width:120px"><option value="">${ops.length ? `— escolha a ${v.tipo.toLowerCase()} —` : `nenhuma ${v.tipo.toLowerCase()} disponível`}</option>${ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.cod ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${pid && c.proc_id_atual === pid ? ' (já nesta cirurgia)' : ''}</option>`).join('')}</select>` : ''}
+                  <button type="button" data-vdel="${i}" title="Tirar este volume" style="${bt};padding:4px 8px">✕</button></div>`;
+            }).join('');
+            const n = vols.filter(v => v.cod).length;
+            info.textContent = n ? `${n} volume(s): ` + vols.filter(v => v.cod).map(v => v.cod).join(', ') : 'nenhum';
         };
         const recarregar = async () => {
-            const r = await carregarCaixas(true).catch(() => null); lista = r && !r.erro ? r : [];
-            const pid = pidAtual(), ja = pid ? lista.find(c => c.status === 'Fora' && c.proc_id_atual === pid) : null;
-            tipoEl.value = ja ? ja.tipo : ''; montar(false); if (ja) codEl.value = ja.codigo;
+            const r = await carregarCaixas(true).catch(() => null); carregou = !!(r && !r.erro); lista = carregou ? r : [];
+            const pid = pidAtual();
+            vols = pid ? lista.filter(c => c.status === 'Fora' && c.proc_id_atual === pid).map(c => ({ tipo: c.tipo, cod: c.codigo })) : [];
+            box.dataset.antes = JSON.stringify(vols.map(v => v.cod));
+            desenhar();
         };
-        tipoEl.onchange = () => montar(false);
+        box.querySelector('#f-vol-add').onclick = () => { const ult = vols[vols.length - 1]; vols.push({ tipo: ult ? ult.tipo : 'Caixa', cod: '' }); desenhar(); };
+        linhasEl.addEventListener('change', e => {
+            const t = e.target;
+            if (t.dataset.vtipo !== undefined) { vols[+t.dataset.vtipo] = { tipo: t.value, cod: '' }; desenhar(); }
+            else if (t.dataset.vcod !== undefined) { vols[+t.dataset.vcod].cod = t.value; desenhar(); }
+        });
+        linhasEl.addEventListener('click', e => { const b = e.target.closest('[data-vdel]'); if (b) { vols.splice(+b.dataset.vdel, 1); desenhar(); } });
+        box._volumes = () => ({ carregou, cods: vols.map(v => v.cod).filter(Boolean), antes: JSON.parse(box.dataset.antes || '[]') });
         // ficha aberta para outra cirurgia (ou nova): recarrega
         setInterval(() => { const id = pidAtual() + '|' + (document.getElementById('f-nf') ? '' : 'x'); if (id !== ultimoId && box.offsetParent) { ultimoId = id; recarregar(); } }, 700);
     }
     window._volumeFichaSalvar = function (proc) {
-        const cod = document.getElementById('f-vol-cod')?.value; if (!cod || !proc || !(proc._docId || proc.id)) return;
-        try { guardarCaixa(proc, cod); saidaCaixasDaCirurgia(proc, [cod]); } catch (e) { console.warn('volume da ficha:', e); }
+        const box = document.getElementById('f-volume-cad'); if (!box || !box._volumes || !proc || !(proc._docId || proc.id)) return;
+        const { carregou, cods, antes } = box._volumes(); if (!carregou) return;
+        const tirados = antes.filter(c => !cods.includes(c));
+        try {
+            if (cods.length || tirados.length) guardarCaixa(proc, cods.join(', '));
+            if (cods.length) saidaCaixasDaCirurgia(proc, cods);
+            // tirada da lista da cirurgia antes de sair: volta para o estoque
+            if (tirados.length) carregarCaixas(true).then(async l => {
+                const pid = String(proc._docId || proc.id);
+                for (const cx of (l && !l.erro ? l : []).filter(c => tirados.includes(c.codigo) && c.status === 'Fora' && c.proc_id_atual === pid))
+                    try { await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: pid, nf: cx.nf_atual, obs: 'tirada dos volumes da cirurgia (não foi)' }); } catch (e) { console.warn(e); }
+                _cxCache = null; atualizarBadgeCaixas();
+            }).catch(() => {});
+        } catch (e) { console.warn('volume da ficha:', e); }
     };
     function injetarBotoesEtiqueta() {
         try { injetarVolumeFicha(); } catch (e) {}
