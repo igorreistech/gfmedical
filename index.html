@@ -7640,7 +7640,7 @@ window.abrirCobrarWhatsApp = function() {
                 '<button id="btnCobrarSoRetirada" style="padding:13px;border-radius:10px;border:2px solid #f97316;background:transparent;color:#f97316;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">📦 Só Aguardando Retirada</button>' +
                 '<button id="btnCobrarSoFicha" style="padding:13px;border-radius:10px;border:2px solid #a855f7;background:transparent;color:#a855f7;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">📋 Só Ficha OPME</button>' +
                 ((window._cxPendentes || []).length ? '<button id="btnCobrarCaixas" style="padding:13px;border-radius:10px;border:2px solid #dc2626;background:transparent;color:#dc2626;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">🧳 Caixas/bags/sacolas não devolvidas (' + window._cxPendentes.length + ')</button>' : '') +
-                '<button id="btnCobrarAmbos" style="padding:13px;border-radius:10px;border:2px solid #25D366;background:#25D366;color:#fff;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">📦📋 Os Dois Juntos</button>' +
+                '<button id="btnCobrarAmbos" style="padding:13px;border-radius:10px;border:2px solid #25D366;background:#25D366;color:#fff;font-family:var(--mono);font-size:0.85rem;font-weight:700;cursor:pointer;">' + ((window._cxPendentes || []).length ? '📦📋🧳 Os Três Juntos' : '📦📋 Os Dois Juntos') + '</button>' +
                 '<button id="btnCobrarCancelar" style="padding:10px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-dim,#6b7280);font-family:var(--mono);font-size:0.78rem;font-weight:700;cursor:pointer;">Cancelar</button>' +
             '</div>' +
         '</div>';
@@ -7748,6 +7748,11 @@ async function exportarWhatsApp(filtro, vendedorFiltro) {
         linhas.push('Total: *' + fichasPendentes.length + ' ficha(s) OPME pendente(s)*');
         linhas.push('');
         linhas.push('Poderia providenciar a entrega da ficha do OPME o quanto antes? É pra garantir a laudação com o convênio e o faturamento com o cliente no prazo.');
+    }
+
+    if (filtro === undefined && typeof window.linhasCaixasPendentes === 'function') {
+        var cxL = window.linhasCaixasPendentes();
+        if (cxL.length) { linhas.push(''); linhas.push('*CAIXAS / BAGS / SACOLAS NÃO DEVOLVIDAS* (o material voltou, a caixa não)'); cxL.forEach(function (l) { linhas.push(l); }); }
     }
 
     linhas.push('');
@@ -23551,16 +23556,20 @@ else init();
         };
     }
     // cobrança das caixas/bags/sacolas que não voltaram (WhatsApp)
-    window.cobrarCaixasPendentesWhatsApp = function () {
-        const l = window._cxPendentes || []; if (!l.length) { alert('Nenhuma caixa, bag ou sacola pendente de devolução.'); return; }
-        const L = ['Olá!', 'Segue a pendência de *caixas, bags e sacolas* do *Monitor Cirúrgico* (o material voltou, mas a embalagem não):'];
+    window.linhasCaixasPendentes = function () {
+        const l = window._cxPendentes || []; if (!l.length) return [];
+        const L = [];
         l.forEach(cx => { const p = String(cx.proc_id_atual || '').startsWith('rem:') ? null : procPorId(cx.proc_id_atual); const d = diasDesde(cx.saida_em);
             L.push('', '---', `*${cx.tipo === 'Caixa' ? 'Caixa plástica' : cx.tipo}:* ${cx.codigo}${cx.descricao ? ' (' + cx.descricao + ')' : ''}`,
                 `*Hospital/cliente:* ${(p && p.hospital) || cx.local_atual || '—'}`, `*Nº da Nota Fiscal:* ${(p && p.nf) || cx.nf_atual || '—'}`);
             if (p) L.push(`*Paciente:* ${p.paciente || '—'}`, `*Vendedor:* ${p.vendedor || '—'}`);
             if (d != null) L.push(`*Saiu há:* ${d} dia(s)`); });
-        L.push('', '---', `Total: *${l.length} pendente(s)*`, '', 'Por favor, providencie a devolução das embalagens ao estoque. 🙏');
-        window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(L.join('\n')), '_blank');
+        L.push('', '---', `Total: *${l.length} caixa(s)/bag(s)/sacola(s) pendente(s)*`, '', 'Por favor, providencie a devolução das caixas ao estoque. 🙏');
+        return L;
+    };
+    window.cobrarCaixasPendentesWhatsApp = function () {
+        const L = window.linhasCaixasPendentes(); if (!L.length) { alert('Nenhuma caixa, bag ou sacola pendente de devolução.'); return; }
+        window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(['Olá!', 'Segue a pendência de *caixas, bags e sacolas* do *Monitor Cirúrgico* (o material voltou, mas a caixa não):', ...L].join('\n')), '_blank');
     };
     window.retornoAutomaticoCaixas = retornoAutomaticoCaixas;
     // confere ao abrir e a cada 30 s (pega a mudança de status feita aqui ou em outro computador)
