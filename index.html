@@ -24046,13 +24046,24 @@ else init();
     }
     const brlCx = v => (+v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const valorCx = c => (_cxValor && _cxValor[c.tipo]) || 0;
+    async function completarQuemLevou(cx, quem) {
+        const sb = window._supabase; quem = String(quem || '').trim(); if (!sb || !quem || _cxSemControle) return false;
+        const { error } = await sb.from('caixas_bags').update({ levado_por: quem }).eq('id', cx.id); if (error) return false;
+        cx.levado_por = quem;
+        const { data } = await sb.from('caixas_bags_mov').select('id,levado_por').eq('caixa_id', cx.id).eq('tipo_mov', 'Saída').order('data', { ascending: false }).limit(1);
+        if (data && data[0] && !data[0].levado_por) await sb.from('caixas_bags_mov').update({ levado_por: quem }).eq('id', data[0].id);
+        return true;
+    }
     // saída automática quando a caixa/bag cadastrada vai num volume da cirurgia
     async function saidaCaixasDaCirurgia(p, codigos) {
         const lista = await carregarCaixas(true); if (!lista || lista.erro || !codigos.length) return;
         const pid = String(p._docId || p.id || ''); let n = 0;
         for (const cod of codigos) {
             const cx = lista.find(c => c.codigo === cod); if (!cx) continue;
-            if (cx.status === 'Fora' && cx.proc_id_atual === pid) continue;   // já está nesta cirurgia
+            if (cx.status === 'Fora' && cx.proc_id_atual === pid) {   // já está nesta cirurgia: só completa quem levou (vendedor preenchido depois)
+                if (!cx.levado_por && p.vendedor) { try { if (await completarQuemLevou(cx, p.vendedor)) _cxCache = null; } catch (e) {} }
+                continue;
+            }
             try { await movCaixa(cx, 'Saída', { destino: p.hospital || '', cidade: p.cidade || '', proc_id: pid, nf: p.nf || '', paciente: p.paciente || '', levado_por: p.vendedor || '', obs: [p.medico, p.procedimento].filter(Boolean).join(' · ') }); n++; }
             catch (e) { console.warn('caixas_bags:', e.message || e); }
         }
@@ -24253,7 +24264,13 @@ else init();
         async function carregar() {
             const r = await carregarCaixas(true);
             if (!r || r.erro) { $('[data-corpo]').innerHTML = '<p style="color:#b45309;font-size:.85rem">⚠️ O banco ainda não tem as tabelas de caixas e bags. Rode o SQL <b>20261102_caixas_bags.sql</b> no Supabase desta filial.</p>'; return; }
-            cxs = r; if (!_cxValor) await carregarValores().catch(() => {}); desenhar(); atualizarBadgeCaixas();
+            cxs = r; if (!_cxValor) await carregarValores().catch(() => {});
+            const P = window.procedimentos || [];
+            for (const c of cxs.filter(c => (c.status === 'Fora' || c.status === 'Pendente') && !c.levado_por && c.proc_id_atual)) {
+                const pr = P.find(x => String(x._docId || x.id) === String(c.proc_id_atual));
+                if (pr && pr.vendedor) { try { await completarQuemLevou(c, pr.vendedor); } catch (e) {} }
+            }
+            desenhar(); atualizarBadgeCaixas();
             if (nSaidas === null) contarSaidas();
         }
         async function contarSaidas() {
@@ -24341,6 +24358,9 @@ else init();
                 <button data-a="fechadlg" style="${bt};margin-left:auto;padding:4px 10px">✕</button></div>
               <div style="display:flex;flex-direction:column;gap:10px">
                 ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c.descricao || '')}" placeholder="ex.: caixa plástica grande azul, bag térmica" style="${inp}">`)}
+                ${c.status === 'Fora' || c.status === 'Pendente' ? `<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:200px">${campo('Quem levou', `<input data-f="levado" list="cx-pessoas-ed" value="${esc(c.levado_por || '')}" placeholder="vendedor / motorista" style="${inp}">`)}</div>
+                  ${campo('Lacre', `<input data-f="lacre" value="${esc(c.lacre || '')}" style="${inp};width:150px">`)}
+                  <datalist id="cx-pessoas-ed">${[...new Set([...(window.procedimentos || []).map(p => p.vendedor), ...cxs.map(x => x.levado_por)].filter(Boolean).map(s => String(s).trim()))].sort().map(s => `<option value="${esc(s)}">`).join('')}</datalist></div>` : ''}
                 <div style="display:flex;gap:10px;flex-wrap:wrap">${campo('Situação', `<select data-f="status" style="${inp};width:170px">${['Disponível', 'Fora', 'Pendente', 'Em limpeza', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`)}
                   <div style="flex:1;min-width:200px">${campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção / baixa / ajuste" style="${inp}">`)}</div></div>
                 <div style="font-size:.7rem;color:var(--text-dim)">Perdeu ou quebrou? Prefira a situação <b>Baixada</b>: sai do uso e o histórico fica guardado.</div></div>
@@ -24670,7 +24690,13 @@ else init();
                 }
                 if (d.a === 'gravarEdit') {
                     const c = porId(d.id), f = k => $(`[data-dlg] [data-f="${k}"]`) || $(`[data-f="${k}"]`), st = f('status').value, obs = f('obs').value.trim();
-                    const { error } = await sb.from('caixas_bags').update({ descricao: f('descricao').value.trim() || null, atualizado_em: new Date().toISOString() }).eq('id', c.id); if (error) throw error;
+                    const up = { descricao: f('descricao').value.trim() || null, atualizado_em: new Date().toISOString() }, fl = $('[data-dlg] [data-f="levado"]'), fc = $('[data-dlg] [data-f="lacre"]');
+                    if (fl && !_cxSemControle) { up.levado_por = fl.value.trim() || null; up.lacre = fc.value.trim() || null; }
+                    const { error } = await sb.from('caixas_bags').update(up).eq('id', c.id); if (error) throw error;
+                    if (up.levado_por && up.levado_por !== c.levado_por) {   // a última saída também passa a ter quem levou (relatório)
+                        const { data } = await sb.from('caixas_bags_mov').select('id').eq('caixa_id', c.id).eq('tipo_mov', 'Saída').order('data', { ascending: false }).limit(1);
+                        if (data && data[0]) await sb.from('caixas_bags_mov').update({ levado_por: up.levado_por }).eq('id', data[0].id);
+                    }
                     if (st !== c.status) {
                         if (st === 'Disponível' && c.status === 'Em limpeza') await movCaixa(c, 'Limpeza', { obs: obs || 'limpa' });
                         else if (st === 'Disponível' && (c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Manutenção' || c.status === 'Baixada')) await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual', semLimpeza: true });
