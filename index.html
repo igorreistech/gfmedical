@@ -22472,7 +22472,6 @@ else init();
     }
     async function conteudoQR(c, p) {
         const txt = textoQRCompleto(c);
-        if (txt.length <= QR_TXT_MAX && !/\+\d+ item\(ns\) - ver/.test(txt)) return txt;                       // 1) texto puro
         const pasta = location.origin + location.pathname.replace(/[^/]*$/, ''), fil = filialAtual(p) || 'CGR';
         const un = (c.itens || []).reduce((a, i) => a + (+i.qtd || 0), 0);
         const cab = { f: fil, r: c.remessa || '', n: c.nf || '', d: c.nfData || '', c: c.caixa ? `${c.tipo || 'Caixa'} ${c.caixa}` : '', p: c.paciente, m: c.medico, v: c.vendedor,
@@ -22480,7 +22479,7 @@ else init();
         const itens = nome => (c.itens || []).map(i => [+i.qtd || 0, i.cod || '', i.lote || '', nome ? String(i.nome || '').slice(0, 48) : '']);
         for (const nome of [true, false]) {                                                                       // 2) link com tudo dentro
             const z = await compactar(JSON.stringify({ ...cab, i: itens(nome) })); const u = pasta + 'etiqueta.html#z=' + z;
-            if (z && u.length <= 880) return u;
+            if (z && u.length <= 600) return u;
         }
         // 3) lista grande: link curto; os itens ficam guardados na impressão (etiquetas_qr) e o cabeçalho vai no link
         const z = await compactar(JSON.stringify(cab));
