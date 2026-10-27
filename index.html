@@ -23327,7 +23327,8 @@ else init();
             cxs = r; desenhar();
         }
         function desenharModo() {
-            $('[data-modo]').innerHTML = ['Saída', 'Retorno'].map(m => `<button data-modo-b="${m}" style="padding:6px 12px;border:0;font-size:.72rem;font-weight:800;cursor:pointer;background:${modo === m ? (m === 'Saída' ? '#2563eb' : '#16a34a') : 'transparent'};color:${modo === m ? '#fff' : 'var(--text)'}">${m === 'Saída' ? '⬆ Saída' : '⬇ Retorno'}</button>`).join('');
+            const COR = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Consultar': '#7c3aed' }, ROT = { 'Saída': '⬆ Saída', 'Retorno': '⬇ Retorno', 'Consultar': '🔍 Consultar' };
+            $('[data-modo]').innerHTML = ['Saída', 'Retorno', 'Consultar'].map(m => `<button data-modo-b="${m}" style="padding:6px 12px;border:0;font-size:.72rem;font-weight:800;cursor:pointer;background:${modo === m ? COR[m] : 'transparent'};color:${modo === m ? '#fff' : 'var(--text)'}">${ROT[m]}</button>`).join('');
         }
         function desenhar() {
             const q = String($('[data-busca]').value || '').toUpperCase();
@@ -23351,6 +23352,7 @@ else init();
                     <td style="${td};text-align:right;white-space:nowrap">
                       ${c.status !== 'Fora' && c.status !== 'Baixada' ? `<button data-saida="${c.id}" style="${bt};padding:4px 9px;color:#2563eb;border-color:#2563eb">⬆ Saída</button>` : ''}
                       ${c.status === 'Fora' || c.status === 'Manutenção' ? `<button data-retorno="${c.id}" style="${bt};padding:4px 9px;color:#16a34a;border-color:#16a34a">⬇ Retorno</button>` : ''}
+                      ${c.status === 'Fora' ? `<button data-cons="${c.id}" style="${bt};padding:4px 9px" title="Ver a cirurgia e os itens desta caixa">🔍</button>` : ''}
                       <button data-hist="${c.id}" style="${bt};padding:4px 9px" title="Histórico: para onde foi e quando voltou">🕘</button>
                       <button data-etq1="${c.id}" style="${bt};padding:4px 9px" title="Etiqueta QR desta caixa/bag">🏷</button>
                       <button data-edit="${c.id}" style="${bt};padding:4px 9px" title="Editar / manutenção / baixa">✎</button></td></tr>`; }).join('') || `<tr><td colspan="7" style="${td};text-align:center;color:var(--text-dim);padding:18px">Nada com esses filtros.</td></tr>`}
@@ -23408,15 +23410,31 @@ else init();
             let qrcode; try { qrcode = await carregarLib(); } catch (e) { return alert('⚠️ ' + e.message); }
             qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
             const w = window.open('', '_blank'); if (!w) return alert('Libere as janelas pop-up para imprimir.');
-            const cards = lista.map(c => { const q = qrcode(0, 'M'); q.addData(`GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
-                return `<div class="e"><div class="qr">${q.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div><div class="t"><div class="g">GF MEDICAL</div><div class="c">${esc(c.codigo)}</div><div class="d">${c.tipo === 'Caixa' ? '📦 Caixa' : '🎒 Bag'}${c.descricao ? ' · ' + esc(c.descricao) : ''}</div><div class="f">${esc(filialAtual(null) === 'CBA' ? 'Cuiabá' : 'Campo Grande')} · se encontrar, devolver à GF Medical</div></div></div>`; }).join('');
+            const pasta = location.origin + location.pathname.replace(/[^/]*$/, '');
+            const cards = lista.map(c => { const q = qrcode(0, 'M'); q.addData(c.token ? `${pasta}etiqueta.html?f=${(c.filial || filialAtual(null) || 'CGR').toLowerCase()}&cx=${c.codigo}&t=${c.token}` : `GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
+                return `<div class="e"><div class="qr">${q.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div><div class="t"><div class="g">GF MEDICAL</div><div class="c">${esc(c.codigo)}</div><div class="d">${c.tipo === 'Caixa' ? '📦 Caixa' : '🎒 Bag'}${c.descricao ? ' · ' + esc(c.descricao) : ''}</div><div class="f">${esc(filialAtual(null) === 'CBA' ? 'Cuiabá' : 'Campo Grande')} · se encontrar, devolver à GF Medical${c.token ? ' · leia o QR para ver o conteúdo' : ''}</div></div></div>`; }).join('');
             w.document.write(`<!doctype html><meta charset="utf-8"><title>Etiquetas caixas e bags</title><style>body{font-family:Arial,sans-serif;margin:8mm}.e{display:inline-flex;gap:10px;align-items:center;width:88mm;height:38mm;border:1px dashed #999;border-radius:6px;padding:4mm;margin:2mm;box-sizing:border-box;vertical-align:top;page-break-inside:avoid}.qr{width:30mm;height:30mm;flex:none}.qr svg{width:100%;height:100%}.g{font-size:9pt;font-weight:700;color:#555}.c{font-size:22pt;font-weight:800;letter-spacing:1px}.d{font-size:9pt}.f{font-size:7pt;color:#666;margin-top:3px}@media print{.e{border-color:#ccc}}</style>${cards}<script>setTimeout(()=>print(),300)<\/script>`);
             w.document.close();
+        }
+        async function consultar(c) {
+            const p = c.proc_id_atual ? procPorId(c.proc_id_atual) : null;
+            const its = p ? await itensParaEtiqueta(p) : [], un = its.reduce((a, i) => a + (+i.qtd || 0), 0);
+            const lin = (r, v) => v ? `<div style="display:flex;gap:8px;padding:3px 0;font-size:.78rem"><span style="min-width:80px;color:var(--text-dim);font-size:.68rem;text-transform:uppercase">${r}</span><b>${esc(v)}</b></div>` : '';
+            form(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b style="font-size:.95rem;color:var(--text)">🔍 ${esc(c.codigo)}</b>
+                <span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>
+                <span style="font-size:.74rem;color:var(--text-dim)">${esc(c.local_atual || 'Estoque')}${c.saida_em && c.status === 'Fora' ? ' · desde ' + new Date(c.saida_em).toLocaleDateString('pt-BR') : ''}</span>
+                <button data-a="cancela" style="${bt};margin-left:auto">Fechar</button></div>
+              ${p ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px">${lin('NF', p.nf)}${lin('Paciente', p.paciente)}${lin('Médico', p.medico)}${lin('Vendedor', p.vendedor)}${lin('Hospital', [p.hospital, p.cidade].filter(Boolean).join(' — '))}${lin('Cirurgia', dataBR(p.data))}</div>
+                <div style="margin-top:8px;font-size:.72rem;font-weight:800;color:var(--text)">📋 Itens (${its.length} · ${un} un)</div>
+                <div style="max-height:220px;overflow:auto">${its.map(i => `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border,#e5e7eb);font-size:.76rem"><b style="min-width:30px;text-align:right">${esc(i.qtd)}×</b><span style="flex:1">${esc(i.nome || i.cod)}${i.cod && i.nome ? ` <span style="color:var(--text-dim)">${esc(i.cod)}</span>` : ''}</span><span style="font-family:var(--mono);color:var(--text-dim)">${esc(i.lote || '')}</span></div>`).join('') || '<div style="font-size:.76rem;color:var(--text-dim)">Sem itens lançados.</div>'}</div>
+                <div style="margin-top:8px"><button data-etqcir="${esc(c.proc_id_atual)}" style="${bt}">🏷 Etiqueta da cirurgia</button></div>`
+              : `<div style="font-size:.8rem;color:var(--text-dim)">${c.status === 'Fora' ? 'Saiu sem cirurgia vinculada (remessa/conserto).' : 'Não está vinculada a nenhuma cirurgia agora.'}</div>`}`);
         }
         async function bipar(texto) {
             const cod = codigoBipado(texto), msg = $('[data-bipmsg]'); $('[data-bip]').value = '';
             const c = cxs.find(x => x.codigo === cod);
             if (!c) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`; return; }
+            if (modo === 'Consultar') { msg.textContent = ''; await consultar(c); $('[data-bip]').focus(); return; }
             if (modo === 'Retorno') {
                 if (c.status !== 'Fora' && c.status !== 'Manutenção') { msg.innerHTML = `<span style="color:#b45309">⚠ ${esc(c.codigo)} já está ${esc(c.status)}</span>`; return; }
                 const de = c.local_atual; try { await retorno(c, true); msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(c.codigo)} voltou${de ? ' de ' + esc(de) : ''}</span>`; await carregar(); } catch (e) { msg.innerHTML = `<span style="color:#dc2626">Erro: ${esc(e.message || e)}</span>`; }
@@ -23439,6 +23457,8 @@ else init();
                 if (d.saida) return formSaida(porId(d.saida));
                 if (d.retorno) { await retorno(porId(d.retorno)); await carregar(); return; }
                 if (d.hist) return historico(porId(d.hist));
+                if (d.cons) return consultar(porId(d.cons));
+                if (d.etqcir) { const pc = procPorId(d.etqcir); if (pc) window.abrirQRCode(pc); return; }
                 if (d.etq1) return etiquetas([porId(d.etq1)]);
                 if (d.edit) return formNovo(porId(d.edit));
                 if (d.a === 'etq') return etiquetas(linhas);

@@ -84,6 +84,22 @@
     buscarBanco(function (e) { cab.itens = e.itens || []; cab.impresso_em = e.impresso_em; mostrar(cab); },
       function (motivo) { cab.aviso = 'Não consegui carregar a lista de itens (' + esc(motivo) + '). A etiqueta tem ' + esc(cab.total || 'vários itens') + '.'; mostrar(cab); });
   });
+  var cx = q.get('cx') || '', tk = q.get('t') || '';
+  if (cx && /^[0-9a-f-]{36}$/i.test(tk)) {
+    var b = BANCOS[f]; if (!b) return erro('Link de caixa inválido.');
+    return fetch(b.url + '/rest/v1/rpc/caixa_publica', { method: 'POST', headers: { apikey: b.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_codigo: cx, p_token: tk }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.caixa) return erro('Caixa ' + esc(cx) + ' não encontrada.');
+        var c = j.caixa, cor = { 'Disponível': '#16a34a', 'Fora': '#2563eb', 'Manutenção': '#b45309', 'Baixada': '#6b7280' }[c.status] || '#6b7280';
+        var topo = '<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:1.6rem">' + esc(c.codigo) + '</b><span style="padding:3px 10px;border-radius:999px;color:#fff;font-weight:800;font-size:.75rem;background:' + cor + '">' + esc(c.status) + '</span></div>' +
+          '<div style="color:var(--dim);font-size:.82rem;margin-top:4px">' + esc(c.tipo) + (c.descricao ? ' · ' + esc(c.descricao) : '') + ' · ' + esc(c.local_atual || 'Estoque') + (c.status === 'Fora' && c.saida_em ? ' · desde ' + new Date(c.saida_em).toLocaleDateString('pt-BR') : '') + '</div></div>';
+        if (j.etiqueta) { mostrar(j.etiqueta); app.insertAdjacentHTML('afterbegin', topo); }
+        else app.innerHTML = topo + '<div class="card msg">' + (c.status === 'Fora' ? 'Saiu sem etiqueta de cirurgia impressa.' : 'Caixa no estoque — vazia / sem cirurgia vinculada.') + '</div>';
+        document.title = c.codigo + ' — GF Medical';
+      })
+      .catch(function () { erro('Não consegui consultar a caixa (rode o SQL 20261104_caixa_publica.sql).'); });
+  }
   if (id) return buscarBanco(mostrar, function (motivo) { erro('Etiqueta não encontrada (' + esc(motivo) + ').'); });
   erro('Link de etiqueta inválido.');
 })();
