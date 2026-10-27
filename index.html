@@ -24003,18 +24003,49 @@ else init();
     }
     const codigoBipado = t => { const m = /\b(CX|BG|SC)[-\s]?(\d{1,5})\b/i.exec(String(t || '')); return m ? `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}` : String(t || '').trim().toUpperCase(); };
     const diasDesde = d => d ? Math.floor((Date.now() - new Date(d).getTime()) / 864e5) : null;
+    // Etapa de limpeza: no retorno a embalagem fica "Em limpeza" até alguém marcar como limpa (liga/desliga na tela, por computador).
+    // Sem o SQL 20261108_caixas_controle.sql o banco não aceita esse status nem as colunas levado_por/lacre: aí segue sem eles.
+    let _cxSemControle = false;
+    const limpezaAtiva = () => { if (_cxSemControle) return false; try { return localStorage.getItem('gf_cx_limpeza') !== '0'; } catch (e) { return true; } };
+    const faltaSQLControle = err => /caixas_bags_status_check|levado_por|lacre|PGRST204|schema cache/i.test(String(err?.message || err || ''));
     async function movCaixa(cx, tipo, campos) {
         const sb = window._supabase, agora = new Date().toISOString();
         const mov = { filial: filialAtual(null), caixa_id: cx.id, codigo: cx.codigo, tipo_mov: tipo, data: campos.data || agora, destino: campos.destino || null, cidade: campos.cidade || null,
             proc_id: campos.proc_id || null, nf: campos.nf || null, paciente: campos.paciente || null, obs: campos.obs || null, responsavel: operador() };
-        let r = await sb.from('caixas_bags_mov').insert(mov); if (r.error) throw r.error;
-        const upd = tipo === 'Saída' ? { status: 'Fora', local_atual: [campos.destino, campos.cidade].filter(Boolean).join(' — ') || 'Fora', saida_em: mov.data, proc_id_atual: campos.proc_id || null, nf_atual: campos.nf || null }
-            : tipo === 'Retorno' ? { status: campos.manutencao ? 'Manutenção' : 'Disponível', local_atual: 'Estoque', saida_em: null, proc_id_atual: null, nf_atual: null, retorno_em: mov.data }
+        if (campos.levado_por) mov.levado_por = campos.levado_por;
+        if (campos.lacre) mov.lacre = campos.lacre;
+        let r = _cxSemControle && (mov.levado_por || mov.lacre) ? { error: 'levado_por' } : await sb.from('caixas_bags_mov').insert(mov);
+        if (r.error && (mov.levado_por || mov.lacre) && faltaSQLControle(r.error)) {   // banco sem as colunas novas: guarda na observação
+            _cxSemControle = true;
+            mov.obs = [mov.obs, mov.levado_por ? 'levado por ' + mov.levado_por : '', mov.lacre ? 'lacre ' + mov.lacre : ''].filter(Boolean).join(' · ');
+            delete mov.levado_por; delete mov.lacre; r = await sb.from('caixas_bags_mov').insert(mov);
+        }
+        if (r.error) throw r.error;
+        const volta = { local_atual: 'Estoque', saida_em: null, proc_id_atual: null, nf_atual: null, levado_por: null, lacre: null };
+        let upd = tipo === 'Saída' ? { status: 'Fora', local_atual: [campos.destino, campos.cidade].filter(Boolean).join(' — ') || 'Fora', saida_em: mov.data, proc_id_atual: campos.proc_id || null, nf_atual: campos.nf || null, levado_por: campos.levado_por || null, lacre: campos.lacre || null }
+            : tipo === 'Retorno' ? { ...volta, status: campos.manutencao ? 'Manutenção' : limpezaAtiva() && !campos.semLimpeza ? 'Em limpeza' : 'Disponível', retorno_em: mov.data }
+            : tipo === 'Limpeza' ? { status: 'Disponível', local_atual: 'Estoque' }
             : tipo === 'Pendente' ? { status: 'Pendente' }
             : tipo === 'Manutenção' ? { status: 'Manutenção', local_atual: campos.destino || 'Manutenção' }
             : tipo === 'Baixa' ? { status: 'Baixada', local_atual: campos.obs || 'Baixada' } : {};
-        r = await sb.from('caixas_bags').update({ ...upd, atualizado_em: agora }).eq('id', cx.id); if (r.error) throw r.error;
+        if (_cxSemControle) { delete upd.levado_por; delete upd.lacre; }
+        r = await sb.from('caixas_bags').update({ ...upd, atualizado_em: agora }).eq('id', cx.id);
+        if (r.error && faltaSQLControle(r.error)) {   // sem o SQL novo: sem "Em limpeza" e sem levado_por/lacre
+            _cxSemControle = true; delete upd.levado_por; delete upd.lacre; if (upd.status === 'Em limpeza') upd.status = 'Disponível';
+            r = await sb.from('caixas_bags').update({ ...upd, atualizado_em: agora }).eq('id', cx.id);
+        }
+        if (r.error) throw r.error;
     }
+    // valor de reposição por tipo (para a cobrança das que não voltaram)
+    let _cxValor = null;
+    async function carregarValores() {
+        const sb = window._supabase; if (!sb) return {};
+        const { data, error } = await sb.from('caixas_bags_valor').select('*');
+        if (error) return (_cxValor = { _erro: true });
+        _cxValor = {}; (data || []).filter(v => !v.filial || !filialAtual(null) || v.filial === filialAtual(null)).forEach(v => { _cxValor[v.tipo] = +v.valor || 0; }); return _cxValor;
+    }
+    const brlCx = v => (+v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const valorCx = c => (_cxValor && _cxValor[c.tipo]) || 0;
     // saída automática quando a caixa/bag cadastrada vai num volume da cirurgia
     async function saidaCaixasDaCirurgia(p, codigos) {
         const lista = await carregarCaixas(true); if (!lista || lista.erro || !codigos.length) return;
@@ -24022,7 +24053,7 @@ else init();
         for (const cod of codigos) {
             const cx = lista.find(c => c.codigo === cod); if (!cx) continue;
             if (cx.status === 'Fora' && cx.proc_id_atual === pid) continue;   // já está nesta cirurgia
-            try { await movCaixa(cx, 'Saída', { destino: p.hospital || '', cidade: p.cidade || '', proc_id: pid, nf: p.nf || '', paciente: p.paciente || '', obs: [p.medico, p.procedimento].filter(Boolean).join(' · ') }); n++; }
+            try { await movCaixa(cx, 'Saída', { destino: p.hospital || '', cidade: p.cidade || '', proc_id: pid, nf: p.nf || '', paciente: p.paciente || '', levado_por: p.vendedor || '', obs: [p.medico, p.procedimento].filter(Boolean).join(' · ') }); n++; }
             catch (e) { console.warn('caixas_bags:', e.message || e); }
         }
         if (n) { _cxCache = null; window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s)/sacola(s) registradas saindo para ${p.hospital || 'a cirurgia'}`); atualizarBadgeCaixas(); }
@@ -24128,14 +24159,17 @@ else init();
             L.push('', '---', `*${cx.tipo === 'Caixa' ? 'Caixa plástica' : cx.tipo}:* ${cx.codigo}${cx.descricao ? ' (' + cx.descricao + ')' : ''}`,
                 `*Hospital/cliente:* ${(p && p.hospital) || cx.local_atual || '—'}`, `*Nº da Nota Fiscal:* ${(p && p.nf) || cx.nf_atual || '—'}`);
             if (p) L.push(`*Paciente:* ${p.paciente || '—'}`, `*Vendedor:* ${p.vendedor || '—'}`);
-            if (d != null) L.push(`*Saiu há:* ${d} dia(s)`); });
+            else if (cx.levado_por) L.push(`*Levado por:* ${cx.levado_por}`);
+            if (d != null) L.push(`*Saiu há:* ${d} dia(s)`);
+            if (valorCx(cx)) L.push(`*Valor de reposição:* ${brlCx(valorCx(cx))}`); });
         // conforme o tipo: 'da caixa', 'das bags e da sacola'…
         const junta = arr => arr.length > 1 ? arr.slice(0, -1).join(', ') + ' e ' + arr[arr.length - 1] : (arr[0] || '');
         const cont = ['Caixa', 'Bag', 'Sacola'].map(t => [t, l.filter(c => c.tipo === t).length]).filter(([, n]) => n);
         const NOMES = { Caixa: ['caixa', 'caixas'], Bag: ['bag', 'bags'], Sacola: ['sacola', 'sacolas'] };
         const total = junta(cont.map(([t, n]) => n + ' ' + NOMES[t][n > 1 ? 1 : 0]));
         const devol = junta(cont.map(([t, n]) => (n > 1 ? 'das ' : 'da ') + NOMES[t][n > 1 ? 1 : 0]));
-        L.push('', '---', `Total: *${total} pendente${l.length > 1 ? 's' : ''}*`, '', `Por favor, providencie a devolução ${devol} ao estoque. 🙏`);
+        const vTot = l.reduce((a, c) => a + valorCx(c), 0);
+        L.push('', '---', `Total: *${total} pendente${l.length > 1 ? 's' : ''}*${vTot ? ` · reposição *${brlCx(vTot)}*` : ''}`, '', `Por favor, providencie a devolução ${devol} ao estoque. 🙏`);
         return L;
     };
     window.cobrarCaixasPendentesWhatsApp = function () {
@@ -24154,11 +24188,15 @@ else init();
         const inp = 'padding:7px 9px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.78rem';
         const bt = 'padding:7px 12px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap';
         const chip = 'padding:5px 10px;border-radius:999px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap';
-        ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1180px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
-          <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        const chipOn = 'background:#111827;color:#fff;border-color:#111827';
+        ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1240px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">📦 Caixas, bags e sacolas — cadastro e rastreio</div>
-            <input type="search" data-busca placeholder="Buscar código, hospital, NF…" style="${inp};width:210px">
+            <input type="search" data-busca placeholder="Buscar código, hospital, NF, quem levou…" style="${inp};width:220px">
             <button data-a="novo" style="${bt};background:#111827;color:#fff;border-color:#111827">+ Cadastrar</button>
+            <button data-a="inv" style="${bt};border-color:#7c3aed;color:#7c3aed" title="Bipe tudo o que está na prateleira: o sistema mostra o que falta e o que está errado">📋 Conferir estoque</button>
+            <button data-a="rel" style="${bt}" title="Relatório do mês: saídas, tempo fora por hospital, perdas">📊 Relatório</button>
+            <button data-a="valores" style="${bt}" title="Valor de reposição de cada tipo (entra na cobrança das que não voltaram)">💲 Valores</button>
             <button data-a="etq" style="${bt}" title="Etiquetas com QR para colar nas caixas/bags (as da lista filtrada)">🏷 Etiquetas</button>
             <button data-a="xlsx" style="${bt};border-color:#16a34a;color:#16a34a">⬇ Excel</button>
             <button data-a="x" style="${bt}">✕</button>
@@ -24167,14 +24205,35 @@ else init();
             <span style="font-size:.72rem;font-weight:800;color:var(--text)">Bipar:</span>
             <div data-modo style="display:inline-flex;border:1px solid var(--border,#ccc);border-radius:9px;overflow:hidden"></div>
             <input data-bip placeholder="Bipe o QR da caixa/bag ou digite o código (ex.: CX-003) e Enter" style="${inp};flex:1;min-width:240px;font-weight:700">
-            <span data-bipmsg style="font-size:.74rem;font-weight:700"></span>
+            <label style="display:flex;align-items:center;gap:5px;font-size:.7rem;font-weight:700;color:var(--text);cursor:pointer" title="Ligado: ao voltar, a embalagem fica 'Em limpeza' até ser marcada como limpa"><input type="checkbox" data-limptog> 🧼 Limpeza no retorno</label>
+            <span data-bipmsg style="flex-basis:100%;font-size:.74rem;font-weight:700;display:none"></span>
+            <div data-sessao style="flex-basis:100%;font-size:.72rem;color:var(--text-dim);display:none"></div>
           </div>
           <div data-filtros style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 18px 0;align-items:center"></div>
+          <div data-onde style="padding:8px 18px 0"></div>
           <div data-form></div>
           <div data-corpo style="overflow:auto;padding:12px 18px 18px;flex:1"><p style="color:var(--text-dim);font-size:.8rem">Carregando…</p></div>
         </div>`;
         document.body.appendChild(ov);
         const $ = s => ov.querySelector(s);
+        let cxs = [], fSt = '', fTipo = '', modo = 'Retorno', linhas = [];
+        // seleção para imprimir etiquetas em lote (caixinha em cada linha; Shift+clique marca a faixa)
+        const sel = new Set(); let ultSel = -1;
+        let nSaidas = null;          // código → quantas saídas já teve (histórico)
+        let lote = null;             // saída de várias de uma vez: [{id, lacre}]
+        let inv = null;              // conferência de estoque em andamento
+        const sessao = [];           // o que foi bipado agora (retorno / limpeza)
+        const ST_COR = { 'Disponível': '#16a34a', 'Fora': '#2563eb', 'Pendente': '#dc2626', 'Em limpeza': '#0891b2', 'Manutenção': '#b45309', 'Baixada': '#6b7280' };
+        const atrasada = c => (c.status === 'Fora' || c.status === 'Pendente') && diasDesde(c.saida_em) > CX_ATRASO;
+        // ordem: o que precisa de atenção primeiro
+        const prio = c => c.status === 'Pendente' ? 0 : atrasada(c) ? 1 : c.status === 'Fora' ? 2 : c.status === 'Em limpeza' ? 3 : c.status === 'Manutenção' ? 4 : c.status === 'Disponível' ? 5 : 6;
+        const porCodigo = (a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt-BR', { numeric: true });
+        const nomeTipo = (t, n) => ({ Caixa: ['caixa', 'caixas'], Bag: ['bag', 'bags'], Sacola: ['sacola', 'sacolas'] }[t] || ['caixa', 'caixas'])[n === 1 ? 0 : 1];
+        // som do leitor: agudo = ok, grave = erro
+        let _ac = null;
+        function bip(ok) { try { _ac = _ac || new (window.AudioContext || window.webkitAudioContext)(); const o = _ac.createOscillator(), g = _ac.createGain();
+            o.frequency.value = ok ? 1046 : 220; o.type = ok ? 'sine' : 'square'; g.gain.value = .08; o.connect(g); g.connect(_ac.destination); o.start(); o.stop(_ac.currentTime + (ok ? .09 : .28)); } catch (e) {} }
+        function aviso(html, ok) { const m = $('[data-bipmsg]'); m.style.display = html ? '' : 'none'; m.innerHTML = html || ''; if (html && ok !== undefined) bip(ok); }
         function atualizarEtq() {
             const b = $('[data-a="etq"]'); if (!b) return;
             b.textContent = sel.size ? `🏷 Imprimir ${sel.size} selecionada${sel.size > 1 ? 's' : ''}` : `🏷 Etiquetas (${linhas.length})`;
@@ -24190,61 +24249,93 @@ else init();
             else marcar ? sel.add(linhas[i].id) : sel.delete(linhas[i].id);
             ultSel = i; desenhar();
         });
-        let cxs = [], fSt = '', modo = 'Retorno', linhas = [];
-        // seleção para imprimir etiquetas em lote (caixinha em cada linha; Shift+clique marca a faixa)
-        const sel = new Set(); let ultSel = -1;
-        const ST_COR = { 'Disponível': '#16a34a', 'Fora': '#2563eb', 'Pendente': '#dc2626', 'Manutenção': '#b45309', 'Baixada': '#6b7280' };
-        const atrasada = c => (c.status === 'Fora' || c.status === 'Pendente') && diasDesde(c.saida_em) > CX_ATRASO;
         async function carregar() {
             const r = await carregarCaixas(true);
             if (!r || r.erro) { $('[data-corpo]').innerHTML = '<p style="color:#b45309;font-size:.85rem">⚠️ O banco ainda não tem as tabelas de caixas e bags. Rode o SQL <b>20261102_caixas_bags.sql</b> no Supabase desta filial.</p>'; return; }
-            cxs = r; desenhar(); atualizarBadgeCaixas();
+            cxs = r; if (!_cxValor) await carregarValores().catch(() => {}); desenhar(); atualizarBadgeCaixas();
+            if (nSaidas === null) contarSaidas();
+        }
+        async function contarSaidas() {
+            nSaidas = {};
+            const { data } = await sb.from('caixas_bags_mov').select('codigo').eq('tipo_mov', 'Saída').limit(50000);
+            (data || []).forEach(m => { nSaidas[m.codigo] = (nSaidas[m.codigo] || 0) + 1; }); desenhar();
         }
         function desenharModo() {
-            const COR = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Consultar': '#7c3aed' }, ROT = { 'Saída': '⬆ Saída', 'Retorno': '⬇ Retorno', 'Consultar': '🔍 Consultar' };
-            $('[data-modo]').innerHTML = ['Saída', 'Retorno', 'Consultar'].map(m => `<button data-modo-b="${m}" style="padding:6px 12px;border:0;font-size:.72rem;font-weight:800;cursor:pointer;background:${modo === m ? COR[m] : 'transparent'};color:${modo === m ? '#fff' : 'var(--text)'}">${ROT[m]}</button>`).join('');
+            const COR = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Limpeza': '#0891b2', 'Consultar': '#7c3aed' }, ROT = { 'Saída': '⬆ Saída', 'Retorno': '⬇ Retorno', 'Limpeza': '🧼 Limpa', 'Consultar': '🔍 Consultar' };
+            $('[data-modo]').innerHTML = ['Saída', 'Retorno', 'Limpeza', 'Consultar'].filter(m => m !== 'Limpeza' || limpezaAtiva() || cxs.some(c => c.status === 'Em limpeza'))
+                .map(m => `<button data-modo-b="${m}" style="padding:6px 12px;border:0;font-size:.72rem;font-weight:800;cursor:pointer;background:${modo === m ? COR[m] : 'transparent'};color:${modo === m ? '#fff' : 'var(--text)'}">${ROT[m]}</button>`).join('');
+            $('[data-limptog]').checked = limpezaAtiva();
+            $('[data-bip]').placeholder = modo === 'Saída' ? 'Bipe as caixas/bags que vão sair (pode bipar várias) e Enter'
+                : modo === 'Limpeza' ? 'Bipe as embalagens que já foram limpas e Enter' : 'Bipe o QR da caixa/bag ou digite o código (ex.: CX-003) e Enter';
+        }
+        function desenharSessao() {
+            const s = $('[data-sessao]'); if (!sessao.length) { s.style.display = 'none'; return; }
+            s.style.display = ''; s.innerHTML = `<b style="color:var(--text)">Bipadas agora (${sessao.length}):</b> ` + sessao.slice(-40).map(x => `<span style="font-family:var(--mono);color:${x.cor}">${esc(x.codigo)}</span>`).join(' · ')
+                + ` <button data-a="limpsessao" style="${chip};padding:2px 8px;margin-left:6px">limpar</button>`;
+        }
+        function desenharOnde() {
+            const fora = cxs.filter(c => c.status === 'Fora' || c.status === 'Pendente');
+            if (!fora.length) { $('[data-onde]').innerHTML = ''; return; }
+            const g = {}; fora.forEach(c => { const k = c.local_atual || 'Sem local'; (g[k] = g[k] || []).push(c); });
+            const grupos = Object.entries(g).sort((a, b) => b[1].length - a[1].length);
+            $('[data-onde]').innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏥 Onde estão (${fora.length}):</span>`
+                + grupos.map(([loc, l]) => { const max = Math.max(...l.map(c => diasDesde(c.saida_em) || 0)), pend = l.filter(c => c.status === 'Pendente').length, at = l.some(atrasada);
+                    const tipos = ['Caixa', 'Bag', 'Sacola'].map(t => [t, l.filter(c => c.tipo === t).length]).filter(([, n]) => n).map(([t, n]) => `${n} ${CX_ICO[t]}`).join(' ');
+                    return `<button data-ondeq="${esc(loc)}" title="Ver só as que estão em ${esc(loc)}: ${esc(l.map(c => c.codigo).join(', '))}" style="${chip};${pend || at ? 'border-color:#dc2626;color:#dc2626' : ''}">${esc(loc.length > 38 ? loc.slice(0, 36) + '…' : loc)} · <b>${tipos}</b> · ${max} dia${max === 1 ? '' : 's'}${pend ? ` · ⏳ ${pend}` : ''}</button>`; }).join('') + '</div>';
         }
         function desenhar() {
             const q = String($('[data-busca]').value || '').toUpperCase();
-            const cont = s => s === 'atraso' ? cxs.filter(atrasada).length : s ? cxs.filter(c => c.status === s).length : cxs.length;
-            $('[data-filtros]').innerHTML = [['', 'Todas'], ['Disponível', '✅ Disponíveis'], ['Fora', '🚚 Fora'], ['Pendente', '⏳ Não devolvidas'], ['atraso', `⏰ Fora há +${CX_ATRASO} dias`], ['Manutenção', '🔧 Manutenção'], ['Baixada', '🗑 Baixadas']]
-                .map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? 'background:#111827;color:#fff;border-color:#111827' : ''}">${n} <b>${cont(s)}</b></button>`).join('')
-                + `<span style="margin-left:auto;font-size:.72rem;color:var(--text-dim)">${cxs.filter(c => c.tipo === 'Caixa').length} caixa(s) · ${cxs.filter(c => c.tipo === 'Bag').length} bag(s) · ${cxs.filter(c => c.tipo === 'Sacola').length} sacola(s)</span>`
-                + `<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px"><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏷 Etiquetas em lote:</span>`
-                + ['Caixa', 'Bag', 'Sacola'].map(t => `<button data-selt="${t}" style="${chip}">+ todas as ${t === 'Caixa' ? 'caixas' : t === 'Bag' ? 'bags' : 'sacolas'} da lista</button>`).join('')
+            const doTipo = cxs.filter(c => !fTipo || c.tipo === fTipo);
+            const cont = s => s === 'atraso' ? doTipo.filter(atrasada).length : s ? doTipo.filter(c => c.status === s).length : doTipo.length;
+            const pend = doTipo.filter(c => c.status === 'Pendente'), vPend = pend.reduce((a, c) => a + valorCx(c), 0);
+            const sts = [['', 'Todas'], ['Pendente', '⏳ Não devolvidas'], ['atraso', `⏰ Fora há +${CX_ATRASO} dias`], ['Fora', '🚚 Fora'], ['Em limpeza', '🧼 Em limpeza'], ['Manutenção', '🔧 Manutenção'], ['Disponível', '✅ Disponíveis'], ['Baixada', '🗑 Baixadas']]
+                .filter(([s]) => s !== 'Em limpeza' || limpezaAtiva() || cont(s));
+            $('[data-filtros]').innerHTML = sts.map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? chipOn : s === 'Pendente' && pend.length ? 'border-color:#dc2626;color:#dc2626' : ''}">${n} <b>${cont(s)}</b>${s === 'Pendente' && vPend ? ` · ${brlCx(vPend)}` : ''}</button>`).join('')
+                + `<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px"><span style="font-size:.7rem;font-weight:800;color:var(--text)">Tipo:</span>`
+                + [['', 'Todos', cxs.length], ...['Caixa', 'Bag', 'Sacola'].map(t => [t, `${CX_ICO[t]} ${t === 'Caixa' ? 'Caixas' : t + 's'}`, cxs.filter(c => c.tipo === t).length])]
+                    .map(([t, n, k]) => `<button data-tp="${t}" style="${chip};${fTipo === t ? chipOn : ''}">${n} <b>${k}</b></button>`).join('')
+                + `<span style="width:14px"></span><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏷 Etiquetas em lote:</span>`
+                + ['Caixa', 'Bag', 'Sacola'].map(t => `<button data-selt="${t}" style="${chip}">+ todas as ${nomeTipo(t, 2)} da lista</button>`).join('')
                 + `<button data-selt="" style="${chip}">Limpar seleção</button><span style="font-size:.68rem;color:var(--text-dim)">ou marque as caixinhas (Shift+clique marca de uma até outra)</span></div>`;
-            linhas = cxs.filter(c => !fSt || (fSt === 'atraso' ? atrasada(c) : c.status === fSt))
-                .filter(c => !q || [c.codigo, c.descricao, c.local_atual, c.nf_atual, c.tipo].some(v => String(v || '').toUpperCase().includes(q)));
-            const th = 'padding:7px 8px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);text-align:left;position:sticky;top:0;background:var(--surface,#fff)';
+            desenharOnde();
+            linhas = doTipo.filter(c => !fSt || (fSt === 'atraso' ? atrasada(c) : c.status === fSt))
+                .filter(c => !q || [c.codigo, c.descricao, c.local_atual, c.nf_atual, c.tipo, c.levado_por, c.lacre].some(v => String(v || '').toUpperCase().includes(q)))
+                .sort((a, b) => prio(a) - prio(b) || (prio(a) <= 2 ? (diasDesde(b.saida_em) || 0) - (diasDesde(a.saida_em) || 0) : 0) || porCodigo(a, b));
+            const comDesc = linhas.some(c => c.descricao);
+            const th = 'padding:7px 8px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);text-align:left;position:sticky;top:0;background:var(--surface,#fff);z-index:1';
             const td = 'padding:7px 8px;border-bottom:1px solid var(--border,#e5e7eb);font-size:.78rem;color:var(--text);vertical-align:middle';
+            const bb = `${bt};padding:4px 9px`;
             $('[data-corpo]').innerHTML = !cxs.length ? `<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:.85rem">Nenhuma caixa ou bag cadastrada ainda.<br><br><button data-a="novo" style="${bt};background:#111827;color:#fff">+ Cadastrar as primeiras</button></div>`
-              : `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr><th style="${th};width:28px"><input type="checkbox" data-selall title="Marcar todas da lista" ${linhas.length && linhas.every(c => sel.has(c.id)) ? 'checked' : ''}></th><th style="${th}">Código</th><th style="${th}">Descrição</th><th style="${th}">Situação</th><th style="${th}">Onde está</th><th style="${th}">Desde</th><th style="${th}">NF</th><th style="${th};text-align:right">Ações</th></tr></thead><tbody>
-                ${linhas.map((c, iL) => { const d = diasDesde(c.saida_em), at = atrasada(c);
-                  return `<tr style="${at ? 'background:rgba(220,38,38,.06)' : sel.has(c.id) ? 'background:rgba(37,99,235,.08)' : ''}"><td style="${td}"><input type="checkbox" data-selcx="${c.id}" data-idx="${iL}" ${sel.has(c.id) ? 'checked' : ''}></td><td style="${td}"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${CX_ICO[c.tipo] || '📦'} ${esc(c.tipo)}</span></td>
-                    <td style="${td}">${esc(c.descricao || '')}</td>
-                    <td style="${td}"><span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>${at ? ' <span style="color:#dc2626;font-size:.7rem;font-weight:800">⏰ atrasada</span>' : ''}</td>
-                    <td style="${td}">${esc(c.local_atual || 'Estoque')}</td>
-                    <td style="${td}">${c.status === 'Fora' && c.saida_em ? `${new Date(c.saida_em).toLocaleDateString('pt-BR')} <span style="color:${at ? '#dc2626' : 'var(--text-dim)'};font-size:.7rem">(${d} dia${d === 1 ? '' : 's'})</span>` : c.retorno_em ? `<span style="color:var(--text-dim);font-size:.72rem">voltou ${new Date(c.retorno_em).toLocaleDateString('pt-BR')}</span>` : '—'}</td>
+              : `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr><th style="${th};width:28px"><input type="checkbox" data-selall title="Marcar todas da lista" ${linhas.length && linhas.every(c => sel.has(c.id)) ? 'checked' : ''}></th><th style="${th}">Código</th>${comDesc ? `<th style="${th}">Descrição</th>` : ''}<th style="${th}">Situação</th><th style="${th}">Onde está</th><th style="${th}">Desde</th><th style="${th};text-align:center" title="Quantas vezes já saiu">Saídas</th><th style="${th}">NF</th><th style="${th};text-align:right">Ações</th></tr></thead><tbody>
+                ${linhas.map((c, iL) => { const d = diasDesde(c.saida_em), at = atrasada(c), fora = c.status === 'Fora' || c.status === 'Pendente', ns = nSaidas ? nSaidas[c.codigo] || 0 : null;
+                  return `<tr style="${at || c.status === 'Pendente' ? 'background:rgba(220,38,38,.06)' : sel.has(c.id) ? 'background:rgba(37,99,235,.08)' : ''}"><td style="${td}"><input type="checkbox" data-selcx="${c.id}" data-idx="${iL}" ${sel.has(c.id) ? 'checked' : ''}></td><td style="${td};white-space:nowrap"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${CX_ICO[c.tipo] || '📦'} ${esc(c.tipo)}</span></td>
+                    ${comDesc ? `<td style="${td}">${esc(c.descricao || '')}</td>` : ''}
+                    <td style="${td};white-space:nowrap"><span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>${at ? ' <span style="color:#dc2626;font-size:.7rem;font-weight:800">⏰ atrasada</span>' : ''}</td>
+                    <td style="${td}">${esc(c.local_atual || 'Estoque')}${fora && (c.levado_por || c.lacre) ? `<div style="font-size:.68rem;color:var(--text-dim)">${c.levado_por ? '👤 levou: ' + esc(c.levado_por) : ''}${c.levado_por && c.lacre ? ' · ' : ''}${c.lacre ? '🔒 lacre ' + esc(c.lacre) : ''}</div>` : ''}</td>
+                    <td style="${td};white-space:nowrap">${fora && c.saida_em ? `${new Date(c.saida_em).toLocaleDateString('pt-BR')} <span style="color:${at ? '#dc2626' : 'var(--text-dim)'};font-size:.7rem">(${d} dia${d === 1 ? '' : 's'})</span>` : c.retorno_em ? `<span style="color:var(--text-dim);font-size:.72rem">voltou ${new Date(c.retorno_em).toLocaleDateString('pt-BR')}</span>` : ns === 0 ? '<span style="color:var(--text-dim);font-size:.72rem">nunca saiu</span>' : '—'}</td>
+                    <td style="${td};text-align:center;color:var(--text-dim)">${ns === null ? '…' : ns}</td>
                     <td style="${td};font-family:var(--mono)">${esc(c.nf_atual || '')}</td>
                     <td style="${td};text-align:right;white-space:nowrap">
-                      ${c.status !== 'Fora' && c.status !== 'Pendente' && c.status !== 'Baixada' ? `<button data-saida="${c.id}" style="${bt};padding:4px 9px;color:#2563eb;border-color:#2563eb">⬆ Saída</button>` : ''}
-                      ${c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Manutenção' ? `<button data-retorno="${c.id}" style="${bt};padding:4px 9px;color:#16a34a;border-color:#16a34a">⬇ Retorno</button>` : ''}
-                      ${c.status === 'Fora' ? `<button data-cons="${c.id}" style="${bt};padding:4px 9px" title="Ver a cirurgia e os itens desta caixa">🔍</button>` : ''}
-                      <button data-hist="${c.id}" style="${bt};padding:4px 9px" title="Histórico: para onde foi e quando voltou">🕘</button>
-                      <button data-etq1="${c.id}" style="${bt};padding:4px 9px" title="Etiqueta QR desta caixa/bag">🏷</button>
-                      <button data-edit="${c.id}" style="${bt};padding:4px 9px" title="Editar / manutenção / baixa">✎</button></td></tr>`; }).join('') || `<tr><td colspan="8" style="${td};text-align:center;color:var(--text-dim);padding:18px">Nada com esses filtros.</td></tr>`}
+                      ${c.status === 'Disponível' || c.status === 'Manutenção' ? `<button data-saida="${c.id}" style="${bb};color:#2563eb;border-color:#2563eb" title="Registrar a saída (para onde vai, quem levou, lacre)">⬆ Saída</button>` : ''}
+                      ${c.status === 'Em limpeza' ? `<button data-limpa="${c.id}" style="${bb};color:#0891b2;border-color:#0891b2" title="Já foi limpa: fica disponível">🧼 Limpa</button>` : ''}
+                      ${fora || c.status === 'Manutenção' ? `<button data-retorno="${c.id}" style="${bb};color:#16a34a;border-color:#16a34a" title="Registrar que voltou">⬇ Retorno</button>` : ''}
+                      ${c.status === 'Fora' ? `<button data-cons="${c.id}" style="${bb}" title="Ver a cirurgia e os itens desta caixa">🔍</button>` : ''}
+                      <button data-hist="${c.id}" style="${bb}" title="Histórico: para onde foi e quando voltou">🕘</button>
+                      <button data-etq1="${c.id}" style="${bb}" title="Imprimir a etiqueta QR desta embalagem">🏷</button>
+                      <button data-edit="${c.id}" style="${bb}" title="Editar descrição / manutenção / baixa">✎</button></td></tr>`; }).join('') || `<tr><td colspan="9" style="${td};text-align:center;color:var(--text-dim);padding:18px">Nada com esses filtros.</td></tr>`}
               </tbody></table>`;
-            atualizarEtq();
+            atualizarEtq(); desenharModo();
         }
-        const form = html => { $('[data-form]').innerHTML = html ? `<div style="margin:10px 18px 0;padding:12px 14px;border:1px solid var(--border,#ccc);border-radius:12px;background:var(--bg,#f9fafb)">${html}</div>` : ''; };
+        const form = html => { $('[data-form]').innerHTML = html ? `<div style="margin:10px 18px 0;padding:12px 14px;border:1px solid var(--border,#ccc);border-radius:12px;background:var(--bg,#f9fafb);max-height:52vh;overflow:auto">${html}</div>` : ''; if (!html) { lote = null; inv = null; } };
         const campo = (rot, h) => `<label style="display:flex;flex-direction:column;gap:3px;font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase">${rot}${h}</label>`;
         function proximoCodigo(tipo) { const pf = CX_PREF[tipo], ns = cxs.filter(c => c.codigo.startsWith(pf + '-')).map(c => parseInt(c.codigo.slice(3), 10) || 0); return `${pf}-${String((ns.length ? Math.max(...ns) : 0) + 1).padStart(3, '0')}`; }
         function formNovo(c) {
+            lote = null; inv = null;
             form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:var(--text)">${c ? '✎ ' + esc(c.codigo) : '+ Cadastrar caixas / bags'}</div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
                 ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`)}
                 ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c?.descricao || '')}" placeholder="ex.: caixa plástica grande azul, bag térmica" style="${inp};width:260px">`)}
-                ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Pendente', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
+                ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Pendente', 'Em limpeza', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
                 <span data-prev style="font-size:.74rem;color:var(--text-dim);margin-bottom:8px"></span>
                 <button data-a="${c ? 'gravarEdit' : 'gravarNovo'}" data-id="${c?.id || ''}" style="${bt};background:#111827;color:#fff;border-color:#111827">💾 Salvar</button>
                 <button data-a="cancela" style="${bt}">Cancelar</button></div>`);
@@ -24252,36 +24343,54 @@ else init();
                 $('[data-prev]').textContent = n === 1 ? `código: ${ini}` : `códigos: ${ini} a ${pf}-${String(i0 + n - 1).padStart(3, '0')}`; };
                 $('[data-f="tipo"]').onchange = prev; $('[data-f="qtd"]').oninput = prev; prev(); }
         }
-        function formSaida(c) {
-            const hosp = [...new Set((window.procedimentos || []).map(p => p.hospital).filter(Boolean))].sort();
-            const hoje = new Date().toISOString().slice(0, 10), procs = (window.procedimentos || []).filter(p => p.data && p.data >= new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10) && p.data <= new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10)).slice(0, 80);
-            form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:#2563eb">⬆ Saída de ${esc(c.codigo)} ${esc(c.descricao || '')}</div>
+        // ── Saída: uma ou várias embalagens de uma vez (bipe para ir juntando), com quem levou e o lacre de cada uma ──
+        function formSaida(cs) {
+            const ant = {}; if (lote) ov.querySelectorAll('[data-form] [data-f]').forEach(x => { ant[x.dataset.f] = x.value; });   // não perde o que já foi digitado
+            ov.querySelectorAll('[data-lacre]').forEach(x => { const it = (lote || []).find(l => l.id === x.dataset.lacre); if (it) it.lacre = x.value; });
+            inv = null; lote = lote || [];
+            (cs || []).forEach(c => { if (c && !lote.some(l => l.id === c.id)) lote.push({ id: c.id, lacre: '' }); });
+            if (!lote.length) return form('');
+            const procs = (window.procedimentos || []), hoje = new Date().toISOString().slice(0, 10);
+            const hosp = [...new Set(procs.map(p => p.hospital).filter(Boolean))].sort();
+            const pessoas = [...new Set([...procs.map(p => p.vendedor), ...cxs.map(c => c.levado_por), operador()].filter(Boolean).map(s => String(s).trim()))].sort();
+            const recentes = procs.filter(p => p.data && p.data >= new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10) && p.data <= new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10)).slice(0, 80);
+            const itens = lote.map(l => ({ ...l, c: cxs.find(c => c.id === l.id) })).filter(l => l.c);
+            form(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b style="font-size:.85rem;color:#2563eb">⬆ Saída de ${itens.length} ${itens.length === 1 ? 'embalagem' : 'embalagens'}</b><span style="font-size:.72rem;color:var(--text-dim)">bipe mais códigos para juntar nesta saída</span></div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${itens.map(l => `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;border:1px solid #93c5fd;border-radius:10px;background:rgba(37,99,235,.06);font-size:.74rem">
+                  <b style="font-family:var(--mono)">${CX_ICO[l.c.tipo] || '📦'} ${esc(l.c.codigo)}</b>${l.c.status === 'Manutenção' ? '<span style="color:#b45309;font-size:.66rem">(manutenção)</span>' : ''}
+                  <input data-lacre="${l.id}" value="${esc(l.lacre || '')}" placeholder="nº lacre" style="${inp};width:90px;padding:4px 6px;font-size:.72rem">
+                  <button data-tira="${l.id}" title="Tirar desta saída" style="border:0;background:transparent;cursor:pointer;color:var(--text-dim);font-size:.85rem">✕</button></span>`).join('')}</div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-                ${campo('Cirurgia (opcional)', `<select data-f="proc" style="${inp};width:280px"><option value="">— sem cirurgia (remessa, conserto…) —</option>${procs.map(p => `<option value="${esc(p._docId || p.id)}">${esc([dataBR(p.data), p.hospital, p.paciente].filter(Boolean).join(' · '))}</option>`).join('')}</select>`)}
-                ${campo('Para onde (hospital / cliente)', `<input data-f="destino" list="cx-hosp" style="${inp};width:240px"><datalist id="cx-hosp">${hosp.map(h => `<option value="${esc(h)}">`).join('')}</datalist>`)}
-                ${campo('Cidade', `<input data-f="cidade" style="${inp};width:130px">`)}
-                ${campo('NF', `<input data-f="nf" style="${inp};width:100px">`)}
-                ${campo('Data', `<input data-f="data" type="date" value="${hoje}" style="${inp}">`)}
-                ${campo('Obs', `<input data-f="obs" style="${inp};width:180px">`)}
-                <button data-a="gravarSaida" data-id="${c.id}" style="${bt};background:#2563eb;color:#fff;border-color:#2563eb">⬆ Registrar saída</button>
+                ${campo('Cirurgia (opcional)', `<select data-f="proc" style="${inp};width:280px"><option value="">— sem cirurgia (remessa, conserto…) —</option>${recentes.map(p => `<option value="${esc(p._docId || p.id)}" ${ant.proc === String(p._docId || p.id) ? 'selected' : ''}>${esc([dataBR(p.data), p.hospital, p.paciente].filter(Boolean).join(' · '))}</option>`).join('')}</select>`)}
+                ${campo('Para onde (hospital / cliente)', `<input data-f="destino" list="cx-hosp" value="${esc(ant.destino || '')}" style="${inp};width:240px"><datalist id="cx-hosp">${hosp.map(h => `<option value="${esc(h)}">`).join('')}</datalist>`)}
+                ${campo('Cidade', `<input data-f="cidade" value="${esc(ant.cidade || '')}" style="${inp};width:130px">`)}
+                ${campo('NF', `<input data-f="nf" value="${esc(ant.nf || '')}" style="${inp};width:100px">`)}
+                ${campo('Quem levou', `<input data-f="levado" list="cx-pessoas" value="${esc(ant.levado || '')}" placeholder="vendedor / motorista" style="${inp};width:170px"><datalist id="cx-pessoas">${pessoas.map(h => `<option value="${esc(h)}">`).join('')}</datalist>`)}
+                ${campo('Data', `<input data-f="data" type="date" value="${ant.data || hoje}" style="${inp}">`)}
+                ${campo('Obs', `<input data-f="obs" value="${esc(ant.obs || '')}" style="${inp};width:160px">`)}
+                <button data-a="gravarSaida" style="${bt};background:#2563eb;color:#fff;border-color:#2563eb">⬆ Registrar saída${itens.length > 1 ? ' de ' + itens.length : ''}</button>
                 <button data-a="cancela" style="${bt}">Cancelar</button></div>`);
-            $('[data-f="proc"]').onchange = e => { const p = procPorId(e.target.value); if (!p) return; $('[data-f="destino"]').value = p.hospital || ''; $('[data-f="cidade"]').value = p.cidade || ''; $('[data-f="nf"]').value = p.nf || ''; };
-            $('[data-f="destino"]').focus();
+            $('[data-f="proc"]').onchange = e => { const p = procPorId(e.target.value); if (!p) return; $('[data-f="destino"]').value = p.hospital || ''; $('[data-f="cidade"]').value = p.cidade || ''; $('[data-f="nf"]').value = p.nf || ''; if (p.vendedor && !$('[data-f="levado"]').value) $('[data-f="levado"]').value = p.vendedor; };
+            if (!ant.destino) $('[data-f="destino"]').focus();
         }
         async function historico(c) {
             const { data, error } = await sb.from('caixas_bags_mov').select('*').eq('caixa_id', c.id).order('data', { ascending: false }).limit(300);
             if (error) return alert('Erro: ' + error.message);
-            const cor = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Manutenção': '#b45309', 'Baixa': '#6b7280', 'Cadastro': '#111827' };
+            const cor = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Limpeza': '#0891b2', 'Pendente': '#dc2626', 'Manutenção': '#b45309', 'Baixa': '#6b7280', 'Cadastro': '#111827' };
             form(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b style="font-size:.85rem;color:var(--text)">🕘 Histórico de ${esc(c.codigo)}</b><span style="font-size:.72rem;color:var(--text-dim)">${(data || []).filter(m => m.tipo_mov === 'Saída').length} saída(s)</span><button data-a="cancela" style="${bt};margin-left:auto">Fechar</button></div>
               <div style="max-height:260px;overflow:auto">${(data || []).map(m => `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border,#e5e7eb);font-size:.76rem;color:var(--text)">
                 <span style="min-width:120px;font-family:var(--mono);color:var(--text-dim)">${new Date(m.data).toLocaleString('pt-BR').slice(0, 17)}</span>
-                <b style="min-width:90px;color:${cor[m.tipo_mov] || 'inherit'}">${m.tipo_mov === 'Saída' ? '⬆' : m.tipo_mov === 'Retorno' ? '⬇' : '•'} ${esc(m.tipo_mov)}</b>
-                <span style="flex:1">${esc([m.destino, m.cidade].filter(Boolean).join(' — '))}${m.nf ? ` · NF ${esc(m.nf)}` : ''}${m.paciente ? ` · ${esc(m.paciente)}` : ''}${m.obs ? ` <span style="color:var(--text-dim)">· ${esc(m.obs)}</span>` : ''}</span>
+                <b style="min-width:90px;color:${cor[m.tipo_mov] || 'inherit'}">${m.tipo_mov === 'Saída' ? '⬆' : m.tipo_mov === 'Retorno' ? '⬇' : m.tipo_mov === 'Limpeza' ? '🧼' : '•'} ${esc(m.tipo_mov)}</b>
+                <span style="flex:1">${esc([m.destino, m.cidade].filter(Boolean).join(' — '))}${m.nf ? ` · NF ${esc(m.nf)}` : ''}${m.paciente ? ` · ${esc(m.paciente)}` : ''}${m.levado_por ? ` · 👤 ${esc(m.levado_por)}` : ''}${m.lacre ? ` · 🔒 ${esc(m.lacre)}` : ''}${m.obs ? ` <span style="color:var(--text-dim)">· ${esc(m.obs)}</span>` : ''}</span>
                 <span style="color:var(--text-dim)">${esc(m.responsavel || '')}</span></div>`).join('') || '<p style="font-size:.78rem;color:var(--text-dim)">Sem movimentações ainda.</p>'}</div>`);
         }
+        // retorno: confere o lacre (se tinha) e, pelo botão, pergunta se voltou com problema
         async function retorno(c, silencioso) {
-            const man = silencioso ? false : !confirm(`⬇ Retorno de ${c.codigo}${c.local_atual ? ' (estava em ' + c.local_atual + ')' : ''}.\n\nOK = voltou em ordem (fica Disponível)\nCancelar = voltou com problema (vai para Manutenção)`);
-            await movCaixa(c, 'Retorno', { destino: c.local_atual || '', proc_id: c.proc_id_atual, nf: c.nf_atual, manutencao: man, obs: man ? 'voltou com problema' : '' });
+            const man = silencioso ? false : !confirm(`⬇ Retorno de ${c.codigo}${c.local_atual ? ' (estava em ' + c.local_atual + ')' : ''}.\n\nOK = voltou em ordem\nCancelar = voltou com problema (vai para Manutenção)`);
+            let obs = man ? 'voltou com problema' : '';
+            if (c.lacre && c.status !== 'Manutenção') { const ok = confirm(`🔒 ${c.codigo} saiu com o lacre nº ${c.lacre}.\n\nO lacre voltou inteiro e com o mesmo número?\n\nOK = confere\nCancelar = lacre rompido / diferente`); if (!ok) obs = [obs, `LACRE ${c.lacre} NÃO CONFERE`].filter(Boolean).join(' · '); }
+            await movCaixa(c, 'Retorno', { destino: c.local_atual || '', proc_id: c.proc_id_atual, nf: c.nf_atual, manutencao: man, semLimpeza: c.status === 'Manutenção', obs });
+            return obs;
         }
         async function etiquetas(lista) {
             if (!lista.length) return alert('Nada para imprimir.');
@@ -24299,7 +24408,7 @@ else init();
                   <div class="rod"><b>PROPRIEDADE DA GF MEDICAL</b><span>Se encontrar, favor devolver.${c.token ? ' Leia o QR Code para ver o conteúdo.' : ''}</span></div>
                 </section>`; }).join('');
             w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas caixas e bags</title><style>
-              
+
               *{box-sizing:border-box;margin:0;padding:0}
               body{font-family:Arial,Helvetica,sans-serif;color:#000;background:#eee}
               .e{width:85mm;height:100mm;padding:3.5mm 4mm;background:#fff;margin:0 auto 6px;display:flex;flex-direction:column;align-items:center;gap:2mm;page-break-after:always;break-after:page;overflow:hidden}
@@ -24312,12 +24421,13 @@ else init();
             w.document.close();
         }
         async function consultar(c) {
+            lote = null; inv = null;
             const p = c.proc_id_atual ? procPorId(c.proc_id_atual) : null;
             const its = p ? await itensParaEtiqueta(p) : [], un = its.reduce((a, i) => a + (+i.qtd || 0), 0);
             const lin = (r, v) => v ? `<div style="display:flex;gap:8px;padding:3px 0;font-size:.78rem"><span style="min-width:80px;color:var(--text-dim);font-size:.68rem;text-transform:uppercase">${r}</span><b>${esc(v)}</b></div>` : '';
             form(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b style="font-size:.95rem;color:var(--text)">🔍 ${esc(c.codigo)}</b>
                 <span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>
-                <span style="font-size:.74rem;color:var(--text-dim)">${esc(c.local_atual || 'Estoque')}${c.saida_em && c.status === 'Fora' ? ' · desde ' + new Date(c.saida_em).toLocaleDateString('pt-BR') : ''}</span>
+                <span style="font-size:.74rem;color:var(--text-dim)">${esc(c.local_atual || 'Estoque')}${c.saida_em && c.status === 'Fora' ? ' · desde ' + new Date(c.saida_em).toLocaleDateString('pt-BR') : ''}${c.levado_por ? ' · 👤 ' + esc(c.levado_por) : ''}${c.lacre ? ' · 🔒 ' + esc(c.lacre) : ''}</span>
                 <button data-a="cancela" style="${bt};margin-left:auto">Fechar</button></div>
               ${p ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px">${lin('NF', p.nf)}${lin('Paciente', p.paciente)}${lin('Médico', p.medico)}${lin('Vendedor', p.vendedor)}${lin('Hospital', [p.hospital, p.cidade].filter(Boolean).join(' — '))}${lin('Cirurgia', dataBR(p.data))}</div>
                 <div style="margin-top:8px;font-size:.72rem;font-weight:800;color:var(--text)">📋 Itens (${its.length} · ${un} un)</div>
@@ -24325,39 +24435,181 @@ else init();
                 <div style="margin-top:8px"><button data-etqcir="${esc(c.proc_id_atual)}" style="${bt}">🏷 Etiqueta da cirurgia</button></div>`
               : `<div style="font-size:.8rem;color:var(--text-dim)">${c.status === 'Fora' ? 'Saiu sem cirurgia vinculada (remessa/conserto).' : 'Não está vinculada a nenhuma cirurgia agora.'}</div>`}`);
         }
+        // ── Conferência de estoque: bipe tudo o que está na prateleira ──
+        const deveEstar = c => c.status === 'Disponível' || c.status === 'Em limpeza';
+        async function abrirInventario() {
+            lote = null; inv = { bip: [], desconhecidos: [], ultima: null };
+            let r = {}; try { r = await sb.from('caixas_bags_inventario').select('feito_em,feito_por,faltando').order('feito_em', { ascending: false }).limit(1); } catch (e) {}
+            if (r && r.data && r.data[0]) inv.ultima = r.data[0];
+            desenharInv();
+        }
+        function desenharInv() {
+            if (!inv) return;
+            const esperadas = cxs.filter(deveEstar), achadas = esperadas.filter(c => inv.bip.includes(c.codigo));
+            const foraDoLugar = cxs.filter(c => inv.bip.includes(c.codigo) && !deveEstar(c));
+            form(`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><b style="font-size:.88rem;color:#7c3aed">📋 Conferência de estoque</b>
+                <span style="font-size:.72rem;color:var(--text-dim)">Bipe <b>todas</b> as caixas, bags e sacolas que estão fisicamente no estoque (inclusive as em limpeza). No fim, clique em Concluir.</span>
+                ${inv.ultima ? `<span style="font-size:.7rem;color:var(--text-dim)">Última: ${new Date(inv.ultima.feito_em).toLocaleString('pt-BR').slice(0, 17)} por ${esc(inv.ultima.feito_por || '—')} · faltaram ${(inv.ultima.faltando || []).length}</span>` : ''}</div>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <input data-invbip placeholder="Bipe aqui (Enter)" style="${inp};width:260px;font-weight:800;border-color:#7c3aed">
+                <div style="flex:1;min-width:200px;height:10px;border-radius:99px;background:var(--border,#e5e7eb);overflow:hidden"><div style="height:100%;width:${esperadas.length ? Math.round(achadas.length / esperadas.length * 100) : 0}%;background:#7c3aed"></div></div>
+                <b style="font-size:.8rem;color:var(--text)">${achadas.length} de ${esperadas.length}</b>
+                <button data-a="invfim" style="${bt};background:#7c3aed;color:#fff;border-color:#7c3aed">✔ Concluir conferência</button>
+                <button data-a="cancela" style="${bt}">Cancelar</button></div>
+              <div style="margin-top:8px;font-size:.74rem;color:var(--text)">${inv.bip.length ? `<b>Bipadas (${inv.bip.length}):</b> ` + inv.bip.slice().reverse().map(k => { const c = cxs.find(x => x.codigo === k); return `<span style="font-family:var(--mono);color:${!c ? '#dc2626' : deveEstar(c) ? '#16a34a' : '#b45309'}" title="${!c ? 'não cadastrada' : esc(c.status)}">${esc(k)}</span>`; }).join(' · ') : '<span style="color:var(--text-dim)">Nada bipado ainda.</span>'}</div>
+              ${foraDoLugar.length ? `<div style="margin-top:6px;font-size:.74rem;color:#b45309">⚠ ${foraDoLugar.length} bipada(s) que o sistema dizia estar fora: ${foraDoLugar.map(c => esc(c.codigo) + ' (' + esc(c.status) + ')').join(', ')}</div>` : ''}`);
+            setTimeout(() => $('[data-invbip]')?.focus(), 30);
+        }
+        function invBipar(texto) {
+            const k = codigoBipado(texto); if (!k) return;
+            if (inv.bip.includes(k)) { bip(false); return desenharInv(); }
+            inv.bip.push(k); const c = cxs.find(x => x.codigo === k); bip(!!c && deveEstar(c)); desenharInv();
+        }
+        async function concluirInventario() {
+            const faltando = cxs.filter(c => deveEstar(c) && !inv.bip.includes(c.codigo)).sort(porCodigo);
+            const sobrando = cxs.filter(c => inv.bip.includes(c.codigo) && !deveEstar(c)).sort(porCodigo);
+            const desconhecidos = inv.bip.filter(k => !cxs.some(c => c.codigo === k));
+            const esperadas = cxs.filter(deveEstar).length;
+            const reg = { filial: filialAtual(null), feito_por: operador(), esperadas, conferidas: inv.bip, faltando: faltando.map(c => c.codigo), sobrando: sobrando.map(c => c.codigo), obs: desconhecidos.length ? 'não cadastradas: ' + desconhecidos.join(', ') : null };
+            const { error } = await sb.from('caixas_bags_inventario').insert(reg);
+            const res = { faltando, sobrando, desconhecidos, esperadas, salvo: !error };
+            inv = null; lote = null; mostrarResultadoInv(res);
+        }
+        function mostrarResultadoInv(res) {
+            const ok = !res.faltando.length && !res.sobrando.length && !res.desconhecidos.length;
+            form(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b style="font-size:.88rem;color:#7c3aed">📋 Resultado da conferência</b>
+                <span style="font-size:.72rem;color:${res.salvo ? 'var(--text-dim)' : '#b45309'}">${res.salvo ? 'guardada no histórico' : '⚠ não guardada: rode o SQL 20261108_caixas_controle.sql'}</span><button data-a="cancela" style="${bt};margin-left:auto">Fechar</button></div>
+              ${ok ? '<div style="font-size:.85rem;color:#16a34a;font-weight:800">✅ Tudo certo: o estoque bate com o sistema.</div>' : ''}
+              ${res.faltando.length ? `<div style="margin-top:6px"><b style="font-size:.78rem;color:#dc2626">❌ Faltando no estoque (${res.faltando.length})</b> <span style="font-size:.7rem;color:var(--text-dim)">— o sistema diz que estão aqui, mas não foram bipadas</span>
+                  <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">${res.faltando.map(c => `<div style="display:flex;align-items:center;gap:8px;font-size:.76rem"><b style="font-family:var(--mono);min-width:70px">${esc(c.codigo)}</b><span style="color:var(--text-dim);flex:1">${esc(c.tipo)} · ${esc(c.status)}${c.retorno_em ? ' · voltou ' + new Date(c.retorno_em).toLocaleDateString('pt-BR') : ''}</span>
+                    <button data-hist="${c.id}" style="${bt};padding:3px 8px">🕘</button><button data-extravio="${c.id}" style="${bt};padding:3px 8px;color:#dc2626;border-color:#dc2626">🗑 Dar baixa (extraviada)</button></div>`).join('')}</div></div>` : ''}
+              ${res.sobrando.length ? `<div style="margin-top:10px"><b style="font-size:.78rem;color:#b45309">⚠ Estão no estoque, mas constavam como fora (${res.sobrando.length})</b>
+                  <div style="font-size:.76rem;margin:4px 0">${res.sobrando.map(c => `<span style="font-family:var(--mono)">${esc(c.codigo)}</span> <span style="color:var(--text-dim)">(${esc(c.status)}${c.local_atual ? ' · ' + esc(c.local_atual) : ''})</span>`).join(' · ')}</div>
+                  <button data-a="invretorno" data-ids="${res.sobrando.map(c => c.id).join(',')}" style="${bt};color:#16a34a;border-color:#16a34a">⬇ Registrar o retorno de todas</button></div>` : ''}
+              ${res.desconhecidos.length ? `<div style="margin-top:10px;font-size:.76rem;color:#dc2626"><b>Bipadas mas não cadastradas:</b> ${res.desconhecidos.map(esc).join(', ')}</div>` : ''}`);
+        }
+        // ── Valores de reposição ──
+        async function formValores() {
+            lote = null; inv = null; await carregarValores();
+            const semTab = _cxValor && _cxValor._erro;
+            form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:4px;color:var(--text)">💲 Valor de reposição</div>
+              <div style="font-size:.72rem;color:var(--text-dim);margin-bottom:8px">Quanto custa repor cada embalagem. Entra no total das não devolvidas, na cobrança pelo WhatsApp e no relatório.${semTab ? ' <b style="color:#b45309">Rode o SQL 20261108_caixas_controle.sql para guardar.</b>' : ''}</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                ${['Caixa', 'Bag', 'Sacola'].map(t => campo(`${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t} (R$)`, `<input data-val="${t}" type="number" min="0" step="0.01" value="${(_cxValor && _cxValor[t]) || ''}" style="${inp};width:120px">`)).join('')}
+                <button data-a="gravarValores" style="${bt};background:#111827;color:#fff;border-color:#111827">💾 Salvar</button><button data-a="cancela" style="${bt}">Cancelar</button></div>`);
+        }
+        // ── Relatório do mês ──
+        async function relatorio(mes) {
+            lote = null; inv = null;
+            mes = mes || new Date().toISOString().slice(0, 7);
+            const ini = new Date(mes + '-01T00:00:00'), fim = new Date(ini.getFullYear(), ini.getMonth() + 1, 1), antes = new Date(ini.getTime() - 120 * 864e5);
+            form(`<div style="font-size:.8rem;color:var(--text-dim)">Carregando o relatório…</div>`);
+            const { data, error } = await sb.from('caixas_bags_mov').select('*').gte('data', antes.toISOString()).lt('data', fim.toISOString()).order('data').limit(50000);
+            if (error) return form(`<div style="color:#dc2626;font-size:.8rem">Erro: ${esc(error.message)}</div>`);
+            const noMes = m => new Date(m.data) >= ini && new Date(m.data) < fim;
+            const movs = (data || []), mm = movs.filter(noMes), cxPorCod = Object.fromEntries(cxs.map(c => [c.codigo, c]));
+            // casa cada retorno com a saída anterior da mesma embalagem → dias fora
+            const ultSaida = {}, viagens = [];
+            movs.forEach(m => { if (m.tipo_mov === 'Saída') ultSaida[m.codigo] = m;
+                else if (m.tipo_mov === 'Retorno' && ultSaida[m.codigo]) { const s = ultSaida[m.codigo]; if (noMes(m)) viagens.push({ s, r: m, dias: (new Date(m.data) - new Date(s.data)) / 864e5 }); delete ultSaida[m.codigo]; } });
+            const saidas = mm.filter(m => m.tipo_mov === 'Saída'), retornos = mm.filter(m => m.tipo_mov === 'Retorno');
+            const perdas = mm.filter(m => m.tipo_mov === 'Pendente' || m.tipo_mov === 'Baixa'), vPerdas = perdas.reduce((a, m) => a + valorCx(cxPorCod[m.codigo] || {}), 0);
+            const media = l => l.length ? (l.reduce((a, v) => a + v.dias, 0) / l.length) : null, fmtD = v => v == null ? '—' : v.toFixed(1).replace('.', ',') + ' d';
+            const agrupa = (lista, chave) => { const g = {}; lista.forEach(x => { const k = chave(x) || '—'; (g[k] = g[k] || []).push(x); }); return g; };
+            const gH = agrupa(saidas, m => m.destino), vH = agrupa(viagens, v => v.s.destino), pH = agrupa(perdas, m => m.destino);
+            const hosp = [...new Set([...Object.keys(gH), ...Object.keys(pH)])].map(h => ({ h, s: (gH[h] || []).length, v: media(vH[h] || []), p: (pH[h] || []).length })).sort((a, b) => b.s - a.s);
+            const gP = agrupa(saidas, m => m.levado_por), pP = agrupa(perdas.map(m => ({ ...m, quem: (movs.filter(x => x.codigo === m.codigo && x.tipo_mov === 'Saída' && x.data <= m.data).pop() || {}).levado_por })), m => m.quem);
+            const pess = [...new Set([...Object.keys(gP), ...Object.keys(pP)])].filter(k => k !== '—' || (gP[k] || []).length).map(k => ({ k, s: (gP[k] || []).length, p: (pP[k] || []).length })).sort((a, b) => b.s - a.s);
+            const gE = agrupa(saidas, m => m.codigo), emb = Object.entries(gE).map(([k, l]) => ({ k, n: l.length })).sort((a, b) => b.n - a.n).slice(0, 10);
+            const kpi = (n, v, cor) => `<div style="flex:1;min-width:120px;padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--surface,#fff)"><div style="font-size:.64rem;font-weight:800;color:var(--text-dim);text-transform:uppercase">${n}</div><div style="font-size:1.15rem;font-weight:900;color:${cor || 'var(--text)'}">${v}</div></div>`;
+            const tab = (cab, rows) => `<table style="width:100%;border-collapse:collapse;font-size:.74rem"><thead><tr>${cab.map((c, i) => `<th style="text-align:${i ? 'right' : 'left'};padding:4px 6px;font-size:.62rem;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border,#ccc)">${c}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((v, i) => `<td style="text-align:${i ? 'right' : 'left'};padding:4px 6px;border-bottom:1px solid var(--border,#eee)">${v}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cab.length}" style="padding:6px;color:var(--text-dim)">Sem movimento.</td></tr>`}</tbody></table>`;
+            const box = (t, h) => `<div style="flex:1;min-width:280px"><div style="font-size:.74rem;font-weight:800;color:var(--text);margin:4px 0">${t}</div>${h}</div>`;
+            window._cxRel = { mes, hosp, pess, emb, saidas: saidas.length, retornos: retornos.length, perdas, vPerdas, media: media(viagens) };
+            form(`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"><b style="font-size:.88rem;color:var(--text)">📊 Relatório das embalagens</b>
+                <input type="month" data-relmes value="${mes}" style="${inp}"><button data-a="relxlsx" style="${bt};border-color:#16a34a;color:#16a34a">⬇ Excel</button><button data-a="cancela" style="${bt};margin-left:auto">Fechar</button></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${kpi('Saídas', saidas.length)}${kpi('Retornos', retornos.length, '#16a34a')}${kpi('Tempo médio fora', fmtD(media(viagens)))}${kpi('Não voltaram / baixas', perdas.length, perdas.length ? '#dc2626' : '')}${kpi('Valor perdido', brlCx(vPerdas), vPerdas ? '#dc2626' : '')}</div>
+              <div style="display:flex;gap:16px;flex-wrap:wrap">
+                ${box('🏥 Por hospital / cliente', tab(['Hospital', 'Saídas', 'Tempo médio fora', 'Não voltaram'], hosp.map(x => [esc(x.h), x.s, fmtD(x.v), x.p ? `<b style="color:#dc2626">${x.p}</b>` : '0'])))}
+                ${box('👤 Por quem levou', tab(['Quem levou', 'Saídas', 'Não voltaram'], pess.map(x => [esc(x.k), x.s, x.p ? `<b style="color:#dc2626">${x.p}</b>` : '0'])))}
+                ${box('🔁 Embalagens que mais saíram', tab(['Código', 'Saídas'], emb.map(x => [`<span style="font-family:var(--mono)">${esc(x.k)}</span>`, x.n])))}
+              </div>
+              ${perdas.length ? `<div style="margin-top:12px">${box('❌ Não voltaram / baixas no mês', tab(['Código', 'Data', 'Onde', 'Valor'], perdas.map(m => [`<span style="font-family:var(--mono)">${esc(m.codigo)}</span> ${esc(m.tipo_mov)}`, new Date(m.data).toLocaleDateString('pt-BR'), esc(m.destino || ''), brlCx(valorCx(cxPorCod[m.codigo] || {}))])))}</div>` : ''}`);
+            $('[data-relmes]').onchange = e => relatorio(e.target.value);
+        }
         async function bipar(texto) {
-            const cod = codigoBipado(texto), msg = $('[data-bipmsg]'); $('[data-bip]').value = '';
+            const cod = codigoBipado(texto); $('[data-bip]').value = '';
             const c = cxs.find(x => x.codigo === cod);
-            if (!c) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`; return; }
-            if (modo === 'Consultar') { msg.textContent = ''; await consultar(c); $('[data-bip]').focus(); return; }
+            if (!c) { aviso(`<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`, false); return; }
+            if (modo === 'Consultar') { aviso(''); await consultar(c); $('[data-bip]').focus(); return; }
             if (modo === 'Retorno') {
-                if (c.status !== 'Fora' && c.status !== 'Pendente' && c.status !== 'Manutenção') { msg.innerHTML = `<span style="color:#b45309">⚠ ${esc(c.codigo)} já está ${esc(c.status)}</span>`; return; }
-                const de = c.local_atual; try { await retorno(c, true); msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(c.codigo)} voltou${de ? ' de ' + esc(de) : ''}</span>`; await carregar(); } catch (e) { msg.innerHTML = `<span style="color:#dc2626">Erro: ${esc(e.message || e)}</span>`; }
+                if (c.status !== 'Fora' && c.status !== 'Pendente' && c.status !== 'Manutenção') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} já está ${esc(c.status)}</span>`, false); return; }
+                const de = c.local_atual;
+                try { const obs = await retorno(c, true); sessao.push({ codigo: c.codigo, cor: obs ? '#b45309' : '#16a34a' });
+                    aviso(`<span style="color:${obs ? '#b45309' : '#16a34a'}">✅ ${esc(c.codigo)} voltou${de ? ' de ' + esc(de) : ''}${limpezaAtiva() && c.status !== 'Manutenção' ? ' → 🧼 em limpeza' : ''}${obs ? ' · ⚠ ' + esc(obs) : ''}</span>`, !obs); desenharSessao(); await carregar(); }
+                catch (e) { aviso(`<span style="color:#dc2626">Erro: ${esc(e.message || e)}</span>`, false); }
+            } else if (modo === 'Limpeza') {
+                if (c.status !== 'Em limpeza') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} não está em limpeza (${esc(c.status)})</span>`, false); return; }
+                try { await movCaixa(c, 'Limpeza', { obs: 'limpa' }); sessao.push({ codigo: c.codigo, cor: '#0891b2' }); aviso(`<span style="color:#0891b2">🧼 ${esc(c.codigo)} limpa → disponível</span>`, true); desenharSessao(); await carregar(); }
+                catch (e) { aviso(`<span style="color:#dc2626">Erro: ${esc(e.message || e)}</span>`, false); }
             } else {
-                if (c.status === 'Fora') { msg.innerHTML = `<span style="color:#b45309">⚠ ${esc(c.codigo)} já está fora (${esc(c.local_atual || '')})</span>`; return; }
-                msg.textContent = ''; formSaida(c);
+                if (c.status !== 'Disponível' && c.status !== 'Manutenção') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} está ${esc(c.status)}${c.local_atual && c.status === 'Fora' ? ' (' + esc(c.local_atual) + ')' : ''} — não pode sair</span>`, false); return; }
+                if (lote && lote.some(l => l.id === c.id)) { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} já está nesta saída</span>`, false); return; }
+                aviso(`<span style="color:#2563eb">➕ ${esc(c.codigo)} adicionada à saída</span>`, true); formSaida([c]);
             }
             $('[data-bip]').focus();
         }
-        ov.addEventListener('keydown', e => { if (e.target.matches('[data-bip]') && e.key === 'Enter') { e.preventDefault(); if (e.target.value.trim()) bipar(e.target.value); } });
+        ov.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            if (e.target.matches('[data-bip]')) { e.preventDefault(); if (e.target.value.trim()) bipar(e.target.value); }
+            else if (e.target.matches('[data-invbip]')) { e.preventDefault(); const v = e.target.value; e.target.value = ''; if (v.trim() && inv) invBipar(v); }
+        });
+        ov.addEventListener('change', e => { if (e.target.matches('[data-limptog]')) { try { localStorage.setItem('gf_cx_limpeza', e.target.checked ? '1' : '0'); } catch (er) {} if (e.target.checked) _cxSemControle = false; desenhar(); } });
         ov.addEventListener('click', async e => {
-            if (e.target === ov) return ov.remove();
+            if (e.target === ov) return fechar();
             const b = e.target.closest('button'); if (!b) return; const d = b.dataset, porId = id => cxs.find(c => c.id === id);
             try {
-                if (d.a === 'x') return ov.remove();
-                if (d.modoB) { modo = d.modoB; desenharModo(); $('[data-bip]').focus(); return; }
+                if (d.a === 'x') return fechar();
+                if (d.modoB) { modo = d.modoB; if (modo !== 'Saída' && lote) form(''); desenharModo(); $('[data-bip]').focus(); return; }
                 if (d.st !== undefined) { fSt = d.st; return desenhar(); }
+                if (d.tp !== undefined) { fTipo = d.tp; return desenhar(); }
+                if (d.ondeq !== undefined) { const q = $('[data-busca]'); q.value = q.value === d.ondeq ? '' : d.ondeq; return desenhar(); }
+                if (d.a === 'limpsessao') { sessao.length = 0; desenharSessao(); aviso(''); return; }
                 if (d.a === 'novo') return formNovo();
                 if (d.a === 'cancela') return form('');
-                if (d.saida) return formSaida(porId(d.saida));
+                if (d.a === 'inv') return abrirInventario();
+                if (d.a === 'invfim') return concluirInventario();
+                if (d.a === 'rel') return relatorio();
+                if (d.a === 'valores') return formValores();
+                if (d.saida) { lote = null; return formSaida([porId(d.saida)]); }
+                if (d.tira) { lote = (lote || []).filter(l => l.id !== d.tira); return formSaida([]); }
+                if (d.limpa) { await movCaixa(porId(d.limpa), 'Limpeza', { obs: 'limpa' }); return carregar(); }
                 if (d.retorno) { await retorno(porId(d.retorno)); await carregar(); return; }
                 if (d.hist) return historico(porId(d.hist));
                 if (d.cons) return consultar(porId(d.cons));
                 if (d.etqcir) { const pc = procPorId(d.etqcir); if (pc) window.abrirQRCode(pc); return; }
                 if (d.etq1) return etiquetas([porId(d.etq1)]);
                 if (d.edit) return formNovo(porId(d.edit));
+                if (d.extravio) { const c = porId(d.extravio); if (!confirm(`Dar baixa em ${c.codigo} como extraviada?`)) return; await movCaixa(c, 'Baixa', { obs: 'extraviada (conferência de estoque)' }); b.closest('div').style.opacity = '.4'; b.disabled = true; return carregar(); }
+                if (d.a === 'invretorno') { const ids = String(d.ids || '').split(',').filter(Boolean); b.disabled = true;
+                    for (const id of ids) { const c = porId(id); if (c && c.status !== 'Disponível' && c.status !== 'Em limpeza') await movCaixa(c, 'Retorno', { destino: c.local_atual || '', proc_id: c.proc_id_atual, nf: c.nf_atual, semLimpeza: c.status === 'Baixada', obs: 'encontrada na conferência de estoque' }); }
+                    b.textContent = '✅ Retorno registrado'; return carregar(); }
                 if (d.selt !== undefined) { if (!d.selt) sel.clear(); else linhas.filter(c => c.tipo === d.selt).forEach(c => sel.add(c.id)); ultSel = -1; return desenhar(); }
-                if (d.a === 'etq') return etiquetas(sel.size ? cxs.filter(c => sel.has(c.id)).sort((a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt-BR', { numeric: true })) : linhas);
+                if (d.a === 'etq') return etiquetas(sel.size ? cxs.filter(c => sel.has(c.id)).sort(porCodigo) : linhas.slice().sort(porCodigo));
+                if (d.a === 'gravarValores') {
+                    const rows = ['Caixa', 'Bag', 'Sacola'].map(t => ({ filial: filialAtual(null), tipo: t, valor: Math.max(0, parseFloat($(`[data-val="${t}"]`).value) || 0), atualizado_em: new Date().toISOString() }));
+                    const { error } = await sb.from('caixas_bags_valor').upsert(rows, { onConflict: 'filial,tipo' });
+                    if (error) return alert(/caixas_bags_valor|schema cache|does not exist/i.test(error.message) ? 'Rode o SQL 20261108_caixas_controle.sql no Supabase desta filial para guardar os valores.' : 'Erro: ' + error.message);
+                    await carregarValores(); form(''); desenhar(); window.showSyncToast && window.showSyncToast('💲 Valores de reposição salvos'); return;
+                }
+                if (d.a === 'relxlsx') {
+                    const R = window._cxRel; if (!R) return; if (!window.XLSX) return alert('Biblioteca do Excel não carregou. Recarregue a página.');
+                    const wb = XLSX.utils.book_new(), fd = v => v == null ? '' : +v.toFixed(1);
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Mês: R.mes, Saídas: R.saidas, Retornos: R.retornos, 'Tempo médio fora (dias)': fd(R.media), 'Não voltaram / baixas': R.perdas.length, 'Valor perdido (R$)': R.vPerdas }]), 'Resumo');
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(R.hosp.map(x => ({ Hospital: x.h, Saídas: x.s, 'Tempo médio fora (dias)': fd(x.v), 'Não voltaram': x.p }))), 'Por hospital');
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(R.pess.map(x => ({ 'Quem levou': x.k, Saídas: x.s, 'Não voltaram': x.p }))), 'Por quem levou');
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(R.perdas.map(m => ({ Código: m.codigo, Tipo: m.tipo_mov, Data: new Date(m.data).toLocaleDateString('pt-BR'), Onde: m.destino || '', Obs: m.obs || '' }))), 'Perdas');
+                    XLSX.writeFile(wb, `embalagens-${R.mes}.xlsx`); return;
+                }
                 if (d.a === 'gravarNovo') {
                     if (b.disabled) return; b.disabled = true; const txtB = b.textContent; b.textContent = '⏳ Salvando…';
                     try {
@@ -24384,26 +24636,35 @@ else init();
                     const c = porId(d.id), st = $('[data-f="status"]').value, obs = $('[data-f="obs"]').value.trim();
                     const { error } = await sb.from('caixas_bags').update({ descricao: $('[data-f="descricao"]').value.trim() || null, atualizado_em: new Date().toISOString() }).eq('id', c.id); if (error) throw error;
                     if (st !== c.status) {
-                        if (st === 'Disponível' && (c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Manutenção')) await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual' });
+                        if (st === 'Disponível' && c.status === 'Em limpeza') await movCaixa(c, 'Limpeza', { obs: obs || 'limpa' });
+                        else if (st === 'Disponível' && (c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Manutenção' || c.status === 'Baixada')) await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual', semLimpeza: true });
+                        else if (st === 'Em limpeza') await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual' });
+                        else if (st === 'Pendente') await movCaixa(c, 'Pendente', { obs: obs || 'ajuste manual' });
                         else if (st === 'Manutenção') await movCaixa(c, 'Manutenção', { obs, destino: 'Manutenção' });
                         else if (st === 'Baixada') await movCaixa(c, 'Baixa', { obs: obs || 'baixada' });
-                        else if (st === 'Fora') { form(''); await carregar(); return formSaida(cxs.find(x => x.id === c.id)); }
+                        else if (st === 'Fora') { form(''); await carregar(); return formSaida([cxs.find(x => x.id === c.id)]); }
                     }
                     form(''); return carregar();
                 }
                 if (d.a === 'gravarSaida') {
-                    const c = porId(d.id), v = k => $(`[data-f="${k}"]`).value.trim(), p = procPorId(v('proc'));
+                    if (b.disabled) return;
+                    const v = k => ($(`[data-f="${k}"]`)?.value || '').trim(), p = procPorId(v('proc'));
+                    ov.querySelectorAll('[data-lacre]').forEach(x => { const it = (lote || []).find(l => l.id === x.dataset.lacre); if (it) it.lacre = x.value.trim(); });
                     if (!v('destino')) return alert('Informe para onde a caixa/bag está indo.');
-                    await movCaixa(c, 'Saída', { destino: v('destino'), cidade: v('cidade'), nf: v('nf'), proc_id: v('proc') || null, paciente: p?.paciente || '', obs: v('obs'), data: new Date(v('data') + 'T' + new Date().toTimeString().slice(0, 8)).toISOString() });
-                    form(''); return carregar();
+                    const lista = (lote || []).map(l => ({ ...l, c: porId(l.id) })).filter(l => l.c); if (!lista.length) return;
+                    b.disabled = true; b.textContent = '⏳ Registrando…';
+                    const data = new Date(v('data') + 'T' + new Date().toTimeString().slice(0, 8)).toISOString(); let n = 0;
+                    for (const l of lista) { await movCaixa(l.c, 'Saída', { destino: v('destino'), cidade: v('cidade'), nf: v('nf'), proc_id: v('proc') || null, paciente: p?.paciente || '', levado_por: v('levado'), lacre: l.lacre, obs: v('obs'), data }); n++; }
+                    form(''); aviso(`<span style="color:#2563eb">⬆ ${n} saída(s) registrada(s) para ${esc(v('destino'))}</span>`, true); if (nSaidas) lista.forEach(l => { nSaidas[l.c.codigo] = (nSaidas[l.c.codigo] || 0) + 1; }); return carregar();
                 }
                 if (d.a === 'xlsx') {
                     if (!window.XLSX) return alert('Biblioteca do Excel não carregou. Recarregue a página.');
-                    const ws = XLSX.utils.json_to_sheet(linhas.map(c => ({ Código: c.codigo, Tipo: c.tipo, Descrição: c.descricao || '', Situação: c.status, 'Onde está': c.local_atual || '', 'Saiu em': c.saida_em ? new Date(c.saida_em).toLocaleDateString('pt-BR') : '', 'Dias fora': c.status === 'Fora' ? diasDesde(c.saida_em) : '', NF: c.nf_atual || '', 'Voltou em': c.retorno_em ? new Date(c.retorno_em).toLocaleDateString('pt-BR') : '' })));
+                    const ws = XLSX.utils.json_to_sheet(linhas.map(c => ({ Código: c.codigo, Tipo: c.tipo, Descrição: c.descricao || '', Situação: c.status, 'Onde está': c.local_atual || '', 'Quem levou': c.levado_por || '', Lacre: c.lacre || '', 'Saiu em': c.saida_em ? new Date(c.saida_em).toLocaleDateString('pt-BR') : '', 'Dias fora': c.status === 'Fora' || c.status === 'Pendente' ? diasDesde(c.saida_em) : '', NF: c.nf_atual || '', 'Voltou em': c.retorno_em ? new Date(c.retorno_em).toLocaleDateString('pt-BR') : '', 'Saídas (total)': nSaidas ? nSaidas[c.codigo] || 0 : '', 'Valor de reposição': valorCx(c) || '' })));
                     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Caixas e bags'); XLSX.writeFile(wb, 'caixas-e-bags.xlsx'); return;
                 }
             } catch (err) { const m = String(err.message || err);
-                alert(/caixas_bags_tipo_check/.test(m) ? 'O banco desta filial ainda não aceita Sacola: rode o SQL 20261106_sacola_rastreio.sql no Supabase (Campo Grande e Cuiabá) e tente de novo.' : 'Erro: ' + m); }
+                alert(/caixas_bags_tipo_check/.test(m) ? 'O banco desta filial ainda não aceita Sacola: rode o SQL 20261106_sacola_rastreio.sql no Supabase (Campo Grande e Cuiabá) e tente de novo.'
+                    : /caixas_bags_status_check/.test(m) ? 'Rode o SQL 20261108_caixas_controle.sql no Supabase desta filial (status Em limpeza / Pendente).' : 'Erro: ' + m); }
         });
         let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
         const fechar = () => { ov.remove(); document.removeEventListener('keydown', escFecha, true); if (window._cxRecarregar === carregar) window._cxRecarregar = null; };
@@ -24438,6 +24699,7 @@ else init();
     async function atualizarBadgeCaixas() {
         const b = document.getElementById('btn-caixas'); if (!b) return;
         const l = await carregarCaixas(true).catch(() => null); if (!l || l.erro) return;
+        if (!_cxValor) carregarValores().catch(() => {});
         const fora = l.filter(c => c.status === 'Fora'), atras = fora.filter(c => diasDesde(c.saida_em) > CX_ATRASO), pend = l.filter(c => c.status === 'Pendente');
         const mudou = (window._cxPendentes || []).length !== pend.length; window._cxPendentes = pend;
         if (mudou && typeof atualizarBannerPendencias === 'function') try { atualizarBannerPendencias(); } catch (e) {}

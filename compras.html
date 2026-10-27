@@ -3171,6 +3171,65 @@ window.exportarExcel = () => {
 };
 goView('painel');
 </script>
+<!-- Setas ← → para rolar as tabelas largas (igual à Central Cirúrgica do Monitor) — Programação e demais tabelas + arrastar com o mouse -->
+<style>
+.tsw{position:relative}
+.tbl-scroll-btn{position:absolute;top:50%;transform:translateY(-50%);z-index:20;width:36px;height:36px;border-radius:50%;border:1px solid rgba(135,195,150,.45);background:rgba(240,250,244,.95);backdrop-filter:blur(8px);color:#2a9fbf;font-size:1.1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.12);transition:background .18s,opacity .18s,transform .18s;opacity:0;pointer-events:none}
+.tbl-scroll-btn.visible{opacity:1;pointer-events:auto}
+.tbl-scroll-btn:hover{background:rgba(214,239,222,.98);transform:translateY(-50%) scale(1.08)}
+.tbl-scroll-btn:active{transform:translateY(-50%) scale(.95)}
+.tbl-scroll-left{left:6px}.tbl-scroll-right{right:6px}
+.tscroll.arrastavel{cursor:grab}.tscroll.is-dragging{cursor:grabbing!important;user-select:none}
+@media print{.tbl-scroll-btn{display:none!important}}
+</style>
+<script>
+(function () {
+  var STEP = 280;
+  function atualizar(w) {
+    var b = w._setas; if (!b) return;
+    var temMais = w.scrollWidth > w.clientWidth + 2;
+    b[0].classList.toggle('visible', temMais && w.scrollLeft > 2);
+    b[1].classList.toggle('visible', temMais && w.scrollLeft < w.scrollWidth - w.clientWidth - 2);
+    w.classList.toggle('arrastavel', temMais);
+    // tabela comprida: a seta fica no meio da parte que está aparecendo na tela
+    var r = w.getBoundingClientRect(), vis0 = Math.max(r.top, 0), vis1 = Math.min(r.bottom, window.innerHeight);
+    var meio = vis1 > vis0 ? (vis0 + vis1) / 2 - r.top : r.height / 2;
+    b[0].style.top = b[1].style.top = Math.max(22, Math.min(r.height - 22, meio)) + 'px';
+  }
+  function preparar(w) {
+    if (w._setas || !w.parentNode) return;
+    var box = document.createElement('div'); box.className = 'tsw';
+    w.parentNode.insertBefore(box, w); box.appendChild(w);
+    var l = document.createElement('button'), r = document.createElement('button');
+    l.type = r.type = 'button';
+    l.className = 'tbl-scroll-btn tbl-scroll-left'; l.innerHTML = '&#8592;'; l.setAttribute('aria-label', 'Rolar para esquerda');
+    r.className = 'tbl-scroll-btn tbl-scroll-right'; r.innerHTML = '&#8594;'; r.setAttribute('aria-label', 'Rolar para direita');
+    l.onclick = function () { w.scrollBy({ left: -STEP, behavior: 'smooth' }); };
+    r.onclick = function () { w.scrollBy({ left: STEP, behavior: 'smooth' }); };
+    box.appendChild(l); box.appendChild(r); w._setas = [l, r];
+    w.addEventListener('scroll', function () { atualizar(w); }, { passive: true });
+    // arrastar para os lados com o mouse
+    var down = false, moved = false, x0 = 0, s0 = 0;
+    w.addEventListener('mousedown', function (e) {
+      if (e.button !== 0 || w.scrollWidth <= w.clientWidth + 2 || e.target.closest('button,a,input,select,textarea,label,[contenteditable]')) return;
+      down = true; moved = false; x0 = e.clientX; s0 = w.scrollLeft;
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!down) return; var dx = x0 - e.clientX;
+      if (Math.abs(dx) > 4) { moved = true; w.classList.add('is-dragging'); w.scrollLeft = s0 + dx; }
+    });
+    document.addEventListener('mouseup', function () { if (!down) return; down = false; w.classList.remove('is-dragging'); });
+    w.addEventListener('click', function (e) { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+  }
+  function varrer() { document.querySelectorAll('.tscroll').forEach(function (w) { preparar(w); atualizar(w); }); }
+  var t = null; function agendar() { clearTimeout(t); t = setTimeout(varrer, 150); }
+  new MutationObserver(agendar).observe(document.body, { childList: true, subtree: true });
+  window.addEventListener('resize', agendar);
+  document.addEventListener('click', agendar);   // troca de aba: a tabela passa a aparecer
+  window.addEventListener('scroll', function () { document.querySelectorAll('.tscroll').forEach(atualizar); }, { passive: true, capture: true });
+  varrer();
+})();
+</script>
 <script src="aviso-transferencias.js" defer></script>
 </body>
 </html>
