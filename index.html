@@ -22995,7 +22995,7 @@ else init();
             const btnSim = ov.querySelector('#btnConfCirSim'), btnNao = ov.querySelector('#btnConfCirNao'), btnFinal = ov.querySelector('#btnConfirmarCirFinal');
             if (!btnSim || !btnFinal) return r;
             const pid = String(p._docId || p.id || ''), resp = {}; let caixas = [], cadastro = [], escolha = null;
-            const sec = document.createElement('div'); sec.id = 'cx-ret-perg'; sec.style.cssText = 'display:none;margin:0 0 16px;padding:12px 14px;border-radius:10px;border:2px solid #0d9488;background:rgba(13,148,136,.06)';
+            const sec = document.createElement('div'); sec.id = 'cx-ret-perg'; sec.style.cssText = 'margin:0 0 16px;padding:12px 14px;border-radius:10px;border:2px solid #0d9488;background:rgba(13,148,136,.06)';
             btnFinal.insertAdjacentElement('beforebegin', sec);
             const bt = 'padding:7px 12px;border-radius:8px;border:2px solid var(--border);background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:.74rem;font-weight:700;cursor:pointer';
             const desenhar = () => {
@@ -23016,7 +23016,7 @@ else init();
                         <button type="button" data-cxr="${c.id}" data-v="nao" style="${bt};${resp[c.id] === 'nao' ? 'background:#d94f4f;color:#fff;border-color:#d94f4f' : ''}">⏳ Não voltou</button></div>`).join('')
                     + `<div style="font-size:.68rem;color:var(--text-dim);margin-top:4px">Se não voltou, fica pendente e entra na cobrança.</div>`;
             };
-            const mostrar = () => { sec.style.display = escolha === 'sim' ? '' : 'none'; };
+            const mostrar = () => { sec.style.display = escolha === 'nao' ? 'none' : ''; };   // aparece já ao abrir; some só se o material NÃO foi retirado
             desenhar();
             // caixas desta cirurgia: as registradas no rastreio + as anotadas na etiqueta (Nº da caixa)
             carregarCaixas(true).then(l => {
