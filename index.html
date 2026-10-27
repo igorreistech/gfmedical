@@ -23234,11 +23234,33 @@ else init();
                 ${campo('Cidade', `<input data-f="cidade" value="${esc(r.cidade || '')}" style="${inp};width:140px">`)}
                 ${campo('Envio', `<input type="date" data-f="data_envio" value="${esc(r.data_envio || '')}" style="${inp}">`)}
                 ${campo('Obs', `<input data-f="obs" value="${esc(r.obs || '')}" style="${inp};min-width:160px">`, '1')}
+                ${campo('Caixa / bag / sacola que vai', `<span style="display:flex;gap:4px"><select data-voltipo style="${inp}"><option value="">— nenhuma —</option><option value="Caixa">📦 Caixa</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select><select data-volcod style="${inp};min-width:110px;display:none"></select></span>`)}
                 <button data-a="gravar" style="${bt};background:#111827;color:#fff;border-color:#111827">${r.id ? '💾 Salvar' : '💾 Salvar e montar volumes'}</button>
                 <button data-a="cancelar" style="${bt}">Cancelar</button></div>`;
+            prepararVolRem(r.id);
             $('[data-form]').dataset.id = r.id || '';
             $('[data-f="nf"]').focus();
         }
+        let _cadRem = [];
+        async function prepararVolRem(remId) {
+            const r0 = await carregarCaixas(true).catch(() => null); _cadRem = r0 && !r0.erro ? r0 : [];
+            const pid = remId ? 'rem:' + remId : '', ja = pid ? _cadRem.find(c => c.status === 'Fora' && c.proc_id_atual === pid) : null;
+            const t = ov.querySelector('[data-voltipo]'); if (!t) return;
+            if (ja) { t.value = ja.tipo; montarVolRem(pid, ja.codigo); }
+        }
+        function montarVolRem(pid, sel) {
+            const t = ov.querySelector('[data-voltipo]'), c = ov.querySelector('[data-volcod]'); if (!t || !c) return;
+            c.style.display = t.value ? '' : 'none'; if (!t.value) { c.innerHTML = ''; return; }
+            const ops = _cadRem.filter(x => x.tipo === t.value && (x.status === 'Disponível' || (pid && x.proc_id_atual === pid)));
+            c.innerHTML = `<option value="">${ops.length ? '— escolha —' : 'nenhuma disponível'}</option>` + ops.map(x => `<option value="${esc(x.codigo)}" ${x.codigo === sel ? 'selected' : ''}>${esc(x.codigo)}${x.descricao ? ' · ' + esc(x.descricao) : ''}</option>`).join('');
+        }
+        async function retornoDaRemessa(remId, motivo) {
+            const pid = 'rem:' + remId, r0 = await carregarCaixas(true).catch(() => null); if (!r0 || r0.erro) return 0; let n = 0;
+            for (const cx of r0.filter(c => c.status === 'Fora' && c.proc_id_atual === pid)) { try { await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: pid, nf: cx.nf_atual, obs: motivo }); n++; } catch (e) { console.warn(e); } }
+            if (n) { _cxCache = null; atualizarBadgeCaixas(); window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s)/sacola(s) voltaram para o estoque`); }
+            return n;
+        }
+        ov.addEventListener('change', e => { if (e.target.matches('[data-voltipo]')) montarVolRem($('[data-form]').dataset.id ? 'rem:' + $('[data-form]').dataset.id : '', ''); });
         ov.addEventListener('change', async e => {
             const i = e.target.dataset.mudast; if (i === undefined) return;
             const r = linhas[+i], st = e.target.value;
@@ -23246,6 +23268,7 @@ else init();
             const { error } = await sb.from('remessas_volumes').update(upd).eq('id', r.id);
             if (error) return alert('Erro ao salvar: ' + error.message);
             Object.assign(r, upd); desenhar();
+            if (st === 'Retornou' || st === 'Cancelada') retornoDaRemessa(r.id, st === 'Retornou' ? 'retorno automático — remessa retornou' : 'retorno automático — remessa cancelada');
         });
         ov.addEventListener('click', async e => {
             if (e.target === ov) return ov.remove();
@@ -23266,6 +23289,8 @@ else init();
                 if (id) res = await sb.from('remessas_volumes').update({ ...v, atualizado_em: new Date().toISOString() }).eq('id', id).select().single();
                 else res = await sb.from('remessas_volumes').insert({ ...v, filial: filialAtual(null), status: 'No cliente', criado_por: operador() }).select().single();
                 if (res.error) return alert('Erro ao salvar: ' + res.error.message);
+                const codVol = ov.querySelector('[data-volcod]')?.value;
+                if (codVol && res.data) saidaCaixasDaCirurgia(procDaRemessa(res.data), [codVol]);
                 $('[data-form]').innerHTML = '';
                 await carregar();
                 if (!id) window.abrirVolumes(procDaRemessa(res.data));
@@ -23330,8 +23355,16 @@ else init();
             const { data, error } = await sb.from('caixas_bags').select('*').eq('status', 'Fora').limit(2000);
             if (error || !data?.length) return;
             let n = 0;
+            // remessas (proc_id "rem:<id>") que já retornaram ou foram canceladas
+            const remIds = [...new Set(data.map(c => c.proc_id_atual).filter(x => String(x || '').startsWith('rem:')).map(x => x.slice(4)))], remSt = {};
+            if (remIds.length) { try { const { data: rs } = await sb.from('remessas_volumes').select('id,status').in('id', remIds); (rs || []).forEach(r => { remSt[r.id] = r.status; }); } catch (e) {} }
             for (const cx of data) {
                 if (!cx.proc_id_atual) continue;
+                if (cx.proc_id_atual.startsWith('rem:')) {
+                    const st = remSt[cx.proc_id_atual.slice(4)]; if (st !== 'Retornou' && st !== 'Cancelada') continue;
+                    try { await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: cx.proc_id_atual, nf: cx.nf_atual, obs: 'retorno automático — remessa ' + st.toLowerCase() }); n++; } catch (e) { console.warn('caixas_bags auto:', e.message || e); }
+                    continue;
+                }
                 const p = procPorId(cx.proc_id_atual); if (!p || p.status !== 'concluido') continue;
                 try { await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: cx.proc_id_atual, nf: cx.nf_atual, obs: 'retorno automático — cirurgia concluída' }); n++; }
                 catch (e) { console.warn('caixas_bags auto:', e.message || e); }
@@ -23565,7 +23598,8 @@ else init();
                     const ws = XLSX.utils.json_to_sheet(linhas.map(c => ({ Código: c.codigo, Tipo: c.tipo, Descrição: c.descricao || '', Situação: c.status, 'Onde está': c.local_atual || '', 'Saiu em': c.saida_em ? new Date(c.saida_em).toLocaleDateString('pt-BR') : '', 'Dias fora': c.status === 'Fora' ? diasDesde(c.saida_em) : '', NF: c.nf_atual || '', 'Voltou em': c.retorno_em ? new Date(c.retorno_em).toLocaleDateString('pt-BR') : '' })));
                     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Caixas e bags'); XLSX.writeFile(wb, 'caixas-e-bags.xlsx'); return;
                 }
-            } catch (err) { alert('Erro: ' + (err.message || err)); }
+            } catch (err) { const m = String(err.message || err);
+                alert(/caixas_bags_tipo_check/.test(m) ? 'O banco desta filial ainda não aceita Sacola: rode o SQL 20261106_sacola_rastreio.sql no Supabase (Campo Grande e Cuiabá) e tente de novo.' : 'Erro: ' + m); }
         });
         let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
         desenharModo(); await retornoAutomaticoCaixas(); await carregar();
