@@ -22648,7 +22648,7 @@ else init();
         box.style.cssText = 'margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.72rem;font-weight:700;color:var(--text)';
         const sel = 'padding:6px 8px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--bg,#fff);color:var(--text);font-size:.74rem';
         box.innerHTML = `<span>📦 Volume que vai:</span>
-          <select id="f-vol-tipo" style="${sel}"><option value="">— nenhum —</option><option value="Caixa">📦 Caixa</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>
+          <select id="f-vol-tipo" style="${sel}"><option value="">— nenhum —</option><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>
           <select id="f-vol-cod" style="${sel};min-width:120px;display:none"></select><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span>`;
         (document.getElementById('btn-etq-qr-ficha') || fnf).insertAdjacentElement('afterend', box);
         const tipoEl = box.querySelector('#f-vol-tipo'), codEl = box.querySelector('#f-vol-cod'), info = box.querySelector('#f-vol-info');
@@ -23234,7 +23234,7 @@ else init();
                 ${campo('Cidade', `<input data-f="cidade" value="${esc(r.cidade || '')}" style="${inp};width:140px">`)}
                 ${campo('Envio', `<input type="date" data-f="data_envio" value="${esc(r.data_envio || '')}" style="${inp}">`)}
                 ${campo('Obs', `<input data-f="obs" value="${esc(r.obs || '')}" style="${inp};min-width:160px">`, '1')}
-                ${campo('Caixa / bag / sacola que vai', `<span style="display:flex;gap:4px"><select data-voltipo style="${inp}"><option value="">— nenhuma —</option><option value="Caixa">📦 Caixa</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select><select data-volcod style="${inp};min-width:110px;display:none"></select></span>`)}
+                ${campo('Caixa / bag / sacola que vai', `<span style="display:flex;gap:4px"><select data-voltipo style="${inp}"><option value="">— nenhuma —</option><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select><select data-volcod style="${inp};min-width:110px;display:none"></select></span>`)}
                 <button data-a="gravar" style="${bt};background:#111827;color:#fff;border-color:#111827">${r.id ? '💾 Salvar' : '💾 Salvar e montar volumes'}</button>
                 <button data-a="cancelar" style="${bt}">Cancelar</button></div>`;
             prepararVolRem(r.id);
@@ -23452,8 +23452,8 @@ else init();
         function formNovo(c) {
             form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:var(--text)">${c ? '✎ ' + esc(c.codigo) : '+ Cadastrar caixas / bags'}</div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-                ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option>Caixa</option><option>Bag</option><option>Sacola</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`)}
-                ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c?.descricao || '')}" placeholder="ex.: caixa térmica grande, bag azul" style="${inp};width:260px">`)}
+                ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`)}
+                ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c?.descricao || '')}" placeholder="ex.: caixa plástica grande azul, bag térmica" style="${inp};width:260px">`)}
                 ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
                 <span data-prev style="font-size:.74rem;color:var(--text-dim);margin-bottom:8px"></span>
                 <button data-a="${c ? 'gravarEdit' : 'gravarNovo'}" data-id="${c?.id || ''}" style="${bt};background:#111827;color:#fff;border-color:#111827">💾 Salvar</button>
@@ -23504,7 +23504,7 @@ else init();
                 q.addData(c.token ? `${pasta}etiqueta.html?f=${fil.toLowerCase()}&cx=${c.codigo}&t=${c.token}` : `GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
                 return `<section class="e">
                   <div class="topo"><b>${esc(emp.razao)}</b><span>CNPJ ${esc(emp.cnpj)}</span><span>${esc(emp.end)}</span></div>
-                  <div class="cod"><small>${CX_ICO[c.tipo] || '📦'} ${esc(String(c.tipo).toUpperCase())}</small><b>${esc(c.codigo)}</b>${c.descricao ? `<span>${esc(c.descricao)}</span>` : ''}</div>
+                  <div class="cod"><small>${CX_ICO[c.tipo] || '📦'} ${c.tipo === 'Caixa' ? 'CAIXA PLÁSTICA' : esc(String(c.tipo).toUpperCase())}</small><b>${esc(c.codigo)}</b>${c.descricao ? `<span>${esc(c.descricao)}</span>` : ''}</div>
                   <div class="qr"><div style="width:44mm;height:44mm">${comLogo(q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }), logo)}</div></div>
                   <div class="rod"><b>PROPRIEDADE DA GF MEDICAL</b><span>Se encontrar, favor devolver.${c.token ? ' Leia o QR Code para ver o conteúdo.' : ''}</span></div>
                 </section>`; }).join('');
@@ -23568,12 +23568,25 @@ else init();
                 if (d.edit) return formNovo(porId(d.edit));
                 if (d.a === 'etq') return etiquetas(linhas);
                 if (d.a === 'gravarNovo') {
-                    const tipo = $('[data-f="tipo"]').value, n = Math.max(1, Math.min(100, parseInt($('[data-f="qtd"]').value, 10) || 1)), desc = $('[data-f="descricao"]').value.trim();
-                    const ini = parseInt(proximoCodigo(tipo).slice(3), 10), rows = Array.from({ length: n }, (_, i) => ({ filial: filialAtual(null), codigo: `${CX_PREF[tipo]}-${String(ini + i).padStart(3, '0')}`, tipo, descricao: desc || null, status: 'Disponível', local_atual: 'Estoque', criado_por: operador() }));
-                    const { data, error } = await sb.from('caixas_bags').insert(rows).select(); if (error) throw error;
+                    if (b.disabled) return; b.disabled = true; const txtB = b.textContent; b.textContent = '⏳ Salvando…';
+                    try {
+                    const tipo = $('[data-f="tipo"]').value, n = Math.max(1, Math.min(100, parseInt($('[data-f="qtd"]').value, 10) || 1)), desc = $('[data-f="descricao"]').value.trim(), pf = CX_PREF[tipo];
+                    // próximos códigos conferidos NO BANCO (pega cadastros feitos em outro computador ou por outro usuário)
+                    const maiorNoBanco = async () => { const r0 = await sb.from('caixas_bags').select('codigo').like('codigo', pf + '-%').limit(5000);
+                        const ns = (r0.data || cxs.filter(c => c.codigo.startsWith(pf + '-'))).map(c => parseInt(String(c.codigo).split('-')[1], 10) || 0); return ns.length ? Math.max(...ns) : 0; };
+                    let rows = [], data = null, erro = null;
+                    for (let tent = 0; tent < 3; tent++) {
+                        const ini = (await maiorNoBanco()) + 1 + tent;
+                        rows = Array.from({ length: n }, (_, k) => ({ filial: filialAtual(null), codigo: `${pf}-${String(ini + k).padStart(3, '0')}`, tipo, descricao: desc || null, status: 'Disponível', local_atual: 'Estoque', criado_por: operador() }));
+                        const r1 = await sb.from('caixas_bags').insert(rows).select(); data = r1.data; erro = r1.error;
+                        if (!erro || !/duplicate key|caixas_bags_codigo|23505/i.test(erro.message || '')) break;
+                    }
+                    if (erro) throw erro;
+
                     await sb.from('caixas_bags_mov').insert((data || []).map(c => ({ filial: c.filial, caixa_id: c.id, codigo: c.codigo, tipo_mov: 'Cadastro', data: new Date().toISOString(), responsavel: operador() })));
                     form(''); await carregar();
-                    if (confirm(`✅ ${n} ${tipo.toLowerCase()}(s) cadastrada(s): ${rows[0].codigo}${n > 1 ? ' a ' + rows[n - 1].codigo : ''}.\n\nImprimir as etiquetas com QR agora?`)) etiquetas(cxs.filter(c => rows.some(r => r.codigo === c.codigo)));
+                    if (confirm(`✅ ${n} ${tipo === 'Caixa' ? 'caixa(s) plástica(s)' : tipo.toLowerCase() + '(s)'} cadastrada(s): ${rows[0].codigo}${n > 1 ? ' a ' + rows[n - 1].codigo : ''}.\n\nImprimir as etiquetas com QR agora?`)) etiquetas(cxs.filter(c => rows.some(r => r.codigo === c.codigo)));
+                    } finally { b.disabled = false; b.textContent = txtB; }
                     return;
                 }
                 if (d.a === 'gravarEdit') {
