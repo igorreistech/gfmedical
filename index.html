@@ -23180,6 +23180,7 @@ else init();
             <div style="max-height:160px;overflow:auto;margin-top:4px">${c.itens.map(i => `<div style="display:flex;gap:6px;padding:3px 0;border-bottom:1px solid var(--border,#ddd);font-size:.72rem"><b style="min-width:28px;text-align:right">${esc(i.qtd)}×</b><span style="flex:1">${esc(i.nome || i.cod)}${i.cod && i.nome ? ` <span style="color:var(--text-dim)">${esc(i.cod)}</span>` : ''}${i.lote ? `<div style="color:var(--text-dim);font-size:.66rem">lote ${esc(i.lote)}</div>` : ''}</span></div>`).join('')}</div></details>` : `<div style="margin-top:8px;font-size:.7rem;color:var(--text-dim)">Sem itens lançados nesta cirurgia.</div><button type="button" data-pdfitens style="margin-top:6px;width:100%;padding:9px;border-radius:10px;border:1px solid #2563eb;background:transparent;color:#2563eb;font-weight:700;font-size:.78rem;cursor:pointer">📄 Importar itens do PDF da NF (código, lote e quantidade)</button>`}
           <button type="button" data-a="vol" style="margin-top:12px;width:100%;padding:9px;border-radius:10px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-weight:700;font-size:.78rem;cursor:pointer">📦🎒🛍️ Várias caixas, bags ou sacolas (montar volumes)</button>
           <button type="button" data-a="print" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:0;background:#111827;color:#fff;font-weight:700;font-size:.8rem;cursor:pointer">🏷 Imprimir etiqueta</button>
+          <button type="button" data-a="salvar" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:0;background:#16a34a;color:#fff;font-weight:700;font-size:.8rem;cursor:pointer">💾 Salvar</button>
           <button type="button" data-a="x" style="margin-top:8px;width:100%;padding:9px;border-radius:10px;border:1px solid #ccc;background:transparent;color:var(--text-dim);font-family:var(--mono);font-size:.75rem;cursor:pointer">Fechar</button></div>`;
         const inp = ov.querySelector('[data-caixa]'), caixaAtual = () => inp.value.trim();
         let _t = null;
@@ -23187,19 +23188,21 @@ else init();
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
         // 💾 Salvar: grava o nº da caixa, atualiza o QR e registra na hora a saída das caixas/bags/sacolas cadastradas
         async function salvarCaixaQR() {
-            clearTimeout(_t); const v = caixaAtual(), pid = String(proc._docId || proc.id || ''), btn = ov.querySelector('[data-a="salvar"]'), msg = ov.querySelector('[data-salvo]');
+            clearTimeout(_t); const v = caixaAtual(), pid = String(proc._docId || proc.id || ''), btns = ov.querySelectorAll('[data-a="salvar"]'), msg = ov.querySelector('[data-salvo]');
             guardarCaixa(proc, v); clearTimeout(_cxTimers[pid]);
             ov.querySelector('[data-qr]').innerHTML = svgQR(Object.assign(camposEtiqueta(proc, v), { itens: c.itens }));
-            btn.disabled = true; btn.textContent = '⏳';
+            btns.forEach(b => { b.disabled = true; b.textContent = '⏳ Salvando…'; });
             const cods = [...new Set(codigosNoTexto(v))];
             try { if (cods.length) await saidaCaixasDaCirurgia(proc, cods); } catch (e) { console.warn(e); }
             const l = cods.length ? await carregarCaixas(true).catch(() => null) : null;
             const ok = l && !l.erro ? cods.filter(k => l.some(x => x.codigo === k && x.proc_id_atual === pid)) : [], sem = l && !l.erro ? cods.filter(k => !l.some(x => x.codigo === k)) : [];
             msg.innerHTML = !v ? '<span style="color:var(--text-dim)">Nº da caixa apagado.</span>'
                 : `<span style="color:#16a34a;font-weight:700">✅ Salvo${ok.length ? ' · saída registrada: ' + esc(ok.join(', ')) : ''}</span>${sem.length ? `<br><span style="color:#b45309">⚠ ${esc(sem.join(', '))} não está cadastrada no controle de caixas</span>` : ''} <span style="color:var(--text-dim)">— agora é só imprimir a etiqueta.</span>`;
-            btn.disabled = false; btn.textContent = '✅ Salvo'; setTimeout(() => { btn.textContent = '💾 Salvar'; }, 2500);
+            btns.forEach(b => { b.disabled = false; b.textContent = '✅ Salvo'; }); setTimeout(() => btns.forEach(b => { b.textContent = '💾 Salvar'; }), 2500);
+            if (window.showSyncToast) window.showSyncToast(v ? '✅ Nº da caixa salvo: ' + v : 'Nº da caixa apagado');
+            try { document.getElementById('f-volume-cad')?._recarregar?.(); } catch (e) {}
         }
-        ov.addEventListener('click', e => { const a = e.target.closest('button')?.dataset.a; if (e.target === ov || a === 'x') ov.remove(); else if (a === 'vol') { ov.remove(); window.abrirVolumes(proc); } else if (a === 'salvar') salvarCaixaQR(); else if (a === 'print') { guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
+        ov.addEventListener('click', e => { const a = e.target.closest('button')?.dataset.a; if (e.target === ov || a === 'x') { ov.remove(); setTimeout(() => { try { document.getElementById('f-volume-cad')?._recarregar?.(); } catch (er) {} }, 1800); } else if (a === 'vol') { ov.remove(); window.abrirVolumes(proc); } else if (a === 'salvar') salvarCaixaQR(); else if (a === 'print') { guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
         ov.querySelector('[data-pdfitens]')?.addEventListener('click', async () => { const its = await itensDoPdfNF(proc); if (its) { ov.remove(); window.abrirQRCode(proc); } });
         carregarCaixas(true).then(l => { if (!l || l.erro) return; const pid = String(proc._docId || proc.id || '');
             const dl = document.createElement('datalist'); dl.id = 'cx-cad-sug';
@@ -23271,6 +23274,7 @@ else init();
         });
         linhasEl.addEventListener('click', e => { const b = e.target.closest('[data-vdel]'); if (b) { vols.splice(+b.dataset.vdel, 1); desenhar(); } });
         box._volumes = () => ({ carregou, cods: vols.map(v => v.cod).filter(Boolean), antes: JSON.parse(box.dataset.antes || '[]') });
+        box._recarregar = recarregar;
         // ficha aberta para outra cirurgia (ou nova): recarrega
         setInterval(() => { const id = pidAtual() + '|' + (document.getElementById('f-nf') ? '' : 'x'); if (id !== ultimoId && box.offsetParent) { ultimoId = id; recarregar(); } }, 700);
     }
