@@ -964,6 +964,16 @@
               const hoje = hojeD.getFullYear() + '-' + String(hojeD.getMonth()+1).padStart(2,'0') + '-' + String(hojeD.getDate()).padStart(2,'0');
               const amanhaD = new Date(); amanhaD.setDate(amanhaD.getDate() + 1);
               const amanha = amanhaD.getFullYear() + '-' + String(amanhaD.getMonth()+1).padStart(2,'0') + '-' + String(amanhaD.getDate()).padStart(2,'0');
+              // Em Procedimento só depois da hora anotada da cirurgia (campo "início"); sem hora, vale a data.
+              const minAgora = hojeD.getHours() * 60 + hojeD.getMinutes();
+              const minInicio = p => { const m = /^(\d{1,2}):(\d{2})/.exec(String(p.inicio || '')); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+              const horaChegou = p => p.data < hoje || (p.data === hoje && (minInicio(p) === null || minInicio(p) <= minAgora));
+              // reabre a verificação quando chegar a hora da próxima cirurgia de hoje (sem precisar recarregar)
+              window._tmrHoraProc = window._tmrHoraProc || {};
+              const chaveHora = typeof branchCode !== 'undefined' ? branchCode : '_';
+              clearTimeout(window._tmrHoraProc[chaveHora]);
+              const proximas = dados.filter(p => p.data === hoje && ['agendado','preparacao','em_transito'].includes(p.status) && minInicio(p) !== null && minInicio(p) > minAgora).map(minInicio);
+              if (proximas.length) window._tmrHoraProc[chaveHora] = setTimeout(aplicar, ((Math.min(...proximas) - minAgora) * 60 - hojeD.getSeconds() + 5) * 1000);
 
               function autoTransitar(p, statusAnterior) {
                 p.autoTransicaoEm = new Date().toISOString();
@@ -983,7 +993,7 @@
 
                 // NF emitida no mesmo dia da cirurgia (sem janela de trânsito) → Em Procedimento direto
                 if (!['andamento','a_retirar','aguardando_ficha_opme','concluido','cancelado','urgencia','coleta_urgente'].includes(p.status)
-                    && p.data && p.nfData && p.nfData === p.data && p.data <= hoje) {
+                    && p.data && p.nfData && p.nfData === p.data && p.data <= hoje && horaChegou(p)) {
                   const statusAnterior = p.status;
                   p.status = 'andamento';
                   autoTransitar(p, statusAnterior);
@@ -1017,8 +1027,14 @@
                   autoTransitar(p, 'preparacao');
                 }
 
-                // Em Separação ou Em Trânsito + data da cirurgia já chegou/passou → Em Procedimento
-                if ((p.status === 'preparacao' || p.status === 'em_transito') && p.data && p.data <= hoje) {
+                // Colocada em Procedimento automaticamente antes da hora anotada → volta (Em Trânsito com NF, senão Em Separação)
+                if (p.status === 'andamento' && p.data === hoje && !horaChegou(p) && String(p.autoTransicaoEm || '').slice(0, 10) === new Date().toISOString().slice(0, 10)) {
+                  p.status = p.nf && String(p.nf).trim() ? 'em_transito' : 'preparacao';
+                  autoTransitar(p, 'andamento');
+                }
+
+                // Em Separação ou Em Trânsito + data e hora da cirurgia já chegaram/passaram → Em Procedimento
+                if ((p.status === 'preparacao' || p.status === 'em_transito') && p.data && p.data <= hoje && horaChegou(p)) {
                   const statusAnterior = p.status;
                   p.status = 'andamento';
                   autoTransitar(p, statusAnterior);
@@ -6125,7 +6141,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                 </div>
                 <div class="form-group">
                     <label class="form-label">Horário</label>
-                    <input class="form-input" type="time" id="f-inicio" placeholder="00:00">
+                    <input class="form-input" type="time" id="f-inicio" placeholder="00:00" oninput="autoStatusByDate((document.getElementById('f-data') || {}).value)">
                 </div>
 
                 <div class="form-group" id="g-retirada">
@@ -7355,7 +7371,9 @@ function autoStatusByDate(dataCirurgia) {
     if (editingDocId !== null) return;
     const fStatus = document.getElementById('f-status');
     if (!fStatus || !dataCirurgia) return;
-    const novoStatus = dataCirurgia > todayStr() ? 'agendado' : 'andamento';
+    const ini = /^(\d{1,2}):(\d{2})/.exec((document.getElementById('f-inicio') || {}).value || ''), agora = new Date();
+    const horaFutura = dataCirurgia === todayStr() && ini && (+ini[1]) * 60 + (+ini[2]) > agora.getHours() * 60 + agora.getMinutes();
+    const novoStatus = dataCirurgia > todayStr() ? 'agendado' : horaFutura ? 'preparacao' : 'andamento';
     fStatus.value = novoStatus;
     fStatus.dispatchEvent(new Event('change'));
 }
