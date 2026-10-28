@@ -23282,6 +23282,15 @@ else init();
         const box = document.getElementById('f-volume-cad'); if (!box || !box._volumes || !proc || !(proc._docId || proc.id)) return;
         const { carregou, cods, antes } = box._volumes(); if (!carregou) return;
         const tirados = antes.filter(c => !cods.includes(c));
+        const nfP = String(proc.nf || '').trim(), pidP = String(proc._docId || proc.id);
+        if (nfP) carregarCaixas(true).then(async l => {
+            const sb = window._supabase; let n = 0;
+            for (const cx of (l && !l.erro ? l : []).filter(c => c.status === 'Fora' && !c.proc_id_atual && String(c.nf_atual || '') === nfP)) {
+                const up = { proc_id_atual: pidP }; if (!cx.levado_por && proc.vendedor && !_cxSemControle) up.levado_por = proc.vendedor;
+                try { const { error } = await sb.from('caixas_bags').update(up).eq('id', cx.id); if (!error) { n++; if (up.levado_por) await completarQuemLevou(cx, up.levado_por); } } catch (e) {}
+            }
+            if (n) { _cxCache = null; document.getElementById('f-volume-cad')?._recarregar?.(); }
+        }).catch(() => {});
         try {
             if (cods.length || tirados.length) guardarCaixa(proc, cods.join(', '));
             if (cods.length) saidaCaixasDaCirurgia(proc, cods);
@@ -23347,7 +23356,7 @@ else init();
                 const v = id => document.getElementById(id)?.value || '';
                 let base = null; try { base = typeof editingDocId !== 'undefined' && editingDocId ? procPorId(editingDocId) : null; } catch (e) {}
                 const p = Object.assign({}, base || {}, { nf: v('f-nf').trim(), nfData: v('f-nf-data') || (base && base.nfData) || '' });
-                ['paciente', 'medico', 'hospital', 'convenio', 'data', 'inicio'].forEach(k => { const x = v('f-' + k); if (x && !x.startsWith('__')) p[k] = x; });
+                ['paciente', 'medico', 'hospital', 'convenio', 'data', 'inicio', 'vendedor', 'cidade'].forEach(k => { const x = v('f-' + k); if (x && !x.startsWith('__')) p[k] = x; });
                 if (!p.nf) { alert('Digite o número da NF primeiro.'); return; }
                 window.abrirQRCode(p);
             };
@@ -24098,7 +24107,7 @@ else init();
         const pid = String(p._docId || p.id || ''); let n = 0;
         for (const cod of codigos) {
             const cx = lista.find(c => c.codigo === cod); if (!cx) continue;
-            if (cx.status === 'Fora' && cx.proc_id_atual === pid) {   // já está nesta cirurgia: só completa quem levou (vendedor preenchido depois)
+            if (cx.status === 'Fora' && (pid ? cx.proc_id_atual === pid : p.nf && String(cx.nf_atual || '') === String(p.nf).trim())) {   // já está nesta cirurgia: só completa quem levou (vendedor preenchido depois)
                 if (!cx.levado_por && p.vendedor) { try { if (await completarQuemLevou(cx, p.vendedor)) _cxCache = null; } catch (e) {} }
                 continue;
             }
@@ -24304,8 +24313,9 @@ else init();
             if (!r || r.erro) { $('[data-corpo]').innerHTML = '<p style="color:#b45309;font-size:.85rem">⚠️ O banco ainda não tem as tabelas de caixas e bags. Rode o SQL <b>20261102_caixas_bags.sql</b> no Supabase desta filial.</p>'; return; }
             cxs = r; if (!_cxValor) await carregarValores().catch(() => {});
             const P = window.procedimentos || [];
-            for (const c of cxs.filter(c => (c.status === 'Fora' || c.status === 'Pendente') && !c.levado_por && c.proc_id_atual)) {
-                const pr = P.find(x => String(x._docId || x.id) === String(c.proc_id_atual));
+            for (const c of cxs.filter(c => (c.status === 'Fora' || c.status === 'Pendente') && !c.levado_por && (c.proc_id_atual || c.nf_atual))) {
+                const pr = c.proc_id_atual ? P.find(x => String(x._docId || x.id) === String(c.proc_id_atual)) : P.find(x => String(x.nf || '').trim() === String(c.nf_atual));
+                if (pr && !c.proc_id_atual && (pr._docId || pr.id)) { try { const { error } = await window._supabase.from('caixas_bags').update({ proc_id_atual: String(pr._docId || pr.id) }).eq('id', c.id); if (!error) c.proc_id_atual = String(pr._docId || pr.id); } catch (e) {} }
                 if (pr && pr.vendedor) { try { await completarQuemLevou(c, pr.vendedor); } catch (e) {} }
             }
             desenhar(); atualizarBadgeCaixas();
