@@ -1014,8 +1014,8 @@
                 }
 
                 // Agendado: véspera (D-1, aviso antecipado) OU data já chegou/passou
-                // (recuperação de atraso) → Em Separação
-                if (p.status === 'agendado' && p.data && (p.data === amanha || p.data <= hoje)) {
+                // (recuperação de atraso) → Em Separação — só quando a hora da cirurgia já foi anotada
+                if (p.status === 'agendado' && p.data && minInicio(p) !== null && (p.data === amanha || p.data <= hoje)) {
                   p.status = 'preparacao';
                   autoTransitar(p, 'agendado');
                 }
