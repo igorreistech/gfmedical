@@ -24362,7 +24362,7 @@ else init();
             const cont = s => s === 'atraso' ? doTipo.filter(atrasada).length : s ? doTipo.filter(c => c.status === s).length : doTipo.length;
             const pend = doTipo.filter(c => c.status === 'Pendente'), vPend = pend.reduce((a, c) => a + valorCx(c), 0);
             const sts = [['', 'Todas'], ['Pendente', '⏳ Não devolvidas'], ['atraso', `⏰ Em procedimento há +${CX_ATRASO} dias`], ['Fora', '🩺 Em procedimento'], ['Consignado', '🏥 Em consignado'], ['Em limpeza', '🧼 Em limpeza'], ['Esterilização', '🧪 Em esterilização'], ['Manutenção', '🔧 Manutenção'], ['Disponível', '✅ Em estoque'], ['Baixada', '🗑 Baixadas']]
-                .filter(([s]) => (s !== 'Em limpeza' || limpezaAtiva() || cont(s)) && (s !== 'Consignado' || cont(s) || cxs.some(c => c.status === 'Fora')) && (s !== 'Esterilização' || cont(s)));
+                .filter(([s]) => (s !== 'Em limpeza' || limpezaAtiva() || cont(s)) && (s !== 'Consignado' || cont(s) || cxs.some(c => c.status === 'Fora')));
             $('[data-filtros]').innerHTML = sts.map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? chipOn : s === 'Pendente' && pend.length ? 'border-color:#dc2626;color:#dc2626' : ''}">${n} <b>${cont(s)}</b>${s === 'Pendente' && vPend ? ` · ${brlCx(vPend)}` : ''}</button>`).join('')
                 + `<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px"><span style="font-size:.7rem;font-weight:800;color:var(--text)">Tipo:</span>`
                 + [['', 'Todos', cxs.length], ...['Caixa', 'Bag', 'Sacola'].map(t => [t, `${CX_ICO[t]} ${t === 'Caixa' ? 'Caixas' : t + 's'}`, cxs.filter(c => c.tipo === t).length])]
