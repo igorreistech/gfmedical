@@ -23172,7 +23172,9 @@ else init();
           <div style="font-family:var(--mono);font-size:.66rem;color:var(--text-dim);margin-bottom:12px">${c.nf ? 'para colar na caixa do material' : 'material SEM NOTA FISCAL — monte os volumes para listar os itens (dá para ler por foto)'}</div>
           <div style="background:#fff;border:1px solid var(--border,#ccc);border-radius:10px;padding:10px;width:220px;height:220px;margin:0 auto" data-qr>${svgQR(c)}</div>
           <label style="display:flex;align-items:center;gap:8px;margin:12px 0 0;text-align:left;font-size:.72rem;font-weight:700;color:var(--text)">📦 Nº da caixa
-            <input type="text" data-caixa list="cx-cad-sug" autocomplete="off" value="${esc(c.caixa)}" placeholder="bipe ou digite: CX-001, BG-002…" maxlength="30" style="flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.85rem;font-weight:700"></label>
+            <input type="text" data-caixa list="cx-cad-sug" autocomplete="off" value="${esc(c.caixa)}" placeholder="bipe ou digite: CX-001, BG-002…" maxlength="30" style="flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.85rem;font-weight:700">
+            <button type="button" data-a="salvar" title="Guarda o nº da caixa e registra a saída das embalagens cadastradas" style="padding:8px 12px;border-radius:8px;border:0;background:#16a34a;color:#fff;font-weight:800;font-size:.76rem;cursor:pointer;white-space:nowrap">💾 Salvar</button></label>
+          <div data-salvo style="font-size:.7rem;text-align:left;margin-top:4px;min-height:0"></div>
           <div style="margin:12px 0 4px">${linha('Paciente', c.paciente)}${linha('Médico', c.medico)}${linha('Vendedor', c.vendedor)}${linha(c.remessa ? 'Cliente' : 'Hospital', c.hospital + (c.cidade ? ' — ' + c.cidade : ''))}${linha('Convênio', c.convenio)}${linha('Cirurgia', c.cirurgia)}${linha('Envio', c.envio)}</div>
           ${c.itens.length ? `<details style="margin-top:8px;text-align:left" open><summary style="font-size:.72rem;font-weight:800;color:var(--text);cursor:pointer">📋 Itens da NF (${c.itens.length} · ${c.itens.reduce((a, i) => a + (+i.qtd || 0), 0)} un)</summary>
             <div style="max-height:160px;overflow:auto;margin-top:4px">${c.itens.map(i => `<div style="display:flex;gap:6px;padding:3px 0;border-bottom:1px solid var(--border,#ddd);font-size:.72rem"><b style="min-width:28px;text-align:right">${esc(i.qtd)}×</b><span style="flex:1">${esc(i.nome || i.cod)}${i.cod && i.nome ? ` <span style="color:var(--text-dim)">${esc(i.cod)}</span>` : ''}${i.lote ? `<div style="color:var(--text-dim);font-size:.66rem">lote ${esc(i.lote)}</div>` : ''}</span></div>`).join('')}</div></details>` : `<div style="margin-top:8px;font-size:.7rem;color:var(--text-dim)">Sem itens lançados nesta cirurgia.</div><button type="button" data-pdfitens style="margin-top:6px;width:100%;padding:9px;border-radius:10px;border:1px solid #2563eb;background:transparent;color:#2563eb;font-weight:700;font-size:.78rem;cursor:pointer">📄 Importar itens do PDF da NF (código, lote e quantidade)</button>`}
@@ -23183,7 +23185,21 @@ else init();
         let _t = null;
         inp.addEventListener('input', () => { clearTimeout(_t); _t = setTimeout(() => { guardarCaixa(proc, caixaAtual()); ov.querySelector('[data-qr]').innerHTML = svgQR(Object.assign(camposEtiqueta(proc, caixaAtual()), { itens: c.itens })); }, 250); });
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
-        ov.addEventListener('click', e => { const a = e.target.closest('button')?.dataset.a; if (e.target === ov || a === 'x') ov.remove(); else if (a === 'vol') { ov.remove(); window.abrirVolumes(proc); } else if (a === 'print') { guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
+        // 💾 Salvar: grava o nº da caixa, atualiza o QR e registra na hora a saída das caixas/bags/sacolas cadastradas
+        async function salvarCaixaQR() {
+            clearTimeout(_t); const v = caixaAtual(), pid = String(proc._docId || proc.id || ''), btn = ov.querySelector('[data-a="salvar"]'), msg = ov.querySelector('[data-salvo]');
+            guardarCaixa(proc, v); clearTimeout(_cxTimers[pid]);
+            ov.querySelector('[data-qr]').innerHTML = svgQR(Object.assign(camposEtiqueta(proc, v), { itens: c.itens }));
+            btn.disabled = true; btn.textContent = '⏳';
+            const cods = [...new Set(codigosNoTexto(v))];
+            try { if (cods.length) await saidaCaixasDaCirurgia(proc, cods); } catch (e) { console.warn(e); }
+            const l = cods.length ? await carregarCaixas(true).catch(() => null) : null;
+            const ok = l && !l.erro ? cods.filter(k => l.some(x => x.codigo === k && x.proc_id_atual === pid)) : [], sem = l && !l.erro ? cods.filter(k => !l.some(x => x.codigo === k)) : [];
+            msg.innerHTML = !v ? '<span style="color:var(--text-dim)">Nº da caixa apagado.</span>'
+                : `<span style="color:#16a34a;font-weight:700">✅ Salvo${ok.length ? ' · saída registrada: ' + esc(ok.join(', ')) : ''}</span>${sem.length ? `<br><span style="color:#b45309">⚠ ${esc(sem.join(', '))} não está cadastrada no controle de caixas</span>` : ''} <span style="color:var(--text-dim)">— agora é só imprimir a etiqueta.</span>`;
+            btn.disabled = false; btn.textContent = '✅ Salvo'; setTimeout(() => { btn.textContent = '💾 Salvar'; }, 2500);
+        }
+        ov.addEventListener('click', e => { const a = e.target.closest('button')?.dataset.a; if (e.target === ov || a === 'x') ov.remove(); else if (a === 'vol') { ov.remove(); window.abrirVolumes(proc); } else if (a === 'salvar') salvarCaixaQR(); else if (a === 'print') { guardarCaixa(proc, caixaAtual()); imprimir([proc], caixaAtual()); } });
         ov.querySelector('[data-pdfitens]')?.addEventListener('click', async () => { const its = await itensDoPdfNF(proc); if (its) { ov.remove(); window.abrirQRCode(proc); } });
         carregarCaixas(true).then(l => { if (!l || l.erro) return; const pid = String(proc._docId || proc.id || '');
             const dl = document.createElement('datalist'); dl.id = 'cx-cad-sug';
