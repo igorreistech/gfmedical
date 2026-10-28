@@ -24371,6 +24371,7 @@ else init();
                 + ['Caixa', 'Bag', 'Sacola'].map(t => `<button data-selt="${t}" style="${chip}">+ todas as ${nomeTipo(t, 2)} da lista</button>`).join('')
                 + (cxs.some(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')) ? `<button data-a="esterSel" style="${chip};color:#db2777;border-color:#db2777" title="Caixas de instrumental enviadas para esterilizar">🧪 Enviar p/ esterilização (${cxs.filter(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')).length})</button>` : '')
                 + (cxs.some(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')) ? `<button data-a="consigSel" style="${chip};color:#7c3aed;border-color:#7c3aed" title="Ficaram no cliente em consignado">🏥 Deixar em consignado (${cxs.filter(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')).length})</button>` : '')
+                + (sel.size ? `<select data-trocast style="${chip};font-weight:800;color:#0f766e;border-color:#0f766e;cursor:pointer" title="Muda a situação de todas as marcadas"><option value="">🔄 Trocar situação (${sel.size})…</option>${['Disponível', 'Esterilização', 'Em limpeza', 'Consignado', 'Pendente', 'Manutenção', 'Baixada'].map(s => `<option value="${s}">${stNome(s)}</option>`).join('')}</select>` : '')
                 + (sel.size ? `<button data-a="excluirSel" style="${chip};color:#dc2626;border-color:#dc2626" title="Apaga do cadastro as marcadas">🗑 Excluir ${sel.size} selecionada${sel.size > 1 ? 's' : ''}</button>` : '')
                 + `<button data-selt="" style="${chip}">Limpar seleção</button><span style="font-size:.68rem;color:var(--text-dim)">ou marque as caixinhas (Shift+clique marca de uma até outra)</span></div>`;
             desenharOnde();
@@ -24455,6 +24456,31 @@ else init();
             }
             lista.forEach(c => sel.delete(c.id)); _cxCache = null; await carregar();
             if (n) window.showSyncToast && window.showSyncToast(`🏥 ${n} embalagem(ns) em consignado${locais.length === 1 ? ' — ' + locais[0] : ''}`);
+        }
+        async function mudarSituacao(c, st, obs) {
+            if (st === c.status) return;
+            if (st === 'Disponível' && c.status === 'Em limpeza') await movCaixa(c, 'Limpeza', { obs: obs || 'limpa' });
+            else if (st === 'Disponível' && c.status === 'Esterilização') await movCaixa(c, 'Esterilizada', { obs: obs || 'voltou esterilizada' });
+            else if (st === 'Esterilização') await movCaixa(c, 'Esterilização', { destino: 'Bio Estéril', obs: obs || 'enviada para esterilização' });
+            else if (st === 'Consignado') await movCaixa(c, 'Consignado', { obs: obs || 'deixada em consignado', nf: c.nf_atual });
+            else if (st === 'Disponível') await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual', semLimpeza: true });
+            else if (st === 'Em limpeza') await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual' });
+            else if (st === 'Pendente') await movCaixa(c, 'Pendente', { obs: obs || 'ajuste manual' });
+            else if (st === 'Manutenção') await movCaixa(c, 'Manutenção', { obs, destino: 'Manutenção' });
+            else if (st === 'Baixada') await movCaixa(c, 'Baixa', { obs: obs || 'baixada' });
+        }
+        // troca a situação de todas as marcadas de uma vez
+        async function trocarSituacaoSel(st) {
+            const lista = cxs.filter(c => sel.has(c.id) && c.status !== st).sort(porCodigo);
+            if (!st || !lista.length) return desenhar();
+            if (!confirm(`Trocar a situação para "${stNome(st)}"?\n\n${lista.map(c => c.codigo + ' (' + stNome(c.status) + ')').join('\n')}`)) return desenhar();
+            let n = 0;
+            for (const c of lista) {
+                try { await mudarSituacao(c, st, ''); n++; }
+                catch (e) { alert('⚠️ ' + c.codigo + ': ' + (e.message || e)); break; }
+            }
+            lista.forEach(c => sel.delete(c.id)); _cxCache = null; await carregar();
+            if (n) window.showSyncToast && window.showSyncToast(`✅ ${n} embalagem(ns) agora "${stNome(st)}"`);
         }
         async function excluir(lista) {
             lista = lista.filter(Boolean); if (!lista.length) return;
@@ -24701,6 +24727,7 @@ else init();
             if (e.target.matches('[data-bip]')) { e.preventDefault(); if (e.target.value.trim()) bipar(e.target.value); }
             else if (e.target.matches('[data-invbip]')) { e.preventDefault(); const v = e.target.value; e.target.value = ''; if (v.trim() && inv) invBipar(v); }
         });
+        ov.addEventListener('change', e => { if (e.target.matches('[data-trocast]')) trocarSituacaoSel(e.target.value); });
         ov.addEventListener('change', e => { if (e.target.matches('[data-limptog]')) { try { localStorage.setItem('gf_cx_limpeza', e.target.checked ? '1' : '0'); } catch (er) {} if (e.target.checked) _cxSemControle = false; desenhar(); } });
         ov.addEventListener('click', async e => {
             if (e.target === ov) return fechar();
@@ -24789,16 +24816,8 @@ else init();
                         if (data && data[0]) await sb.from('caixas_bags_mov').update({ levado_por: up.levado_por }).eq('id', data[0].id);
                     }
                     if (st !== c.status) {
-                        if (st === 'Disponível' && c.status === 'Em limpeza') await movCaixa(c, 'Limpeza', { obs: obs || 'limpa' });
-                        else if (st === 'Disponível' && c.status === 'Esterilização') await movCaixa(c, 'Esterilizada', { obs: obs || 'voltou esterilizada' });
-                        else if (st === 'Esterilização') await movCaixa(c, 'Esterilização', { destino: 'Bio Estéril', obs: obs || 'enviada para esterilização' });
-                        else if (st === 'Consignado') await movCaixa(c, 'Consignado', { obs: obs || 'deixada em consignado', nf: c.nf_atual });
-                        else if (st === 'Disponível' && (c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Consignado' || c.status === 'Manutenção' || c.status === 'Baixada')) await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual', semLimpeza: true });
-                        else if (st === 'Em limpeza') await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual' });
-                        else if (st === 'Pendente') await movCaixa(c, 'Pendente', { obs: obs || 'ajuste manual' });
-                        else if (st === 'Manutenção') await movCaixa(c, 'Manutenção', { obs, destino: 'Manutenção' });
-                        else if (st === 'Baixada') await movCaixa(c, 'Baixa', { obs: obs || 'baixada' });
-                        else if (st === 'Fora') { dlg(''); form(''); await carregar(); return formSaida([cxs.find(x => x.id === c.id)]); }
+                        if (st === 'Fora') { dlg(''); form(''); await carregar(); return formSaida([cxs.find(x => x.id === c.id)]); }
+                        await mudarSituacao(c, st, obs);
                     }
                     dlg(''); form(''); return carregar();
                 }
