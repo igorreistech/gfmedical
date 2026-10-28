@@ -24075,8 +24075,8 @@ else init();
             : tipo === 'Retorno' ? { ...volta, status: campos.manutencao ? 'Manutenção' : limpezaAtiva() && !campos.semLimpeza ? 'Em limpeza' : 'Disponível', retorno_em: mov.data }
             : tipo === 'Limpeza' ? { status: 'Disponível', local_atual: 'Estoque' }
             : tipo === 'Pendente' ? { status: 'Pendente' }
-            : tipo === 'Esterilização' ? { status: 'Esterilização', local_atual: campos.destino || 'Esterilização', saida_em: mov.data }
-            : tipo === 'Esterilizada' ? { status: 'Disponível', local_atual: 'Estoque', saida_em: null, retorno_em: mov.data }
+            : tipo === 'Esterilização' ? { status: 'Esterilização', local_atual: campos.destino || 'Bio Estéril', saida_em: mov.data, proc_id_atual: null, nf_atual: null, levado_por: null, lacre: null }
+            : tipo === 'Esterilizada' ? { ...volta, status: 'Disponível', retorno_em: mov.data }
             : tipo === 'Consignado' ? { status: 'Consignado', local_atual: campos.destino || cx.local_atual || 'Consignado', proc_id_atual: null }
             : tipo === 'Manutenção' ? { status: 'Manutenção', local_atual: campos.destino || 'Manutenção' }
             : tipo === 'Baixa' ? { status: 'Baixada', local_atual: campos.obs || 'Baixada' } : {};
@@ -24369,7 +24369,7 @@ else init();
                     .map(([t, n, k]) => `<button data-tp="${t}" style="${chip};${fTipo === t ? chipOn : ''}">${n} <b>${k}</b></button>`).join('')
                 + `<span style="width:14px"></span><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏷 Etiquetas em lote:</span>`
                 + ['Caixa', 'Bag', 'Sacola'].map(t => `<button data-selt="${t}" style="${chip}">+ todas as ${nomeTipo(t, 2)} da lista</button>`).join('')
-                + (cxs.some(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza')) ? `<button data-a="esterSel" style="${chip};color:#db2777;border-color:#db2777" title="Caixas de instrumental enviadas para esterilizar">🧪 Enviar p/ esterilização (${cxs.filter(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza')).length})</button>` : '')
+                + (cxs.some(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')) ? `<button data-a="esterSel" style="${chip};color:#db2777;border-color:#db2777" title="Caixas de instrumental enviadas para esterilizar">🧪 Enviar p/ esterilização (${cxs.filter(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')).length})</button>` : '')
                 + (cxs.some(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')) ? `<button data-a="consigSel" style="${chip};color:#7c3aed;border-color:#7c3aed" title="Ficaram no cliente em consignado">🏥 Deixar em consignado (${cxs.filter(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')).length})</button>` : '')
                 + (sel.size ? `<button data-a="excluirSel" style="${chip};color:#dc2626;border-color:#dc2626" title="Apaga do cadastro as marcadas">🗑 Excluir ${sel.size} selecionada${sel.size > 1 ? 's' : ''}</button>` : '')
                 + `<button data-selt="" style="${chip}">Limpar seleção</button><span style="font-size:.68rem;color:var(--text-dim)">ou marque as caixinhas (Shift+clique marca de uma até outra)</span></div>`;
@@ -24393,7 +24393,7 @@ else init();
                     <td style="${td};font-family:var(--mono)">${esc(c.nf_atual || '')}</td>
                     <td style="${td};text-align:right;white-space:nowrap">
                       ${c.status === 'Disponível' || c.status === 'Manutenção' ? `<button data-saida="${c.id}" style="${bb};color:#2563eb;border-color:#2563eb" title="Registrar a saída (para onde vai, quem levou, lacre)">⬆ Saída</button>` : ''}
-                      ${c.status === 'Disponível' || c.status === 'Em limpeza' ? `<button data-ester="${c.id}" style="${bb};color:#db2777;border-color:#db2777" title="Enviar para esterilização (caixa de instrumental)">🧪</button>` : ''}
+                      ${c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado' ? `<button data-ester="${c.id}" style="${bb};color:#db2777;border-color:#db2777" title="Enviar para esterilização (caixa de instrumental)">🧪</button>` : ''}
                       ${c.status === 'Esterilização' ? `<button data-esterok="${c.id}" style="${bb};color:#16a34a;border-color:#16a34a" title="Voltou esterilizada: fica em estoque">✅ Esterilizada</button>` : ''}
                       ${c.status === 'Em limpeza' ? `<button data-limpa="${c.id}" style="${bb};color:#0891b2;border-color:#0891b2" title="Já foi limpa: fica disponível">🧼 Limpa</button>` : ''}
                       ${fora || c.status === 'Manutenção' ? `<button data-retorno="${c.id}" style="${bb};color:#16a34a;border-color:#16a34a" title="Registrar que voltou">⬇ Retorno</button>` : ''}
@@ -24434,11 +24434,11 @@ else init();
         // caixa de instrumental enviada para esterilizar: sai do estoque até voltar (✅ Esterilizada)
         async function esterilizar(lista) {
             lista = lista.filter(Boolean); if (!lista.length) return;
-            const onde = prompt(`🧪 Enviar para ESTERILIZAÇÃO:\n${lista.map(c => c.codigo).join(', ')}\n\nPara onde? (ex.: CME do hospital, empresa de esterilização)`, 'Esterilização');
+            const onde = prompt(`🧪 Enviar para ESTERILIZAÇÃO:\n${lista.map(c => c.codigo).join(', ')}\n\nPara onde?`, 'Bio Estéril');
             if (onde === null) return;
             let n = 0;
             for (const c of lista) {
-                try { await movCaixa(c, 'Esterilização', { destino: onde.trim() || 'Esterilização', obs: 'enviada para esterilização' }); n++; }
+                try { await movCaixa(c, 'Esterilização', { destino: onde.trim() || 'Bio Estéril', obs: 'enviada para esterilização' }); n++; }
                 catch (e) { alert('⚠️ ' + (e.message || e)); break; }
             }
             lista.forEach(c => sel.delete(c.id)); _cxCache = null; await carregar();
@@ -24728,7 +24728,7 @@ else init();
                 if (d.retorno) { await retorno(porId(d.retorno)); await carregar(); return; }
                 if (d.consig) return consignar([porId(d.consig)]);
                 if (d.ester) return esterilizar([porId(d.ester)]);
-                if (d.a === 'esterSel') return esterilizar(cxs.filter(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza')).sort(porCodigo));
+                if (d.a === 'esterSel') return esterilizar(cxs.filter(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')).sort(porCodigo));
                 if (d.esterok) { const c = porId(d.esterok); await movCaixa(c, 'Esterilizada', { obs: 'voltou esterilizada' }); _cxCache = null; await carregar(); window.showSyncToast && window.showSyncToast('✅ ' + c.codigo + ' voltou esterilizada — em estoque'); return; }
                 if (d.a === 'consigSel') return consignar(cxs.filter(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')).sort(porCodigo));
                 if (d.hist) return historico(porId(d.hist));
@@ -24791,7 +24791,7 @@ else init();
                     if (st !== c.status) {
                         if (st === 'Disponível' && c.status === 'Em limpeza') await movCaixa(c, 'Limpeza', { obs: obs || 'limpa' });
                         else if (st === 'Disponível' && c.status === 'Esterilização') await movCaixa(c, 'Esterilizada', { obs: obs || 'voltou esterilizada' });
-                        else if (st === 'Esterilização') await movCaixa(c, 'Esterilização', { obs: obs || 'enviada para esterilização' });
+                        else if (st === 'Esterilização') await movCaixa(c, 'Esterilização', { destino: 'Bio Estéril', obs: obs || 'enviada para esterilização' });
                         else if (st === 'Consignado') await movCaixa(c, 'Consignado', { obs: obs || 'deixada em consignado', nf: c.nf_atual });
                         else if (st === 'Disponível' && (c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Consignado' || c.status === 'Manutenção' || c.status === 'Baixada')) await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual', semLimpeza: true });
                         else if (st === 'Em limpeza') await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual' });
