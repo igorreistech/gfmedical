@@ -24040,6 +24040,8 @@ else init();
     const CX_ATRASO = 15;   // dias fora para destacar
     const CX_PREF = { Caixa: 'CX', Bag: 'BG', Sacola: 'SC' };
     const CX_ICO = { Caixa: '📦', Bag: '🎒', Sacola: '🛍️' };
+    // no banco continua 'Fora'; na tela aparece como "Em procedimento"
+    const stNome = s => s === 'Fora' ? 'Em procedimento' : s;
     let _cxCache = null;
     async function carregarCaixas(forcar) {
         const sb = window._supabase; if (!sb) return null;
@@ -24356,7 +24358,7 @@ else init();
             const doTipo = cxs.filter(c => !fTipo || c.tipo === fTipo);
             const cont = s => s === 'atraso' ? doTipo.filter(atrasada).length : s ? doTipo.filter(c => c.status === s).length : doTipo.length;
             const pend = doTipo.filter(c => c.status === 'Pendente'), vPend = pend.reduce((a, c) => a + valorCx(c), 0);
-            const sts = [['', 'Todas'], ['Pendente', '⏳ Não devolvidas'], ['atraso', `⏰ Fora há +${CX_ATRASO} dias`], ['Fora', '🚚 Fora'], ['Consignado', '🏥 Em consignado'], ['Em limpeza', '🧼 Em limpeza'], ['Manutenção', '🔧 Manutenção'], ['Disponível', '✅ Disponíveis'], ['Baixada', '🗑 Baixadas']]
+            const sts = [['', 'Todas'], ['Pendente', '⏳ Não devolvidas'], ['atraso', `⏰ Em procedimento há +${CX_ATRASO} dias`], ['Fora', '🩺 Em procedimento'], ['Consignado', '🏥 Em consignado'], ['Em limpeza', '🧼 Em limpeza'], ['Manutenção', '🔧 Manutenção'], ['Disponível', '✅ Disponíveis'], ['Baixada', '🗑 Baixadas']]
                 .filter(([s]) => (s !== 'Em limpeza' || limpezaAtiva() || cont(s)) && (s !== 'Consignado' || cont(s) || cxs.some(c => c.status === 'Fora')));
             $('[data-filtros]').innerHTML = sts.map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? chipOn : s === 'Pendente' && pend.length ? 'border-color:#dc2626;color:#dc2626' : ''}">${n} <b>${cont(s)}</b>${s === 'Pendente' && vPend ? ` · ${brlCx(vPend)}` : ''}</button>`).join('')
                 + `<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px"><span style="font-size:.7rem;font-weight:800;color:var(--text)">Tipo:</span>`
@@ -24380,7 +24382,7 @@ else init();
                 ${linhas.map((c, iL) => { const d = diasDesde(c.saida_em), at = atrasada(c), fora = c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Consignado', ns = nSaidas ? nSaidas[c.codigo] || 0 : null;
                   return `<tr style="${at || c.status === 'Pendente' ? 'background:rgba(220,38,38,.06)' : sel.has(c.id) ? 'background:rgba(37,99,235,.08)' : ''}"><td style="${td}"><input type="checkbox" data-selcx="${c.id}" data-idx="${iL}" ${sel.has(c.id) ? 'checked' : ''}></td><td style="${td};white-space:nowrap"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${CX_ICO[c.tipo] || '📦'} ${esc(c.tipo)}</span></td>
                     ${comDesc ? `<td style="${td}">${esc(c.descricao || '')}</td>` : ''}
-                    <td style="${td};white-space:nowrap"><span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>${at ? ' <span style="color:#dc2626;font-size:.7rem;font-weight:800">⏰ atrasada</span>' : ''}</td>
+                    <td style="${td};white-space:nowrap"><span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(stNome(c.status))}</span>${at ? ' <span style="color:#dc2626;font-size:.7rem;font-weight:800">⏰ atrasada</span>' : ''}</td>
                     <td style="${td}">${esc(c.local_atual || 'Estoque')}${fora && (c.levado_por || c.lacre) ? `<div style="font-size:.68rem;color:var(--text-dim)">${c.levado_por ? '👤 levou: ' + esc(c.levado_por) : ''}${c.levado_por && c.lacre ? ' · ' : ''}${c.lacre ? '🔒 lacre ' + esc(c.lacre) : ''}</div>` : ''}</td>
                     <td style="${td};white-space:nowrap">${fora && c.saida_em ? `${new Date(c.saida_em).toLocaleDateString('pt-BR')} <span style="color:${at ? '#dc2626' : 'var(--text-dim)'};font-size:.7rem">(${d} dia${d === 1 ? '' : 's'})</span>` : c.retorno_em ? `<span style="color:var(--text-dim);font-size:.72rem">voltou ${new Date(c.retorno_em).toLocaleDateString('pt-BR')}</span>` : ns === 0 ? '<span style="color:var(--text-dim);font-size:.72rem">nunca saiu</span>' : '—'}</td>
                     <td style="${td};text-align:center;color:var(--text-dim)">${ns === null ? '…' : ns}</td>
@@ -24406,14 +24408,14 @@ else init();
             form('');
             dlg(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><b style="font-size:1.05rem;color:var(--text);font-family:var(--mono)">✎ ${CX_ICO[c.tipo] || '📦'} ${esc(c.codigo)}</b>
                 <span style="font-size:.74rem;color:var(--text-dim)">${c.tipo === 'Caixa' ? 'Caixa plástica' : esc(c.tipo)}</span>
-                <span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>
+                <span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(stNome(c.status))}</span>
                 <button data-a="fechadlg" style="${bt};margin-left:auto;padding:4px 10px">✕</button></div>
               <div style="display:flex;flex-direction:column;gap:10px">
                 ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c.descricao || '')}" placeholder="ex.: caixa plástica grande azul, bag térmica" style="${inp}">`)}
                 ${c.status === 'Fora' || c.status === 'Pendente' ? `<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:200px">${campo('Quem levou', `<input data-f="levado" list="cx-pessoas-ed" value="${esc(c.levado_por || '')}" placeholder="vendedor / motorista" style="${inp}">`)}</div>
                   ${campo('Lacre', `<input data-f="lacre" value="${esc(c.lacre || '')}" style="${inp};width:150px">`)}
                   <datalist id="cx-pessoas-ed">${[...new Set([...(window.procedimentos || []).map(p => p.vendedor), ...cxs.map(x => x.levado_por)].filter(Boolean).map(s => String(s).trim()))].sort().map(s => `<option value="${esc(s)}">`).join('')}</datalist></div>` : ''}
-                <div style="display:flex;gap:10px;flex-wrap:wrap">${campo('Situação', `<select data-f="status" style="${inp};width:170px">${['Disponível', 'Fora', 'Pendente', 'Consignado', 'Em limpeza', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`)}
+                <div style="display:flex;gap:10px;flex-wrap:wrap">${campo('Situação', `<select data-f="status" style="${inp};width:170px">${['Disponível', 'Fora', 'Pendente', 'Consignado', 'Em limpeza', 'Manutenção', 'Baixada'].map(s => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${stNome(s)}</option>`).join('')}</select>`)}
                   <div style="flex:1;min-width:200px">${campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção / baixa / ajuste" style="${inp}">`)}</div></div>
                 <div style="font-size:.7rem;color:var(--text-dim)">Perdeu ou quebrou? Prefira a situação <b>Baixada</b>: sai do uso e o histórico fica guardado.</div></div>
               <div style="display:flex;gap:8px;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border,#e5e7eb)">
@@ -24452,7 +24454,7 @@ else init();
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
                 ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`)}
                 ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c?.descricao || '')}" placeholder="ex.: caixa plástica grande azul, bag térmica" style="${inp};width:260px">`)}
-                ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Pendente', 'Em limpeza', 'Manutenção', 'Baixada'].map(s => `<option ${c.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
+                ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Pendente', 'Em limpeza', 'Manutenção', 'Baixada'].map(s => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${stNome(s)}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
                 <span data-prev style="font-size:.74rem;color:var(--text-dim);margin-bottom:8px"></span>
                 <button data-a="${c ? 'gravarEdit' : 'gravarNovo'}" data-id="${c?.id || ''}" style="${bt};background:#111827;color:#fff;border-color:#111827">💾 Salvar</button>
                 <button data-a="cancela" style="${bt}">Cancelar</button></div>`);
@@ -24543,7 +24545,7 @@ else init();
             const its = p ? await itensParaEtiqueta(p) : [], un = its.reduce((a, i) => a + (+i.qtd || 0), 0);
             const lin = (r, v) => v ? `<div style="display:flex;gap:8px;padding:3px 0;font-size:.78rem"><span style="min-width:80px;color:var(--text-dim);font-size:.68rem;text-transform:uppercase">${r}</span><b>${esc(v)}</b></div>` : '';
             form(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b style="font-size:.95rem;color:var(--text)">🔍 ${esc(c.codigo)}</b>
-                <span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(c.status)}</span>
+                <span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(stNome(c.status))}</span>
                 <span style="font-size:.74rem;color:var(--text-dim)">${esc(c.local_atual || 'Estoque')}${c.saida_em && c.status === 'Fora' ? ' · desde ' + new Date(c.saida_em).toLocaleDateString('pt-BR') : ''}${c.levado_por ? ' · 👤 ' + esc(c.levado_por) : ''}${c.lacre ? ' · 🔒 ' + esc(c.lacre) : ''}</span>
                 <button data-a="cancela" style="${bt};margin-left:auto">Fechar</button></div>
               ${p ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px">${lin('NF', p.nf)}${lin('Paciente', p.paciente)}${lin('Médico', p.medico)}${lin('Vendedor', p.vendedor)}${lin('Hospital', [p.hospital, p.cidade].filter(Boolean).join(' — '))}${lin('Cirurgia', dataBR(p.data))}</div>
@@ -24573,8 +24575,8 @@ else init();
                 <b style="font-size:.8rem;color:var(--text)">${achadas.length} de ${esperadas.length}</b>
                 <button data-a="invfim" style="${bt};background:#7c3aed;color:#fff;border-color:#7c3aed">✔ Concluir conferência</button>
                 <button data-a="cancela" style="${bt}">Cancelar</button></div>
-              <div style="margin-top:8px;font-size:.74rem;color:var(--text)">${inv.bip.length ? `<b>Bipadas (${inv.bip.length}):</b> ` + inv.bip.slice().reverse().map(k => { const c = cxs.find(x => x.codigo === k); return `<span style="font-family:var(--mono);color:${!c ? '#dc2626' : deveEstar(c) ? '#16a34a' : '#b45309'}" title="${!c ? 'não cadastrada' : esc(c.status)}">${esc(k)}</span>`; }).join(' · ') : '<span style="color:var(--text-dim)">Nada bipado ainda.</span>'}</div>
-              ${foraDoLugar.length ? `<div style="margin-top:6px;font-size:.74rem;color:#b45309">⚠ ${foraDoLugar.length} bipada(s) que o sistema dizia estar fora: ${foraDoLugar.map(c => esc(c.codigo) + ' (' + esc(c.status) + ')').join(', ')}</div>` : ''}`);
+              <div style="margin-top:8px;font-size:.74rem;color:var(--text)">${inv.bip.length ? `<b>Bipadas (${inv.bip.length}):</b> ` + inv.bip.slice().reverse().map(k => { const c = cxs.find(x => x.codigo === k); return `<span style="font-family:var(--mono);color:${!c ? '#dc2626' : deveEstar(c) ? '#16a34a' : '#b45309'}" title="${!c ? 'não cadastrada' : esc(stNome(c.status))}">${esc(k)}</span>`; }).join(' · ') : '<span style="color:var(--text-dim)">Nada bipado ainda.</span>'}</div>
+              ${foraDoLugar.length ? `<div style="margin-top:6px;font-size:.74rem;color:#b45309">⚠ ${foraDoLugar.length} bipada(s) que o sistema dizia estar fora: ${foraDoLugar.map(c => esc(c.codigo) + ' (' + esc(stNome(c.status)) + ')').join(', ')}</div>` : ''}`);
             setTimeout(() => $('[data-invbip]')?.focus(), 30);
         }
         function invBipar(texto) {
@@ -24598,10 +24600,10 @@ else init();
                 <span style="font-size:.72rem;color:${res.salvo ? 'var(--text-dim)' : '#b45309'}">${res.salvo ? 'guardada no histórico' : '⚠ não guardada: rode o SQL 20261108_caixas_controle.sql'}</span><button data-a="cancela" style="${bt};margin-left:auto">Fechar</button></div>
               ${ok ? '<div style="font-size:.85rem;color:#16a34a;font-weight:800">✅ Tudo certo: o estoque bate com o sistema.</div>' : ''}
               ${res.faltando.length ? `<div style="margin-top:6px"><b style="font-size:.78rem;color:#dc2626">❌ Faltando no estoque (${res.faltando.length})</b> <span style="font-size:.7rem;color:var(--text-dim)">— o sistema diz que estão aqui, mas não foram bipadas</span>
-                  <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">${res.faltando.map(c => `<div style="display:flex;align-items:center;gap:8px;font-size:.76rem"><b style="font-family:var(--mono);min-width:70px">${esc(c.codigo)}</b><span style="color:var(--text-dim);flex:1">${esc(c.tipo)} · ${esc(c.status)}${c.retorno_em ? ' · voltou ' + new Date(c.retorno_em).toLocaleDateString('pt-BR') : ''}</span>
+                  <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">${res.faltando.map(c => `<div style="display:flex;align-items:center;gap:8px;font-size:.76rem"><b style="font-family:var(--mono);min-width:70px">${esc(c.codigo)}</b><span style="color:var(--text-dim);flex:1">${esc(c.tipo)} · ${esc(stNome(c.status))}${c.retorno_em ? ' · voltou ' + new Date(c.retorno_em).toLocaleDateString('pt-BR') : ''}</span>
                     <button data-hist="${c.id}" style="${bt};padding:3px 8px">🕘</button><button data-extravio="${c.id}" style="${bt};padding:3px 8px;color:#dc2626;border-color:#dc2626">🗑 Dar baixa (extraviada)</button></div>`).join('')}</div></div>` : ''}
               ${res.sobrando.length ? `<div style="margin-top:10px"><b style="font-size:.78rem;color:#b45309">⚠ Estão no estoque, mas constavam como fora (${res.sobrando.length})</b>
-                  <div style="font-size:.76rem;margin:4px 0">${res.sobrando.map(c => `<span style="font-family:var(--mono)">${esc(c.codigo)}</span> <span style="color:var(--text-dim)">(${esc(c.status)}${c.local_atual ? ' · ' + esc(c.local_atual) : ''})</span>`).join(' · ')}</div>
+                  <div style="font-size:.76rem;margin:4px 0">${res.sobrando.map(c => `<span style="font-family:var(--mono)">${esc(c.codigo)}</span> <span style="color:var(--text-dim)">(${esc(stNome(c.status))}${c.local_atual ? ' · ' + esc(c.local_atual) : ''})</span>`).join(' · ')}</div>
                   <button data-a="invretorno" data-ids="${res.sobrando.map(c => c.id).join(',')}" style="${bt};color:#16a34a;border-color:#16a34a">⬇ Registrar o retorno de todas</button></div>` : ''}
               ${res.desconhecidos.length ? `<div style="margin-top:10px;font-size:.76rem;color:#dc2626"><b>Bipadas mas não cadastradas:</b> ${res.desconhecidos.map(esc).join(', ')}</div>` : ''}`);
         }
@@ -24659,17 +24661,17 @@ else init();
             if (!c) { aviso(`<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`, false); return; }
             if (modo === 'Consultar') { aviso(''); await consultar(c); $('[data-bip]').focus(); return; }
             if (modo === 'Retorno') {
-                if (c.status !== 'Fora' && c.status !== 'Pendente' && c.status !== 'Consignado' && c.status !== 'Manutenção') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} já está ${esc(c.status)}</span>`, false); return; }
+                if (c.status !== 'Fora' && c.status !== 'Pendente' && c.status !== 'Consignado' && c.status !== 'Manutenção') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} já está ${esc(stNome(c.status))}</span>`, false); return; }
                 const de = c.local_atual;
                 try { const obs = await retorno(c, true); sessao.push({ codigo: c.codigo, cor: obs ? '#b45309' : '#16a34a' });
                     aviso(`<span style="color:${obs ? '#b45309' : '#16a34a'}">✅ ${esc(c.codigo)} voltou${de ? ' de ' + esc(de) : ''}${limpezaAtiva() && c.status !== 'Manutenção' ? ' → 🧼 em limpeza' : ''}${obs ? ' · ⚠ ' + esc(obs) : ''}</span>`, !obs); desenharSessao(); await carregar(); }
                 catch (e) { aviso(`<span style="color:#dc2626">Erro: ${esc(e.message || e)}</span>`, false); }
             } else if (modo === 'Limpeza') {
-                if (c.status !== 'Em limpeza') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} não está em limpeza (${esc(c.status)})</span>`, false); return; }
+                if (c.status !== 'Em limpeza') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} não está em limpeza (${esc(stNome(c.status))})</span>`, false); return; }
                 try { await movCaixa(c, 'Limpeza', { obs: 'limpa' }); sessao.push({ codigo: c.codigo, cor: '#0891b2' }); aviso(`<span style="color:#0891b2">🧼 ${esc(c.codigo)} limpa → disponível</span>`, true); desenharSessao(); await carregar(); }
                 catch (e) { aviso(`<span style="color:#dc2626">Erro: ${esc(e.message || e)}</span>`, false); }
             } else {
-                if (c.status !== 'Disponível' && c.status !== 'Manutenção') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} está ${esc(c.status)}${c.local_atual && c.status === 'Fora' ? ' (' + esc(c.local_atual) + ')' : ''} — não pode sair</span>`, false); return; }
+                if (c.status !== 'Disponível' && c.status !== 'Manutenção') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} está ${esc(stNome(c.status))}${c.local_atual && c.status === 'Fora' ? ' (' + esc(c.local_atual) + ')' : ''} — não pode sair</span>`, false); return; }
                 if (lote && lote.some(l => l.id === c.id)) { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} já está nesta saída</span>`, false); return; }
                 aviso(`<span style="color:#2563eb">➕ ${esc(c.codigo)} adicionada à saída</span>`, true); formSaida([c]);
             }
@@ -24789,7 +24791,7 @@ else init();
                 }
                 if (d.a === 'xlsx') {
                     if (!window.XLSX) return alert('Biblioteca do Excel não carregou. Recarregue a página.');
-                    const ws = XLSX.utils.json_to_sheet(linhas.map(c => ({ Código: c.codigo, Tipo: c.tipo, Descrição: c.descricao || '', Situação: c.status, 'Onde está': c.local_atual || '', 'Quem levou': c.levado_por || '', Lacre: c.lacre || '', 'Saiu em': c.saida_em ? new Date(c.saida_em).toLocaleDateString('pt-BR') : '', 'Dias fora': c.status === 'Fora' || c.status === 'Pendente' ? diasDesde(c.saida_em) : '', NF: c.nf_atual || '', 'Voltou em': c.retorno_em ? new Date(c.retorno_em).toLocaleDateString('pt-BR') : '', 'Saídas (total)': nSaidas ? nSaidas[c.codigo] || 0 : '', 'Valor de reposição': valorCx(c) || '' })));
+                    const ws = XLSX.utils.json_to_sheet(linhas.map(c => ({ Código: c.codigo, Tipo: c.tipo, Descrição: c.descricao || '', Situação: stNome(c.status), 'Onde está': c.local_atual || '', 'Quem levou': c.levado_por || '', Lacre: c.lacre || '', 'Saiu em': c.saida_em ? new Date(c.saida_em).toLocaleDateString('pt-BR') : '', 'Dias fora': c.status === 'Fora' || c.status === 'Pendente' ? diasDesde(c.saida_em) : '', NF: c.nf_atual || '', 'Voltou em': c.retorno_em ? new Date(c.retorno_em).toLocaleDateString('pt-BR') : '', 'Saídas (total)': nSaidas ? nSaidas[c.codigo] || 0 : '', 'Valor de reposição': valorCx(c) || '' })));
                     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Caixas e bags'); XLSX.writeFile(wb, 'caixas-e-bags.xlsx'); return;
                 }
             } catch (err) { const m = String(err.message || err);
