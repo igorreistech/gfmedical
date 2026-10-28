@@ -24285,6 +24285,7 @@ else init();
         let cxs = [], fSt = '', fTipo = '', modo = 'Retorno', linhas = [];
         // seleção para imprimir etiquetas em lote (caixinha em cada linha; Shift+clique marca a faixa)
         const sel = new Set(); let ultSel = -1;
+        let ordCod = ''; try { ordCod = localStorage.getItem('gf_cx_ord') || ''; } catch (e) {}
         let nSaidas = null;          // código → quantas saídas já teve (histórico)
         let lote = null;             // saída de várias de uma vez: [{id, lacre}]
         let inv = null;              // conferência de estoque em andamento
@@ -24367,6 +24368,8 @@ else init();
                 + `<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px"><span style="font-size:.7rem;font-weight:800;color:var(--text)">Tipo:</span>`
                 + [['', 'Todos', cxs.length], ...['Caixa', 'Bag', 'Sacola'].map(t => [t, `${CX_ICO[t]} ${t === 'Caixa' ? 'Caixas' : t + 's'}`, cxs.filter(c => c.tipo === t).length])]
                     .map(([t, n, k]) => `<button data-tp="${t}" style="${chip};${fTipo === t ? chipOn : ''}">${n} <b>${k}</b></button>`).join('')
+                + `<span style="width:14px"></span><span style="font-size:.7rem;font-weight:800;color:var(--text)">Ordenar:</span>`
+                + [['', 'Situação'], ['az', 'Código A→Z'], ['za', 'Código Z→A']].map(([o, n]) => `<button data-ord="${o}" style="${chip};${ordCod === o ? chipOn : ''}">${n}</button>`).join('')
                 + `<span style="width:14px"></span><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏷 Etiquetas em lote:</span>`
                 + ['Caixa', 'Bag', 'Sacola'].map(t => `<button data-selt="${t}" style="${chip}">+ todas as ${nomeTipo(t, 2)} da lista</button>`).join('')
                 + (cxs.some(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')) ? `<button data-a="esterSel" style="${chip};color:#db2777;border-color:#db2777" title="Caixas de instrumental enviadas para esterilizar">🧪 Enviar p/ esterilização (${cxs.filter(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')).length})</button>` : '')
@@ -24377,13 +24380,13 @@ else init();
             desenharOnde();
             linhas = doTipo.filter(c => !fSt || (fSt === 'atraso' ? atrasada(c) : c.status === fSt))
                 .filter(c => !q || [c.codigo, c.descricao, c.local_atual, c.nf_atual, c.tipo, c.levado_por, c.lacre].some(v => String(v || '').toUpperCase().includes(q)))
-                .sort((a, b) => prio(a) - prio(b) || (prio(a) <= 2 ? (diasDesde(b.saida_em) || 0) - (diasDesde(a.saida_em) || 0) : 0) || porCodigo(a, b));
+                .sort((a, b) => ordCod === 'az' ? porCodigo(a, b) : ordCod === 'za' ? porCodigo(b, a) : prio(a) - prio(b) || (prio(a) <= 2 ? (diasDesde(b.saida_em) || 0) - (diasDesde(a.saida_em) || 0) : 0) || porCodigo(a, b));
             const comDesc = linhas.some(c => c.descricao);
             const th = 'padding:7px 8px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);text-align:left;position:sticky;top:0;background:var(--surface,#fff);z-index:1';
             const td = 'padding:7px 8px;border-bottom:1px solid var(--border,#e5e7eb);font-size:.78rem;color:var(--text);vertical-align:middle';
             const bb = `${bt};padding:4px 9px`;
             $('[data-corpo]').innerHTML = !cxs.length ? `<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:.85rem">Nenhuma caixa ou bag cadastrada ainda.<br><br><button data-a="novo" style="${bt};background:#111827;color:#fff">+ Cadastrar as primeiras</button></div>`
-              : `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr><th style="${th};width:28px"><input type="checkbox" data-selall title="Marcar todas da lista" ${linhas.length && linhas.every(c => sel.has(c.id)) ? 'checked' : ''}></th><th style="${th}">Código</th>${comDesc ? `<th style="${th}">Descrição</th>` : ''}<th style="${th}">Situação</th><th style="${th}">Onde está</th><th style="${th}">Desde</th><th style="${th};text-align:center" title="Quantas vezes já saiu">Saídas</th><th style="${th}">NF</th><th style="${th};text-align:right">Ações</th></tr></thead><tbody>
+              : `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr><th style="${th};width:28px"><input type="checkbox" data-selall title="Marcar todas da lista" ${linhas.length && linhas.every(c => sel.has(c.id)) ? 'checked' : ''}></th><th style="${th}"><button data-ordcod style="all:unset;cursor:pointer" title="Ordenar pelo código">Código ${ordCod === 'az' ? '▲' : ordCod === 'za' ? '▼' : '⇅'}</button></th>${comDesc ? `<th style="${th}">Descrição</th>` : ''}<th style="${th}">Situação</th><th style="${th}">Onde está</th><th style="${th}">Desde</th><th style="${th};text-align:center" title="Quantas vezes já saiu">Saídas</th><th style="${th}">NF</th><th style="${th};text-align:right">Ações</th></tr></thead><tbody>
                 ${linhas.map((c, iL) => { const d = diasDesde(c.saida_em), at = atrasada(c), fora = c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Consignado', ns = nSaidas ? nSaidas[c.codigo] || 0 : null;
                   return `<tr style="${at || c.status === 'Pendente' ? 'background:rgba(220,38,38,.06)' : sel.has(c.id) ? 'background:rgba(37,99,235,.08)' : ''}"><td style="${td}"><input type="checkbox" data-selcx="${c.id}" data-idx="${iL}" ${sel.has(c.id) ? 'checked' : ''}></td><td style="${td};white-space:nowrap"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${CX_ICO[c.tipo] || '📦'} ${esc(c.tipo)}</span></td>
                     ${comDesc ? `<td style="${td}">${esc(c.descricao || '')}</td>` : ''}
@@ -24744,6 +24747,11 @@ else init();
                 if (d.a === 'cancela') return form('');
                 if (d.a === 'fechadlg') return dlg('');
                 if (d.a === 'excluir') return excluir([porId(d.id)]);
+                if (d.ordcod !== undefined || d.ord !== undefined) {
+                    ordCod = d.ord !== undefined ? d.ord : ordCod === 'az' ? 'za' : ordCod === 'za' ? '' : 'az';
+                    try { localStorage.setItem('gf_cx_ord', ordCod); } catch (er) {}
+                    return desenhar();
+                }
                 if (d.a === 'excluirSel') return excluir(cxs.filter(c => sel.has(c.id)).sort(porCodigo));
                 if (d.a === 'inv') return abrirInventario();
                 if (d.a === 'invfim') return concluirInventario();
