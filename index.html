@@ -24259,6 +24259,7 @@ else init();
             <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">📦 Caixas, bags e sacolas — cadastro e rastreio</div>
             <input type="search" data-busca placeholder="Buscar código, hospital, NF, quem levou…" style="${inp};width:220px">
             <button data-a="novo" style="${bt};background:#111827;color:#fff;border-color:#111827">+ Cadastrar</button>
+            <button data-a="exclote" style="${bt};color:#dc2626;border-color:#dc2626" title="Excluir várias caixas, bags ou sacolas de uma vez">🗑 Excluir em lote</button>
             <button data-a="inv" style="${bt};border-color:#7c3aed;color:#7c3aed" title="Bipe tudo o que está na prateleira: o sistema mostra o que falta e o que está errado">📋 Conferir estoque</button>
             <button data-a="rel" style="${bt}" title="Relatório do mês: saídas, tempo fora por hospital, perdas">📊 Relatório</button>
             <button data-a="valores" style="${bt}" title="Valor de reposição de cada tipo (entra na cobrança das que não voltaram)">💲 Valores</button>
@@ -24494,6 +24495,27 @@ else init();
             const { error } = await sb.from('caixas_bags').delete().in('id', lista.map(c => c.id)); if (error) throw error;
             lista.forEach(c => sel.delete(c.id)); dlg(''); await carregar();
             window.showSyncToast && window.showSyncToast(`🗑 ${lista.length} embalagem(ns) excluída(s): ${nomes}`);
+        }
+        // exclusão em lote: por tipo, faixa de códigos (de/até) ou lista colada
+        function formExcluirLote() {
+            lote = null; inv = null;
+            form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:#dc2626">🗑 Excluir em lote</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                ${campo('Tipo', `<select data-f="xtipo" style="${inp}"><option value="">Todos</option><option value="Caixa">📦 Caixas</option><option value="Bag">🎒 Bags</option><option value="Sacola">🛍️ Sacolas</option></select>`)}
+                ${campo('Do código', `<input data-f="xde" placeholder="ex.: CX-020" style="${inp};width:110px;font-family:var(--mono)">`)}
+                ${campo('Até o código', `<input data-f="xate" placeholder="ex.: CX-040" style="${inp};width:110px;font-family:var(--mono)">`)}
+                ${campo('ou cole os códigos', `<input data-f="xlista" placeholder="CX-010, CX-013, SC-004…" style="${inp};width:260px;font-family:var(--mono)">`)}
+                <button data-a="exclotevai" style="${bt};background:#dc2626;color:#fff;border-color:#dc2626">🗑 Excluir</button>
+                <button data-a="cancela" style="${bt}">Cancelar</button></div>
+              <div style="font-size:.72rem;color:var(--text-dim);margin-top:6px">Sem código preenchido, exclui todas do tipo escolhido. Antes de apagar aparece a lista para confirmar.</div>`);
+        }
+        function listaExcluirLote() {
+            const v = k => ($(`[data-f="${k}"]`)?.value || '').trim().toUpperCase(), tp = $('[data-f="xtipo"]')?.value || '';
+            const cods = v('xlista').split(/[\s,;]+/).filter(Boolean), de = v('xde'), ate = v('xate');
+            const cmp = (a, b) => String(a).localeCompare(String(b), 'pt-BR', { numeric: true });
+            return cxs.filter(c => (!tp || c.tipo === tp)
+                && (cods.length ? cods.includes(String(c.codigo).toUpperCase())
+                    : (!de || cmp(c.codigo, de) >= 0) && (!ate || cmp(c.codigo, ate) <= 0))).sort(porCodigo);
         }
         function formNovo(c) {
             if (c) return formEditar(c);
@@ -24752,6 +24774,8 @@ else init();
                     try { localStorage.setItem('gf_cx_ord', ordCod); } catch (er) {}
                     return desenhar();
                 }
+                if (d.a === 'exclote') return formExcluirLote();
+                if (d.a === 'exclotevai') { const l = listaExcluirLote(); if (!l.length) return alert('Nenhuma embalagem com esses filtros.'); await excluir(l); if (!cxs.some(c => l.some(x => x.id === c.id))) form(''); return; }
                 if (d.a === 'excluirSel') return excluir(cxs.filter(c => sel.has(c.id)).sort(porCodigo));
                 if (d.a === 'inv') return abrirInventario();
                 if (d.a === 'invfim') return concluirInventario();
