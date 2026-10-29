@@ -6727,8 +6727,8 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                     <select class="form-select" id="f-vendedor" required>
                         <option value="">Selecione</option>
                         <option>Gabriely Amorim Dias</option>
-                        <option>Gustavo Ovídio Mussi Faverão</option>
-                        <option>Leandro Sabino</option>
+                        <option>Guido de Andrade Gandini</option>
+                        <option>Jeferson Rodrigues Cruz</option>
                         <option>Marcella Fernandes Ricci</option>
                         <option>Marcos Gonçalves da Silva</option>
                         <option>Regiane da Silva Ramos</option>
@@ -6916,16 +6916,12 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                     Regiane da Silva Ramos
                 </label>
                 <label class="export-opt">
-                    <input type="checkbox" class="exp-vendedor" value="Gustavo Ovídio Mussi Faverão" checked>
-                    Gustavo Ovídio Mussi Faverão
+                    <input type="checkbox" class="exp-vendedor" value="Guido de Andrade Gandini" checked>
+                    Guido de Andrade Gandini
                 </label>
                 <label class="export-opt">
-                    <input type="checkbox" class="exp-vendedor" value="Jeferson Cruz Rodrigues" checked>
-                    Jeferson Cruz Rodrigues
-                </label>
-                <label class="export-opt">
-                    <input type="checkbox" class="exp-vendedor" value="Leandro Sabino" checked>
-                    Leandro Sabino
+                    <input type="checkbox" class="exp-vendedor" value="Jeferson Rodrigues Cruz" checked>
+                    Jeferson Rodrigues Cruz
                 </label>
             </div>
         </div>
@@ -8276,7 +8272,7 @@ function getFiltered() {
 // espaço) e por prefixo pra pegar qualquer variação do nome já digitada nos
 // registros (ex.: "Jeferson Cruz", "Jeferson Cruz Rodrigues", "Jeferson
 // Rodrigues Cruz").
-const PREFIXOS_VENDEDOR_OCULTO = ['jeferson'];
+const PREFIXOS_VENDEDOR_OCULTO = ['leandro sabino', 'gustavo ovidio'];
 function _normNome(s) {
     return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 }
@@ -9526,7 +9522,9 @@ function editProc(docId) {
     })();
     if (document.getElementById('f-pacienteIdade')) document.getElementById('f-pacienteIdade').value = p.pacienteIdade || '';
     document.getElementById('f-procedimento').value = p.procedimento;
-    document.getElementById('f-vendedor').value = p.vendedor;
+    { const _sv = document.getElementById('f-vendedor'); _sv.querySelectorAll('option[data-antigo]').forEach(o => o.remove());
+      if (p.vendedor && ![..._sv.options].some(o => o.value === p.vendedor)) { const o = document.createElement('option'); o.value = p.vendedor; o.textContent = p.vendedor + ' (saiu)'; o.dataset.antigo = '1'; _sv.appendChild(o); }
+      _sv.value = p.vendedor || ''; }
     const selOperadorEdit = document.getElementById('f-operador');
     if (selOperadorEdit) {
         selOperadorEdit.innerHTML = '<option value="">Selecione quem está lançando</option>' +
