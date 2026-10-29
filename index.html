@@ -10540,6 +10540,10 @@ async function _saveProcedureImpl(e) {
     // comercial@ compartilhada), então fica registrado em todo lançamento.
     proc.operadorNome = nomeOperadorForm;
 
+    if (!_isColeta && typeof window._volumeFichaValidar === 'function') {
+        const _msgVol = window._volumeFichaValidar(status);
+        if (_msgVol) { alert(_msgVol); const _b = document.querySelector('#f-volume-cad select[data-vcod]') || document.getElementById('f-volume-cad'); if (_b) { _b.scrollIntoView({ block: 'center' }); _b.focus && _b.focus(); } return; }
+    }
 
     const dupsCheck = [
         ...verificarDuplicatas(proc.hospital, proc.medico, proc.data, editingDocId),
@@ -23664,7 +23668,7 @@ else init();
             const n = vols.filter(v => v.cod).length;
             info.textContent = n ? `${n} volume(s): ` + vols.filter(v => v.cod).map(v => v.cod).join(', ') : 'nenhum';
             { const falta = vols.filter(v => v.cod && !v.bipado).map(v => v.cod), bip = box.querySelector('#f-vol-bip');
-              if (bip) { bip.placeholder = falta.length ? `2º 🔫 bipe o QR da ${falta[0]} para confirmar` : '2º 🔫 escolha a caixa acima e depois bipe o QR dela'; bip.style.borderColor = falta.length ? '#dc2626' : '#0d9488'; } }
+              if (bip) { bip.placeholder = falta.length ? `🔫 (opcional) bipe o QR da ${falta[0]} para conferir` : '🔫 (opcional) bipe o QR da caixa para conferir'; bip.style.borderColor = '#0d9488'; } }
         };
         const recarregar = async () => {
             const r = await carregarCaixas(true).catch(() => null); carregou = !!(r && !r.erro); lista = carregou ? r : [];
@@ -23700,6 +23704,16 @@ else init();
         // ficha aberta para outra cirurgia (ou nova): recarrega
         setInterval(() => { const id = pidAtual() + '|' + (document.getElementById('f-nf') ? '' : 'x'); if (id !== ultimoId && box.offsetParent) { ultimoId = id; recarregar(); } }, 700);
     }
+    // trava: material saindo (Em Trânsito / Em Procedimento) só grava com a caixa/bag/sacola preenchida (bipar é opcional)
+    window._volumeFichaValidar = function (statusNovo) {
+        const SAI = ['em_transito', 'andamento'];
+        if (!SAI.includes(statusNovo)) return '';
+        let antes = null; try { antes = typeof editingDocId !== 'undefined' && editingDocId ? procPorId(editingDocId) : null; } catch (e) {}
+        if (antes && SAI.includes(antes.status)) return '';            // já tinha saído antes desta edição
+        const box = document.getElementById('f-volume-cad'); if (!box || !box._volumes) return '';
+        const v = box._volumes(); if (!v.carregou) return '';          // cadastro de caixas indisponível: não trava
+        return v.cods.length ? '' : '🔒 O material está saindo do estoque.\n\nEm "Volumes que vão", escolha a caixa, bag ou sacola que vai com o material. Sem ela a cirurgia não é salva.';
+    };
     window._volumeFichaSalvar = function (proc) {
         const box = document.getElementById('f-volume-cad'); if (!box || !box._volumes || !proc || !(proc._docId || proc.id)) return;
         const { carregou, cods, antes } = box._volumes(); if (!carregou) return;
