@@ -802,14 +802,15 @@
                 } else {
                   // primeiro acesso sem perfil (ex.: veio do "Solicitar acesso") → aguarda aprovação do admin
                   perfil = { email: emailLower, nome: (user.user_metadata && user.user_metadata.nome) || user.email, role: 'pendente' };
-                  await setDoc(doc(db, 'usuarios', user.id), perfil);
+                  // se não gravar, continua "pendente" (bloqueado) — nunca entra sem aprovação
+                  try { await setDoc(doc(db, 'usuarios', user.id), perfil); } catch (eSet) { console.warn('[perfil] não gravou o pendente:', eSet?.message); }
                 }
               } catch(e) { perfil = null; }
             }
 
             if (!perfil) {
-              // falha ao ler o perfil: segue como Agendador só nesta sessão, sem gravar (não sobrescreve o perfil real)
-              perfil = { email: emailLower, nome: user.email, role: 'agendador' };
+              // falha ao ler o perfil (rede/servidor): não entra — pede para tentar de novo
+              perfil = { email: emailLower, nome: user.email, role: 'erro_perfil' };
             }
 
             if (isAdminFixo) perfil.role = 'admin';
@@ -817,10 +818,10 @@
             const _ehOperador = perfil.role === 'operador';
             if (_ehOperador) perfil.role = 'admin';
             // Cadastro feito por "Solicitar acesso" ainda não aprovado (ou recusado): não entra
-            if (perfil.role === 'pendente' || perfil.role === 'recusado') {
+            if (perfil.role === 'pendente' || perfil.role === 'recusado' || perfil.role === 'erro_perfil') {
               window._currentUser = null; window._acessoBloqueado = perfil.role;
               const errEl = document.getElementById('loginError');
-              if (errEl) { errEl.textContent = perfil.role === 'pendente' ? '⏳ Seu cadastro foi recebido e está aguardando aprovação do administrador.' : '⛔ Seu acesso não foi aprovado. Fale com o administrador.'; errEl.style.display = 'block'; }
+              if (errEl) { errEl.textContent = perfil.role === 'pendente' ? '⏳ Seu cadastro foi recebido e está aguardando aprovação do administrador.' : perfil.role === 'erro_perfil' ? '⚠ Não foi possível carregar seu perfil (servidor sem resposta). Tente entrar de novo em instantes.' : '⛔ Seu acesso não foi aprovado. Fale com o administrador.'; errEl.style.display = 'block'; }
               document.getElementById('destinoOverlay')?.classList.add('hidden');
               overlay.classList.remove('hidden');
               setTimeout(() => auth.signOut().catch(() => {}), 0);
