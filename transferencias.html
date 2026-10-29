@@ -621,7 +621,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-28.3';
+const VERSAO = '2026-10-28.4';
 const T = { nf: 'transf_nf', it: 'transf_itens', bx: 'transf_baixas' };
 
 const $ = id => document.getElementById(id);
@@ -656,8 +656,8 @@ const contaCompartilhada = () => /^comercial(mt)?@gfmedical/i.test(_user?.email 
 // mesma lista do Controle de Fretes / Monitor
 // Operadores de cada conta compartilhada (valem em qualquer unidade)
 const OPERADORES_CONTA = {
-  'comercialmt@gfmedical.net': ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'],
-  'comercial@gfmedical.net': ['Beatriz Helena Calil Barbosa','Cristina Luzia','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'],
+  'comercialmt@gfmedical.net': ['Beatriz Helena Calil Barbosa','Cristina Luzia','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'],
+  'comercial@gfmedical.net': ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'],
 };
 const OPERADORES = {
   CBA: ['Beatriz Helena Calil Barbosa', 'Cristina Luzia', 'Izabela Crozetta', 'Kauana da Silva Feitoza', 'Marcio Benedito Queiroz', 'Murilo Julio Sant Ana Pereira', 'Renata Franco de Lima', 'Roberto Alex Cândido', 'Starley Santos Silva', 'Wilson Cordeiro'],

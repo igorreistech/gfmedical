@@ -571,7 +571,8 @@
         if (!b || !u || !window._podeGerenciarUsuarios()) return;
         try {
           const snap = await getDocs(collection(db, 'usuarios'));
-          const n = snap.docs.filter(d => (d.data().role || '') === 'pendente').length;
+          let n = snap.docs.filter(d => (d.data().role || '') === 'pendente').length;
+          try { const { count } = await window._supabase.from('operadores_email').select('id', { count: 'exact', head: true }).eq('status', 'pendente'); n += count || 0; } catch (e) {}
           b.innerHTML = '👥 Usuários' + (n ? ` <span style="background:#f59e0b;color:#fff;border-radius:999px;padding:0 6px;margin-left:4px;font-size:.9em">⏳ ${n}</span>` : '');
           b.title = n ? n + ' cadastro(s) aguardando aprovação' : '';
         } catch (e) {}
@@ -691,7 +692,7 @@
               <button class="admin-btn-del" onclick="doAdminDeleteUser('${id}')" ${isMe?'disabled title="Não pode remover a si mesmo"':''}>🗑 Excluir</button>
             </div>`;
           }).join('');
-          try { lista.insertAdjacentHTML('beforeend', window._htmlOperadoresCompartilhados()); } catch (e) {}
+          try { await window._carregarEmailsOperadores(); lista.insertAdjacentHTML('afterbegin', window._htmlEmailsOperadoresPendentes()); lista.insertAdjacentHTML('beforeend', window._htmlOperadoresCompartilhados()); } catch (e) {}
         } catch(e) { lista.innerHTML = '<div style="color:var(--red);font-size:0.85rem;">Erro ao carregar.</div>'; }
       };
       window.doAdminAddUser = async function() {
@@ -9761,8 +9762,8 @@ const NOMES_OPERADOR_CBA = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Iza
 const NOMES_OPERADOR_CGR = ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'];
 // No Consolidado mostra as duas listas juntas (cobre as duas cidades).
 // Operadores de cada conta compartilhada (valem em qualquer unidade)
-const NOMES_CONTA_COMERCIALMT = ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'];
-const NOMES_CONTA_COMERCIAL = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'];
+const NOMES_CONTA_COMERCIALMT = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'];
+const NOMES_CONTA_COMERCIAL = ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'];
 function _nomesOperadorAtivos() {
     const _emConta = String((window._currentUser && window._currentUser.email) || document.getElementById('loginUser')?.value || '').toLowerCase();
     if (/^comercialmt@gfmedical/.test(_emConta)) return NOMES_CONTA_COMERCIALMT;
@@ -9785,7 +9786,7 @@ window.ADMIN_TITULARES = ['Igor dos Reis Silva'];
 // Lista em "Gerenciar Usuários": nomes da conta compartilhada (comercial@ / comercialmt@) desta unidade
 window._htmlOperadoresCompartilhados = function () {
     const tit = window.ADMIN_TITULARES || [];
-    const chip = (n, papel, cor) => `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;margin:3px;border-radius:999px;border:1px solid ${cor}55;background:${cor}12;font-size:.74rem;color:var(--text)">${n} <b style="font-family:var(--mono);font-size:.62rem;color:${cor}">${papel}</b></span>`;
+    const chip = (n, papel, cor) => `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;margin:3px;border-radius:999px;border:1px solid ${cor}55;background:${cor}12;font-size:.74rem;color:var(--text)">${n} <b style="font-family:var(--mono);font-size:.62rem;color:${cor}">${papel}</b>${window._emailAprovadoDe(n)}</span>`;
     const tituloSec = t => `<div style="font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin:10px 0 6px">${t}</div>`;
     const bloco = (conta, nomes) => {
         const ops = nomes.filter(n => ADMIN_OPERADORES.includes(n)), vend = nomes.filter(n => !ADMIN_OPERADORES.includes(n));
@@ -9798,6 +9799,77 @@ window._htmlOperadoresCompartilhados = function () {
     return `<div style="margin-top:14px;padding-top:6px;border-top:1px dashed var(--border)">
       ${bloco('comercialmt@gfmedical.net', NOMES_CONTA_COMERCIALMT)}${bloco('comercial@gfmedical.net', NOMES_CONTA_COMERCIAL)}</div>`;
 };
+// ─── E-mail dos operadores da conta compartilhada: o operador confirma, o admin aprova ───
+window._emailsOperadores = [];
+window._carregarEmailsOperadores = async function () {
+    try { const { data, error } = await window._supabase.from('operadores_email').select('*').order('criado_em'); if (!error) window._emailsOperadores = data || []; } catch (e) {}
+    return window._emailsOperadores;
+};
+window._emailAprovadoDe = n => { const r = (window._emailsOperadores || []).find(x => x.nome === n && x.status === 'aprovado'); return r ? ` <span style="font-family:var(--mono);font-size:.6rem;color:var(--text-dim)">${String(r.email).replace(/[<>&]/g, '')}</span>` : ''; };
+window._htmlEmailsOperadoresPendentes = function () {
+    const pend = (window._emailsOperadores || []).filter(x => x.status === 'pendente'); if (!pend.length) return '';
+    const e = s => String(s || '').replace(/[<>&"']/g, '');
+    const bt = (id, st, txt, cor) => `<button onclick="window._decidirEmailOperador('${id}','${st}')" style="padding:5px 9px;border-radius:8px;border:1px solid ${cor};background:${cor}1a;color:${cor};font-family:var(--mono);font-size:.68rem;font-weight:800;cursor:pointer">${txt}</button>`;
+    return `<div style="margin:4px 0 12px;padding:10px;border-radius:12px;background:rgba(14,116,144,.07);border:1px solid rgba(14,116,144,.25)">
+      <div style="font-weight:800;font-size:.85rem;margin-bottom:6px">📧 E-mails de operadores para aprovar (${pend.length})</div>
+      ${pend.map(x => `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-top:1px dashed var(--border)">
+        <div style="flex:1;min-width:180px"><div style="font-weight:700;font-size:.82rem">${e(x.nome)}</div><div style="font-family:var(--mono);font-size:.7rem;color:var(--text-dim)">${e(x.email)} · ${e(x.conta)}</div></div>
+        ${bt(x.id, 'aprovado', '✅ Aprovar', '#15803d')}${bt(x.id, 'recusado', '✖ Recusar', '#b91c1c')}</div>`).join('')}
+    </div>`;
+};
+window._decidirEmailOperador = async function (id, status) {
+    if (!window._podeGerenciarUsuarios()) { alert('Somente o Admin pode aprovar e-mails.'); return; }
+    const quem = window._operadorNome || window._currentUser?.email || '';
+    const { error } = await window._supabase.from('operadores_email').update({ status, decidido_em: new Date().toISOString(), decidido_por: quem }).eq('id', id);
+    if (error) { alert('Erro ao salvar: ' + error.message); return; }
+    window.doAdminLoadUsers && window.doAdminLoadUsers(); window._contarPendentes && window._contarPendentes();
+};
+// Pergunta ao operador (uma vez por acesso) o e-mail dele, se ainda não tiver aprovado/pendente
+(function () {
+    const conta = () => String(window._currentUser?.email || '').toLowerCase();
+    const chave = (c, n) => 'gf_email_op_' + c + '_' + n;
+    async function verificar() {
+        const c = conta(), n = window._operadorNome;
+        if (!/^comercial(mt)?@gfmedical/.test(c) || !n || document.getElementById('emailOperadorOv')) return;
+        try { if (sessionStorage.getItem(chave(c, n))) return; } catch (e) {}
+        const lo = document.getElementById('loginOverlay'), de = document.getElementById('destinoOverlay'), idc = document.getElementById('identComercialOverlay');
+        if ((lo && !lo.classList.contains('hidden')) || (de && !de.classList.contains('hidden')) || (idc && !idc.classList.contains('hidden'))) return;
+        try { sessionStorage.setItem(chave(c, n), '1'); } catch (e) {}
+        let atual = null;
+        try { const { data, error } = await window._supabase.from('operadores_email').select('*').eq('nome', n).eq('conta', c).maybeSingle(); if (error) return; atual = data; } catch (e) { return; }
+        if (atual && atual.status !== 'recusado') return;
+        abrir(c, n, atual);
+    }
+    function abrir(c, n, atual) {
+        const ov = document.createElement('div'); ov.id = 'emailOperadorOv';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+        const e = s => String(s || '').replace(/[<>&"]/g, '');
+        ov.innerHTML = `<form style="background:var(--surface,#f0faf3);border-radius:18px;padding:22px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);border-top:3px solid #0e7490">
+          <div style="font-weight:800;font-size:1.02rem;margin-bottom:6px">📧 Confirme seu e-mail</div>
+          <div style="font-size:.8rem;color:var(--text-dim,#555);margin-bottom:12px">Olá, <b>${e(n)}</b>! Para manter seu cadastro, confirme seu e-mail. Ele vai para aprovação do administrador.${atual && atual.status === 'recusado' ? '<br><span style="color:#b91c1c">O e-mail enviado antes (' + e(atual.email) + ') não foi aprovado — confira e envie de novo.</span>' : ''}</div>
+          <input id="emailOpInp" type="email" required placeholder="seu.email@exemplo.com" style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:10px;border:1px solid var(--border,#b8dfc4);background:var(--surface2,#eef8f1);font-family:var(--mono);font-size:.85rem;color:var(--text,#111)">
+          <div id="emailOpMsg" style="display:none;margin-top:10px;font-size:.78rem;color:#b91c1c"></div>
+          <button type="submit" id="emailOpBtn" style="width:100%;margin-top:12px;padding:11px;border:none;border-radius:12px;background:linear-gradient(135deg,#2a9fbf,#4db87a);color:#fff;font-weight:800;cursor:pointer">Enviar para aprovação</button>
+          <button type="button" id="emailOpDepois" style="width:100%;margin-top:8px;padding:9px;border:1px solid var(--border,#b8dfc4);border-radius:12px;background:transparent;font-family:var(--mono);font-size:.74rem;cursor:pointer;color:var(--text,#333)">Agora não (perguntar no próximo acesso)</button>
+        </form>`;
+        document.body.appendChild(ov);
+        const inp = ov.querySelector('#emailOpInp'), msg = ov.querySelector('#emailOpMsg'); inp.focus();
+        ov.querySelector('#emailOpDepois').onclick = () => ov.remove();
+        ov.querySelector('form').onsubmit = async ev => {
+            ev.preventDefault();
+            const email = inp.value.trim().toLowerCase();
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg.textContent = 'E-mail inválido.'; msg.style.display = 'block'; return; }
+            const btn = ov.querySelector('#emailOpBtn'); btn.disabled = true; btn.textContent = 'Enviando…';
+            const linha = { nome: n, conta: c, email, status: 'pendente', criado_em: new Date().toISOString(), decidido_em: null, decidido_por: null };
+            const { error } = atual
+                ? await window._supabase.from('operadores_email').update(linha).eq('id', atual.id)
+                : await window._supabase.from('operadores_email').insert(linha);
+            if (error) { msg.textContent = 'Não foi possível enviar: ' + error.message; msg.style.display = 'block'; btn.disabled = false; btn.textContent = 'Enviar para aprovação'; return; }
+            ov.querySelector('form').innerHTML = '<div style="font-weight:800;font-size:1rem;margin-bottom:8px">✅ E-mail enviado!</div><div style="font-size:.82rem;color:var(--text-dim,#555)">Assim que o administrador aprovar, ele fica no seu cadastro.</div><button type="button" style="width:100%;margin-top:14px;padding:10px;border:none;border-radius:12px;background:#0e7490;color:#fff;font-weight:800;cursor:pointer" onclick="document.getElementById(\'emailOperadorOv\').remove()">OK</button>';
+        };
+    }
+    setInterval(verificar, 3000);
+})();
 window._htmlOperadoresCompartilhados_antigo = function () {
     const nomes = _nomesOperadorAtivos(), tit = window.ADMIN_TITULARES || [];
     const ops = nomes.filter(n => ADMIN_OPERADORES.includes(n)), vend = nomes.filter(n => !ADMIN_OPERADORES.includes(n));
