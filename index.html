@@ -9617,6 +9617,17 @@ const ADMIN_OPERADORES = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Eva D
 // do <script type="module">, que não enxerga const/let de um <script>
 // clássico como identificador solto — só via window.
 window.ADMIN_OPERADORES = ADMIN_OPERADORES;
+// O login (módulo) pode rodar antes desta lista carregar e esconder o "👥 Usuários" de um operador administrador.
+// Confere de novo por alguns segundos depois do login e quando o operador muda.
+function _ajustarBotaoUsuarios() {
+    const b = document.getElementById('btn-gerenciar-usuarios'), u = window._currentUser; if (!b || !u) return;
+    const email = String(u.email || '').toLowerCase(), op = window._operadorNome || (window._lerOperadorGF && window._lerOperadorGF());
+    const compartilhada = /^comercial(mt)?@gfmedical/.test(email);
+    const admin = compartilhada ? !!(op && ADMIN_OPERADORES.includes(op)) || (!op && u.role === 'admin') : u.role === 'admin';
+    if (admin && b.style.display === 'none') b.style.display = '';
+}
+setInterval(_ajustarBotaoUsuarios, 1500);
+
 let _pendingOpenModal = null;
 
 function _resolverNomeOperador(nome, callback) {
