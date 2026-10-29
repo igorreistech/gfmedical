@@ -4,6 +4,7 @@
 // Chamada pela própria tela logo depois do cadastro, SEM login (a pessoa ainda
 // não foi aprovada) — por isso:
 //   • publicar com "Verify JWT" DESLIGADO (supabase functions deploy avisar-cadastro --no-verify-jwt);
+//   • cria o perfil "pendente" em public.usuarios (aparece na lista do admin para aprovar);
 //   • a function confere no Auth que o usuário existe, foi criado há menos de 15 min
 //     e ainda não foi avisado (marca app_metadata.aviso_cadastro) — não dá para usar
 //     de "disparador de e-mail" para outras coisas.
@@ -29,10 +30,6 @@ Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
 
-  const resendKey = Deno.env.get('RESEND_API_KEY');
-  const admins = (Deno.env.get('ADMIN_EMAILS') || '').split(',').map(s => s.trim()).filter(Boolean);
-  if (!resendKey || !admins.length) return json({ error: 'Aviso por e-mail não configurado.' }, 503);
-
   let body: { id?: string; unidade?: string; site?: string };
   try { body = await req.json(); } catch { return json({ error: 'Corpo inválido.' }, 400); }
   if (!body.id || !/^[0-9a-f-]{36}$/i.test(body.id)) return json({ error: 'id inválido.' }, 400);
@@ -42,10 +39,18 @@ Deno.serve(async req => {
   const user = got?.user;
   if (error || !user) return json({ error: 'Usuário não encontrado.' }, 404);
   if (Date.now() - new Date(user.created_at).getTime() > 15 * 60 * 1000) return json({ ok: true, ignorado: 'antigo' });
-  if (user.app_metadata?.aviso_cadastro) return json({ ok: true, ignorado: 'já avisado' });
 
   const nome = String(user.user_metadata?.nome || user.email || '').slice(0, 120);
-  const email = String(user.email || '');
+  const email = String(user.email || '').toLowerCase();
+
+  // Já entra na lista do admin como "aguardando aprovação" (sem esperar o 1º login da pessoa);
+  // se o perfil já existir, não mexe.
+  await admin.from('usuarios').upsert({ id: user.id, email, nome, role: 'pendente' }, { onConflict: 'id', ignoreDuplicates: true });
+
+  if (user.app_metadata?.aviso_cadastro) return json({ ok: true, ignorado: 'já avisado' });
+  const resendKey = Deno.env.get('RESEND_API_KEY');
+  const admins = (Deno.env.get('ADMIN_EMAILS') || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!resendKey || !admins.length) return json({ ok: true, aviso: 'e-mail não configurado' });
   const unidade = String(body.unidade || '').slice(0, 40);
   const site = /^https:\/\/[\w.-]+(\/[\w./-]*)?$/.test(body.site || '') ? body.site! : '';
 
