@@ -548,7 +548,7 @@
             btn.textContent = 'Enviado ✓';
           } catch (er) {
             const t = String(er?.message || er);
-            msg(/already registered|already been registered|exists/i.test(t) ? 'Este e-mail já tem cadastro. Use "Entrar" ou peça ao administrador para aprovar.'
+            msg(/already registered|already been registered|exists/i.test(t) ? 'Este e-mail já tem cadastro. Feche esta janela e entre com seu e-mail e senha — se ainda não foi aprovado, o pedido aparece para o administrador aprovar.'
               : /signups? not allowed|disabled/i.test(t) ? 'O cadastro está desativado no servidor. Peça ao administrador para criar seu usuário.'
               : /rate limit/i.test(t) ? 'Muitas tentativas. Aguarde alguns minutos.'
               : 'Não foi possível enviar: ' + t);
