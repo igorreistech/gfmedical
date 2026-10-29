@@ -23645,9 +23645,9 @@ else init();
         const sel = 'padding:6px 8px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--bg,#fff);color:var(--text);font-size:.74rem';
         const bt = 'padding:5px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.72rem;font-weight:700;cursor:pointer';
         box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span>📦 Volumes que vão:</span><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span></div>
-          <div style="font-weight:400;color:var(--text-dim);margin-bottom:3px">1º escolha a caixa na lista · 2º bipe o QR dela para confirmar</div>
+          <div style="font-weight:400;color:var(--text-dim);margin-bottom:3px">Escolha a caixa, bag ou sacola na lista</div>
           <div id="f-vol-linhas" style="display:flex;flex-direction:column;gap:5px"></div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 2px"><input id="f-vol-bip" autocomplete="off" placeholder="2º 🔫 escolha a caixa acima e depois bipe o QR dela" style="${sel};flex:1;min-width:230px;font-weight:700;border:2px solid #0d9488">
+          <div style="display:none;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 2px"><input id="f-vol-bip" autocomplete="off" placeholder="2º 🔫 escolha a caixa acima e depois bipe o QR dela" style="${sel};flex:1;min-width:230px;font-weight:700;border:2px solid #0d9488">
             <span id="f-vol-bipmsg" style="font-weight:700;font-size:.72rem"></span></div>
           <button type="button" id="f-vol-add" style="${bt};margin-top:5px">+ adicionar caixa, bag ou sacola</button>`;
         (document.getElementById('btn-etq-qr-ficha') || fnf).insertAdjacentElement('afterend', box);
