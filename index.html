@@ -24377,7 +24377,10 @@ else init();
                 + ['Caixa', 'Bag', 'Sacola'].map(t => `<button data-selt="${t}" style="${chip}">+ todas as ${nomeTipo(t, 2)} da lista</button>`).join('')
                 + (cxs.some(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')) ? `<button data-a="esterSel" style="${chip};color:#db2777;border-color:#db2777" title="Caixas de instrumental enviadas para esterilizar">🧪 Enviar p/ esterilização (${cxs.filter(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')).length})</button>` : '')
                 + (cxs.some(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')) ? `<button data-a="consigSel" style="${chip};color:#7c3aed;border-color:#7c3aed" title="Ficaram no cliente em consignado">🏥 Deixar em consignado (${cxs.filter(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')).length})</button>` : '')
-                + (sel.size ? `<select data-trocast style="${chip};font-weight:800;color:#0f766e;border-color:#0f766e;cursor:pointer" title="Muda a situação de todas as marcadas"><option value="">🔄 Trocar situação (${sel.size})…</option>${['Disponível', 'Esterilização', 'Em limpeza', 'Consignado', 'Pendente', 'Não localizada', 'Manutenção', 'Baixada'].map(s => `<option value="${s}">${stNome(s)}</option>`).join('')}</select>` : '')
+                + (sel.size ? [['Disponível', '✅', 'Voltar p/ estoque'], ['Em limpeza', '🧼', 'Enviar p/ limpeza'], ['Consignado', '🏥', 'Em Consignação'], ['Pendente', '⏳', 'Marcar pendente'], ['Não localizada', '🔎', 'Caixa não localizada'], ['Manutenção', '🔧', 'Enviar p/ manutenção'], ['Baixada', '🗑', 'Baixar']]
+                    .filter(([st]) => !(st === 'Consignado' && cxs.some(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente'))))
+                    .map(([st, ic, rot]) => { const n = cxs.filter(c => sel.has(c.id) && c.status !== st).length; const cor = ST_COR[st] || '#0f766e';
+                        return n ? `<button data-trocabtn="${st}" style="${chip};color:${cor};border-color:${cor}" title="Muda a situação das marcadas para ${stNome(st)}">${ic} ${rot} (${n})</button>` : ''; }).join('') : '')
                 + (sel.size ? `<button data-a="excluirSel" style="${chip};color:#dc2626;border-color:#dc2626" title="Apaga do cadastro as marcadas">🗑 Excluir ${sel.size} selecionada${sel.size > 1 ? 's' : ''}</button>` : '')
                 + `<button data-selt="" style="${chip}">Limpar seleção</button><span style="font-size:.68rem;color:var(--text-dim)">ou marque as caixinhas (Shift+clique marca de uma até outra)</span></div>`;
             desenharOnde();
@@ -24790,6 +24793,7 @@ else init();
                 if (d.retorno) { await retorno(porId(d.retorno)); await carregar(); return; }
                 if (d.consig) return consignar([porId(d.consig)]);
                 if (d.ester) return esterilizar([porId(d.ester)]);
+                if (d.trocabtn) return trocarSituacaoSel(d.trocabtn);
                 if (d.a === 'esterSel') return esterilizar(cxs.filter(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')).sort(porCodigo));
                 if (d.esterok) { const c = porId(d.esterok); await movCaixa(c, 'Esterilizada', { obs: 'voltou esterilizada' }); _cxCache = null; await carregar(); window.showSyncToast && window.showSyncToast('✅ ' + c.codigo + ' voltou esterilizada — em estoque'); return; }
                 if (d.a === 'consigSel') return consignar(cxs.filter(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')).sort(porCodigo));
