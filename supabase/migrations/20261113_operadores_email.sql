@@ -25,4 +25,7 @@ create policy operadores_email_alterar on public.operadores_email for update to 
 create policy operadores_email_excluir on public.operadores_email for delete to authenticated
   using (exists (select 1 from public.usuarios u where u.id::text = auth.uid()::text and u.role::text = 'admin'));
 
+-- login individual do operador (criado quando ele escolhe a senha)
+alter table public.operadores_email add column if not exists user_id uuid;
+
 notify pgrst, 'reload schema';

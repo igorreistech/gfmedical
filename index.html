@@ -557,11 +557,27 @@
         };
       };
 
+      // Cria o login de um operador SEM trocar a sessão atual (cliente separado, sem guardar sessão)
+      window._signUpIsolado = async function(email, senha, nome) {
+        const c = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'sb-signup-isolado' } });
+        const { data, error } = await c.auth.signUp({ email, password: senha, options: { data: { nome } } });
+        if (error) throw error;
+        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) throw new Error('already registered');
+        if (data?.user?.id) fetch(SUPABASE_URL + '/functions/v1/avisar-cadastro', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+          body: JSON.stringify({ id: data.user.id, unidade: (BR.label || ''), site: location.origin + location.pathname })
+        }).catch(() => {});
+        return { id: data?.user?.id || null, confirmar: !data?.session };
+      };
+
       // Admin: muda o perfil de um usuário (aprovar pendente como Operador/Agendador, recusar, trocar perfil)
       window.doAdminSetRole = async function(docId, role) {
         if (!window._podeGerenciarUsuarios()) { alert('Somente o Admin pode alterar perfis de usuário.'); return; }
         try {
           await setDoc(doc(db, 'usuarios', docId), { role }, { merge: true });
+          if (['operador', 'agendador', 'admin', 'recusado'].includes(role)) {
+            try { await window._supabase.from('operadores_email').update({ status: role === 'recusado' ? 'recusado' : 'aprovado', decidido_em: new Date().toISOString(), decidido_por: window._operadorNome || window._currentUser?.email || '' }).eq('user_id', docId).eq('status', 'pendente'); } catch (e) {}
+          }
           doAdminLoadUsers(); window._contarPendentes && window._contarPendentes();
         } catch(e) { alert('Erro ao alterar o perfil: ' + e.message); }
       };
@@ -9814,14 +9830,25 @@ window._htmlEmailsOperadoresPendentes = function () {
       <div style="font-weight:800;font-size:.85rem;margin-bottom:6px">📧 E-mails de operadores para aprovar (${pend.length})</div>
       ${pend.map(x => `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-top:1px dashed var(--border)">
         <div style="flex:1;min-width:180px"><div style="font-weight:700;font-size:.82rem">${e(x.nome)}</div><div style="font-family:var(--mono);font-size:.7rem;color:var(--text-dim)">${e(x.email)} · ${e(x.conta)}</div></div>
-        ${bt(x.id, 'aprovado', '✅ Aprovar', '#15803d')}${bt(x.id, 'recusado', '✖ Recusar', '#b91c1c')}</div>`).join('')}
+        ${bt(x.id, 'aprovado', '✅ Aprovar como ' + ((window.ADMIN_TITULARES || []).includes(x.nome) ? 'Admin' : ADMIN_OPERADORES.includes(x.nome) ? 'Operador' : 'Agendador'), '#15803d')}${bt(x.id, 'recusado', '✖ Recusar', '#b91c1c')}</div>`).join('')}
     </div>`;
 };
 window._decidirEmailOperador = async function (id, status) {
     if (!window._podeGerenciarUsuarios()) { alert('Somente o Admin pode aprovar e-mails.'); return; }
     const quem = window._operadorNome || window._currentUser?.email || '';
+    const row = (window._emailsOperadores || []).find(x => x.id === id);
     const { error } = await window._supabase.from('operadores_email').update({ status, decidido_em: new Date().toISOString(), decidido_por: quem }).eq('id', id);
     if (error) { alert('Erro ao salvar: ' + error.message); return; }
+    if (row) {
+        // perfil do login individual: Admin (titular), Operador (equipe) ou Agendador (vendedor); recusado bloqueia
+        const papel = status !== 'aprovado' ? 'recusado' : (window.ADMIN_TITULARES || []).includes(row.nome) ? 'admin' : ADMIN_OPERADORES.includes(row.nome) ? 'operador' : 'agendador';
+        let uid = row.user_id;
+        if (!uid) { try { const { data } = await window._supabase.from('usuarios').select('id').eq('email', String(row.email).toLowerCase()).maybeSingle(); uid = data?.id; } catch (e) {} }
+        if (uid) {
+            const { error: e2 } = await window._supabase.from('usuarios').upsert({ id: uid, email: String(row.email).toLowerCase(), nome: row.nome, role: papel });
+            if (e2) alert('E-mail salvo, mas não foi possível liberar o login: ' + e2.message);
+        } else if (status === 'aprovado') alert('E-mail aprovado. ' + row.nome + ' ainda não tem login criado — ele define a senha no próximo acesso.');
+    }
     window.doAdminLoadUsers && window.doAdminLoadUsers(); window._contarPendentes && window._contarPendentes();
 };
 // Pergunta ao operador (uma vez por acesso) o e-mail dele, se ainda não tiver aprovado/pendente
@@ -9845,9 +9872,11 @@ window._decidirEmailOperador = async function (id, status) {
         ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
         const e = s => String(s || '').replace(/[<>&"]/g, '');
         ov.innerHTML = `<form style="background:var(--surface,#f0faf3);border-radius:18px;padding:22px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);border-top:3px solid #0e7490">
-          <div style="font-weight:800;font-size:1.02rem;margin-bottom:6px">📧 Confirme seu e-mail</div>
-          <div style="font-size:.8rem;color:var(--text-dim,#555);margin-bottom:12px">Olá, <b>${e(n)}</b>! Para manter seu cadastro, confirme seu e-mail. Ele vai para aprovação do administrador.${atual && atual.status === 'recusado' ? '<br><span style="color:#b91c1c">O e-mail enviado antes (' + e(atual.email) + ') não foi aprovado — confira e envie de novo.</span>' : ''}</div>
-          <input id="emailOpInp" type="email" required placeholder="seu.email@exemplo.com" style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:10px;border:1px solid var(--border,#b8dfc4);background:var(--surface2,#eef8f1);font-family:var(--mono);font-size:.85rem;color:var(--text,#111)">
+          <div style="font-weight:800;font-size:1.02rem;margin-bottom:6px">📧 Confirme seu e-mail e crie sua senha</div>
+          <div style="font-size:.8rem;color:var(--text-dim,#555);margin-bottom:12px">Olá, <b>${e(n)}</b>! Confirme seu e-mail e escolha uma senha. Depois que o administrador aprovar, você entra com o seu próprio e-mail e senha.${atual && atual.status === 'recusado' ? '<br><span style="color:#b91c1c">O e-mail enviado antes (' + e(atual.email) + ') não foi aprovado — confira e envie de novo.</span>' : ''}</div>
+          <input id="emailOpInp" type="email" required placeholder="seu.email@exemplo.com" autocomplete="email" style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:10px;border:1px solid var(--border,#b8dfc4);background:var(--surface2,#eef8f1);font-family:var(--mono);font-size:.85rem;color:var(--text,#111)">
+          <input id="emailOpSenha" type="password" required placeholder="Senha (mínimo 6 caracteres)" autocomplete="new-password" style="width:100%;box-sizing:border-box;margin-top:8px;padding:11px 12px;border-radius:10px;border:1px solid var(--border,#b8dfc4);background:var(--surface2,#eef8f1);font-family:var(--mono);font-size:.85rem;color:var(--text,#111)">
+          <input id="emailOpSenha2" type="password" required placeholder="Confirmar senha" autocomplete="new-password" style="width:100%;box-sizing:border-box;margin-top:8px;padding:11px 12px;border-radius:10px;border:1px solid var(--border,#b8dfc4);background:var(--surface2,#eef8f1);font-family:var(--mono);font-size:.85rem;color:var(--text,#111)">
           <div id="emailOpMsg" style="display:none;margin-top:10px;font-size:.78rem;color:#b91c1c"></div>
           <button type="submit" id="emailOpBtn" style="width:100%;margin-top:12px;padding:11px;border:none;border-radius:12px;background:linear-gradient(135deg,#2a9fbf,#4db87a);color:#fff;font-weight:800;cursor:pointer">Enviar para aprovação</button>
           <button type="button" id="emailOpDepois" style="width:100%;margin-top:8px;padding:9px;border:1px solid var(--border,#b8dfc4);border-radius:12px;background:transparent;font-family:var(--mono);font-size:.74rem;cursor:pointer;color:var(--text,#333)">Agora não (perguntar no próximo acesso)</button>
@@ -9859,13 +9888,26 @@ window._decidirEmailOperador = async function (id, status) {
             ev.preventDefault();
             const email = inp.value.trim().toLowerCase();
             if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg.textContent = 'E-mail inválido.'; msg.style.display = 'block'; return; }
+            const senha = ov.querySelector('#emailOpSenha').value;
+            if (senha.length < 6) { msg.textContent = 'A senha precisa ter pelo menos 6 caracteres.'; msg.style.display = 'block'; return; }
+            if (senha !== ov.querySelector('#emailOpSenha2').value) { msg.textContent = 'As senhas não conferem.'; msg.style.display = 'block'; return; }
             const btn = ov.querySelector('#emailOpBtn'); btn.disabled = true; btn.textContent = 'Enviando…';
-            const linha = { nome: n, conta: c, email, status: 'pendente', criado_em: new Date().toISOString(), decidido_em: null, decidido_por: null };
+            // cria o login dele (fica aguardando aprovação); a senha não é guardada em nenhuma tabela
+            let userId = null, obs = '';
+            try {
+                const r = await window._signUpIsolado(email, senha, n); userId = r.id;
+                if (r.confirmar) obs = '<br><br>📬 Abra o e-mail de confirmação que chegou para você e clique no link.';
+            } catch (er) {
+                const t = String(er?.message || er);
+                if (/already registered|already been registered|exists/i.test(t)) obs = '<br><br>Este e-mail já tinha login: depois da aprovação, use a senha que você já tem.';
+                else { msg.textContent = 'Não foi possível criar o login: ' + t; msg.style.display = 'block'; btn.disabled = false; btn.textContent = 'Enviar para aprovação'; return; }
+            }
+            const linha = { nome: n, conta: c, email, user_id: userId, status: 'pendente', criado_em: new Date().toISOString(), decidido_em: null, decidido_por: null };
             const { error } = atual
                 ? await window._supabase.from('operadores_email').update(linha).eq('id', atual.id)
                 : await window._supabase.from('operadores_email').insert(linha);
             if (error) { msg.textContent = 'Não foi possível enviar: ' + error.message; msg.style.display = 'block'; btn.disabled = false; btn.textContent = 'Enviar para aprovação'; return; }
-            ov.querySelector('form').innerHTML = '<div style="font-weight:800;font-size:1rem;margin-bottom:8px">✅ E-mail enviado!</div><div style="font-size:.82rem;color:var(--text-dim,#555)">Assim que o administrador aprovar, ele fica no seu cadastro.</div><button type="button" style="width:100%;margin-top:14px;padding:10px;border:none;border-radius:12px;background:#0e7490;color:#fff;font-weight:800;cursor:pointer" onclick="document.getElementById(\'emailOperadorOv\').remove()">OK</button>';
+            ov.querySelector('form').innerHTML = '<div style="font-weight:800;font-size:1rem;margin-bottom:8px">✅ E-mail enviado!</div><div style="font-size:.82rem;color:var(--text-dim,#555)">Assim que o administrador aprovar, você poderá entrar com o seu e-mail e senha.' + obs + '</div><button type="button" style="width:100%;margin-top:14px;padding:10px;border:none;border-radius:12px;background:#0e7490;color:#fff;font-weight:800;cursor:pointer" onclick="document.getElementById(\'emailOperadorOv\').remove()">OK</button>';
         };
     }
     setInterval(verificar, 3000);
