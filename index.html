@@ -23244,9 +23244,10 @@ else init();
         const sel = 'padding:6px 8px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--bg,#fff);color:var(--text);font-size:.74rem';
         const bt = 'padding:5px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.72rem;font-weight:700;cursor:pointer';
         box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span>📦 Volumes que vão:</span><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span></div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 6px"><input id="f-vol-bip" autocomplete="off" placeholder="🔫 Bipe o QR da caixa / bag / sacola e Enter" style="${sel};flex:1;min-width:230px;font-weight:700;border:2px solid #0d9488">
-            <span id="f-vol-bipmsg" style="font-weight:700;font-size:.72rem"></span></div>
+          <div style="font-weight:400;color:var(--text-dim);margin-bottom:3px">1º escolha a caixa na lista · 2º bipe o QR dela para confirmar</div>
           <div id="f-vol-linhas" style="display:flex;flex-direction:column;gap:5px"></div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 2px"><input id="f-vol-bip" autocomplete="off" placeholder="2º 🔫 escolha a caixa acima e depois bipe o QR dela" style="${sel};flex:1;min-width:230px;font-weight:700;border:2px solid #0d9488">
+            <span id="f-vol-bipmsg" style="font-weight:700;font-size:.72rem"></span></div>
           <button type="button" id="f-vol-add" style="${bt};margin-top:5px">+ adicionar caixa, bag ou sacola</button>`;
         (document.getElementById('btn-etq-qr-ficha') || fnf).insertAdjacentElement('afterend', box);
         const linhasEl = box.querySelector('#f-vol-linhas'), info = box.querySelector('#f-vol-info');
@@ -23265,6 +23266,8 @@ else init();
             }).join('');
             const n = vols.filter(v => v.cod).length;
             info.textContent = n ? `${n} volume(s): ` + vols.filter(v => v.cod).map(v => v.cod).join(', ') : 'nenhum';
+            { const falta = vols.filter(v => v.cod && !v.bipado).map(v => v.cod), bip = box.querySelector('#f-vol-bip');
+              if (bip) { bip.placeholder = falta.length ? `2º 🔫 bipe o QR da ${falta[0]} para confirmar` : '2º 🔫 escolha a caixa acima e depois bipe o QR dela'; bip.style.borderColor = falta.length ? '#dc2626' : '#0d9488'; } }
         };
         const recarregar = async () => {
             const r = await carregarCaixas(true).catch(() => null); carregou = !!(r && !r.erro); lista = carregou ? r : [];
@@ -23289,9 +23292,11 @@ else init();
             const c = lista.find(x => x.codigo === cod), pid = pidAtual();
             if (!c) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`; return; }
             if (c.status !== 'Disponível' && !(pid && c.proc_id_atual === pid)) { msg.innerHTML = `<span style="color:#dc2626">⚠ ${esc(cod)} não está disponível (${esc(stNome(c.status))}${c.local_atual ? ' — ' + esc(c.local_atual) : ''})</span>`; return; }
-            const ja = vols.find(v => v.cod === cod);
-            if (ja) ja.bipado = true; else { const vazio = vols.find(v => !v.cod); if (vazio) Object.assign(vazio, { tipo: c.tipo, cod, bipado: true }); else vols.push({ tipo: c.tipo, cod, bipado: true }); }
-            msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(cod)} bipada</span>`; desenhar(); inp.focus();
+            const escolhidas = vols.filter(v => v.cod), ja = escolhidas.find(v => v.cod === cod);
+            if (!escolhidas.length) { msg.innerHTML = `<span style="color:#dc2626">☝ Escolha primeiro a caixa na lista; depois bipe o QR dela.</span>`; return; }
+            if (!ja) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não é a caixa escolhida (${esc(escolhidas.filter(v => !v.bipado).map(v => v.cod).join(', ') || escolhidas.map(v => v.cod).join(', '))}). Bipe a caixa certa ou troque a escolha.</span>`; return; }
+            if (ja.bipado) { msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(cod)} já estava confirmada</span>`; return; }
+            ja.bipado = true; msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(cod)} confirmada pelo bipe</span>`; desenhar(); inp.focus();
         });
         box._volumes = () => ({ carregou, cods: vols.map(v => v.cod).filter(Boolean), bipados: vols.filter(v => v.cod && v.bipado).map(v => v.cod), antes: JSON.parse(box.dataset.antes || '[]') });
         box._recarregar = recarregar;
@@ -23306,7 +23311,7 @@ else init();
         if (antes && SAI.includes(antes.status)) return '';            // já tinha saído antes desta edição
         const box = document.getElementById('f-volume-cad'); if (!box || !box._volumes) return '';
         const v = box._volumes(); if (!v.carregou) return '';          // cadastro de caixas indisponível: não trava
-        return v.bipados.length ? '' : '🔒 O material está saindo do estoque.\n\nBipe o QR da caixa, bag ou sacola que vai com o material (campo "🔫 Bipe o QR…" em Volumes que vão) para liberar a gravação.';
+        return v.bipados.length ? '' : '🔒 O material está saindo do estoque.\n\nEm "Volumes que vão": 1º escolha a caixa, bag ou sacola na lista e 2º bipe o QR dela para confirmar. Só assim a gravação é liberada.';
     };
     window._volumeFichaSalvar = function (proc) {
         const box = document.getElementById('f-volume-cad'); if (!box || !box._volumes || !proc || !(proc._docId || proc.id)) return;
