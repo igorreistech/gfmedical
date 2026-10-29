@@ -466,6 +466,7 @@ html.embed .topbar .filial-mobile{display:none!important}
       <a class="nav-item" data-view="importar" href="#"><span class="nav-icon">📥</span> Importar NFs (PDF)</a>
       <div class="sdiv"></div>
       <a class="nav-item" href="index.html"><span class="nav-icon">⬅</span> Monitor Cirúrgico</a>
+      <a class="nav-item" href="index.html?hub=1" title="Abre a escolha de área do GF Hub sem pedir a senha de novo"><span class="nav-icon">🏠</span> GF Hub (trocar de área)</a>
       <a class="nav-item" href="compras.html"><span class="nav-icon">🛒</span> Programação de compras</a>
       <a class="nav-item" href="fretes.html"><span class="nav-icon">🚚</span> Controle de Fretes</a>
     </div>
@@ -620,7 +621,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-17.3';
+const VERSAO = '2026-10-28.1';
 const T = { nf: 'transf_nf', it: 'transf_itens', bx: 'transf_baixas' };
 
 const $ = id => document.getElementById(id);

@@ -709,6 +709,7 @@ details.par-card[open]>summary small::after{content:'✕ fechar';font-size:.7rem
       <div class="sdiv"></div>
       <a class="nav-item" href="fretes.html"><span class="nav-icon">🚚</span> Controle de Fretes</a>
       <a class="nav-item" href="index.html"><span class="nav-icon">⬅</span> Monitor Cirúrgico</a>
+      <a class="nav-item" href="index.html?hub=1" title="Abre a escolha de área do GF Hub sem pedir a senha de novo"><span class="nav-icon">🏠</span> GF Hub (trocar de área)</a>
       <a class="nav-item" href="transferencias.html"><span class="nav-icon">🔁</span> Transferências entre filiais</a>
     </div>
     <div class="sidebar-footer">
@@ -1059,7 +1060,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-22.2';
+const VERSAO = '2026-10-28.1';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores', mod: 'compras_modelos', outra: 'compras_estoque_outra', hist: 'compras_consumo_hist' };
 
 const $ = id => document.getElementById(id);

@@ -745,7 +745,7 @@
                 if (comercialView) comercialView.style.display = 'flex';
               } else {
                 if (mainCont)  mainCont.style.display  = '';
-                if (adminBtn)  adminBtn.style.display  = '';
+                if (adminBtn)  adminBtn.style.display  = 'inline-flex';
                 if (fabGroup)  fabGroup.style.display  = '';
                 if (agendView) agendView.style.display = 'none';
                 if (comercialView) comercialView.style.display = 'none';
@@ -772,7 +772,7 @@
               solicitarPermissaoNotificacoes();
             } else {
               if (mainCont)  mainCont.style.display  = '';
-              if (adminBtn)  adminBtn.style.display  = '';
+              if (adminBtn)  adminBtn.style.display  = 'inline-flex';
               if (fabGroup)  fabGroup.style.display  = '';
               if (agendView) agendView.style.display = 'none';
               if (comercialView) comercialView.style.display = 'none';
@@ -1013,9 +1013,15 @@
                   autoTransitar(p, 'agendado');
                 }
 
-                // Agendado: véspera (D-1, aviso antecipado) OU data já chegou/passou
-                // (recuperação de atraso) → Em Separação — só quando a hora da cirurgia já foi anotada
-                if (p.status === 'agendado' && p.data && minInicio(p) !== null && (p.data === amanha || p.data <= hoje)) {
+                // Em Separação colocada automaticamente na véspera (regra antiga), ainda sem NF e com a
+                // cirurgia em data futura → volta para Agendado
+                if (p.status === 'preparacao' && p.data && p.data > hoje && (!p.nf || !String(p.nf).trim()) && p.autoTransicaoEm) {
+                  p.status = 'agendado';
+                  autoTransitar(p, 'preparacao');
+                }
+
+                // Agendado fica Agendado até o DIA da cirurgia: no dia (ou atrasada), com a hora anotada → Em Separação
+                if (p.status === 'agendado' && p.data && minInicio(p) !== null && p.data <= hoje) {
                   p.status = 'preparacao';
                   autoTransitar(p, 'agendado');
                 }
@@ -9624,7 +9630,7 @@ function _ajustarBotaoUsuarios() {
     const email = String(u.email || '').toLowerCase(), op = window._operadorNome || (window._lerOperadorGF && window._lerOperadorGF());
     const compartilhada = /^comercial(mt)?@gfmedical/.test(email);
     const admin = compartilhada ? !!(op && ADMIN_OPERADORES.includes(op)) || (!op && u.role === 'admin') : u.role === 'admin';
-    if (admin && b.style.display === 'none') b.style.display = '';
+    if (admin && getComputedStyle(b).display === 'none') b.style.display = 'inline-flex';
 }
 setInterval(_ajustarBotaoUsuarios, 1500);
 
@@ -25003,5 +25009,40 @@ else init();
 </script>
 <script src="fretes-config.js"></script>
 <script src="aviso-transferencias.js" defer></script>
+<script>
+// ─── GF Hub sem pedir login/senha de novo: botão "🏠 GF Hub" no Monitor e ?hub=1 vindo das outras áreas ───
+(function () {
+    const pronto = () => window._currentUser && document.getElementById('loginOverlay')?.classList.contains('hidden');
+    const abrirHub = () => { const d = document.getElementById('destinoOverlay'); if (d) d.classList.remove('hidden'); };
+    window.abrirGFHub = abrirHub;
+    if (new URLSearchParams(location.search).get('hub') === '1') {
+        const t = setInterval(() => { if (!pronto()) return; clearInterval(t); abrirHub();
+            const u = new URL(location.href); u.searchParams.delete('hub'); history.replaceState(null, '', u.toString()); }, 300);
+        setTimeout(() => clearInterval(t), 20000);
+    }
+    function botao() {
+        const sair = document.getElementById('logoutBtn'); if (!sair || document.getElementById('btn-gfhub')) return;
+        const b = document.createElement('button'); b.id = 'btn-gfhub'; b.className = 'logout-btn'; b.textContent = '🏠 GF Hub';
+        b.title = 'Ir para outra área (Fichas OPME, Fretes, Compras, Transferências) sem digitar a senha de novo';
+        b.onclick = abrirHub; sair.parentNode.insertBefore(b, sair);
+        const sync = () => { b.style.display = sair.style.display === 'none' ? 'none' : ''; };
+        sync(); new MutationObserver(sync).observe(sair, { attributes: true, attributeFilter: ['style'] });
+    }
+    // nome de quem está logado (na conta comercial compartilhada: o operador escolhido)
+    function chipUsuario() {
+        const sair = document.getElementById('logoutBtn'); if (!sair) return;
+        let c = document.getElementById('chip-usuario-logado');
+        if (!c) { c = document.createElement('span'); c.id = 'chip-usuario-logado'; c.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;border:1px solid var(--border,#cfe5d6);background:var(--surface,#fff);color:var(--text);font-family:var(--mono);font-size:.68rem;font-weight:800;white-space:nowrap'; sair.parentNode.insertBefore(c, document.getElementById('btn-gfhub') || sair); }
+        const u = window._currentUser, op = window._operadorNome || (window._lerOperadorGF && window._lerOperadorGF());
+        const nome = op || (u && (u.nome && !/@/.test(u.nome) ? u.nome : u.email)) || '';
+        const papel = u ? (u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Visualização' : u.role === 'agendador' ? 'Agendador' : '') : '';
+        c.style.display = nome && sair.style.display !== 'none' ? 'inline-flex' : 'none';
+        c.innerHTML = '👤 ' + String(nome).replace(/[<>&]/g, '') + (papel ? ' <span style="font-weight:600;opacity:.65">· ' + papel + '</span>' : '');
+        c.title = u ? 'Logado como ' + (u.email || '') : '';
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', botao); else botao();
+    setInterval(chipUsuario, 1500);
+})();
+</script>
 </body>
 </html>

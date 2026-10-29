@@ -390,6 +390,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <a class="nav-item" href="compras.html"><span class="nav-icon">🛒</span> Programação de compras</a>
       <a class="nav-item" href="transferencias.html"><span class="nav-icon">🔁</span> Transferências entre filiais</a>
       <a class="nav-item" href="index.html"><span class="nav-icon">⬅</span> Monitor Cirúrgico</a>
+      <a class="nav-item" href="index.html?hub=1" title="Abre a escolha de área do GF Hub sem pedir a senha de novo"><span class="nav-icon">🏠</span> GF Hub (trocar de área)</a>
     </div>
     <div class="sidebar-footer">
       <div class="user-chip">
@@ -821,7 +822,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-22.1';
+const VERSAO = '2026-10-28.1';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261030';
