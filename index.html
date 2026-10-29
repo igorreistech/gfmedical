@@ -24515,13 +24515,22 @@ else init();
     async function juntarNaCaixa(cx, p, pid) {
         if (_cxSemMulti) throw new Error(MSG_SQL_MULTI);
         const sb = window._supabase, agora = new Date().toISOString();
-        const ex = cxExtras(cx).filter(x => String(x.id) !== pid).concat([{ id: pid, nf: String(p.nf || '').trim() }]);
+        const nf = String(p.nf || '').trim();
+        const ex = cxExtras(cx).filter(x => !(pid && String(x.id) === pid) && !(nf && String(x.nf || '') === nf)).concat([{ id: pid || '', nf }]);
         const local = [...new Set(String(cx.local_atual || '').split(' + ').concat([[p.hospital, p.cidade].filter(Boolean).join(' — ')]).map(s => s.trim()).filter(s => s && s !== 'Fora'))].join(' + ') || cx.local_atual;
         const { error } = await sb.from('caixas_bags').update({ procs_extra: ex, local_atual: local, atualizado_em: agora }).eq('id', cx.id);
         if (error) { if (faltaSQLMulti(error) || /PGRST204|schema cache/i.test(error.message || '')) { _cxSemMulti = true; throw new Error(MSG_SQL_MULTI); } throw error; }
         await sb.from('caixas_bags_mov').insert({ filial: filialAtual(null), caixa_id: cx.id, codigo: cx.codigo, tipo_mov: 'Mais uma NF', data: agora, destino: p.hospital || null, cidade: p.cidade || null,
             proc_id: pid, nf: p.nf || null, paciente: p.paciente || null, obs: 'foi na mesma caixa' + (cx.nf_atual ? ' da NF ' + cx.nf_atual : ''), responsavel: operador() });
         cx.procs_extra = ex; cx.local_atual = local;
+    }
+    // a NF já está na caixa mas sem o id da cirurgia (gravada antes de a cirurgia existir): liga agora
+    async function vincularNaCaixa(cx, nf, pid) {
+        const sb = window._supabase; let up = null;
+        if (!cx.proc_id_atual && String(cx.nf_atual || '') === nf) up = { proc_id_atual: pid };
+        else if (cxExtras(cx).some(x => !x.id && String(x.nf || '') === nf)) up = { procs_extra: cxExtras(cx).map(x => !x.id && String(x.nf || '') === nf ? { ...x, id: pid } : x) };
+        if (!up) return;
+        const { error } = await sb.from('caixas_bags').update(up).eq('id', cx.id); if (!error) Object.assign(cx, up);
     }
     // tira uma cirurgia da caixa; se era a única, a caixa volta para o estoque
     async function soltarDaCaixa(cx, pid, obs) {
@@ -24597,11 +24606,13 @@ else init();
         const pid = String(p._docId || p.id || ''); let n = 0;
         for (const cod of codigos) {
             const cx = lista.find(c => c.codigo === cod); if (!cx) continue;
-            if (cx.status === 'Fora' && (pid ? cxTem(cx, pid) : p.nf && cxNfs(cx).includes(String(p.nf).trim()))) {   // já está nesta cirurgia: só completa quem levou (vendedor preenchido depois)
+            const nfP = String(p.nf || '').trim();
+            if (cx.status === 'Fora' && (cxTem(cx, pid) || (nfP && cxNfs(cx).includes(nfP)))) {
+                if (pid && !cxTem(cx, pid)) { try { await vincularNaCaixa(cx, nfP, pid); _cxCache = null; } catch (e) {} }   // já está nesta cirurgia: só completa quem levou (vendedor preenchido depois)
                 if (!cx.levado_por && p.vendedor) { try { if (await completarQuemLevou(cx, p.vendedor)) _cxCache = null; } catch (e) {} }
                 continue;
             }
-            if (cx.status === 'Fora' && pid && !String(cx.proc_id_atual || '').startsWith('rem:')) {   // já está fora com outra NF: vai na mesma caixa
+            if (cx.status === 'Fora' && (pid || nfP) && !String(cx.proc_id_atual || '').startsWith('rem:')) {   // já está fora com outra NF: vai na mesma caixa
                 try { await juntarNaCaixa(cx, p, pid); n++; } catch (e) { console.warn('caixas_bags:', e.message || e); if (e.message === MSG_SQL_MULTI) alert('⚠ ' + cx.codigo + ' já está fora com outra nota. ' + MSG_SQL_MULTI); }
                 continue;
             }
