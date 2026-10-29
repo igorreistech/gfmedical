@@ -10546,7 +10546,7 @@ async function _saveProcedureImpl(e) {
     }
 
     const dupsCheck = [
-        ...verificarDuplicatas(proc.hospital, proc.medico, proc.data, editingDocId),
+        ...verificarDuplicatas(proc.hospital, proc.medico, proc.data, editingDocId, proc.paciente, proc.nf),
         ...verificarDuplicatasColeta(proc.coletaDataCirurgia, proc.coletaFornecedor, editingDocId),
     ];
     if (dupsCheck.length > 0) {
@@ -12598,12 +12598,17 @@ function setGroupBy(val) { currentGroup=val; renderCards(); }
 // ════════════════════════════════════════════
 // DETECÇÃO DE DUPLICATAS
 // ════════════════════════════════════════════
-function verificarDuplicatas(hospital, medico, data, excludeDocId) {
+function verificarDuplicatas(hospital, medico, data, excludeDocId, paciente, nf) {
     if (!hospital || !data) return [];
+    const norm = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+    const pac = norm(paciente), nota = String(nf || '').replace(/\D/g, '');
     return procedimentos.filter(p => {
         if (p._docId===excludeDocId) return false;
         if (['concluido','cancelado'].includes(p.status)) return false;
         if (_ehColeta(p) || p.isColeta) return false;
+        const pNota = String(p.nf || '').replace(/\D/g, '');
+        if (nota && pNota) return nota === pNota;                                  // NFs diferentes = cirurgias diferentes
+        if (pac && norm(p.paciente) && pac !== norm(p.paciente)) return false;     // pacientes diferentes = cirurgias diferentes
         const mMatch=!medico||!p.medico||p.medico.toLowerCase()===medico.toLowerCase();
         return p.hospital&&p.hospital.toLowerCase()===hospital.toLowerCase()&&p.data===data&&mMatch;
     });
@@ -12635,12 +12640,12 @@ function mostrarAviso(dups) {
     }).join('');
 }
 function executarCheckDuplicata() {
-    const d1 = verificarDuplicatas(document.getElementById('f-hospital')?.value, document.getElementById('f-medico')?.value, document.getElementById('f-data')?.value, editingDocId);
+    const d1 = verificarDuplicatas(document.getElementById('f-hospital')?.value, document.getElementById('f-medico')?.value, document.getElementById('f-data')?.value, editingDocId, document.getElementById('f-paciente')?.value, document.getElementById('f-nf')?.value);
     const d2 = verificarDuplicatasColeta(document.getElementById('f-coleta-data-cirurgia')?.value, document.getElementById('f-coleta-fornecedor')?.value, editingDocId);
     mostrarAviso([...d1, ...d2]);
 }
 function hookDupCheck() {
-    ['f-hospital','f-data','f-medico','f-coleta-data-cirurgia','f-coleta-fornecedor'].forEach(id=>{
+    ['f-hospital','f-data','f-medico','f-paciente','f-nf','f-coleta-data-cirurgia','f-coleta-fornecedor'].forEach(id=>{
         const el=document.getElementById(id);
         if(el) el.addEventListener('change', executarCheckDuplicata);
     });
