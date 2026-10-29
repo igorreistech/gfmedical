@@ -110,6 +110,8 @@
         location.reload();
       };
 
+      // Voltou pelo link de "Esqueci minha senha"? (capturado antes do Supabase limpar o endereço)
+      window._ehRecuperacaoSenha = /type=recovery/.test(location.hash) || /type=recovery/.test(location.search);
       const SUPABASE_URL = BR.url;
       const SUPABASE_ANON_KEY = BR.key;
 
@@ -569,6 +571,83 @@
         }).catch(() => {});
         return { id: data?.user?.id || null, confirmar: !data?.session };
       };
+
+      // ─── Esqueci minha senha ───
+      const _caixaSenha = (html) => {
+        const ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100001;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)';
+        ov.innerHTML = `<form style="background:var(--surface,#f0faf3);border-radius:18px;padding:24px 22px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);border-top:3px solid #2a9fbf">${html}</form>`;
+        document.body.appendChild(ov); return ov;
+      };
+      const _inpSenha = 'width:100%;box-sizing:border-box;margin-top:8px;padding:11px 12px;border-radius:10px;border:1px solid var(--border,#b8dfc4);background:var(--surface2,#eef8f1);font-family:var(--mono);font-size:.85rem;color:var(--text,#111)';
+      const _btnSenha = 'width:100%;margin-top:12px;padding:11px;border:none;border-radius:12px;background:linear-gradient(135deg,#2a9fbf,#4db87a);color:#fff;font-weight:800;cursor:pointer';
+      const _btnSec = 'width:100%;margin-top:8px;padding:9px;border:1px solid var(--border,#b8dfc4);border-radius:12px;background:transparent;font-family:var(--mono);font-size:.74rem;cursor:pointer;color:var(--text,#333)';
+      window.abrirEsqueciSenha = function() {
+        if (document.getElementById('esqueciSenhaOv')) return;
+        const ov = _caixaSenha(`<div style="font-weight:800;font-size:1.02rem;margin-bottom:6px">🔑 Esqueci minha senha</div>
+          <div style="font-size:.8rem;color:var(--text-dim,#555)">Informe seu e-mail de login. Você vai receber um link para criar uma nova senha.</div>
+          <input id="esqEmail" type="email" required placeholder="seu@email.com" autocomplete="email" style="${_inpSenha}">
+          <div id="esqMsg" style="display:none;margin-top:10px;font-size:.8rem;padding:9px 11px;border-radius:10px"></div>
+          <button id="esqBtn" type="submit" style="${_btnSenha}">Enviar link</button>
+          <button id="esqFechar" type="button" style="${_btnSec}">Fechar</button>`);
+        ov.id = 'esqueciSenhaOv';
+        const $e = id => ov.querySelector('#' + id);
+        const msg = (t, ok) => { const m = $e('esqMsg'); m.style.display = 'block'; m.textContent = t; m.style.background = ok ? 'rgba(77,184,122,.15)' : 'rgba(220,38,38,.1)'; m.style.color = ok ? '#166534' : '#b91c1c'; };
+        $e('esqEmail').value = document.getElementById('loginUser')?.value || '';
+        $e('esqEmail').focus();
+        $e('esqFechar').onclick = () => ov.remove();
+        ov.addEventListener('click', ev => { if (ev.target === ov) ov.remove(); });
+        ov.querySelector('form').onsubmit = async ev => {
+          ev.preventDefault();
+          const email = $e('esqEmail').value.trim().toLowerCase();
+          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg('E-mail inválido.');
+          const btn = $e('esqBtn'); btn.disabled = true; btn.textContent = 'Enviando…';
+          const volta = location.origin + location.pathname + (typeof ACTIVE_BRANCH_CODE !== 'undefined' ? '?filial=' + ACTIVE_BRANCH_CODE : '');
+          try {
+            const { error } = await auth.resetPasswordForEmail(email, { redirectTo: volta });
+            if (error) throw error;
+            msg('📬 Se esse e-mail tiver login, o link chega em instantes. Olhe também o spam. O link vale por 1 hora.', true);
+            btn.textContent = 'Enviado ✓';
+          } catch (er) {
+            const t = String(er?.message || er);
+            msg(/rate limit|security purposes|seconds/i.test(t) ? 'Muitos pedidos seguidos. Aguarde alguns minutos e tente de novo.' : 'Não foi possível enviar: ' + t);
+            btn.disabled = false; btn.textContent = 'Enviar link';
+          }
+        };
+      };
+      // Voltou pelo link do e-mail: pede a nova senha
+      window._abrirNovaSenha = function() {
+        if (document.getElementById('novaSenhaOv')) return;
+        const ov = _caixaSenha(`<div style="font-weight:800;font-size:1.02rem;margin-bottom:6px">🔑 Crie sua nova senha</div>
+          <div style="font-size:.8rem;color:var(--text-dim,#555)">Digite a nova senha duas vezes.</div>
+          <input id="nsSenha" type="password" required placeholder="Nova senha (mínimo 6 caracteres)" autocomplete="new-password" style="${_inpSenha}">
+          <input id="nsSenha2" type="password" required placeholder="Confirmar nova senha" autocomplete="new-password" style="${_inpSenha}">
+          <div id="nsMsg" style="display:none;margin-top:10px;font-size:.8rem;padding:9px 11px;border-radius:10px"></div>
+          <button id="nsBtn" type="submit" style="${_btnSenha}">Salvar nova senha</button>`);
+        ov.id = 'novaSenhaOv';
+        const $n = id => ov.querySelector('#' + id);
+        const msg = (t, ok) => { const m = $n('nsMsg'); m.style.display = 'block'; m.textContent = t; m.style.background = ok ? 'rgba(77,184,122,.15)' : 'rgba(220,38,38,.1)'; m.style.color = ok ? '#166534' : '#b91c1c'; };
+        $n('nsSenha').focus();
+        ov.querySelector('form').onsubmit = async ev => {
+          ev.preventDefault();
+          const s1 = $n('nsSenha').value;
+          if (s1.length < 6) return msg('A senha precisa ter pelo menos 6 caracteres.');
+          if (s1 !== $n('nsSenha2').value) return msg('As senhas não conferem.');
+          const btn = $n('nsBtn'); btn.disabled = true; btn.textContent = 'Salvando…';
+          try {
+            const { error } = await auth.updateUser({ password: s1 });
+            if (error) throw error;
+            ov.querySelector('form').innerHTML = `<div style="font-weight:800;font-size:1.02rem;margin-bottom:8px">✅ Senha alterada!</div><div style="font-size:.82rem;color:var(--text-dim,#555)">Da próxima vez, entre com o seu e-mail e a nova senha.</div><button type="button" style="${_btnSenha}" onclick="document.getElementById('novaSenhaOv').remove()">Continuar</button>`;
+          } catch (er) {
+            const t = String(er?.message || er);
+            msg(/session|expired|missing|jwt/i.test(t) ? 'O link expirou ou já foi usado. Peça um novo em "Esqueci minha senha".' : /same|different/i.test(t) ? 'A nova senha precisa ser diferente da atual.' : 'Não foi possível salvar: ' + t);
+            btn.disabled = false; btn.textContent = 'Salvar nova senha';
+          }
+        };
+      };
+      auth.onAuthStateChange((ev, ses) => {
+        if (ev === 'PASSWORD_RECOVERY' || (window._ehRecuperacaoSenha && ses)) { window._ehRecuperacaoSenha = false; setTimeout(() => window._abrirNovaSenha(), 300); }
+      });
 
       // Admin: muda o perfil de um usuário (aprovar pendente como Operador/Agendador, recusar, trocar perfil)
       window.doAdminSetRole = async function(docId, role) {
@@ -5062,6 +5141,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
 
         <div class="login-error" id="loginError" style="display:none;"></div>
         <button type="button" class="login-toggle-link" onclick="window.abrirSolicitarAcesso()" style="margin-top:6px;font-weight:700;">📝 Não tem acesso? Solicitar cadastro</button>
+        <button type="button" class="login-toggle-link" onclick="window.abrirEsqueciSenha()" style="margin-top:4px;">🔑 Esqueci minha senha</button>
         <button type="button" class="login-toggle-link" onclick="window._trocarFilial()" style="margin-top:10px;">Trocar unidade (atual: <span id="filialAtualLabel"></span>)</button>
     </div>
 </div>
