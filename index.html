@@ -601,7 +601,10 @@
         const email   = (emailEl?.value||'').trim().toLowerCase();
         const role    = roleEl?.value || 'agendador';
         const nome    = (nomeEl?.value||'').trim();
+        const senhaEl = document.getElementById('admin-new-senha');
+        const senha   = senhaEl?.value || '';
         if (!email) { emailEl?.focus(); return; }
+        if (senha && senha.length < 6) { alert('A senha precisa ter pelo menos 6 caracteres.'); senhaEl?.focus(); return; }
         try {
           const { data: sessionData } = await auth.getSession();
           const resp = await fetch(SUPABASE_URL + '/functions/v1/create-user', {
@@ -610,13 +613,16 @@
               'Content-Type': 'application/json',
               Authorization: 'Bearer ' + sessionData.session.access_token,
             },
-            body: JSON.stringify({ email, role, nome: nome || email }),
+            body: JSON.stringify({ email, role, nome: nome || email, ...(senha ? { password: senha } : {}) }),
           });
           const result = await resp.json();
           if (!resp.ok) throw new Error(result.error || 'Falha ao criar usuário.');
           if (emailEl) emailEl.value = '';
           if (nomeEl)  nomeEl.value  = '';
-          alert(`Usuário criado. Senha temporária: ${result.temp_password}\n\nCompartilhe com a pessoa por um canal seguro.`);
+          if (senhaEl) { senhaEl.value = ''; senhaEl.type = 'password'; }
+          if (senha && result.senha_definida) alert(`✅ Usuário criado com a senha que você definiu.\n\nLogin: ${email}`);
+          else if (senha) alert(`Usuário criado, mas o servidor ainda está com a versão antiga e gerou uma senha temporária: ${result.temp_password}\n\n(Publique a function create-user atualizada no Supabase para usar a senha escolhida.)`);
+          else alert(`Usuário criado. Senha temporária: ${result.temp_password}\n\nCompartilhe com a pessoa por um canal seguro.`);
           doAdminLoadUsers();
         } catch(e) { alert('Erro ao criar usuário: '+e.message); }
       };
@@ -4984,6 +4990,13 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
             <div>
                 <label>E-mail</label>
                 <input class="admin-add-input" type="email" id="admin-new-email" placeholder="usuario@empresa.com.br">
+            </div>
+            <div>
+                <label>Senha</label>
+                <div style="position:relative;">
+                    <input class="admin-add-input" type="password" id="admin-new-senha" placeholder="Mínimo 6 caracteres · em branco gera uma temporária" autocomplete="new-password" style="padding-right:44px;">
+                    <button type="button" onclick="const i=document.getElementById('admin-new-senha');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈';" title="Mostrar/ocultar senha" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;opacity:.6;">👁</button>
+                </div>
             </div>
             <div>
                 <label>Perfil</label>
