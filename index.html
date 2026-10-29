@@ -23600,7 +23600,7 @@ else init();
             const cods = [...new Set(codigosNoTexto(v))];
             try { if (cods.length) await saidaCaixasDaCirurgia(proc, cods); } catch (e) { console.warn(e); }
             const l = cods.length ? await carregarCaixas(true).catch(() => null) : null;
-            const ok = l && !l.erro ? cods.filter(k => l.some(x => x.codigo === k && x.proc_id_atual === pid)) : [], sem = l && !l.erro ? cods.filter(k => !l.some(x => x.codigo === k)) : [];
+            const ok = l && !l.erro ? cods.filter(k => l.some(x => x.codigo === k && cxTem(x, pid))) : [], sem = l && !l.erro ? cods.filter(k => !l.some(x => x.codigo === k)) : [];
             msg.innerHTML = !v ? '<span style="color:var(--text-dim)">Nº da caixa apagado.</span>'
                 : `<span style="color:#16a34a;font-weight:700">✅ Salvo${ok.length ? ' · saída registrada: ' + esc(ok.join(', ')) : ''}</span>${sem.length ? `<br><span style="color:#b45309">⚠ ${esc(sem.join(', '))} não está cadastrada no controle de caixas</span>` : ''} <span style="color:var(--text-dim)">— agora é só imprimir a etiqueta.</span>`;
             btns.forEach(b => { b.disabled = false; b.textContent = '✅ Salvo'; }); setTimeout(() => btns.forEach(b => { b.textContent = '💾 Salvar'; }), 2500);
@@ -23611,9 +23611,9 @@ else init();
         ov.querySelector('[data-pdfitens]')?.addEventListener('click', async () => { const its = await itensDoPdfNF(proc); if (its) { ov.remove(); window.abrirQRCode(proc); } });
         carregarCaixas(true).then(l => { if (!l || l.erro) return; const pid = String(proc._docId || proc.id || '');
             const dl = document.createElement('datalist'); dl.id = 'cx-cad-sug';
-            dl.innerHTML = l.filter(x => x.status === 'Disponível' || x.proc_id_atual === pid).map(x => `<option value="${esc(x.codigo)}">${esc(x.tipo + (x.descricao ? ' · ' + x.descricao : '') + (x.proc_id_atual === pid ? ' · já nesta cirurgia' : ''))}</option>`).join('');
+            dl.innerHTML = l.filter(x => x.status === 'Disponível' || x.status === 'Fora').map(x => `<option value="${esc(x.codigo)}">${esc(x.tipo + (x.descricao ? ' · ' + x.descricao : '') + (cxTem(x, pid) ? ' · já nesta cirurgia' : x.status === 'Fora' ? ' · já leva NF ' + (cxNfs(x).join(', ') || '?') : ''))}</option>`).join('');
             ov.appendChild(dl);
-            const fora = l.filter(x => x.status === 'Fora' && x.proc_id_atual === pid);
+            const fora = l.filter(x => x.status === 'Fora' && cxTem(x, pid));
             if (fora.length) { const d = document.createElement('div'); d.style.cssText = 'margin-top:6px;font-size:.7rem;color:#2563eb;text-align:left'; d.textContent = '📦 Saída registrada: ' + fora.map(x => x.codigo).join(', ') + ' (volta sozinha quando a cirurgia ficar Concluída)'; inp.closest('label').after(d); }
         }).catch(() => {});
         document.body.appendChild(ov);
@@ -23658,10 +23658,11 @@ else init();
             const pid = pidAtual();
             linhasEl.innerHTML = vols.map((v, i) => {
                 const usados = vols.filter((x, j) => j !== i).map(x => x.cod);
-                const ops = v.tipo ? lista.filter(c => c.tipo === v.tipo && c.status !== 'Baixada' && !usados.includes(c.codigo) && (c.status === 'Disponível' || (pid && c.proc_id_atual === pid))) : [];
+                const outra = c => c.status === 'Fora' && c.proc_id_atual && !String(c.proc_id_atual).startsWith('rem:') && !cxTem(c, pid);
+                const ops = v.tipo ? lista.filter(c => c.tipo === v.tipo && c.status !== 'Baixada' && !usados.includes(c.codigo) && (c.status === 'Disponível' || cxTem(c, pid) || outra(c))) : [];
                 return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                   <select data-vtipo="${i}" style="${sel}"><option value="">— tipo —</option>${['Caixa', 'Bag', 'Sacola'].map(t => `<option value="${t}" ${v.tipo === t ? 'selected' : ''}>${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t}</option>`).join('')}</select>
-                  ${v.tipo ? `<select data-vcod="${i}" style="${sel};min-width:120px"><option value="">${ops.length ? `— escolha a ${v.tipo.toLowerCase()} —` : `nenhuma ${v.tipo.toLowerCase()} disponível`}</option>${ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.cod ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${pid && c.proc_id_atual === pid ? ' (já nesta cirurgia)' : ''}</option>`).join('')}</select>` : ''}
+                  ${v.tipo ? `<select data-vcod="${i}" style="${sel};min-width:120px"><option value="">${ops.length ? `— escolha a ${v.tipo.toLowerCase()} —` : `nenhuma ${v.tipo.toLowerCase()} disponível`}</option>${ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.cod ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${cxTem(c, pid) ? ' (já nesta cirurgia)' : outra(c) ? ' · já leva NF ' + esc(cxNfs(c).join(', ') || '?') + (c.local_atual ? ' — ' + esc(c.local_atual) : '') : ''}</option>`).join('')}</select>` : ''}
                   ${v.cod ? (v.bipado ? '<span style="color:#16a34a;font-weight:800">✅ bipada</span>' : '<span style="color:#b45309;font-weight:700" title="Escolhida na lista — bipe o QR para confirmar">⚠ não bipada</span>') : ''}
                   <button type="button" data-vdel="${i}" title="Tirar este volume" style="${bt};padding:4px 8px">✕</button></div>`;
             }).join('');
@@ -23673,7 +23674,7 @@ else init();
         const recarregar = async () => {
             const r = await carregarCaixas(true).catch(() => null); carregou = !!(r && !r.erro); lista = carregou ? r : [];
             const pid = pidAtual();
-            vols = pid ? lista.filter(c => c.status === 'Fora' && c.proc_id_atual === pid).map(c => ({ tipo: c.tipo, cod: c.codigo, bipado: true })) : [];
+            vols = pid ? lista.filter(c => c.status === 'Fora' && cxTem(c, pid)).map(c => ({ tipo: c.tipo, cod: c.codigo, bipado: true })) : [];
             const m = box.querySelector('#f-vol-bipmsg'); if (m) m.textContent = '';
             box.dataset.antes = JSON.stringify(vols.map(v => v.cod));
             desenhar();
@@ -23692,7 +23693,7 @@ else init();
             if (!carregou) await recarregar();
             const c = lista.find(x => x.codigo === cod), pid = pidAtual();
             if (!c) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`; return; }
-            if (c.status !== 'Disponível' && !(pid && c.proc_id_atual === pid)) { msg.innerHTML = `<span style="color:#dc2626">⚠ ${esc(cod)} não está disponível (${esc(stNome(c.status))}${c.local_atual ? ' — ' + esc(c.local_atual) : ''})</span>`; return; }
+            if (c.status !== 'Disponível' && !cxTem(c, pid) && c.status !== 'Fora') { msg.innerHTML = `<span style="color:#dc2626">⚠ ${esc(cod)} não está disponível (${esc(stNome(c.status))}${c.local_atual ? ' — ' + esc(c.local_atual) : ''})</span>`; return; }
             const escolhidas = vols.filter(v => v.cod), ja = escolhidas.find(v => v.cod === cod);
             if (!escolhidas.length) { msg.innerHTML = `<span style="color:#dc2626">☝ Escolha primeiro a caixa na lista; depois bipe o QR dela.</span>`; return; }
             if (!ja) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não é a caixa escolhida (${esc(escolhidas.filter(v => !v.bipado).map(v => v.cod).join(', ') || escolhidas.map(v => v.cod).join(', '))}). Bipe a caixa certa ou troque a escolha.</span>`; return; }
@@ -23733,8 +23734,8 @@ else init();
             // tirada da lista da cirurgia antes de sair: volta para o estoque
             if (tirados.length) carregarCaixas(true).then(async l => {
                 const pid = String(proc._docId || proc.id);
-                for (const cx of (l && !l.erro ? l : []).filter(c => tirados.includes(c.codigo) && c.status === 'Fora' && c.proc_id_atual === pid))
-                    try { await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: pid, nf: cx.nf_atual, obs: 'tirada dos volumes da cirurgia (não foi)' }); } catch (e) { console.warn(e); }
+                for (const cx of (l && !l.erro ? l : []).filter(c => tirados.includes(c.codigo) && c.status === 'Fora' && cxTem(c, pid)))
+                    try { await soltarDaCaixa(cx, pid, 'tirada dos volumes da cirurgia (não foi)'); } catch (e) { console.warn(e); }
                 _cxCache = null; atualizarBadgeCaixas();
             }).catch(() => {});
         } catch (e) { console.warn('volume da ficha:', e); }
@@ -24049,7 +24050,7 @@ else init();
                 if (!caixas.length) {   // nenhuma caixa identificada nesta cirurgia: pergunta genérica
                     const ops = cadastro.filter(c => c.status !== 'Baixada');
                     sec.innerHTML = `<div style="font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#0d9488;margin-bottom:8px">📦 A caixa voltou junto com o material cirúrgico?</div>
-                      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-gen="sim" style="${bt};${resp._gen === 'sim' ? 'background:#4db87a;color:#fff;border-color:#4db87a' : ''}">✅ Voltou / não foi embalagem</button>
+                      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-gen="sim" style="${bt};${resp._gen === 'sim' ? 'background:#4db87a;color:#fff;border-color:#4db87a' : ''}">✅ Voltou</button>
                       <button type="button" data-gen="nao" style="${bt};${resp._gen === 'nao' ? 'background:#d94f4f;color:#fff;border-color:#d94f4f' : ''}">⏳ Não voltou</button></div>
                       ${resp._gen === 'nao' ? (ops.length ? `<div style="margin-top:8px;font-size:.72rem;font-weight:700;color:var(--text)">Qual ficou? <select data-gencod style="padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg,#fff);color:var(--text);font-size:.76rem">
                           <option value="">— escolha —</option>${ops.map(c => `<option value="${c.id}" ${resp._genCod === c.id ? 'selected' : ''}>${esc(c.codigo)} · ${c.tipo === 'Caixa' ? 'Caixa plástica' : esc(c.tipo)}${c.status === 'Fora' ? ' (fora: ' + esc(c.local_atual || '') + ')' : ''}</option>`).join('')}</select></div>`
@@ -24060,7 +24061,8 @@ else init();
                 sec.innerHTML = `<div style="font-family:var(--mono);font-size:.74rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#0d9488;margin-bottom:8px">📦 A caixa voltou junto com o material cirúrgico?</div>`
                     + caixas.map(c => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;flex-wrap:wrap"><b style="font-family:var(--mono);flex:1;min-width:120px">${CX_ICO[c.tipo] || '📦'} ${esc(c.codigo)} <span style="font-weight:400;font-size:.7rem;color:var(--text-dim)">${c.tipo === 'Caixa' ? 'Caixa plástica' : esc(c.tipo)}</span></b>
                         <button type="button" data-cxr="${c.id}" data-v="sim" style="${bt};${resp[c.id] === 'sim' ? 'background:#4db87a;color:#fff;border-color:#4db87a' : ''}">✅ Voltou</button>
-                        <button type="button" data-cxr="${c.id}" data-v="nao" style="${bt};${resp[c.id] === 'nao' ? 'background:#d94f4f;color:#fff;border-color:#d94f4f' : ''}">⏳ Não voltou</button></div>`).join('')
+                        <button type="button" data-cxr="${c.id}" data-v="nao" style="${bt};${resp[c.id] === 'nao' ? 'background:#d94f4f;color:#fff;border-color:#d94f4f' : ''}">⏳ Não voltou</button>
+                        ${c.status === 'Fora' && cxPids(c).some(x => x !== pid) ? `<button type="button" data-cxr="${c.id}" data-v="segue" title="A caixa continua fora com a outra nota" style="${bt};${resp[c.id] === 'segue' ? 'background:#2563eb;color:#fff;border-color:#2563eb' : ''}">➡ Seguiu com a NF ${esc(cxNfs(c).filter(n => n !== String(p.nf || '').trim()).join(', ') || 'outra')}</button>` : ''}</div>`).join('')
                     + `<div style="font-size:.68rem;color:var(--text-dim);margin-top:4px">Se não voltou, fica pendente e entra na cobrança.</div>`;
             };
             const mostrar = () => { sec.style.display = escolha === 'nao' ? 'none' : ''; };   // aparece já ao abrir; some só se o material NÃO foi retirado
@@ -24070,7 +24072,7 @@ else init();
                 if (!l || l.erro) return;
                 cadastro = l;
                 const cods = codigosNoTexto(caixaSalva(p));
-                caixas = l.filter(c => ((c.status === 'Fora' || c.status === 'Pendente') && c.proc_id_atual === pid) || (cods.includes(c.codigo) && c.status !== 'Baixada'));
+                caixas = l.filter(c => ((c.status === 'Fora' || c.status === 'Pendente') && cxTem(c, pid)) || (cods.includes(c.codigo) && c.status !== 'Baixada'));
                 caixas = caixas.filter((c, i) => caixas.findIndex(x => x.id === c.id) === i);
                 desenhar(); mostrar();
             }).catch(() => {});
@@ -24099,7 +24101,8 @@ else init();
                             await movCaixa(cx, 'Saída', { destino: p.hospital || '', cidade: p.cidade || '', proc_id: pid, nf: p.nf || '', paciente: p.paciente || '' });
                             cx = { ...cx, status: 'Fora', local_atual: [p.hospital, p.cidade].filter(Boolean).join(' — '), proc_id_atual: pid, nf_atual: p.nf || '' };
                         }
-                        if (resp[c.id] === 'sim') await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: pid, nf: cx.nf_atual, obs: 'voltou junto com o material (confirmação de retirada)' });
+                        if (resp[c.id] === 'segue') await soltarDaCaixa(cx, pid, 'material retirado; a caixa seguiu com a outra nota');
+                        else if (resp[c.id] === 'sim') await movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: pid, nf: cx.nf_atual, obs: 'voltou junto com o material (confirmação de retirada)' });
                         else if (cx.status !== 'Pendente') await movCaixa(cx, 'Pendente', { destino: cx.local_atual || '', proc_id: pid, nf: cx.nf_atual, obs: 'NÃO voltou com o material (confirmação de retirada)' });
                     } catch (err) { console.warn('caixa na retirada:', err); if (/caixas_bags_status_check/.test(String(err.message || err))) alert('Rode o SQL 20261107_caixas_pendente.sql no Supabase para registrar caixa pendente.'); }
                 }
@@ -24494,6 +24497,38 @@ else init();
     // Etapa de limpeza: no retorno a embalagem fica "Em limpeza" até alguém marcar como limpa (liga/desliga na tela, por computador).
     // Sem o SQL 20261108_caixas_controle.sql o banco não aceita esse status nem as colunas levado_por/lacre: aí segue sem eles.
     let _cxSemControle = false;
+    // uma caixa pode levar várias cirurgias/NFs: a principal fica em proc_id_atual/nf_atual e as outras em procs_extra
+    let _cxSemMulti = false;
+    const cxExtras = c => Array.isArray(c && c.procs_extra) ? c.procs_extra : [];
+    const cxPids = c => [c.proc_id_atual, ...cxExtras(c).map(x => x.id)].filter(Boolean).map(String);
+    const cxNfs = c => [...new Set([c.nf_atual, ...cxExtras(c).map(x => x.nf)].filter(Boolean).map(String))];
+    const cxTem = (c, pid) => !!pid && cxPids(c).includes(String(pid));
+    const faltaSQLMulti = err => /procs_extra/i.test(String(err?.message || err || ''));
+    const MSG_SQL_MULTI = 'Para a mesma caixa levar várias notas, rode o SQL 20261111_caixas_varias_nf.sql no Supabase.';
+    const localDasCirurgias = pids => [...new Set(pids.map(id => { const q = procPorId(id); return q ? [q.hospital, q.cidade].filter(Boolean).join(' — ') : ''; }).filter(Boolean))].join(' + ');
+    // mais uma cirurgia/NF na mesma caixa que já está fora
+    async function juntarNaCaixa(cx, p, pid) {
+        if (_cxSemMulti) throw new Error(MSG_SQL_MULTI);
+        const sb = window._supabase, agora = new Date().toISOString();
+        const ex = cxExtras(cx).filter(x => String(x.id) !== pid).concat([{ id: pid, nf: String(p.nf || '').trim() }]);
+        const local = localDasCirurgias([cx.proc_id_atual, ...ex.map(x => x.id)].filter(Boolean)) || cx.local_atual;
+        const { error } = await sb.from('caixas_bags').update({ procs_extra: ex, local_atual: local, atualizado_em: agora }).eq('id', cx.id);
+        if (error) { if (faltaSQLMulti(error) || /PGRST204|schema cache/i.test(error.message || '')) { _cxSemMulti = true; throw new Error(MSG_SQL_MULTI); } throw error; }
+        await sb.from('caixas_bags_mov').insert({ filial: filialAtual(null), caixa_id: cx.id, codigo: cx.codigo, tipo_mov: 'Mais uma NF', data: agora, destino: p.hospital || null, cidade: p.cidade || null,
+            proc_id: pid, nf: p.nf || null, paciente: p.paciente || null, obs: 'foi na mesma caixa' + (cx.nf_atual ? ' da NF ' + cx.nf_atual : ''), responsavel: operador() });
+        cx.procs_extra = ex; cx.local_atual = local;
+    }
+    // tira uma cirurgia da caixa; se era a única, a caixa volta para o estoque
+    async function soltarDaCaixa(cx, pid, obs) {
+        const ex = cxExtras(cx); pid = String(pid);
+        if (!ex.length) return movCaixa(cx, 'Retorno', { destino: cx.local_atual || '', proc_id: pid, nf: cx.nf_atual, obs });
+        const sb = window._supabase, agora = new Date().toISOString(), saiu = String(cx.proc_id_atual) === pid ? { id: pid, nf: cx.nf_atual } : ex.find(x => String(x.id) === pid) || { id: pid };
+        const up = String(cx.proc_id_atual) === pid ? { proc_id_atual: String(ex[0].id), nf_atual: ex[0].nf || null, procs_extra: ex.slice(1) } : { procs_extra: ex.filter(x => String(x.id) !== pid) };
+        up.local_atual = localDasCirurgias([up.proc_id_atual || cx.proc_id_atual, ...up.procs_extra.map(x => x.id)]) || cx.local_atual;
+        const { error } = await sb.from('caixas_bags').update({ ...up, atualizado_em: agora }).eq('id', cx.id); if (error) throw error;
+        await sb.from('caixas_bags_mov').insert({ filial: filialAtual(null), caixa_id: cx.id, codigo: cx.codigo, tipo_mov: 'Saiu uma NF', data: agora, proc_id: pid, nf: saiu.nf || null, obs: obs || null, responsavel: operador() });
+        Object.assign(cx, up);
+    }
     const limpezaAtiva = () => { if (_cxSemControle) return false; try { return localStorage.getItem('gf_cx_limpeza') !== '0'; } catch (e) { return true; } };
     const faltaSQLControle = err => /caixas_bags_status_check|levado_por|lacre|PGRST204|schema cache/i.test(String(err?.message || err || ''));
     async function movCaixa(cx, tipo, campos) {
@@ -24509,8 +24544,8 @@ else init();
             delete mov.levado_por; delete mov.lacre; r = await sb.from('caixas_bags_mov').insert(mov);
         }
         if (r.error) throw r.error;
-        const volta = { local_atual: 'Estoque', saida_em: null, proc_id_atual: null, nf_atual: null, levado_por: null, lacre: null };
-        let upd = tipo === 'Saída' ? { status: 'Fora', local_atual: [campos.destino, campos.cidade].filter(Boolean).join(' — ') || 'Fora', saida_em: mov.data, proc_id_atual: campos.proc_id || null, nf_atual: campos.nf || null, levado_por: campos.levado_por || null, lacre: campos.lacre || null }
+        const volta = { local_atual: 'Estoque', saida_em: null, proc_id_atual: null, nf_atual: null, levado_por: null, lacre: null, procs_extra: [] };
+        let upd = tipo === 'Saída' ? { status: 'Fora', procs_extra: [], local_atual: [campos.destino, campos.cidade].filter(Boolean).join(' — ') || 'Fora', saida_em: mov.data, proc_id_atual: campos.proc_id || null, nf_atual: campos.nf || null, levado_por: campos.levado_por || null, lacre: campos.lacre || null }
             : tipo === 'Retorno' ? { ...volta, status: campos.manutencao ? 'Manutenção' : limpezaAtiva() && !campos.semLimpeza ? 'Em limpeza' : 'Disponível', retorno_em: mov.data }
             : tipo === 'Limpeza' ? { status: 'Disponível', local_atual: 'Estoque' }
             : tipo === 'Pendente' ? { status: 'Pendente' }
@@ -24521,7 +24556,9 @@ else init();
             : tipo === 'Manutenção' ? { status: 'Manutenção', local_atual: campos.destino || 'Manutenção' }
             : tipo === 'Baixa' ? { status: 'Baixada', local_atual: campos.obs || 'Baixada' } : {};
         if (_cxSemControle) { delete upd.levado_por; delete upd.lacre; }
+        if (_cxSemMulti || (!cxExtras(cx).length && tipo !== 'Saída')) delete upd.procs_extra;   // sem o SQL novo, ou nada a limpar
         r = await sb.from('caixas_bags').update({ ...upd, atualizado_em: agora }).eq('id', cx.id);
+        if (r.error && 'procs_extra' in upd && faltaSQLMulti(r.error)) { _cxSemMulti = true; delete upd.procs_extra; r = await sb.from('caixas_bags').update({ ...upd, atualizado_em: agora }).eq('id', cx.id); }
         if (r.error && tipo === 'Esterilização') throw new Error('o banco ainda não aceita a situação "Em esterilização" — rode o SQL 20261110_caixas_esterilizacao.sql no Supabase');
         if (r.error && tipo === 'Não localizada') throw new Error('o banco ainda não aceita a situação "Caixa não localizada" — rode o SQL 20261111_caixas_nao_localizada.sql no Supabase');
         if (r.error && tipo === 'Consignado') throw new Error('o banco ainda não aceita a situação "Consignado" — rode o SQL 20261109_caixas_consignado.sql no Supabase');
@@ -24555,8 +24592,12 @@ else init();
         const pid = String(p._docId || p.id || ''); let n = 0;
         for (const cod of codigos) {
             const cx = lista.find(c => c.codigo === cod); if (!cx) continue;
-            if (cx.status === 'Fora' && (pid ? cx.proc_id_atual === pid : p.nf && String(cx.nf_atual || '') === String(p.nf).trim())) {   // já está nesta cirurgia: só completa quem levou (vendedor preenchido depois)
+            if (cx.status === 'Fora' && (pid ? cxTem(cx, pid) : p.nf && cxNfs(cx).includes(String(p.nf).trim()))) {   // já está nesta cirurgia: só completa quem levou (vendedor preenchido depois)
                 if (!cx.levado_por && p.vendedor) { try { if (await completarQuemLevou(cx, p.vendedor)) _cxCache = null; } catch (e) {} }
+                continue;
+            }
+            if (cx.status === 'Fora' && pid && cx.proc_id_atual && !String(cx.proc_id_atual).startsWith('rem:')) {   // já está fora com outra NF: vai na mesma caixa
+                try { await juntarNaCaixa(cx, p, pid); n++; } catch (e) { console.warn('caixas_bags:', e.message || e); if (e.message === MSG_SQL_MULTI) alert('⚠ ' + cx.codigo + ' já está fora com outra nota. ' + MSG_SQL_MULTI); }
                 continue;
             }
             try { await movCaixa(cx, 'Saída', { destino: p.hospital || '', cidade: p.cidade || '', proc_id: pid, nf: p.nf || '', paciente: p.paciente || '', levado_por: p.vendedor || '', obs: [p.medico, p.procedimento].filter(Boolean).join(' · ') }); n++; }
@@ -24584,9 +24625,12 @@ else init();
                     perguntar.push({ cx, motivo: 'remessa ' + st.toLowerCase() });
                     continue;
                 }
-                const p = procPorId(cx.proc_id_atual); if (!p) continue;
-                if (p.status === 'concluido' || p.status === 'aguardando_ficha_opme') perguntar.push({ cx, motivo: p.status === 'concluido' ? 'cirurgia concluída' : 'material retirado (aguardando ficha OPME)' });
-                else if (p.status === 'andamento' && cirurgiaJaRealizada(p)) perguntar.push({ cx, motivo: 'cirurgia em procedimento', emProc: true });
+                const ps = cxPids(cx).map(procPorId).filter(Boolean); if (!ps.length) continue;
+                const fim = q => q.status === 'concluido' || q.status === 'aguardando_ficha_opme', emP = q => q.status === 'andamento' && cirurgiaJaRealizada(q);
+                if (!ps.every(q => fim(q) || emP(q))) continue;   // alguma NF da caixa ainda não terminou
+                const p = ps.find(q => !fim(q)) || ps[0];
+                if (fim(p)) perguntar.push({ cx, motivo: (ps.length > 1 ? 'cirurgias concluídas' : p.status === 'concluido' ? 'cirurgia concluída' : 'material retirado (aguardando ficha OPME)') });
+                else perguntar.push({ cx, motivo: 'cirurgia em procedimento', emProc: true });
             }
             if (perguntar.length) perguntarRetornoCaixas(perguntar);
             if (n) { _cxCache = null; atualizarBadgeCaixas(); window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s)/sacola(s) voltaram para o estoque (cirurgia concluída)`); if (document.getElementById('cx-lista') && window._cxRecarregar) window._cxRecarregar(); }
@@ -24607,7 +24651,8 @@ else init();
     let _cxPerguntas = new Map();
     function descCaixaProc(cx) {
         if (String(cx.proc_id_atual || '').startsWith('rem:')) return [cx.local_atual, cx.nf_atual ? 'NF ' + cx.nf_atual : ''].filter(Boolean).join(' · ') + ' (remessa)';
-        const p = procPorId(cx.proc_id_atual); return p ? [p.paciente, p.hospital, p.nf ? 'NF ' + p.nf : ''].filter(Boolean).join(' · ') : (cx.local_atual || '');
+        const ps = cxPids(cx).map(procPorId).filter(Boolean);
+        return ps.length ? ps.map(p => [p.paciente, p.hospital, p.nf ? 'NF ' + p.nf : ''].filter(Boolean).join(' · ')).join(' | ') : (cx.local_atual || '');
     }
     function perguntarRetornoCaixas(novas) {
         const agora = Date.now();
@@ -24663,7 +24708,7 @@ else init();
         const L = [];
         l.forEach(cx => { const p = String(cx.proc_id_atual || '').startsWith('rem:') ? null : procPorId(cx.proc_id_atual); const d = diasDesde(cx.saida_em);
             L.push('', '---', `*${cx.tipo === 'Caixa' ? 'Caixa plástica' : cx.tipo}:* ${cx.codigo}${cx.descricao ? ' (' + cx.descricao + ')' : ''}`,
-                `*Hospital/cliente:* ${(p && p.hospital) || cx.local_atual || '—'}`, `*Nº da Nota Fiscal:* ${(p && p.nf) || cx.nf_atual || '—'}`);
+                `*Hospital/cliente:* ${(p && p.hospital) || cx.local_atual || '—'}`, `*Nº da Nota Fiscal:* ${[...new Set([p && p.nf, ...cxNfs(cx)].filter(Boolean).map(String))].join(', ') || '—'}`);
             if (p) L.push(`*Paciente:* ${p.paciente || '—'}`, `*Vendedor:* ${p.vendedor || '—'}`);
             else if (cx.levado_por) L.push(`*Levado por:* ${cx.levado_por}`);
             if (d != null) L.push(`*Saiu há:* ${d} dia(s)`);
@@ -24827,7 +24872,7 @@ else init();
                 + `<button data-selt="" style="${chip}">Limpar seleção</button><span style="font-size:.68rem;color:var(--text-dim)">ou marque as caixinhas (Shift+clique marca de uma até outra)</span></div>`;
             desenharOnde();
             linhas = doTipo.filter(c => !fSt || (fSt === 'atraso' ? atrasada(c) : c.status === fSt))
-                .filter(c => !q || [c.codigo, c.descricao, c.local_atual, c.nf_atual, c.tipo, c.levado_por, c.lacre].some(v => String(v || '').toUpperCase().includes(q)))
+                .filter(c => !q || [c.codigo, c.descricao, c.local_atual, cxNfs(c).join(' '), c.tipo, c.levado_por, c.lacre].some(v => String(v || '').toUpperCase().includes(q)))
                 .sort((a, b) => ordCod === 'az' ? porCodigo(a, b) : ordCod === 'za' ? porCodigo(b, a) : prio(a) - prio(b) || (prio(a) <= 2 ? (diasDesde(b.saida_em) || 0) - (diasDesde(a.saida_em) || 0) : 0) || porCodigo(a, b));
             const comDesc = linhas.some(c => c.descricao);
             const th = 'padding:7px 8px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);text-align:left;position:sticky;top:0;background:var(--surface,#fff);z-index:1';
@@ -24842,7 +24887,7 @@ else init();
                     <td style="${td}">${esc(localDe(c))}${fora && (c.levado_por || c.lacre) ? `<div style="font-size:.68rem;color:var(--text-dim)">${c.levado_por ? '👤 levou: ' + esc(c.levado_por) : ''}${c.levado_por && c.lacre ? ' · ' : ''}${c.lacre ? '🔒 lacre ' + esc(c.lacre) : ''}</div>` : ''}</td>
                     <td style="${td};white-space:nowrap">${c.status === 'Esterilização' && c.saida_em ? `🧪 ${new Date(c.saida_em).toLocaleDateString('pt-BR')} <span style="color:var(--text-dim);font-size:.7rem">(${diasDesde(c.saida_em)} dia${diasDesde(c.saida_em) === 1 ? '' : 's'})</span>` : fora && c.saida_em ? `${new Date(c.saida_em).toLocaleDateString('pt-BR')} <span style="color:${at ? '#dc2626' : 'var(--text-dim)'};font-size:.7rem">(${d} dia${d === 1 ? '' : 's'})</span>` : c.retorno_em ? `<span style="color:var(--text-dim);font-size:.72rem">voltou ${new Date(c.retorno_em).toLocaleDateString('pt-BR')}</span>` : ns === 0 ? '<span style="color:var(--text-dim);font-size:.72rem">nunca saiu</span>' : '—'}</td>
                     <td style="${td};text-align:center;color:var(--text-dim)">${ns === null ? '…' : ns}</td>
-                    <td style="${td};font-family:var(--mono)">${esc(c.nf_atual || '')}</td>
+                    <td style="${td};font-family:var(--mono)">${cxNfs(c).map(esc).join('<br>')}</td>
                     <td style="${td};text-align:right;white-space:nowrap">
                       ${c.status === 'Disponível' || c.status === 'Manutenção' ? `<button data-saida="${c.id}" style="${bb};color:#2563eb;border-color:#2563eb" title="Registrar a saída (para onde vai, quem levou, lacre)">⬆ Saída</button>` : ''}
                       ${c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado' ? `<button data-ester="${c.id}" style="${bb};color:#db2777;border-color:#db2777" title="Enviar para esterilização (caixa de instrumental)">🧪</button>` : ''}
@@ -24859,6 +24904,7 @@ else init();
         }
         const form = html => { $('[data-form]').innerHTML = html ? `<div style="margin:10px 18px 0;padding:12px 14px;border:1px solid var(--border,#ccc);border-radius:12px;background:var(--bg,#f9fafb);max-height:52vh;overflow:auto">${html}</div>` : ''; if (!html) { lote = null; inv = null; } };
         const campo = (rot, h) => `<label style="display:flex;flex-direction:column;gap:3px;font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase">${rot}${h}</label>`;
+        const numEscolhido = () => { const m = /(\d+)\s*$/.exec(($('[data-f="ini"]')?.value || '').trim()); return m ? parseInt(m[1], 10) || 0 : 0; };
         function proximoCodigo(tipo) { const pf = CX_PREF[tipo], ns = cxs.filter(c => c.codigo.startsWith(pf + '-')).map(c => parseInt(c.codigo.slice(3), 10) || 0); return `${pf}-${String((ns.length ? Math.max(...ns) : 0) + 1).padStart(3, '0')}`; }
         // janela no meio da tela (edição): não fica escondida lá em cima quando a lista está rolada
         const dlg = html => { $('[data-dlg]').innerHTML = html ? `<div data-dlgfundo style="position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px"><div style="background:var(--surface,#fff);border-radius:14px;padding:18px 20px;width:min(620px,100%);max-height:90vh;overflow:auto;box-shadow:0 16px 50px rgba(0,0,0,.35)">${html}</div></div>` : ''; };
@@ -24970,15 +25016,16 @@ else init();
             lote = null; inv = null;
             form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:var(--text)">${c ? '✎ ' + esc(c.codigo) : '+ Cadastrar caixas / bags'}</div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-                ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`)}
+                ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`) + campo('Nº (opcional)', `<input data-f="ini" inputmode="numeric" placeholder="próximo" title="Deixe vazio para pegar o próximo número. Ex.: 16 cadastra a CX-016" style="${inp};width:90px;font-family:var(--mono)">`)}
                 ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c?.descricao || '')}" placeholder="ex.: caixa plástica grande azul, bag térmica" style="${inp};width:260px">`)}
                 ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Pendente', 'Em limpeza', 'Manutenção', 'Baixada'].map(s => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${stNome(s)}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
                 <span data-prev style="font-size:.74rem;color:var(--text-dim);margin-bottom:8px"></span>
                 <button data-a="${c ? 'gravarEdit' : 'gravarNovo'}" data-id="${c?.id || ''}" style="${bt};background:#111827;color:#fff;border-color:#111827">💾 Salvar</button>
                 <button data-a="cancela" style="${bt}">Cancelar</button></div>`);
-            if (!c) { const prev = () => { const t = $('[data-f="tipo"]').value, n = Math.max(1, parseInt($('[data-f="qtd"]').value, 10) || 1), ini = proximoCodigo(t), pf = CX_PREF[t], i0 = parseInt(ini.slice(3), 10);
-                $('[data-prev]').textContent = n === 1 ? `código: ${ini}` : `códigos: ${ini} a ${pf}-${String(i0 + n - 1).padStart(3, '0')}`; };
-                $('[data-f="tipo"]').onchange = prev; $('[data-f="qtd"]').oninput = prev; prev(); }
+            if (!c) { const prev = () => { const t = $('[data-f="tipo"]').value, n = Math.max(1, parseInt($('[data-f="qtd"]').value, 10) || 1), pf = CX_PREF[t], esc0 = numEscolhido();
+                const i0 = esc0 || parseInt(proximoCodigo(t).slice(3), 10), cods = Array.from({ length: n }, (_, k) => `${pf}-${String(i0 + k).padStart(3, '0')}`), ja = cods.filter(k => cxs.some(x => x.codigo === k));
+                $('[data-prev]').innerHTML = (n === 1 ? `código: ${cods[0]}` : `códigos: ${cods[0]} a ${cods[n - 1]}`) + (ja.length ? ` <b style="color:#dc2626">⚠ já existe: ${esc(ja.join(', '))}</b>` : ''); };
+                $('[data-f="tipo"]').onchange = prev; $('[data-f="qtd"]').oninput = prev; $('[data-f="ini"]').oninput = prev; prev(); }
         }
         // ── Saída: uma ou várias embalagens de uma vez (bipe para ir juntando), com quem levou e o lacre de cada uma ──
         function formSaida(cs) {
@@ -25013,7 +25060,7 @@ else init();
         async function historico(c) {
             const { data, error } = await sb.from('caixas_bags_mov').select('*').eq('caixa_id', c.id).order('data', { ascending: false }).limit(300);
             if (error) return alert('Erro: ' + error.message);
-            const cor = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Limpeza': '#0891b2', 'Pendente': '#dc2626', 'Consignado': '#7c3aed', 'Esterilização': '#db2777', 'Esterilizada': '#16a34a', 'Manutenção': '#b45309', 'Baixa': '#6b7280', 'Cadastro': '#111827' };
+            const cor = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Limpeza': '#0891b2', 'Pendente': '#dc2626', 'Consignado': '#7c3aed', 'Esterilização': '#db2777', 'Esterilizada': '#16a34a', 'Mais uma NF': '#2563eb', 'Saiu uma NF': '#64748b', 'Manutenção': '#b45309', 'Baixa': '#6b7280', 'Cadastro': '#111827' };
             form(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b style="font-size:.85rem;color:var(--text)">🕘 Histórico de ${esc(c.codigo)}</b><span style="font-size:.72rem;color:var(--text-dim)">${(data || []).filter(m => m.tipo_mov === 'Saída').length} saída(s)</span><button data-a="cancela" style="${bt};margin-left:auto">Fechar</button></div>
               <div style="max-height:260px;overflow:auto">${(data || []).map(m => `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border,#e5e7eb);font-size:.76rem;color:var(--text)">
                 <span style="min-width:120px;font-family:var(--mono);color:var(--text-dim)">${new Date(m.data).toLocaleString('pt-BR').slice(0, 17)}</span>
@@ -25069,7 +25116,8 @@ else init();
               ${p ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px">${lin('NF', p.nf)}${lin('Paciente', p.paciente)}${lin('Médico', p.medico)}${lin('Vendedor', p.vendedor)}${lin('Hospital', [p.hospital, p.cidade].filter(Boolean).join(' — '))}${lin('Cirurgia', dataBR(p.data))}</div>
                 <div style="margin-top:8px;font-size:.72rem;font-weight:800;color:var(--text)">📋 Itens (${its.length} · ${un} un)</div>
                 <div style="max-height:220px;overflow:auto">${its.map(i => `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border,#e5e7eb);font-size:.76rem"><b style="min-width:30px;text-align:right">${esc(i.qtd)}×</b><span style="flex:1">${esc(i.nome || i.cod)}${i.cod && i.nome ? ` <span style="color:var(--text-dim)">${esc(i.cod)}</span>` : ''}</span><span style="font-family:var(--mono);color:var(--text-dim)">${esc(i.lote || '')}</span></div>`).join('') || '<div style="font-size:.76rem;color:var(--text-dim)">Sem itens lançados.</div>'}</div>
-                <div style="margin-top:8px"><button data-etqcir="${esc(c.proc_id_atual)}" style="${bt}">🏷 Etiqueta da cirurgia</button></div>`
+                <div style="margin-top:8px"><button data-etqcir="${esc(c.proc_id_atual)}" style="${bt}">🏷 Etiqueta da cirurgia</button></div>
+                ${cxExtras(c).length ? `<div style="margin-top:10px;font-size:.72rem;font-weight:800;color:var(--text)">📦 Também vai nesta caixa:</div>${cxExtras(c).map(x => { const q = procPorId(x.id); return `<div style="font-size:.76rem;padding:3px 0;border-bottom:1px solid var(--border,#e5e7eb)"><b>NF ${esc(x.nf || (q && q.nf) || '—')}</b>${q ? ' · ' + esc([q.paciente, q.hospital, q.vendedor].filter(Boolean).join(' · ')) : ''}</div>`; }).join('')}` : ''}`
               : `<div style="font-size:.8rem;color:var(--text-dim)">${c.status === 'Fora' ? 'Saiu sem cirurgia vinculada (remessa/conserto).' : 'Não está vinculada a nenhuma cirurgia agora.'}</div>`}`);
         }
         // ── Conferência de estoque: bipe tudo o que está na prateleira ──
@@ -25272,9 +25320,14 @@ else init();
                     // próximos códigos conferidos NO BANCO (pega cadastros feitos em outro computador ou por outro usuário)
                     const maiorNoBanco = async () => { const r0 = await sb.from('caixas_bags').select('codigo').like('codigo', pf + '-%').limit(5000);
                         const ns = (r0.data || cxs.filter(c => c.codigo.startsWith(pf + '-'))).map(c => parseInt(String(c.codigo).split('-')[1], 10) || 0); return ns.length ? Math.max(...ns) : 0; };
-                    let rows = [], data = null, erro = null;
+                    let rows = [], data = null, erro = null; const escIni = numEscolhido();
+                    if (escIni) {   // número escolhido: confere se algum já existe
+                        const cods = Array.from({ length: n }, (_, k) => `${pf}-${String(escIni + k).padStart(3, '0')}`);
+                        const r0 = await sb.from('caixas_bags').select('codigo').in('codigo', cods); const ja = (r0.data || []).map(x => x.codigo).concat(cxs.filter(x => cods.includes(x.codigo)).map(x => x.codigo));
+                        if (ja.length) { alert('⚠ Já existe: ' + [...new Set(ja)].sort().join(', ') + '\n\nEscolha outro número ou diminua a quantidade.'); return; }
+                    }
                     for (let tent = 0; tent < 3; tent++) {
-                        const ini = (await maiorNoBanco()) + 1 + tent;
+                        const ini = escIni || (await maiorNoBanco()) + 1 + tent;
                         rows = Array.from({ length: n }, (_, k) => ({ filial: filialAtual(null), codigo: `${pf}-${String(ini + k).padStart(3, '0')}`, tipo, descricao: desc || null, status: 'Disponível', local_atual: 'Estoque', criado_por: operador() }));
                         const r1 = await sb.from('caixas_bags').insert(rows).select(); data = r1.data; erro = r1.error;
                         if (!erro || !/duplicate key|caixas_bags_codigo|23505/i.test(erro.message || '')) break;
@@ -25315,7 +25368,7 @@ else init();
                 }
                 if (d.a === 'xlsx') {
                     if (!window.XLSX) return alert('Biblioteca do Excel não carregou. Recarregue a página.');
-                    const ws = XLSX.utils.json_to_sheet(linhas.map(c => ({ Código: c.codigo, Tipo: c.tipo, Descrição: c.descricao || '', Situação: stNome(c.status), 'Onde está': c.local_atual || '', 'Quem levou': c.levado_por || '', Lacre: c.lacre || '', 'Saiu em': c.saida_em ? new Date(c.saida_em).toLocaleDateString('pt-BR') : '', 'Dias fora': c.status === 'Fora' || c.status === 'Pendente' ? diasDesde(c.saida_em) : '', NF: c.nf_atual || '', 'Voltou em': c.retorno_em ? new Date(c.retorno_em).toLocaleDateString('pt-BR') : '', 'Saídas (total)': nSaidas ? nSaidas[c.codigo] || 0 : '', 'Valor de reposição': valorCx(c) || '' })));
+                    const ws = XLSX.utils.json_to_sheet(linhas.map(c => ({ Código: c.codigo, Tipo: c.tipo, Descrição: c.descricao || '', Situação: stNome(c.status), 'Onde está': c.local_atual || '', 'Quem levou': c.levado_por || '', Lacre: c.lacre || '', 'Saiu em': c.saida_em ? new Date(c.saida_em).toLocaleDateString('pt-BR') : '', 'Dias fora': c.status === 'Fora' || c.status === 'Pendente' ? diasDesde(c.saida_em) : '', NF: cxNfs(c).join(', '), 'Voltou em': c.retorno_em ? new Date(c.retorno_em).toLocaleDateString('pt-BR') : '', 'Saídas (total)': nSaidas ? nSaidas[c.codigo] || 0 : '', 'Valor de reposição': valorCx(c) || '' })));
                     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Caixas e bags'); XLSX.writeFile(wb, 'caixas-e-bags.xlsx'); return;
                 }
             } catch (err) { const m = String(err.message || err);
