@@ -680,12 +680,12 @@
             const roleLabel = u.role === 'operador' ? 'Operador' : u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Somente Visualização' : u.role === 'pendente' ? '⏳ Aguardando aprovação' : u.role === 'recusado' ? '⛔ Recusado' : 'Agendador';
             const bt = (role, txt, cor) => `<button onclick="doAdminSetRole('${id}','${role}')" style="padding:5px 9px;border-radius:8px;border:1px solid ${cor};background:${cor}1a;color:${cor};font-family:var(--mono);font-size:.68rem;font-weight:800;cursor:pointer;white-space:nowrap">${txt}</button>`;
             const acoes = (u.role === 'pendente' || u.role === 'recusado')
-              ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${bt('operador', '✅ Operador', '#0e7490')}${bt('agendador', '✅ Agendador', '#15803d')}${u.role === 'pendente' ? bt('recusado', '✖ Recusar', '#b91c1c') : ''}</div>`
+              ? `<div style="display:flex;gap:6px;flex-wrap:wrap;order:3;flex-basis:100%;margin-top:8px"><span style="font-family:var(--mono);font-size:.68rem;color:var(--text-dim);align-self:center">Aprovar como:</span>${bt('operador', '✅ Operador', '#0e7490')}${bt('agendador', '✅ Agendador', '#15803d')}${bt('admin', '✅ Admin', '#7c3aed')}${u.role === 'pendente' ? bt('recusado', '✖ Recusar', '#b91c1c') : ''}</div>`
               : isMe ? `<span class="admin-role-badge role-${u.role}">${roleLabel}</span>`
               : `<select onchange="doAdminSetRole('${id}', this.value)" title="Alterar perfil" style="padding:5px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:var(--mono);font-size:.7rem;font-weight:700;color:var(--text)">
                   ${[['operador','Operador'],['agendador','Agendador'],['visualizacao','Somente Visualização'],['admin','Admin']].map(([v, t]) => `<option value="${v}" ${u.role === v ? 'selected' : ''}>${t}</option>`).join('')}
                 </select>`;
-            return `<div class="admin-user-row" ${u.role === 'pendente' ? 'style="background:rgba(245,158,11,.08);border-radius:10px;padding-left:8px;padding-right:8px"' : ''}>
+            return `<div class="admin-user-row" ${(u.role === 'pendente' || u.role === 'recusado') ? 'style="flex-wrap:wrap;background:rgba(245,158,11,.08);border-radius:10px;padding:10px 8px"' : ''}>
               <div><div class="admin-user-name">${u.nome||u.email}${u.role === 'pendente' ? ' <span style="font-size:.7rem;color:#b45309;font-weight:800">⏳ aguardando aprovação</span>' : u.role === 'recusado' ? ' <span style="font-size:.7rem;color:#b91c1c;font-weight:800">⛔ recusado</span>' : ''}</div><div class="admin-user-email">${u.email}</div></div>
               ${acoes}
               <button class="admin-btn-del" onclick="doAdminDeleteUser('${id}')" ${isMe?'disabled title="Não pode remover a si mesmo"':''}>🗑 Excluir</button>
