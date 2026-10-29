@@ -24059,7 +24059,7 @@ else init();
                       <button type="button" data-gen="nao" style="${bt};${resp._gen === 'nao' ? 'background:#d94f4f;color:#fff;border-color:#d94f4f' : ''}">⏳ Não voltou</button></div>
                       ${resp._gen === 'nao' ? (ops.length ? `<div style="margin-top:8px;font-size:.72rem;font-weight:700;color:var(--text)">Qual ficou? <select data-gencod style="padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg,#fff);color:var(--text);font-size:.76rem">
                           <option value="">— escolha —</option>${ops.map(c => `<option value="${c.id}" ${resp._genCod === c.id ? 'selected' : ''}>${esc(c.codigo)} · ${c.tipo === 'Caixa' ? 'Caixa plástica' : esc(c.tipo)}${c.status === 'Fora' ? ' (fora: ' + esc(c.local_atual || '') + ')' : ''}</option>`).join('')}</select></div>`
-                          : '<div style="margin-top:8px;font-size:.72rem;color:#b45309">Nenhuma embalagem cadastrada: cadastre em 📦 Caixas, bags e sacolas para controlar a pendência.</div>') : ''}
+                          : '<div style="margin-top:8px;font-size:.72rem;color:#b45309">Nenhuma embalagem cadastrada: cadastre em 📦 Controle de embalagens para controlar a pendência.</div>') : ''}
                       <div style="font-size:.68rem;color:var(--text-dim);margin-top:6px">Se não voltou, fica pendente e entra na cobrança.</div>`;
                     return;
                 }
@@ -24758,7 +24758,7 @@ else init();
         const chipOn = 'background:#111827;color:#fff;border-color:#111827';
         ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1240px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">📦 Caixas, bags e sacolas — cadastro e rastreio</div>
+            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">📦 Controle de embalagens — caixas, bags, sacolas e portas cateter</div>
             <input type="search" data-busca placeholder="Buscar código, hospital, NF, quem levou…" style="${inp};width:220px">
             <button data-a="novo" style="${bt};background:#111827;color:#fff;border-color:#111827">+ Cadastrar</button>
             <button data-a="exclote" style="${bt};color:#dc2626;border-color:#dc2626" title="Excluir várias caixas, bags ou sacolas de uma vez">🗑 Excluir em lote</button>
@@ -25428,7 +25428,7 @@ else init();
         const fora = l.filter(c => c.status === 'Fora'), atras = fora.filter(c => diasDesde(c.saida_em) > CX_ATRASO), pend = l.filter(c => c.status === 'Pendente');
         const mudou = (window._cxPendentes || []).length !== pend.length; window._cxPendentes = pend;
         if (mudou && typeof atualizarBannerPendencias === 'function') try { atualizarBannerPendencias(); } catch (e) {}
-        b.innerHTML = '📦 Caixas, bags e sacolas' + (fora.length ? `<span class="bdg" title="${fora.length} fora (em cirurgia/cliente)">${fora.length} fora</span>` : '')
+        b.innerHTML = '📦 Controle de embalagens' + (fora.length ? `<span class="bdg" title="${fora.length} fora (em cirurgia/cliente)">${fora.length} fora</span>` : '')
             + (pend.length ? `<span class="bdg alerta" title="${pend.length} não devolvida(s): ${pend.map(c => c.codigo).join(', ')}">⏳ ${pend.length} pendente${pend.length > 1 ? 's' : ''}</span>` : '')
             + (atras.length ? `<span class="bdg alerta" title="${atras.length} fora há mais de ${CX_ATRASO} dias: ${atras.map(c => c.codigo).join(', ')}">⏰ ${atras.length}</span>` : '');
         b.classList.toggle('atrasada', atras.length > 0 || pend.length > 0);
@@ -25440,7 +25440,7 @@ else init();
         const barra = document.getElementById('barra-rapida-acoes');
         if (!barra || document.getElementById('btn-caixas')) return;
         const b = document.createElement('button');
-        b.id = 'btn-caixas'; b.textContent = '📦 Caixas, bags e sacolas'; b.title = 'Cadastro das caixas e bags (código + QR) e rastreio: para onde foram e quando voltaram';
+        b.id = 'btn-caixas'; b.textContent = '📦 Controle de embalagens'; b.title = 'Caixas, bags, sacolas e portas cateter: cadastro (código + QR) e rastreio: para onde foram e quando voltaram';
         b.style.cssText = 'flex-shrink:0;padding:5px 11px;border-radius:999px;border:1px solid rgba(17,24,39,0.3);background:transparent;color:var(--text);font-family:var(--mono);font-size:0.65rem;font-weight:700;cursor:pointer;white-space:nowrap;';
         b.onclick = () => window.abrirCaixasBags();
         barra.appendChild(b); setTimeout(atualizarBadgeCaixas, 300);
