@@ -48,7 +48,7 @@ Deno.serve(async req => {
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
   const { data: callerProfile } = await admin.from('usuarios').select('role').eq('id', caller.id).maybeSingle();
-  if (callerProfile?.role !== 'admin') {
+  if (!['admin', 'operador'].includes(callerProfile?.role)) {
     return new Response(JSON.stringify({ error: 'Apenas administradores podem criar usuários.' }), { status: 403 });
   }
 
@@ -60,7 +60,7 @@ Deno.serve(async req => {
   }
 
   const email = (body.email || '').trim().toLowerCase();
-  const role = ['admin', 'visualizacao'].includes(body.role || '') ? body.role! : 'agendador';
+  const role = ['admin', 'operador', 'visualizacao'].includes(body.role || '') ? body.role! : 'agendador';
   const nome = (body.nome || '').trim() || email;
   if (!email) {
     return new Response(JSON.stringify({ error: 'E-mail é obrigatório.' }), { status: 400 });

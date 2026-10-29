@@ -999,7 +999,7 @@ auth.onAuthStateChange((_event, session) => {
     // Escrita de papel "visualizacao" já é barrada no banco (RLS); aqui só
     // esconde os botões para não gerar erro confuso.
     supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => {
-      _role = p?.role || null;
+      _role = p?.role === 'operador' ? 'admin' : (p?.role || null);
       _readOnly = p?.role === 'visualizacao';
       document.body.classList.toggle('readonly', _readOnly);
     });

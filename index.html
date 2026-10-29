@@ -455,8 +455,15 @@
         btn.disabled = true; btn.textContent = 'Entrando...'; err.style.display = 'none';
 
         try {
-          const { error } = await auth.signInWithPassword({ email, password: pass });
-          if (error) throw error;
+          // Limite de 15 s: se o Supabase não devolver, confere se a sessão já foi gravada (login aceito) e segue;
+          // senão mostra o aviso e libera o botão, em vez de ficar preso em "Entrando..."
+          const _tempoLogin = new Promise(r => setTimeout(() => r({ _demorou: true }), 15000));
+          const _resLogin = await Promise.race([auth.signInWithPassword({ email, password: pass }), _tempoLogin]);
+          if (_resLogin && _resLogin._demorou) {
+            let _ses = null;
+            try { _ses = await Promise.race([auth.getSession().then(r => r?.data?.session), new Promise(r => setTimeout(() => r(null), 3000))]); } catch (e) {}
+            if (!_ses) throw new Error('timeout-login');
+          } else if (_resLogin?.error) throw _resLogin.error;
           if (IS_CONSOLIDADO && window._gfConnections.cba) {
             // Tenta logar também na segunda unidade com a mesma credencial —
             // se falhar, segue só com a primeira; window._resolverFilial vai
@@ -481,6 +488,7 @@
           if (e.message?.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
           if (e.message?.includes('rate limit'))                msg = 'Muitas tentativas. Tente mais tarde.';
           if (e.message?.includes('Failed to fetch'))            msg = 'Erro de rede. Verifique sua conexão.';
+          if (e.message === 'timeout-login')                     msg = 'O servidor demorou para responder. Confira a internet e tente de novo.';
           err.textContent = msg; err.style.display = 'block';
           document.getElementById('loginPass').value = '';
           const box = document.querySelector('.login-box');
@@ -585,7 +593,7 @@
           lista.innerHTML = snap.docs.map(d => {
             const u = d.data();
             const isMe = u.email === (window._currentUser?.email||'').toLowerCase();
-            const roleLabel = u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Somente Visualização' : 'Agendador';
+            const roleLabel = u.role === 'operador' ? 'Operador' : u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Somente Visualização' : 'Agendador';
             return `<div class="admin-user-row">
               <div><div class="admin-user-name">${u.nome||u.email}</div><div class="admin-user-email">${u.email}</div></div>
               <span class="admin-role-badge role-${u.role}">${roleLabel}</span>
@@ -709,8 +717,11 @@
             }
 
             if (isAdminFixo) perfil.role = 'admin';
+            // Operador = mesmos acessos do Admin (só o nome exibido muda)
+            const _ehOperador = perfil.role === 'operador';
+            if (_ehOperador) perfil.role = 'admin';
 
-            window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: perfil.role };
+            window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: perfil.role, operador: _ehOperador };
             // Independe do "role" que a conta demo@test.com tiver no banco —
             // seja qual for a visão que essa conta cai (admin, visualização,
             // etc.), a primeira impressão do demo tem que ser sempre a mesma.
@@ -5003,6 +5014,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                 <select class="admin-add-select" id="admin-new-role">
                     <option value="agendador">Agendador</option>
                     <option value="visualizacao">Somente Visualização</option>
+                    <option value="operador">Operador (mesmos acessos do Admin)</option>
                     <option value="admin">Admin</option>
                 </select>
             </div>
@@ -9648,6 +9660,8 @@ const ADMIN_OPERADORES = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Eva D
 // do <script type="module">, que não enxerga const/let de um <script>
 // clássico como identificador solto — só via window.
 window.ADMIN_OPERADORES = ADMIN_OPERADORES;
+// Na conta compartilhada, quem aparece como "Admin"; os demais da lista acima aparecem como "Operador" (mesmos acessos)
+window.ADMIN_TITULARES = ['Igor dos Reis Silva'];
 // O login (módulo) pode rodar antes desta lista carregar e esconder o "👥 Usuários" de um operador administrador.
 // Confere de novo por alguns segundos depois do login e quando o operador muda.
 function _ajustarBotaoUsuarios() {
@@ -25076,7 +25090,9 @@ else init();
         if (!c) { c = document.createElement('span'); c.id = 'chip-usuario-logado'; c.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;border:1px solid var(--border,#cfe5d6);background:var(--surface,#fff);color:var(--text);font-family:var(--mono);font-size:.68rem;font-weight:800;white-space:nowrap'; sair.parentNode.insertBefore(c, document.getElementById('btn-gfhub') || sair); }
         const u = window._currentUser, op = window._operadorNome || (window._lerOperadorGF && window._lerOperadorGF());
         const nome = op || (u && (u.nome && !/@/.test(u.nome) ? u.nome : u.email)) || '';
-        const papel = u ? (u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Visualização' : u.role === 'agendador' ? 'Agendador' : '') : '';
+        const _compart = u && /^comercial(mt)?@gfmedical/.test(String(u.email || '').toLowerCase());
+        const _ehOp = u && u.role === 'admin' && (u.operador || (_compart && op && !(window.ADMIN_TITULARES || []).includes(op)));
+        const papel = u ? (_ehOp ? 'Operador' : u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Visualização' : u.role === 'agendador' ? 'Agendador' : '') : '';
         c.style.display = nome && sair.style.display !== 'none' ? 'inline-flex' : 'none';
         c.innerHTML = '👤 ' + String(nome).replace(/[<>&]/g, '') + (papel ? ' <span style="font-weight:600;opacity:.65">· ' + papel + '</span>' : '');
         c.title = u ? 'Logado como ' + (u.email || '') : '';

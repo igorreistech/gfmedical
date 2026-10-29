@@ -699,7 +699,7 @@ auth.onAuthStateChange((_e, session) => {
   // conta compartilhada (comercial@ / comercialmt@): pergunta quem está operando ao entrar
   if (contaCompartilhada() && !_operador) setTimeout(pedirOperador, 300);
   mostrarOperador();
-  supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => { _role = p?.role || null; _readOnly = p?.role === 'visualizacao'; document.body.classList.toggle('readonly', _readOnly); render(); });
+  supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => { _role = p?.role === 'operador' ? 'admin' : (p?.role || null); _readOnly = p?.role === 'visualizacao'; document.body.classList.toggle('readonly', _readOnly); render(); });
   carregarTudo();
 });
 
