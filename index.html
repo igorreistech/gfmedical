@@ -23641,7 +23641,7 @@ else init();
     function injetarVolumeFicha() {
         const fnf = document.getElementById('f-nf'); if (!fnf || document.getElementById('f-volume-cad')) return;
         const box = document.createElement('div'); box.id = 'f-volume-cad';
-        box.style.cssText = 'margin-top:8px;font-size:.72rem;font-weight:700;color:var(--text)';
+        box.style.cssText = 'margin-top:8px;font-size:.72rem;font-weight:700;color:var(--text);min-width:0;max-width:100%;overflow:hidden';
         const sel = 'padding:6px 8px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--bg,#fff);color:var(--text);font-size:.74rem';
         const bt = 'padding:5px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.72rem;font-weight:700;cursor:pointer';
         box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span>📦 Volumes que vão:</span><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span></div>
@@ -23662,7 +23662,7 @@ else init();
                 const ops = v.tipo ? lista.filter(c => c.tipo === v.tipo && c.status !== 'Baixada' && !usados.includes(c.codigo) && (c.status === 'Disponível' || cxTem(c, pid) || outra(c))) : [];
                 return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                   <select data-vtipo="${i}" style="${sel}"><option value="">— tipo —</option>${['Caixa', 'Bag', 'Sacola'].map(t => `<option value="${t}" ${v.tipo === t ? 'selected' : ''}>${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t}</option>`).join('')}</select>
-                  ${v.tipo ? `<select data-vcod="${i}" style="${sel};min-width:120px"><option value="">${ops.length ? `— escolha a ${v.tipo.toLowerCase()} —` : `nenhuma ${v.tipo.toLowerCase()} disponível`}</option>${ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.cod ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${cxTem(c, pid) ? ' (já nesta cirurgia)' : outra(c) ? ' · já leva NF ' + esc(cxNfs(c).join(', ') || '?') + (c.local_atual ? ' — ' + esc(c.local_atual) : '') : ''}</option>`).join('')}</select>` : ''}
+                  ${v.tipo ? `<select data-vcod="${i}" style="${sel};width:230px;max-width:100%;text-overflow:ellipsis"><option value="">${ops.length ? `— escolha a ${v.tipo.toLowerCase()} —` : `nenhuma ${v.tipo.toLowerCase()} disponível`}</option>${ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.cod ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${cxTem(c, pid) ? ' (já nesta cirurgia)' : outra(c) ? ' · já leva NF ' + esc(cxNfs(c).join(', ') || '?') : ''}</option>`).join('')}</select>` : ''}
                   ${v.cod ? (v.bipado ? '<span style="color:#16a34a;font-weight:800">✅ bipada</span>' : '<span style="color:#b45309;font-weight:700" title="Escolhida na lista — bipe o QR para confirmar">⚠ não bipada</span>') : ''}
                   <button type="button" data-vdel="${i}" title="Tirar este volume" style="${bt};padding:4px 8px">✕</button></div>`;
             }).join('');
