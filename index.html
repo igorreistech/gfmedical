@@ -492,6 +492,7 @@
           if (e.message?.includes('rate limit'))                msg = 'Muitas tentativas. Tente mais tarde.';
           if (e.message?.includes('Failed to fetch'))            msg = 'Erro de rede. Verifique sua conexão.';
           if (e.message === 'timeout-login')                     msg = 'O servidor demorou para responder. Confira a internet e tente de novo.';
+          if (/email not confirmed/i.test(e.message || ''))      msg = '📧 Confirme seu e-mail: abra o link enviado no cadastro (veja também o spam) e tente de novo.';
           err.textContent = msg; err.style.display = 'block';
           document.getElementById('loginPass').value = '';
           const box = document.querySelector('.login-box');
