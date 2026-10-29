@@ -25367,5 +25367,30 @@ else init();
     setInterval(chipUsuario, 1500);
 })();
 </script>
+<script>
+// Agendador (perfil Agendador ou vendedor na conta compartilhada): na ficha só aparece o status "Agendado".
+// Ao editar uma cirurgia que já está em outro status, mantém também o status atual (para não mudar sem querer).
+(function () {
+    const ehAgendador = () => {
+        const u = window._currentUser; if (!u) return false;
+        if (u.role === 'agendador') return true;
+        const cv = document.getElementById('comercialView'); return !!(cv && cv.style.display === 'flex');
+    };
+    setInterval(() => {
+        const sel = document.getElementById('f-status'); if (!sel) return;
+        if (!(ehAgendador() && sel.offsetParent !== null)) {
+            if (sel.dataset.agRestrito) { [...sel.options].forEach(o => { o.hidden = false; o.disabled = false; }); delete sel.dataset.agRestrito; delete sel.dataset.agOriginal; }
+            return;
+        }
+        if (!sel.dataset.agRestrito) {
+            sel.dataset.agRestrito = '1';
+            const novo = typeof editingDocId === 'undefined' || !editingDocId;
+            if (novo && sel.value !== 'agendado') { sel.value = 'agendado'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+            sel.dataset.agOriginal = sel.value;
+        }
+        [...sel.options].forEach(o => { const ok = o.value === 'agendado' || o.value === sel.dataset.agOriginal; o.hidden = !ok; o.disabled = !ok; });
+    }, 300);
+})();
+</script>
 </body>
 </html>
