@@ -677,12 +677,11 @@
             .sort((a, b) => (b.u.role === 'pendente') - (a.u.role === 'pendente'))
             .map(({ id, u }) => {
             const isMe = u.email === (window._currentUser?.email||'').toLowerCase();
-            const fixo = ['comercial@gfmedical.net', 'comercialmt@gfmedical.net'].includes(u.email);
             const roleLabel = u.role === 'operador' ? 'Operador' : u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Somente Visualização' : u.role === 'pendente' ? '⏳ Aguardando aprovação' : u.role === 'recusado' ? '⛔ Recusado' : 'Agendador';
             const bt = (role, txt, cor) => `<button onclick="doAdminSetRole('${id}','${role}')" style="padding:5px 9px;border-radius:8px;border:1px solid ${cor};background:${cor}1a;color:${cor};font-family:var(--mono);font-size:.68rem;font-weight:800;cursor:pointer;white-space:nowrap">${txt}</button>`;
             const acoes = (u.role === 'pendente' || u.role === 'recusado')
               ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${bt('operador', '✅ Operador', '#0e7490')}${bt('agendador', '✅ Agendador', '#15803d')}${u.role === 'pendente' ? bt('recusado', '✖ Recusar', '#b91c1c') : ''}</div>`
-              : (isMe || fixo) ? `<span class="admin-role-badge role-${u.role}">${roleLabel}</span>`
+              : isMe ? `<span class="admin-role-badge role-${u.role}">${roleLabel}</span>`
               : `<select onchange="doAdminSetRole('${id}', this.value)" title="Alterar perfil" style="padding:5px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:var(--mono);font-size:.7rem;font-weight:700;color:var(--text)">
                   ${[['operador','Operador'],['agendador','Agendador'],['visualizacao','Somente Visualização'],['admin','Admin']].map(([v, t]) => `<option value="${v}" ${u.role === v ? 'selected' : ''}>${t}</option>`).join('')}
                 </select>`;
@@ -760,7 +759,9 @@
         const { doc: docFn2, getDoc: gd2, setDoc: sd2 } = conn.fbModules;
         try {
           if (isAdminFixo) {
-            await sd2(docFn2(conn.db, 'usuarios', user.id), { email: emailLower, nome: user.email, role: 'admin' });
+            // contas comerciais: cria como Admin só se ainda não tiver perfil (não sobrescreve o que o admin escolheu)
+            const snapF = await gd2(docFn2(conn.db, 'usuarios', user.id));
+            if (!snapF.exists()) await sd2(docFn2(conn.db, 'usuarios', user.id), { email: emailLower, nome: user.email, role: 'admin' });
           } else {
             const snap = await gd2(docFn2(conn.db, 'usuarios', user.id));
             if (!snap.exists()) {
@@ -792,8 +793,12 @@
             const isComercialUnico = emailLower === 'comercial@gfmedical.net';
             let perfil = null;
             if (isAdminFixo) {
-              perfil = { email: emailLower, nome: user.email, role: 'admin' };
-              try { await setDoc(doc(db, 'usuarios', user.id), { ...perfil }); } catch(e) {}
+              // contas comerciais: usa o perfil gravado (o admin pode trocar em "Usuários"); Admin só se ainda não tiver
+              try {
+                const snapFixo = await getDoc(doc(db, 'usuarios', user.id));
+                if (snapFixo.exists() && snapFixo.data().role) perfil = snapFixo.data();
+                else { perfil = { email: emailLower, nome: user.email, role: 'admin' }; try { await setDoc(doc(db, 'usuarios', user.id), { ...perfil }); } catch(e) {} }
+              } catch(e) { perfil = { email: emailLower, nome: user.email, role: 'admin' }; }
             } else {
               try {
                 const snap = await getDoc(doc(db, 'usuarios', user.id));
@@ -813,7 +818,6 @@
               perfil = { email: emailLower, nome: user.email, role: 'erro_perfil' };
             }
 
-            if (isAdminFixo) perfil.role = 'admin';
             // Operador = mesmos acessos do Admin (só o nome exibido muda)
             const _ehOperador = perfil.role === 'operador';
             if (_ehOperador) perfil.role = 'admin';
@@ -849,7 +853,7 @@
             if (logoutEl) logoutEl.style.display = 'block';
 
             const fabGroup = document.querySelector('.fab-group');
-            if (isComercialUnico) {
+            if (isComercialUnico && perfil.role === 'admin') {
               let nomeOp = window._lerOperadorGF();
               const modoCompleto = sessionStorage.getItem(brKey('comercialModoCompleto')) === '1';
               if (!nomeOp && !modoCompleto) {
