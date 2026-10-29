@@ -24041,7 +24041,7 @@ else init();
     const CX_PREF = { Caixa: 'CX', Bag: 'BG', Sacola: 'SC' };
     const CX_ICO = { Caixa: '📦', Bag: '🎒', Sacola: '🛍️' };
     // no banco continua 'Fora'; na tela aparece como "Em procedimento"
-    const stNome = s => s === 'Fora' ? 'Em procedimento' : s === 'Disponível' ? 'Em estoque' : s === 'Esterilização' ? 'Em esterilização' : s;
+    const stNome = s => s === 'Fora' ? 'Em procedimento' : s === 'Disponível' ? 'Em estoque' : s === 'Esterilização' ? 'Em esterilização' : s === 'Consignado' ? 'Em Consignação' : s === 'Não localizada' ? 'Caixa não localizada' : s;
     let _cxCache = null;
     async function carregarCaixas(forcar) {
         const sb = window._supabase; if (!sb) return null;
@@ -24078,11 +24078,13 @@ else init();
             : tipo === 'Esterilização' ? { status: 'Esterilização', local_atual: campos.destino || 'Bio Estéril', saida_em: mov.data, proc_id_atual: null, nf_atual: null, levado_por: null, lacre: null }
             : tipo === 'Esterilizada' ? { ...volta, status: 'Disponível', retorno_em: mov.data }
             : tipo === 'Consignado' ? { status: 'Consignado', local_atual: campos.destino || cx.local_atual || 'Consignado', proc_id_atual: null }
+            : tipo === 'Não localizada' ? { status: 'Não localizada' }
             : tipo === 'Manutenção' ? { status: 'Manutenção', local_atual: campos.destino || 'Manutenção' }
             : tipo === 'Baixa' ? { status: 'Baixada', local_atual: campos.obs || 'Baixada' } : {};
         if (_cxSemControle) { delete upd.levado_por; delete upd.lacre; }
         r = await sb.from('caixas_bags').update({ ...upd, atualizado_em: agora }).eq('id', cx.id);
         if (r.error && tipo === 'Esterilização') throw new Error('o banco ainda não aceita a situação "Em esterilização" — rode o SQL 20261110_caixas_esterilizacao.sql no Supabase');
+        if (r.error && tipo === 'Não localizada') throw new Error('o banco ainda não aceita a situação "Caixa não localizada" — rode o SQL 20261111_caixas_nao_localizada.sql no Supabase');
         if (r.error && tipo === 'Consignado') throw new Error('o banco ainda não aceita a situação "Consignado" — rode o SQL 20261109_caixas_consignado.sql no Supabase');
         if (r.error && faltaSQLControle(r.error)) {   // sem o SQL novo: sem "Em limpeza" e sem levado_por/lacre
             _cxSemControle = true; delete upd.levado_por; delete upd.lacre; if (upd.status === 'Em limpeza') upd.status = 'Disponível';
@@ -24291,7 +24293,7 @@ else init();
         let lote = null;             // saída de várias de uma vez: [{id, lacre}]
         let inv = null;              // conferência de estoque em andamento
         const sessao = [];           // o que foi bipado agora (retorno / limpeza)
-        const ST_COR = { 'Disponível': '#16a34a', 'Fora': '#2563eb', 'Pendente': '#dc2626', 'Em limpeza': '#0891b2', 'Manutenção': '#b45309', 'Baixada': '#6b7280', 'Consignado': '#7c3aed', 'Esterilização': '#db2777' };
+        const ST_COR = { 'Disponível': '#16a34a', 'Fora': '#2563eb', 'Pendente': '#dc2626', 'Em limpeza': '#0891b2', 'Manutenção': '#b45309', 'Baixada': '#6b7280', 'Consignado': '#7c3aed', 'Esterilização': '#db2777', 'Não localizada': '#991b1b' };
         const atrasada = c => (c.status === 'Fora' || c.status === 'Pendente') && diasDesde(c.saida_em) > CX_ATRASO;
         // ordem: o que precisa de atenção primeiro
         const prio = c => c.status === 'Pendente' ? 0 : atrasada(c) ? 1 : c.status === 'Fora' ? 2 : c.status === 'Consignado' ? 2.5 : c.status === 'Em limpeza' ? 3 : c.status === 'Esterilização' ? 3.5 : c.status === 'Manutenção' ? 4 : c.status === 'Disponível' ? 5 : 6;
@@ -24363,7 +24365,7 @@ else init();
             const doTipo = cxs.filter(c => !fTipo || c.tipo === fTipo);
             const cont = s => s === 'atraso' ? doTipo.filter(atrasada).length : s ? doTipo.filter(c => c.status === s).length : doTipo.length;
             const pend = doTipo.filter(c => c.status === 'Pendente'), vPend = pend.reduce((a, c) => a + valorCx(c), 0);
-            const sts = [['', 'Todas'], ['Pendente', '⏳ Não devolvidas'], ['atraso', `⏰ Em procedimento há +${CX_ATRASO} dias`], ['Fora', '🩺 Em procedimento'], ['Consignado', '🏥 Em consignado'], ['Em limpeza', '🧼 Em limpeza'], ['Esterilização', '🧪 Em esterilização'], ['Manutenção', '🔧 Manutenção'], ['Disponível', '✅ Em estoque'], ['Baixada', '🗑 Baixadas']]
+            const sts = [['', 'Todas'], ['Pendente', '⏳ Não devolvidas'], ['atraso', `⏰ Em procedimento há +${CX_ATRASO} dias`], ['Fora', '🩺 Em procedimento'], ['Consignado', '🏥 Em Consignação'], ['Não localizada', '🔎 Não localizadas'], ['Em limpeza', '🧼 Em limpeza'], ['Esterilização', '🧪 Em esterilização'], ['Manutenção', '🔧 Manutenção'], ['Disponível', '✅ Em estoque'], ['Baixada', '🗑 Baixadas']]
                 .filter(([s]) => (s !== 'Em limpeza' || limpezaAtiva() || cont(s)) && (s !== 'Consignado' || cont(s) || cxs.some(c => c.status === 'Fora')));
             $('[data-filtros]').innerHTML = sts.map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? chipOn : s === 'Pendente' && pend.length ? 'border-color:#dc2626;color:#dc2626' : ''}">${n} <b>${cont(s)}</b>${s === 'Pendente' && vPend ? ` · ${brlCx(vPend)}` : ''}</button>`).join('')
                 + `<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px"><span style="font-size:.7rem;font-weight:800;color:var(--text)">Tipo:</span>`
@@ -24375,7 +24377,7 @@ else init();
                 + ['Caixa', 'Bag', 'Sacola'].map(t => `<button data-selt="${t}" style="${chip}">+ todas as ${nomeTipo(t, 2)} da lista</button>`).join('')
                 + (cxs.some(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')) ? `<button data-a="esterSel" style="${chip};color:#db2777;border-color:#db2777" title="Caixas de instrumental enviadas para esterilizar">🧪 Enviar p/ esterilização (${cxs.filter(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')).length})</button>` : '')
                 + (cxs.some(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')) ? `<button data-a="consigSel" style="${chip};color:#7c3aed;border-color:#7c3aed" title="Ficaram no cliente em consignado">🏥 Deixar em consignado (${cxs.filter(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')).length})</button>` : '')
-                + (sel.size ? `<select data-trocast style="${chip};font-weight:800;color:#0f766e;border-color:#0f766e;cursor:pointer" title="Muda a situação de todas as marcadas"><option value="">🔄 Trocar situação (${sel.size})…</option>${['Disponível', 'Esterilização', 'Em limpeza', 'Consignado', 'Pendente', 'Manutenção', 'Baixada'].map(s => `<option value="${s}">${stNome(s)}</option>`).join('')}</select>` : '')
+                + (sel.size ? `<select data-trocast style="${chip};font-weight:800;color:#0f766e;border-color:#0f766e;cursor:pointer" title="Muda a situação de todas as marcadas"><option value="">🔄 Trocar situação (${sel.size})…</option>${['Disponível', 'Esterilização', 'Em limpeza', 'Consignado', 'Pendente', 'Não localizada', 'Manutenção', 'Baixada'].map(s => `<option value="${s}">${stNome(s)}</option>`).join('')}</select>` : '')
                 + (sel.size ? `<button data-a="excluirSel" style="${chip};color:#dc2626;border-color:#dc2626" title="Apaga do cadastro as marcadas">🗑 Excluir ${sel.size} selecionada${sel.size > 1 ? 's' : ''}</button>` : '')
                 + `<button data-selt="" style="${chip}">Limpar seleção</button><span style="font-size:.68rem;color:var(--text-dim)">ou marque as caixinhas (Shift+clique marca de uma até outra)</span></div>`;
             desenharOnde();
@@ -24388,7 +24390,7 @@ else init();
             const bb = `${bt};padding:4px 9px`;
             $('[data-corpo]').innerHTML = !cxs.length ? `<div style="text-align:center;padding:30px;color:var(--text-dim);font-size:.85rem">Nenhuma caixa ou bag cadastrada ainda.<br><br><button data-a="novo" style="${bt};background:#111827;color:#fff">+ Cadastrar as primeiras</button></div>`
               : `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr><th style="${th};width:28px"><input type="checkbox" data-selall title="Marcar todas da lista" ${linhas.length && linhas.every(c => sel.has(c.id)) ? 'checked' : ''}></th><th style="${th}"><button data-ordcod style="all:unset;cursor:pointer" title="Ordenar pelo código">Código ${ordCod === 'az' ? '▲' : ordCod === 'za' ? '▼' : '⇅'}</button></th>${comDesc ? `<th style="${th}">Descrição</th>` : ''}<th style="${th}">Situação</th><th style="${th}">Onde está</th><th style="${th}">Desde</th><th style="${th};text-align:center" title="Quantas vezes já saiu">Saídas</th><th style="${th}">NF</th><th style="${th};text-align:right">Ações</th></tr></thead><tbody>
-                ${linhas.map((c, iL) => { const d = diasDesde(c.saida_em), at = atrasada(c), fora = c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Consignado', ns = nSaidas ? nSaidas[c.codigo] || 0 : null;
+                ${linhas.map((c, iL) => { const d = diasDesde(c.saida_em), at = atrasada(c), fora = c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Consignado' || c.status === 'Não localizada', ns = nSaidas ? nSaidas[c.codigo] || 0 : null;
                   return `<tr style="${at || c.status === 'Pendente' ? 'background:rgba(220,38,38,.06)' : sel.has(c.id) ? 'background:rgba(37,99,235,.08)' : ''}"><td style="${td}"><input type="checkbox" data-selcx="${c.id}" data-idx="${iL}" ${sel.has(c.id) ? 'checked' : ''}></td><td style="${td};white-space:nowrap"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${CX_ICO[c.tipo] || '📦'} ${esc(c.tipo)}</span></td>
                     ${comDesc ? `<td style="${td}">${esc(c.descricao || '')}</td>` : ''}
                     <td style="${td};white-space:nowrap"><span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(stNome(c.status))}</span>${at ? ' <span style="color:#dc2626;font-size:.7rem;font-weight:800">⏰ atrasada</span>' : ''}</td>
@@ -24426,7 +24428,7 @@ else init();
                 ${c.status === 'Fora' || c.status === 'Pendente' ? `<div style="display:flex;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:200px">${campo('Quem levou', `<input data-f="levado" list="cx-pessoas-ed" value="${esc(c.levado_por || '')}" placeholder="vendedor / motorista" style="${inp}">`)}</div>
                   ${campo('Lacre', `<input data-f="lacre" value="${esc(c.lacre || '')}" style="${inp};width:150px">`)}
                   <datalist id="cx-pessoas-ed">${[...new Set([...(window.procedimentos || []).map(p => p.vendedor), ...cxs.map(x => x.levado_por)].filter(Boolean).map(s => String(s).trim()))].sort().map(s => `<option value="${esc(s)}">`).join('')}</datalist></div>` : ''}
-                <div style="display:flex;gap:10px;flex-wrap:wrap">${campo('Situação', `<select data-f="status" style="${inp};width:170px">${['Disponível', 'Fora', 'Pendente', 'Consignado', 'Em limpeza', 'Esterilização', 'Manutenção', 'Baixada'].map(s => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${stNome(s)}</option>`).join('')}</select>`)}
+                <div style="display:flex;gap:10px;flex-wrap:wrap">${campo('Situação', `<select data-f="status" style="${inp};width:170px">${['Disponível', 'Fora', 'Pendente', 'Consignado', 'Não localizada', 'Em limpeza', 'Esterilização', 'Manutenção', 'Baixada'].map(s => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${stNome(s)}</option>`).join('')}</select>`)}
                   <div style="flex:1;min-width:200px">${campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção / baixa / ajuste" style="${inp}">`)}</div></div>
                 <div style="font-size:.7rem;color:var(--text-dim)">Perdeu ou quebrou? Prefira a situação <b>Baixada</b>: sai do uso e o histórico fica guardado.</div></div>
               <div style="display:flex;gap:8px;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border,#e5e7eb)">
@@ -24459,7 +24461,7 @@ else init();
                 catch (e) { alert('⚠️ ' + (e.message || e)); break; }
             }
             lista.forEach(c => sel.delete(c.id)); _cxCache = null; await carregar();
-            if (n) window.showSyncToast && window.showSyncToast(`🏥 ${n} embalagem(ns) em consignado${locais.length === 1 ? ' — ' + locais[0] : ''}`);
+            if (n) window.showSyncToast && window.showSyncToast(`🏥 ${n} embalagem(ns) em consignação${locais.length === 1 ? ' — ' + locais[0] : ''}`);
         }
         async function mudarSituacao(c, st, obs) {
             if (st === c.status) return;
@@ -24470,6 +24472,7 @@ else init();
             else if (st === 'Disponível') await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual', semLimpeza: true });
             else if (st === 'Em limpeza') await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual' });
             else if (st === 'Pendente') await movCaixa(c, 'Pendente', { obs: obs || 'ajuste manual' });
+            else if (st === 'Não localizada') await movCaixa(c, 'Não localizada', { obs: obs || 'caixa não localizada' });
             else if (st === 'Manutenção') await movCaixa(c, 'Manutenção', { obs, destino: 'Manutenção' });
             else if (st === 'Baixada') await movCaixa(c, 'Baixa', { obs: obs || 'baixada' });
         }
@@ -24731,7 +24734,7 @@ else init();
             if (!c) { aviso(`<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`, false); return; }
             if (modo === 'Consultar') { aviso(''); await consultar(c); $('[data-bip]').focus(); return; }
             if (modo === 'Retorno') {
-                if (c.status !== 'Fora' && c.status !== 'Pendente' && c.status !== 'Consignado' && c.status !== 'Manutenção') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} já está ${esc(stNome(c.status))}</span>`, false); return; }
+                if (c.status !== 'Fora' && c.status !== 'Pendente' && c.status !== 'Consignado' && c.status !== 'Não localizada' && c.status !== 'Manutenção') { aviso(`<span style="color:#b45309">⚠ ${esc(c.codigo)} já está ${esc(stNome(c.status))}</span>`, false); return; }
                 const de = c.local_atual;
                 try { const obs = await retorno(c, true); sessao.push({ codigo: c.codigo, cor: obs ? '#b45309' : '#16a34a' });
                     aviso(`<span style="color:${obs ? '#b45309' : '#16a34a'}">✅ ${esc(c.codigo)} voltou${de ? ' de ' + esc(de) : ''}${limpezaAtiva() && c.status !== 'Manutenção' ? ' → 🧼 em limpeza' : ''}${obs ? ' · ⚠ ' + esc(obs) : ''}</span>`, !obs); desenharSessao(); await carregar(); }
