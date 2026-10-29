@@ -23658,11 +23658,11 @@ else init();
             const pid = pidAtual();
             linhasEl.innerHTML = vols.map((v, i) => {
                 const usados = vols.filter((x, j) => j !== i).map(x => x.cod);
-                const outra = c => c.status === 'Fora' && c.proc_id_atual && !String(c.proc_id_atual).startsWith('rem:') && !cxTem(c, pid);
+                const outra = c => c.status === 'Fora' && !String(c.proc_id_atual || '').startsWith('rem:') && !cxTem(c, pid);
                 const ops = v.tipo ? lista.filter(c => c.tipo === v.tipo && c.status !== 'Baixada' && !usados.includes(c.codigo) && (c.status === 'Disponível' || cxTem(c, pid) || outra(c))) : [];
                 return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                   <select data-vtipo="${i}" style="${sel}"><option value="">— tipo —</option>${['Caixa', 'Bag', 'Sacola'].map(t => `<option value="${t}" ${v.tipo === t ? 'selected' : ''}>${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t}</option>`).join('')}</select>
-                  ${v.tipo ? `<select data-vcod="${i}" style="${sel};width:230px;max-width:100%;text-overflow:ellipsis"><option value="">${ops.length ? `— escolha a ${v.tipo.toLowerCase()} —` : `nenhuma ${v.tipo.toLowerCase()} disponível`}</option>${ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.cod ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${cxTem(c, pid) ? ' (já nesta cirurgia)' : outra(c) ? ' · já leva NF ' + esc(cxNfs(c).join(', ') || '?') : ''}</option>`).join('')}</select>` : ''}
+                  ${v.tipo ? `<select data-vcod="${i}" style="${sel};width:230px;max-width:100%;text-overflow:ellipsis"><option value="">${ops.length ? `— escolha a ${v.tipo.toLowerCase()} —` : `nenhuma ${v.tipo.toLowerCase()} disponível`}</option>${ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.cod ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${cxTem(c, pid) ? ' (já nesta cirurgia)' : outra(c) ? (cxNfs(c).length ? ' · já leva NF ' + esc(cxNfs(c).join(', ')) : ' · em procedimento') : ''}</option>`).join('')}</select>` : ''}
                   ${v.cod ? (v.bipado ? '<span style="color:#16a34a;font-weight:800">✅ bipada</span>' : '<span style="color:#b45309;font-weight:700" title="Escolhida na lista — bipe o QR para confirmar">⚠ não bipada</span>') : ''}
                   <button type="button" data-vdel="${i}" title="Tirar este volume" style="${bt};padding:4px 8px">✕</button></div>`;
             }).join('');
@@ -24511,7 +24511,7 @@ else init();
         if (_cxSemMulti) throw new Error(MSG_SQL_MULTI);
         const sb = window._supabase, agora = new Date().toISOString();
         const ex = cxExtras(cx).filter(x => String(x.id) !== pid).concat([{ id: pid, nf: String(p.nf || '').trim() }]);
-        const local = localDasCirurgias([cx.proc_id_atual, ...ex.map(x => x.id)].filter(Boolean)) || cx.local_atual;
+        const local = [...new Set(String(cx.local_atual || '').split(' + ').concat([[p.hospital, p.cidade].filter(Boolean).join(' — ')]).map(s => s.trim()).filter(s => s && s !== 'Fora'))].join(' + ') || cx.local_atual;
         const { error } = await sb.from('caixas_bags').update({ procs_extra: ex, local_atual: local, atualizado_em: agora }).eq('id', cx.id);
         if (error) { if (faltaSQLMulti(error) || /PGRST204|schema cache/i.test(error.message || '')) { _cxSemMulti = true; throw new Error(MSG_SQL_MULTI); } throw error; }
         await sb.from('caixas_bags_mov').insert({ filial: filialAtual(null), caixa_id: cx.id, codigo: cx.codigo, tipo_mov: 'Mais uma NF', data: agora, destino: p.hospital || null, cidade: p.cidade || null,
@@ -24596,7 +24596,7 @@ else init();
                 if (!cx.levado_por && p.vendedor) { try { if (await completarQuemLevou(cx, p.vendedor)) _cxCache = null; } catch (e) {} }
                 continue;
             }
-            if (cx.status === 'Fora' && pid && cx.proc_id_atual && !String(cx.proc_id_atual).startsWith('rem:')) {   // já está fora com outra NF: vai na mesma caixa
+            if (cx.status === 'Fora' && pid && !String(cx.proc_id_atual || '').startsWith('rem:')) {   // já está fora com outra NF: vai na mesma caixa
                 try { await juntarNaCaixa(cx, p, pid); n++; } catch (e) { console.warn('caixas_bags:', e.message || e); if (e.message === MSG_SQL_MULTI) alert('⚠ ' + cx.codigo + ' já está fora com outra nota. ' + MSG_SQL_MULTI); }
                 continue;
             }
