@@ -822,7 +822,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-28.2';
+const VERSAO = '2026-10-28.3';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261030';
@@ -1101,6 +1101,11 @@ const ctesConhecidos = () => IMPORTA_PARA ? [...data.cte, ...ctesDestino] : data
 // a migração 20261016 ainda não rodou.
 // Contas compartilhadas (comercial@ / comercialmt@): pergunta o nome do operador (mesma lista do Monitor)
 // e grava "Operador (e-mail)" no registro de alterações e em "criado por".
+// Operadores de cada conta compartilhada (valem em qualquer unidade)
+const OPERADORES_CONTA = {
+  'comercialmt@gfmedical.net': ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'],
+  'comercial@gfmedical.net': ['Beatriz Helena Calil Barbosa','Cristina Luzia','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'],
+};
 const OPERADORES = {
   CBA: ['Beatriz Helena Calil Barbosa', 'Cristina Luzia', 'Izabela Crozetta', 'Kauana da Silva Feitoza', 'Marcio Benedito Queiroz', 'Murilo Julio Sant Ana Pereira', 'Renata Franco de Lima', 'Roberto Alex Cândido', 'Starley Santos Silva', 'Wilson Cordeiro'],
   CGR: ['Eva Diana de Araujo', 'Gabriely Amorim Dias', 'Gustavo Ovídio Mussi Faverão', 'Igor dos Reis Silva', 'Larissa Amanda Bernardo do Valle', 'Luis Felipe Moura Braga', 'Marcella Fernandes Ricci', 'Marcos Gonçalves da Silva', 'Paulo Vitor Leite da Silva', 'Regiane da Silva Ramos', 'Thayz Benites Leonel', 'Tiago da Silva Siqueira'],
@@ -1117,7 +1122,7 @@ function mostrarOperador() {
 }
 window.pedirOperador = () => {
   if (!contaCompartilhada()) return;
-  const nomes = [...new Set([...(OPERADORES[FILIAL] || []), ...Object.values(OPERADORES).flat()])];
+  const nomes = OPERADORES_CONTA[(_user?.email || '').toLowerCase()] || [...new Set([...(OPERADORES[FILIAL] || []), ...Object.values(OPERADORES).flat()])];
   $('op-sel').innerHTML = '<option value="">Selecione seu nome</option>' + nomes.map(n => `<option ${n === _operador ? 'selected' : ''}>${esc(n)}</option>`).join('') + '<option value="__outro">✏️ Outro (digitar)</option>';
   $('op-outro').style.display = 'none'; $('op-outro').value = '';
   $('modal-operador').classList.add('open');

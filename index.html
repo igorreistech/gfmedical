@@ -9760,7 +9760,13 @@ function editProc(docId) {
 const NOMES_OPERADOR_CBA = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'];
 const NOMES_OPERADOR_CGR = ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'];
 // No Consolidado mostra as duas listas juntas (cobre as duas cidades).
+// Operadores de cada conta compartilhada (valem em qualquer unidade)
+const NOMES_CONTA_COMERCIALMT = ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'];
+const NOMES_CONTA_COMERCIAL = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'];
 function _nomesOperadorAtivos() {
+    const _emConta = String((window._currentUser && window._currentUser.email) || document.getElementById('loginUser')?.value || '').toLowerCase();
+    if (/^comercialmt@gfmedical/.test(_emConta)) return NOMES_CONTA_COMERCIALMT;
+    if (/^comercial@gfmedical/.test(_emConta)) return NOMES_CONTA_COMERCIAL;
     if (window._gfMode === 'cba') return NOMES_OPERADOR_CBA;
     if (window._gfMode === 'cgr') return NOMES_OPERADOR_CGR;
     return [...NOMES_OPERADOR_CGR, ...NOMES_OPERADOR_CBA];
@@ -9778,6 +9784,21 @@ window.ADMIN_TITULARES = ['Igor dos Reis Silva'];
 // Só o Admin cria/aprova usuários: perfil Admin (não Operador); na conta compartilhada, só o titular (ou sem operador escolhido)
 // Lista em "Gerenciar Usuários": nomes da conta compartilhada (comercial@ / comercialmt@) desta unidade
 window._htmlOperadoresCompartilhados = function () {
+    const tit = window.ADMIN_TITULARES || [];
+    const chip = (n, papel, cor) => `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;margin:3px;border-radius:999px;border:1px solid ${cor}55;background:${cor}12;font-size:.74rem;color:var(--text)">${n} <b style="font-family:var(--mono);font-size:.62rem;color:${cor}">${papel}</b></span>`;
+    const tituloSec = t => `<div style="font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin:10px 0 6px">${t}</div>`;
+    const bloco = (conta, nomes) => {
+        const ops = nomes.filter(n => ADMIN_OPERADORES.includes(n)), vend = nomes.filter(n => !ADMIN_OPERADORES.includes(n));
+        return `<div style="margin-top:12px;padding:10px 10px 6px;border:1px dashed var(--border);border-radius:12px">
+          <div style="font-weight:800;font-size:.85rem">🔑 ${conta}</div>
+          ${tituloSec('👥 Operadores (' + ops.length + ')')}<div>${ops.map(n => chip(n, tit.includes(n) ? 'Admin' : 'Operador', tit.includes(n) ? '#7c3aed' : '#0e7490')).join('')}</div>
+          ${vend.length ? tituloSec('💼 Vendedores — Agendador (' + vend.length + ')') + `<div>${vend.map(n => chip(n, 'Agendador', '#15803d')).join('')}</div>` : ''}
+        </div>`;
+    };
+    return `<div style="margin-top:14px;padding-top:6px;border-top:1px dashed var(--border)">
+      ${bloco('comercialmt@gfmedical.net', NOMES_CONTA_COMERCIALMT)}${bloco('comercial@gfmedical.net', NOMES_CONTA_COMERCIAL)}</div>`;
+};
+window._htmlOperadoresCompartilhados_antigo = function () {
     const nomes = _nomesOperadorAtivos(), tit = window.ADMIN_TITULARES || [];
     const ops = nomes.filter(n => ADMIN_OPERADORES.includes(n)), vend = nomes.filter(n => !ADMIN_OPERADORES.includes(n));
     const chip = (n, papel, cor) => `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;margin:3px;border-radius:999px;border:1px solid ${cor}55;background:${cor}12;font-size:.74rem;color:var(--text)">${n} <b style="font-family:var(--mono);font-size:.62rem;color:${cor}">${papel}</b></span>`;
