@@ -23492,7 +23492,7 @@ else init();
     const caixaSalva = p => { try { return localStorage.getItem(chaveCaixa(p)) || ''; } catch (e) { return ''; } };
     const guardarCaixa = (p, v) => { try { v ? localStorage.setItem(chaveCaixa(p), v) : localStorage.removeItem(chaveCaixa(p)); } catch (e) {} agendarSaidaCaixa(p, v); };
     // códigos cadastrados citados no texto (ex.: "CX-001", "cx 5", "BG-002, CX-010") → saída automática para a cirurgia
-    const codigosNoTexto = t => [...String(t || '').matchAll(/\b(CX|BG|SC)[-\s]?(\d{1,5})\b/gi)].map(m => `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}`);
+    const codigosNoTexto = t => [...String(t || '').matchAll(/\b(CX|BG|SC|PC)[-\s]?(\d{1,5})\b/gi)].map(m => `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}`);
     const _cxTimers = {};
     function agendarSaidaCaixa(p, v) {
         const cods = codigosNoTexto(v), pid = String(p?._docId || p?.id || ''); if (!pid) return;
@@ -23666,7 +23666,7 @@ else init();
                 const outra = c => c.status === 'Fora' && !String(c.proc_id_atual || '').startsWith('rem:') && !cxTem(c, pid);
                 const ops = v.tipo ? lista.filter(c => c.tipo === v.tipo && c.status !== 'Baixada' && !usados.includes(c.codigo) && (c.status === 'Disponível' || cxTem(c, pid) || outra(c))) : [];
                 return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                  <select data-vtipo="${i}" style="${sel}"><option value="">— tipo —</option>${['Caixa', 'Bag', 'Sacola'].map(t => `<option value="${t}" ${v.tipo === t ? 'selected' : ''}>${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t}</option>`).join('')}</select>
+                  <select data-vtipo="${i}" style="${sel}"><option value="">— tipo —</option>${['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => `<option value="${t}" ${v.tipo === t ? 'selected' : ''}>${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t}</option>`).join('')}</select>
                   ${v.tipo ? `<select data-vcod="${i}" style="${sel};width:230px;max-width:100%;text-overflow:ellipsis"><option value="">${ops.length ? `— escolha a ${v.tipo.toLowerCase()} —` : `nenhuma ${v.tipo.toLowerCase()} disponível`}</option>${ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.cod ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${cxTem(c, pid) ? ' (já nesta cirurgia)' : outra(c) ? (cxNfs(c).length ? ' · já leva NF ' + esc(cxNfs(c).join(', ')) : ' · em procedimento') : ''}</option>`).join('')}</select>` : ''}
                   ${v.cod ? (v.bipado ? '<span style="color:#16a34a;font-weight:800">✅ bipada</span>' : '<span style="color:#b45309;font-weight:700" title="Escolhida na lista — bipe o QR para confirmar">⚠ não bipada</span>') : ''}
                   <button type="button" data-vdel="${i}" title="Tirar este volume" style="${bt};padding:4px 8px">✕</button></div>`;
@@ -24196,7 +24196,7 @@ else init();
         if (!vols.length) vols = [{ tipo: 'Caixa', ident: '', auto: true, q: Object.fromEntries(itens.map((i, k) => [k, i.total])) }];
         const numerar = () => vols.forEach((v, n) => { if (v.auto || !v.ident) { v.ident = String(n + 1); v.auto = true; } });
         const conta = t => vols.filter(v => v.tipo === t).length;
-        const ICONE = { Caixa: '📦', Bag: '🎒', Sacola: '🛍️' }, ORD = { Caixa: 0, Bag: 1, Sacola: 2 };
+        const ICONE = { Caixa: '📦', Bag: '🎒', Sacola: '🛍️', 'Porta cateter': '💉' }, ORD = { Caixa: 0, Bag: 1, Sacola: 2, 'Porta cateter': 3 };
         const setConta = (t, n) => {
             n = Math.max(0, Math.min(30, n));
             const outros = vols.filter(v => v.tipo !== t), meus = vols.filter(v => v.tipo === t).slice(0, n);
@@ -24225,7 +24225,7 @@ else init();
         function desenhar() {
             const th = 'padding:7px 8px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);background:var(--surface,#fff);position:sticky;top:0;z-index:1;white-space:nowrap';
             const td = 'padding:6px 8px;border-bottom:1px solid var(--border,#e5e7eb);font-size:.78rem;color:var(--text);vertical-align:middle';
-            const cont = t => `<div style="display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;color:var(--text)">${ICONE[t]} ${t === 'Bag' ? 'Bags' : t + 's'}
+            const cont = t => `<div style="display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;color:var(--text)">${ICONE[t]} ${t === 'Porta cateter' ? 'Portas cateter' : t + 's'}
                 <button data-menos="${t}" style="${bt};padding:4px 10px">−</button><input type="number" min="0" max="30" data-conta="${t}" value="${conta(t)}" style="${num}"><button data-mais="${t}" style="${bt};padding:4px 10px">+</button></div>`;
             ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1100px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
               <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
@@ -24405,7 +24405,7 @@ else init();
                 ${campo('Cidade', `<input data-f="cidade" value="${esc(r.cidade || '')}" style="${inp};width:140px">`)}
                 ${campo('Envio', `<input type="date" data-f="data_envio" value="${esc(r.data_envio || '')}" style="${inp}">`)}
                 ${campo('Obs', `<input data-f="obs" value="${esc(r.obs || '')}" style="${inp};min-width:160px">`, '1')}
-                ${campo('Caixa / bag / sacola que vai', `<span style="display:flex;gap:4px"><select data-voltipo style="${inp}"><option value="">— nenhuma —</option><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select><select data-volcod style="${inp};min-width:110px;display:none"></select></span>`)}
+                ${campo('Caixa / bag / sacola que vai', `<span style="display:flex;gap:4px"><select data-voltipo style="${inp}"><option value="">— nenhuma —</option><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option><option value="Porta cateter">💉 Porta cateter</option></select><select data-volcod style="${inp};min-width:110px;display:none"></select></span>`)}
                 <button data-a="gravar" style="${bt};background:#111827;color:#fff;border-color:#111827">${r.id ? '💾 Salvar' : '💾 Salvar e montar volumes'}</button>
                 <button data-a="cancelar" style="${bt}">Cancelar</button></div>`;
             prepararVolRem(r.id);
@@ -24482,8 +24482,8 @@ else init();
 
     // ── Caixas e bags cadastradas: código + QR em cada uma, rastreio de saída e retorno ──
     const CX_ATRASO = 15;   // dias fora para destacar
-    const CX_PREF = { Caixa: 'CX', Bag: 'BG', Sacola: 'SC' };
-    const CX_ICO = { Caixa: '📦', Bag: '🎒', Sacola: '🛍️' };
+    const CX_PREF = { Caixa: 'CX', Bag: 'BG', Sacola: 'SC', 'Porta cateter': 'PC' };
+    const CX_ICO = { Caixa: '📦', Bag: '🎒', Sacola: '🛍️', 'Porta cateter': '💉' };
     // no banco continua 'Fora'; na tela aparece como "Em procedimento"
     const LOCAL_ESTER = 'BIOESTERIL CENTRAL DE ESTERILIZAÇÃO LTDA';
     const localGenerico = l => !l || /^(esteriliza[çc][ãa]o|bio\s*est[ée]ril|estoque)$/i.test(String(l).trim());
@@ -24497,7 +24497,7 @@ else init();
         if (error) { _cxCache = null; return { erro: error }; }
         _cxCache = data || []; return _cxCache;
     }
-    const codigoBipado = t => { const m = /\b(CX|BG|SC)[-\s]?(\d{1,5})\b/i.exec(String(t || '')); return m ? `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}` : String(t || '').trim().toUpperCase(); };
+    const codigoBipado = t => { const m = /\b(CX|BG|SC|PC)[-\s]?(\d{1,5})\b/i.exec(String(t || '')); return m ? `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}` : String(t || '').trim().toUpperCase(); };
     const diasDesde = d => d ? Math.floor((Date.now() - new Date(d).getTime()) / 864e5) : null;
     // Etapa de limpeza: no retorno a embalagem fica "Em limpeza" até alguém marcar como limpa (liga/desliga na tela, por computador).
     // Sem o SQL 20261108_caixas_controle.sql o banco não aceita esse status nem as colunas levado_por/lacre: aí segue sem eles.
@@ -24715,7 +24715,7 @@ else init();
     // cobrança das caixas/bags/sacolas que não voltaram (WhatsApp)
     // "o material voltou, mas a caixa CX-002 e a bag BG-001 não"
     window.textoNaoVoltou = function (lista) {
-        const nome = { Caixa: 'a caixa', Bag: 'a bag', Sacola: 'a sacola' }, l = (lista || []).map(c => `${nome[c.tipo] || 'a caixa'} ${c.codigo}`);
+        const nome = { Caixa: 'a caixa', Bag: 'a bag', Sacola: 'a sacola', 'Porta cateter': 'o porta cateter' }, l = (lista || []).map(c => `${nome[c.tipo] || 'a caixa'} ${c.codigo}`);
         const junta = l.length > 1 ? l.slice(0, -1).join(', ') + ' e ' + l[l.length - 1] : (l[0] || 'a caixa');
         return `o material voltou, mas ${junta} não${l.length > 1 ? ' voltaram' : ' voltou'}`;
     };
@@ -24731,10 +24731,10 @@ else init();
             if (valorCx(cx)) L.push(`*Valor de reposição:* ${brlCx(valorCx(cx))}`); });
         // conforme o tipo: 'da caixa', 'das bags e da sacola'…
         const junta = arr => arr.length > 1 ? arr.slice(0, -1).join(', ') + ' e ' + arr[arr.length - 1] : (arr[0] || '');
-        const cont = ['Caixa', 'Bag', 'Sacola'].map(t => [t, l.filter(c => c.tipo === t).length]).filter(([, n]) => n);
-        const NOMES = { Caixa: ['caixa', 'caixas'], Bag: ['bag', 'bags'], Sacola: ['sacola', 'sacolas'] };
+        const cont = ['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => [t, l.filter(c => c.tipo === t).length]).filter(([, n]) => n);
+        const NOMES = { Caixa: ['caixa', 'caixas'], Bag: ['bag', 'bags'], Sacola: ['sacola', 'sacolas'], 'Porta cateter': ['porta cateter', 'portas cateter'] };
         const total = junta(cont.map(([t, n]) => n + ' ' + NOMES[t][n > 1 ? 1 : 0]));
-        const devol = junta(cont.map(([t, n]) => (n > 1 ? 'das ' : 'da ') + NOMES[t][n > 1 ? 1 : 0]));
+        const devol = junta(cont.map(([t, n]) => (t === 'Porta cateter' ? (n > 1 ? 'dos ' : 'do ') : n > 1 ? 'das ' : 'da ') + NOMES[t][n > 1 ? 1 : 0]));
         const vTot = l.reduce((a, c) => a + valorCx(c), 0);
         L.push('', '---', `Total: *${total} pendente${l.length > 1 ? 's' : ''}*${vTot ? ` · reposição *${brlCx(vTot)}*` : ''}`, '', `Por favor, providencie a devolução ${devol} ao estoque. 🙏`);
         return L;
@@ -24798,7 +24798,7 @@ else init();
         // ordem: o que precisa de atenção primeiro
         const prio = c => c.status === 'Pendente' ? 0 : atrasada(c) ? 1 : c.status === 'Fora' ? 2 : c.status === 'Consignado' ? 2.5 : c.status === 'Em limpeza' ? 3 : c.status === 'Esterilização' ? 3.5 : c.status === 'Manutenção' ? 4 : c.status === 'Disponível' ? 5 : 6;
         const porCodigo = (a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt-BR', { numeric: true });
-        const nomeTipo = (t, n) => ({ Caixa: ['caixa', 'caixas'], Bag: ['bag', 'bags'], Sacola: ['sacola', 'sacolas'] }[t] || ['caixa', 'caixas'])[n === 1 ? 0 : 1];
+        const nomeTipo = (t, n) => ({ Caixa: ['caixa', 'caixas'], Bag: ['bag', 'bags'], Sacola: ['sacola', 'sacolas'], 'Porta cateter': ['porta cateter', 'portas cateter'] }[t] || ['caixa', 'caixas'])[n === 1 ? 0 : 1];
         // som do leitor: agudo = ok, grave = erro
         let _ac = null;
         function bip(ok) { try { _ac = _ac || new (window.AudioContext || window.webkitAudioContext)(); const o = _ac.createOscillator(), g = _ac.createGain();
@@ -24860,7 +24860,7 @@ else init();
             const grupos = Object.entries(g).sort((a, b) => b[1].length - a[1].length);
             $('[data-onde]').innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏥 Onde estão (${fora.length}):</span>`
                 + grupos.map(([loc, l]) => { const max = Math.max(...l.map(c => diasDesde(c.saida_em) || 0)), pend = l.filter(c => c.status === 'Pendente').length, at = l.some(atrasada);
-                    const tipos = ['Caixa', 'Bag', 'Sacola'].map(t => [t, l.filter(c => c.tipo === t).length]).filter(([, n]) => n).map(([t, n]) => `${n} ${CX_ICO[t]}`).join(' ');
+                    const tipos = ['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => [t, l.filter(c => c.tipo === t).length]).filter(([, n]) => n).map(([t, n]) => `${n} ${CX_ICO[t]}`).join(' ');
                     return `<button data-ondeq="${esc(loc)}" title="Ver só as que estão em ${esc(loc)}: ${esc(l.map(c => c.codigo).join(', '))}" style="${chip};${pend || at ? 'border-color:#dc2626;color:#dc2626' : ''}">${esc(loc.length > 38 ? loc.slice(0, 36) + '…' : loc)} · <b>${tipos}</b> · ${max} dia${max === 1 ? '' : 's'}${pend ? ` · ⏳ ${pend}` : ''}</button>`; }).join('') + '</div>';
         }
         function desenhar() {
@@ -24872,12 +24872,12 @@ else init();
                 .filter(([s]) => (s !== 'Em limpeza' || limpezaAtiva() || cont(s)) && (s !== 'Consignado' || cont(s) || cxs.some(c => c.status === 'Fora')));
             $('[data-filtros]').innerHTML = sts.map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? chipOn : s === 'Pendente' && pend.length ? 'border-color:#dc2626;color:#dc2626' : ''}">${n} <b>${cont(s)}</b>${s === 'Pendente' && vPend ? ` · ${brlCx(vPend)}` : ''}</button>`).join('')
                 + `<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px"><span style="font-size:.7rem;font-weight:800;color:var(--text)">Tipo:</span>`
-                + [['', 'Todos', cxs.length], ...['Caixa', 'Bag', 'Sacola'].map(t => [t, `${CX_ICO[t]} ${t === 'Caixa' ? 'Caixas' : t + 's'}`, cxs.filter(c => c.tipo === t).length])]
+                + [['', 'Todos', cxs.length], ...['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => [t, `${CX_ICO[t]} ${t === 'Caixa' ? 'Caixas' : t === 'Porta cateter' ? 'Portas cateter' : t + 's'}`, cxs.filter(c => c.tipo === t).length])]
                     .map(([t, n, k]) => `<button data-tp="${t}" style="${chip};${fTipo === t ? chipOn : ''}">${n} <b>${k}</b></button>`).join('')
                 + `<span style="width:14px"></span><span style="font-size:.7rem;font-weight:800;color:var(--text)">Ordenar:</span>`
                 + [['', 'Situação'], ['az', 'Código A→Z'], ['za', 'Código Z→A']].map(([o, n]) => `<button data-ord="${o}" style="${chip};${ordCod === o ? chipOn : ''}">${n}</button>`).join('')
                 + `<span style="width:14px"></span><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏷 Etiquetas em lote:</span>`
-                + ['Caixa', 'Bag', 'Sacola'].map(t => `<button data-selt="${t}" style="${chip}">+ todas as ${nomeTipo(t, 2)} da lista</button>`).join('')
+                + ['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => `<button data-selt="${t}" style="${chip}">+ ${t === 'Porta cateter' ? 'todos os' : 'todas as'} ${nomeTipo(t, 2)} da lista</button>`).join('')
                 + (cxs.some(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')) ? `<button data-a="esterSel" style="${chip};color:#db2777;border-color:#db2777" title="Caixas de instrumental enviadas para esterilizar">🧪 Enviar p/ esterilização (${cxs.filter(c => sel.has(c.id) && (c.status === 'Disponível' || c.status === 'Em limpeza' || c.status === 'Consignado')).length})</button>` : '')
                 + (cxs.some(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')) ? `<button data-a="consigSel" style="${chip};color:#7c3aed;border-color:#7c3aed" title="Ficaram no cliente em consignado">🏥 Deixar em consignado (${cxs.filter(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')).length})</button>` : '')
                 + (sel.size ? [['Disponível', '✅', 'Voltar p/ estoque'], ['Em limpeza', '🧼', 'Enviar p/ limpeza'], ['Consignado', '🏥', 'Em Consignação'], ['Pendente', '⏳', 'Marcar pendente'], ['Não localizada', '🔎', 'Caixa não localizada'], ['Manutenção', '🔧', 'Enviar p/ manutenção'], ['Baixada', '🗑', 'Baixar']]
@@ -25011,7 +25011,7 @@ else init();
             lote = null; inv = null;
             form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:#dc2626">🗑 Excluir em lote</div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-                ${campo('Tipo', `<select data-f="xtipo" style="${inp}"><option value="">Todos</option><option value="Caixa">📦 Caixas</option><option value="Bag">🎒 Bags</option><option value="Sacola">🛍️ Sacolas</option></select>`)}
+                ${campo('Tipo', `<select data-f="xtipo" style="${inp}"><option value="">Todos</option><option value="Caixa">📦 Caixas</option><option value="Bag">🎒 Bags</option><option value="Sacola">🛍️ Sacolas</option><option value="Porta cateter">💉 Portas cateter</option></select>`)}
                 ${campo('Do código', `<input data-f="xde" placeholder="ex.: CX-020" style="${inp};width:110px;font-family:var(--mono)">`)}
                 ${campo('Até o código', `<input data-f="xate" placeholder="ex.: CX-040" style="${inp};width:110px;font-family:var(--mono)">`)}
                 ${campo('ou cole os códigos', `<input data-f="xlista" placeholder="CX-010, CX-013, SC-004…" style="${inp};width:260px;font-family:var(--mono)">`)}
@@ -25032,7 +25032,7 @@ else init();
             lote = null; inv = null;
             form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:8px;color:var(--text)">${c ? '✎ ' + esc(c.codigo) : '+ Cadastrar caixas / bags'}</div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-                ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`) + campo('Nº (opcional)', `<input data-f="ini" inputmode="numeric" placeholder="próximo" title="Deixe vazio para pegar o próximo número. Ex.: 16 cadastra a CX-016" style="${inp};width:90px;font-family:var(--mono)">`)}
+                ${c ? '' : campo('Tipo', `<select data-f="tipo" style="${inp}"><option value="Caixa">📦 Caixa plástica</option><option value="Bag">🎒 Bag</option><option value="Sacola">🛍️ Sacola</option><option value="Porta cateter">💉 Porta cateter</option></select>`) + campo('Quantas', `<input data-f="qtd" type="number" min="1" max="100" value="1" style="${inp};width:80px">`) + campo('Nº (opcional)', `<input data-f="ini" inputmode="numeric" placeholder="próximo" title="Deixe vazio para pegar o próximo número. Ex.: 16 cadastra a CX-016" style="${inp};width:90px;font-family:var(--mono)">`)}
                 ${campo('Descrição / tamanho', `<input data-f="descricao" value="${esc(c?.descricao || '')}" placeholder="ex.: caixa plástica grande azul, bag térmica" style="${inp};width:260px">`)}
                 ${c ? campo('Situação', `<select data-f="status" style="${inp}">${['Disponível', 'Fora', 'Pendente', 'Em limpeza', 'Manutenção', 'Baixada'].map(s => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${stNome(s)}</option>`).join('')}</select>`) + campo('Observação', `<input data-f="obs" placeholder="motivo da manutenção/baixa" style="${inp};width:220px">`) : ''}
                 <span data-prev style="font-size:.74rem;color:var(--text-dim);margin-bottom:8px"></span>
@@ -25196,7 +25196,7 @@ else init();
             form(`<div style="font-weight:800;font-size:.85rem;margin-bottom:4px;color:var(--text)">💲 Valor de reposição</div>
               <div style="font-size:.72rem;color:var(--text-dim);margin-bottom:8px">Quanto custa repor cada embalagem. Entra no total das não devolvidas, na cobrança pelo WhatsApp e no relatório.${semTab ? ' <b style="color:#b45309">Rode o SQL 20261108_caixas_controle.sql para guardar.</b>' : ''}</div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-                ${['Caixa', 'Bag', 'Sacola'].map(t => campo(`${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t} (R$)`, `<input data-val="${t}" type="number" min="0" step="0.01" value="${(_cxValor && _cxValor[t]) || ''}" style="${inp};width:120px">`)).join('')}
+                ${['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => campo(`${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t} (R$)`, `<input data-val="${t}" type="number" min="0" step="0.01" value="${(_cxValor && _cxValor[t]) || ''}" style="${inp};width:120px">`)).join('')}
                 <button data-a="gravarValores" style="${bt};background:#111827;color:#fff;border-color:#111827">💾 Salvar</button><button data-a="cancela" style="${bt}">Cancelar</button></div>`);
         }
         // ── Relatório do mês ──
@@ -25315,7 +25315,7 @@ else init();
                 if (d.selt !== undefined) { if (!d.selt) sel.clear(); else linhas.filter(c => c.tipo === d.selt).forEach(c => sel.add(c.id)); ultSel = -1; return desenhar(); }
                 if (d.a === 'etq') return etiquetas(sel.size ? cxs.filter(c => sel.has(c.id)).sort(porCodigo) : linhas.slice().sort(porCodigo));
                 if (d.a === 'gravarValores') {
-                    const rows = ['Caixa', 'Bag', 'Sacola'].map(t => ({ filial: filialAtual(null), tipo: t, valor: Math.max(0, parseFloat($(`[data-val="${t}"]`).value) || 0), atualizado_em: new Date().toISOString() }));
+                    const rows = ['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => ({ filial: filialAtual(null), tipo: t, valor: Math.max(0, parseFloat($(`[data-val="${t}"]`).value) || 0), atualizado_em: new Date().toISOString() }));
                     const { error } = await sb.from('caixas_bags_valor').upsert(rows, { onConflict: 'filial,tipo' });
                     if (error) return alert(/caixas_bags_valor|schema cache|does not exist/i.test(error.message) ? 'Rode o SQL 20261108_caixas_controle.sql no Supabase desta filial para guardar os valores.' : 'Erro: ' + error.message);
                     await carregarValores(); form(''); desenhar(); window.showSyncToast && window.showSyncToast('💲 Valores de reposição salvos'); return;
@@ -25388,7 +25388,7 @@ else init();
                     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Caixas e bags'); XLSX.writeFile(wb, 'caixas-e-bags.xlsx'); return;
                 }
             } catch (err) { const m = String(err.message || err);
-                alert(/caixas_bags_tipo_check/.test(m) ? 'O banco desta filial ainda não aceita Sacola: rode o SQL 20261106_sacola_rastreio.sql no Supabase (Campo Grande e Cuiabá) e tente de novo.'
+                alert(/caixas_bags_tipo_check/.test(m) ? 'O banco desta filial ainda não aceita esse tipo: rode o SQL 20261112_porta_cateter.sql no Supabase (Campo Grande e Cuiabá) e tente de novo.'
                     : /caixas_bags_status_check/.test(m) ? 'Rode o SQL 20261108_caixas_controle.sql no Supabase desta filial (status Em limpeza / Pendente).' : 'Erro: ' + m); }
         });
         let _tb = null; $('[data-busca]').addEventListener('input', () => { clearTimeout(_tb); _tb = setTimeout(desenhar, 200); });
