@@ -822,7 +822,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-28.1';
+const VERSAO = '2026-10-28.2';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261030';
@@ -999,6 +999,7 @@ auth.onAuthStateChange((_event, session) => {
     // Escrita de papel "visualizacao" já é barrada no banco (RLS); aqui só
     // esconde os botões para não gerar erro confuso.
     supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => {
+      if (p?.role === 'pendente' || p?.role === 'recusado') { location.href = 'index.html'; return; }
       _role = p?.role === 'operador' ? 'admin' : (p?.role || null);
       _readOnly = p?.role === 'visualizacao';
       document.body.classList.toggle('readonly', _readOnly);

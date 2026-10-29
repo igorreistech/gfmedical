@@ -668,6 +668,7 @@ auth.onAuthStateChange((_event, session) => {
     window._fichaReadOnly = false;
     getDoc(doc(db, 'usuarios', u.id)).then(snap => {
       const role = snap.exists() ? snap.data().role : null;
+      if (role === 'pendente' || role === 'recusado') { location.href = 'index.html'; return; }
       window._fichaReadOnly = role === 'visualizacao' && !isDemo;
       document.body.classList.toggle('ficha-readonly', window._fichaReadOnly);
     }).catch(() => {});

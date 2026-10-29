@@ -452,7 +452,7 @@
         const btn   = document.getElementById('loginBtn');
         const err   = document.getElementById('loginError');
         if (!email || !pass) { err.textContent = 'Preencha e-mail e senha.'; err.style.display = 'block'; return; }
-        btn.disabled = true; btn.textContent = 'Entrando...'; err.style.display = 'none';
+        btn.disabled = true; btn.textContent = 'Entrando...'; err.style.display = 'none'; window._acessoBloqueado = null;
 
         try {
           // Limite de 15 s: se o Supabase não devolver, confere se a sessão já foi gravada (login aceito) e segue;
@@ -482,6 +482,9 @@
               console.warn('[Consolidado] Não autenticou em Cuiabá:', e2.message);
             }
           }
+          // espera o perfil carregar (até 5 s): cadastro pendente/recusado não abre o GF Hub
+          await new Promise(r => { const t0 = Date.now(), i = setInterval(() => { if (window._currentUser || window._acessoBloqueado || Date.now() - t0 > 5000) { clearInterval(i); r(); } }, 100); });
+          if (window._acessoBloqueado) return;
           if (email.toLowerCase() !== DEMO_USER.email) window._abrirEscolhaDestino(email, pass);
         } catch(e) {
           let msg = 'E-mail ou senha incorretos.';
@@ -495,6 +498,85 @@
           if (box) { box.style.transform='translateX(-8px)'; setTimeout(()=>{box.style.transform='translateX(8px)';},80); setTimeout(()=>{box.style.transform='translateX(-5px)';},160); setTimeout(()=>{box.style.transform='translateX(0)';},240); }
         } finally { btn.disabled = false; btn.textContent = 'Entrar'; }
       };
+
+      // ─── Solicitar acesso (auto-cadastro): cria o login e fica "pendente" até um admin aprovar ───
+      window.abrirSolicitarAcesso = function() {
+        if (document.getElementById('solicitarAcessoOv')) return;
+        const ov = document.createElement('div'); ov.id = 'solicitarAcessoOv';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)';
+        const inp = 'width:100%;box-sizing:border-box;padding:11px 12px;border-radius:10px;border:1px solid var(--border,#b8dfc4);background:var(--surface2,#eef8f1);font-family:var(--mono);font-size:.85rem;color:var(--text,#111)';
+        const lab = 'display:block;font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(60,160,90,.9);margin:10px 0 5px';
+        ov.innerHTML = `<form id="solAcForm" style="background:var(--surface,#f0faf3);border-radius:18px;padding:24px 22px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);border-top:3px solid #4db87a">
+          <div style="font-weight:800;font-size:1.05rem;margin-bottom:4px">📝 Solicitar acesso</div>
+          <div style="font-size:.78rem;color:var(--text-dim,#666);margin-bottom:6px">Preencha seus dados. Você poderá entrar assim que o administrador aprovar o cadastro.</div>
+          <label style="${lab}">Nome completo</label><input id="solAcNome" style="${inp}" autocomplete="name" required>
+          <label style="${lab}">E-mail</label><input id="solAcEmail" type="email" style="${inp}" autocomplete="email" required>
+          <label style="${lab}">Senha</label><input id="solAcSenha" type="password" style="${inp}" autocomplete="new-password" placeholder="Mínimo 6 caracteres" required>
+          <label style="${lab}">Confirmar senha</label><input id="solAcSenha2" type="password" style="${inp}" autocomplete="new-password" required>
+          <div id="solAcMsg" style="display:none;margin-top:12px;font-size:.8rem;padding:9px 11px;border-radius:10px"></div>
+          <button id="solAcBtn" type="submit" style="width:100%;margin-top:14px;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,#2a9fbf,#4db87a);color:#fff;font-weight:800;cursor:pointer">Enviar cadastro</button>
+          <button id="solAcFechar" type="button" style="width:100%;margin-top:8px;padding:10px;border:1px solid var(--border,#b8dfc4);border-radius:12px;background:transparent;font-family:var(--mono);font-size:.75rem;cursor:pointer;color:var(--text,#333)">Fechar</button>
+        </form>`;
+        document.body.appendChild(ov);
+        const $s = id => ov.querySelector('#' + id);
+        const msg = (t, ok) => { const m = $s('solAcMsg'); m.style.display = 'block'; m.textContent = t; m.style.background = ok ? 'rgba(77,184,122,.15)' : 'rgba(220,38,38,.1)'; m.style.color = ok ? '#166534' : '#b91c1c'; };
+        $s('solAcFechar').onclick = () => ov.remove();
+        ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+        $s('solAcNome').focus();
+        $s('solAcForm').onsubmit = async e => {
+          e.preventDefault();
+          const nome = $s('solAcNome').value.trim(), email = $s('solAcEmail').value.trim().toLowerCase(), senha = $s('solAcSenha').value;
+          if (nome.length < 3) return msg('Informe seu nome completo.');
+          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg('E-mail inválido.');
+          if (senha.length < 6) return msg('A senha precisa ter pelo menos 6 caracteres.');
+          if (senha !== $s('solAcSenha2').value) return msg('As senhas não conferem.');
+          const btn = $s('solAcBtn'); btn.disabled = true; btn.textContent = 'Enviando…';
+          try {
+            const { data, error } = await auth.signUp({ email, password: senha, options: { data: { nome } } });
+            if (error) throw error;
+            if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) throw new Error('already registered');
+            // avisa o admin por e-mail que há cadastro para aprovar (não trava se o aviso falhar)
+            if (data?.user?.id) fetch(SUPABASE_URL + '/functions/v1/avisar-cadastro', {
+              method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+              body: JSON.stringify({ id: data.user.id, unidade: (BR.label || ''), site: location.origin + location.pathname })
+            }).catch(() => {});
+            const loginUser = document.getElementById('loginUser'); if (loginUser) loginUser.value = email;
+            msg(data?.session
+              ? '✅ Cadastro enviado! Assim que o administrador aprovar, entre com este e-mail e senha.'
+              : '✅ Cadastro enviado! Se chegar um e-mail de confirmação, clique no link. Depois que o administrador aprovar, entre com este e-mail e senha.', true);
+            btn.textContent = 'Enviado ✓';
+          } catch (er) {
+            const t = String(er?.message || er);
+            msg(/already registered|already been registered|exists/i.test(t) ? 'Este e-mail já tem cadastro. Use "Entrar" ou peça ao administrador para aprovar.'
+              : /signups? not allowed|disabled/i.test(t) ? 'O cadastro está desativado no servidor. Peça ao administrador para criar seu usuário.'
+              : /rate limit/i.test(t) ? 'Muitas tentativas. Aguarde alguns minutos.'
+              : 'Não foi possível enviar: ' + t);
+            btn.disabled = false; btn.textContent = 'Enviar cadastro';
+          }
+        };
+      };
+
+      // Admin: muda o perfil de um usuário (aprovar pendente como Operador/Agendador, recusar, trocar perfil)
+      window.doAdminSetRole = async function(docId, role) {
+        if (!window._podeGerenciarUsuarios()) { alert('Somente o Admin pode alterar perfis de usuário.'); return; }
+        try {
+          await setDoc(doc(db, 'usuarios', docId), { role }, { merge: true });
+          doAdminLoadUsers(); window._contarPendentes && window._contarPendentes();
+        } catch(e) { alert('Erro ao alterar o perfil: ' + e.message); }
+      };
+      // Quantos cadastros esperam aprovação → aparece no botão "👥 Usuários"
+      window._contarPendentes = async function() {
+        const b = document.getElementById('btn-gerenciar-usuarios'); const u = window._currentUser;
+        if (!b || !u || !window._podeGerenciarUsuarios()) return;
+        try {
+          const snap = await getDocs(collection(db, 'usuarios'));
+          const n = snap.docs.filter(d => (d.data().role || '') === 'pendente').length;
+          b.innerHTML = '👥 Usuários' + (n ? ` <span style="background:#f59e0b;color:#fff;border-radius:999px;padding:0 6px;margin-left:4px;font-size:.9em">⏳ ${n}</span>` : '');
+          b.title = n ? n + ' cadastro(s) aguardando aprovação' : '';
+        } catch (e) {}
+      };
+      setInterval(() => window._contarPendentes(), 60000);
+      setTimeout(() => window._contarPendentes(), 4000);
 
       window.doLogout = async function() {
         if (confirm('Deseja sair do sistema?')) {
@@ -590,19 +672,30 @@
         try {
           const snap = await getDocs(collection(db, 'usuarios'));
           if (snap.empty) { lista.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;padding:12px 0;">Nenhum usuário cadastrado.</div>'; return; }
-          lista.innerHTML = snap.docs.map(d => {
-            const u = d.data();
+          lista.innerHTML = snap.docs.map(d => ({ id: d.id, u: d.data() }))
+            .sort((a, b) => (b.u.role === 'pendente') - (a.u.role === 'pendente'))
+            .map(({ id, u }) => {
             const isMe = u.email === (window._currentUser?.email||'').toLowerCase();
-            const roleLabel = u.role === 'operador' ? 'Operador' : u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Somente Visualização' : 'Agendador';
-            return `<div class="admin-user-row">
-              <div><div class="admin-user-name">${u.nome||u.email}</div><div class="admin-user-email">${u.email}</div></div>
-              <span class="admin-role-badge role-${u.role}">${roleLabel}</span>
-              <button class="admin-btn-del" onclick="doAdminDeleteUser('${d.id}')" ${isMe?'disabled title="Não pode remover a si mesmo"':''}>🗑 Excluir</button>
+            const fixo = ['comercial@gfmedical.net', 'comercialmt@gfmedical.net'].includes(u.email);
+            const roleLabel = u.role === 'operador' ? 'Operador' : u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Somente Visualização' : u.role === 'pendente' ? '⏳ Aguardando aprovação' : u.role === 'recusado' ? '⛔ Recusado' : 'Agendador';
+            const bt = (role, txt, cor) => `<button onclick="doAdminSetRole('${id}','${role}')" style="padding:5px 9px;border-radius:8px;border:1px solid ${cor};background:${cor}1a;color:${cor};font-family:var(--mono);font-size:.68rem;font-weight:800;cursor:pointer;white-space:nowrap">${txt}</button>`;
+            const acoes = (u.role === 'pendente' || u.role === 'recusado')
+              ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${bt('operador', '✅ Operador', '#0e7490')}${bt('agendador', '✅ Agendador', '#15803d')}${u.role === 'pendente' ? bt('recusado', '✖ Recusar', '#b91c1c') : ''}</div>`
+              : (isMe || fixo) ? `<span class="admin-role-badge role-${u.role}">${roleLabel}</span>`
+              : `<select onchange="doAdminSetRole('${id}', this.value)" title="Alterar perfil" style="padding:5px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:var(--mono);font-size:.7rem;font-weight:700;color:var(--text)">
+                  ${[['operador','Operador'],['agendador','Agendador'],['visualizacao','Somente Visualização'],['admin','Admin']].map(([v, t]) => `<option value="${v}" ${u.role === v ? 'selected' : ''}>${t}</option>`).join('')}
+                </select>`;
+            return `<div class="admin-user-row" ${u.role === 'pendente' ? 'style="background:rgba(245,158,11,.08);border-radius:10px;padding-left:8px;padding-right:8px"' : ''}>
+              <div><div class="admin-user-name">${u.nome||u.email}${u.role === 'pendente' ? ' <span style="font-size:.7rem;color:#b45309;font-weight:800">⏳ aguardando aprovação</span>' : u.role === 'recusado' ? ' <span style="font-size:.7rem;color:#b91c1c;font-weight:800">⛔ recusado</span>' : ''}</div><div class="admin-user-email">${u.email}</div></div>
+              ${acoes}
+              <button class="admin-btn-del" onclick="doAdminDeleteUser('${id}')" ${isMe?'disabled title="Não pode remover a si mesmo"':''}>🗑 Excluir</button>
             </div>`;
           }).join('');
+          try { lista.insertAdjacentHTML('beforeend', window._htmlOperadoresCompartilhados()); } catch (e) {}
         } catch(e) { lista.innerHTML = '<div style="color:var(--red);font-size:0.85rem;">Erro ao carregar.</div>'; }
       };
       window.doAdminAddUser = async function() {
+        if (!window._podeGerenciarUsuarios()) { alert('Somente o Admin pode criar usuários.'); return; }
         const emailEl = document.getElementById('admin-new-email');
         const roleEl  = document.getElementById('admin-new-role');
         const nomeEl  = document.getElementById('admin-new-nome');
@@ -643,6 +736,7 @@
         } catch(e) { alert('Erro: '+e.message); }
       };
       window.openAdminModal = function() {
+        if (!window._podeGerenciarUsuarios()) { alert('Somente o Admin pode gerenciar usuários.'); return; }
         const m = document.getElementById('adminModal');
         if (m) { m.style.display = 'flex'; doAdminLoadUsers(); }
       };
@@ -705,21 +799,33 @@
                 if (snap.exists()) {
                   perfil = snap.data();
                 } else {
-                  perfil = { email: emailLower, nome: user.email, role: 'agendador' };
+                  // primeiro acesso sem perfil (ex.: veio do "Solicitar acesso") → aguarda aprovação do admin
+                  perfil = { email: emailLower, nome: (user.user_metadata && user.user_metadata.nome) || user.email, role: 'pendente' };
                   await setDoc(doc(db, 'usuarios', user.id), perfil);
                 }
               } catch(e) { perfil = null; }
             }
 
             if (!perfil) {
+              // falha ao ler o perfil: segue como Agendador só nesta sessão, sem gravar (não sobrescreve o perfil real)
               perfil = { email: emailLower, nome: user.email, role: 'agendador' };
-              try { await setDoc(doc(db, 'usuarios', user.id), perfil); } catch(e2) {}
             }
 
             if (isAdminFixo) perfil.role = 'admin';
             // Operador = mesmos acessos do Admin (só o nome exibido muda)
             const _ehOperador = perfil.role === 'operador';
             if (_ehOperador) perfil.role = 'admin';
+            // Cadastro feito por "Solicitar acesso" ainda não aprovado (ou recusado): não entra
+            if (perfil.role === 'pendente' || perfil.role === 'recusado') {
+              window._currentUser = null; window._acessoBloqueado = perfil.role;
+              const errEl = document.getElementById('loginError');
+              if (errEl) { errEl.textContent = perfil.role === 'pendente' ? '⏳ Seu cadastro foi recebido e está aguardando aprovação do administrador.' : '⛔ Seu acesso não foi aprovado. Fale com o administrador.'; errEl.style.display = 'block'; }
+              document.getElementById('destinoOverlay')?.classList.add('hidden');
+              overlay.classList.remove('hidden');
+              setTimeout(() => auth.signOut().catch(() => {}), 0);
+              return;
+            }
+            window._acessoBloqueado = null;
 
             window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: perfil.role, operador: _ehOperador };
             // Independe do "role" que a conta demo@test.com tiver no banco —
@@ -4932,6 +5038,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
         </div>
 
         <div class="login-error" id="loginError" style="display:none;"></div>
+        <button type="button" class="login-toggle-link" onclick="window.abrirSolicitarAcesso()" style="margin-top:6px;font-weight:700;">📝 Não tem acesso? Solicitar cadastro</button>
         <button type="button" class="login-toggle-link" onclick="window._trocarFilial()" style="margin-top:10px;">Trocar unidade (atual: <span id="filialAtualLabel"></span>)</button>
     </div>
 </div>
@@ -5014,7 +5121,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                 <select class="admin-add-select" id="admin-new-role">
                     <option value="agendador">Agendador</option>
                     <option value="visualizacao">Somente Visualização</option>
-                    <option value="operador">Operador (mesmos acessos do Admin)</option>
+                    <option value="operador">Operador (acessos do Admin, sem gerenciar usuários)</option>
                     <option value="admin">Admin</option>
                 </select>
             </div>
@@ -9662,14 +9769,32 @@ const ADMIN_OPERADORES = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Eva D
 window.ADMIN_OPERADORES = ADMIN_OPERADORES;
 // Na conta compartilhada, quem aparece como "Admin"; os demais da lista acima aparecem como "Operador" (mesmos acessos)
 window.ADMIN_TITULARES = ['Igor dos Reis Silva'];
+// Só o Admin cria/aprova usuários: perfil Admin (não Operador); na conta compartilhada, só o titular (ou sem operador escolhido)
+// Lista em "Gerenciar Usuários": nomes da conta compartilhada (comercial@ / comercialmt@) desta unidade
+window._htmlOperadoresCompartilhados = function () {
+    const nomes = _nomesOperadorAtivos(), tit = window.ADMIN_TITULARES || [];
+    const ops = nomes.filter(n => ADMIN_OPERADORES.includes(n)), vend = nomes.filter(n => !ADMIN_OPERADORES.includes(n));
+    const chip = (n, papel, cor) => `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;margin:3px;border-radius:999px;border:1px solid ${cor}55;background:${cor}12;font-size:.74rem;color:var(--text)">${n} <b style="font-family:var(--mono);font-size:.62rem;color:${cor}">${papel}</b></span>`;
+    return `<div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
+      <div style="font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px">👥 Operadores — conta compartilhada (${ops.length})</div>
+      <div>${ops.map(n => chip(n, tit.includes(n) ? 'Admin' : 'Operador', tit.includes(n) ? '#7c3aed' : '#0e7490')).join('')}</div>
+      ${vend.length ? `<div style="font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin:10px 0 6px">💼 Vendedores — Agendador (${vend.length})</div>
+      <div>${vend.map(n => chip(n, 'Agendador', '#15803d')).join('')}</div>` : ''}
+    </div>`;
+};
+window._podeGerenciarUsuarios = function () {
+    const u = window._currentUser; if (!u || u.role !== 'admin' || u.operador) return false;
+    if (!/^comercial(mt)?@gfmedical/.test(String(u.email || '').toLowerCase())) return true;
+    const op = window._operadorNome || (window._lerOperadorGF && window._lerOperadorGF());
+    return !op || window.ADMIN_TITULARES.includes(op);
+};
 // O login (módulo) pode rodar antes desta lista carregar e esconder o "👥 Usuários" de um operador administrador.
 // Confere de novo por alguns segundos depois do login e quando o operador muda.
 function _ajustarBotaoUsuarios() {
     const b = document.getElementById('btn-gerenciar-usuarios'), u = window._currentUser; if (!b || !u) return;
-    const email = String(u.email || '').toLowerCase(), op = window._operadorNome || (window._lerOperadorGF && window._lerOperadorGF());
-    const compartilhada = /^comercial(mt)?@gfmedical/.test(email);
-    const admin = compartilhada ? !!(op && ADMIN_OPERADORES.includes(op)) || (!op && u.role === 'admin') : u.role === 'admin';
-    if (admin && getComputedStyle(b).display === 'none') b.style.display = 'inline-flex';
+    const pode = window._podeGerenciarUsuarios();
+    if (pode && b.style.display !== 'inline-flex') b.style.display = 'inline-flex';
+    if (!pode && b.style.display !== 'none') b.style.display = 'none';
 }
 setInterval(_ajustarBotaoUsuarios, 1500);
 

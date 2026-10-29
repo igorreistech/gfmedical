@@ -15,6 +15,12 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
 function randomPassword() {
   const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
@@ -22,14 +28,15 @@ function randomPassword() {
 }
 
 Deno.serve(async req => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Método não permitido.' }), { status: 405 });
+    return new Response(JSON.stringify({ error: 'Método não permitido.' }), { status: 405, headers: CORS });
   }
 
   const authHeader = req.headers.get('Authorization') || '';
   const callerToken = authHeader.replace(/^Bearer\s+/i, '');
   if (!callerToken) {
-    return new Response(JSON.stringify({ error: 'Não autenticado.' }), { status: 401 });
+    return new Response(JSON.stringify({ error: 'Não autenticado.' }), { status: 401, headers: CORS });
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -41,42 +48,42 @@ Deno.serve(async req => {
   });
   const { data: { user: caller }, error: callerErr } = await callerClient.auth.getUser(callerToken);
   if (callerErr || !caller) {
-    return new Response(JSON.stringify({ error: 'Sessão inválida.' }), { status: 401 });
+    return new Response(JSON.stringify({ error: 'Sessão inválida.' }), { status: 401, headers: CORS });
   }
 
   // Client com privilégio total — só usado a partir daqui, nunca exposto ao client.
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
   const { data: callerProfile } = await admin.from('usuarios').select('role').eq('id', caller.id).maybeSingle();
-  if (!['admin', 'operador'].includes(callerProfile?.role)) {
-    return new Response(JSON.stringify({ error: 'Apenas administradores podem criar usuários.' }), { status: 403 });
+  if (callerProfile?.role !== 'admin') {
+    return new Response(JSON.stringify({ error: 'Apenas administradores podem criar usuários.' }), { status: 403, headers: CORS });
   }
 
   let body: { email?: string; role?: string; nome?: string; password?: string };
   try {
     body = await req.json();
   } catch {
-    return new Response(JSON.stringify({ error: 'Corpo da requisição inválido.' }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'Corpo da requisição inválido.' }), { status: 400, headers: CORS });
   }
 
   const email = (body.email || '').trim().toLowerCase();
   const role = ['admin', 'operador', 'visualizacao'].includes(body.role || '') ? body.role! : 'agendador';
   const nome = (body.nome || '').trim() || email;
   if (!email) {
-    return new Response(JSON.stringify({ error: 'E-mail é obrigatório.' }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'E-mail é obrigatório.' }), { status: 400, headers: CORS });
   }
 
   // Senha escolhida pelo admin na tela (opcional); sem ela, gera uma temporária.
   const senhaEscolhida = typeof body.password === 'string' ? body.password : '';
   if (senhaEscolhida && senhaEscolhida.length < 6) {
-    return new Response(JSON.stringify({ error: 'A senha precisa ter pelo menos 6 caracteres.' }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'A senha precisa ter pelo menos 6 caracteres.' }), { status: 400, headers: CORS });
   }
   const tempPassword = senhaEscolhida || randomPassword();
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email, password: tempPassword, email_confirm: true,
   });
   if (createErr) {
-    return new Response(JSON.stringify({ error: createErr.message }), { status: 400 });
+    return new Response(JSON.stringify({ error: createErr.message }), { status: 400, headers: CORS });
   }
 
   const { error: insertErr } = await admin.from('usuarios').insert({
@@ -85,13 +92,13 @@ Deno.serve(async req => {
   if (insertErr) {
     // Reverte a criação do login para não deixar conta órfã sem perfil.
     await admin.auth.admin.deleteUser(created.user.id);
-    return new Response(JSON.stringify({ error: insertErr.message }), { status: 400 });
+    return new Response(JSON.stringify({ error: insertErr.message }), { status: 400, headers: CORS });
   }
 
   return new Response(JSON.stringify(senhaEscolhida
     ? { id: created.user.id, senha_definida: true }
     : { id: created.user.id, temp_password: tempPassword }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...CORS, 'Content-Type': 'application/json' },
   });
 });

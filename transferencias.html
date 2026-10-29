@@ -621,7 +621,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-28.1';
+const VERSAO = '2026-10-28.2';
 const T = { nf: 'transf_nf', it: 'transf_itens', bx: 'transf_baixas' };
 
 const $ = id => document.getElementById(id);
@@ -699,7 +699,7 @@ auth.onAuthStateChange((_e, session) => {
   // conta compartilhada (comercial@ / comercialmt@): pergunta quem está operando ao entrar
   if (contaCompartilhada() && !_operador) setTimeout(pedirOperador, 300);
   mostrarOperador();
-  supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => { _role = p?.role === 'operador' ? 'admin' : (p?.role || null); _readOnly = p?.role === 'visualizacao'; document.body.classList.toggle('readonly', _readOnly); render(); });
+  supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => { if (p?.role === 'pendente' || p?.role === 'recusado') { location.href = 'index.html'; return; } _role = p?.role === 'operador' ? 'admin' : (p?.role || null); _readOnly = p?.role === 'visualizacao'; document.body.classList.toggle('readonly', _readOnly); render(); });
   carregarTudo();
 });
 
