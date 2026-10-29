@@ -5481,6 +5481,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
             <option value="BENEDITA DANTAS DE SOUSA">
             <option value="BEST SENIOR OPERADORA DE SAUDE LTDA">
             <option value="BIOCARDIO COMERCIO E REPRESENTACOES LTDA">
+            <option value="BIOESTERIL CENTRAL DE ESTERILIZAÇÃO LTDA">
             <option value="BIOSENSORS EUROPE SA">
             <option value="BM MEDICAL CARE LTDA">
             <option value="BRADESCO">
@@ -24075,7 +24076,7 @@ else init();
             : tipo === 'Retorno' ? { ...volta, status: campos.manutencao ? 'Manutenção' : limpezaAtiva() && !campos.semLimpeza ? 'Em limpeza' : 'Disponível', retorno_em: mov.data }
             : tipo === 'Limpeza' ? { status: 'Disponível', local_atual: 'Estoque' }
             : tipo === 'Pendente' ? { status: 'Pendente' }
-            : tipo === 'Esterilização' ? { status: 'Esterilização', local_atual: campos.destino || 'Bio Estéril', saida_em: mov.data, proc_id_atual: null, nf_atual: null, levado_por: null, lacre: null }
+            : tipo === 'Esterilização' ? { status: 'Esterilização', local_atual: campos.destino || 'BIOESTERIL CENTRAL DE ESTERILIZAÇÃO LTDA', saida_em: mov.data, proc_id_atual: null, nf_atual: null, levado_por: null, lacre: null }
             : tipo === 'Esterilizada' ? { ...volta, status: 'Disponível', retorno_em: mov.data }
             : tipo === 'Consignado' ? { status: 'Consignado', local_atual: campos.destino || cx.local_atual || 'Consignado', proc_id_atual: null }
             : tipo === 'Não localizada' ? { status: 'Não localizada' }
@@ -24444,11 +24445,11 @@ else init();
         // caixa de instrumental enviada para esterilizar: sai do estoque até voltar (✅ Esterilizada)
         async function esterilizar(lista) {
             lista = lista.filter(Boolean); if (!lista.length) return;
-            const onde = prompt(`🧪 Enviar para ESTERILIZAÇÃO:\n${lista.map(c => c.codigo).join(', ')}\n\nPara onde?`, 'Bio Estéril');
+            const onde = prompt(`🧪 Enviar para ESTERILIZAÇÃO:\n${lista.map(c => c.codigo).join(', ')}\n\nPara onde?`, 'BIOESTERIL CENTRAL DE ESTERILIZAÇÃO LTDA');
             if (onde === null) return;
             let n = 0;
             for (const c of lista) {
-                try { await movCaixa(c, 'Esterilização', { destino: onde.trim() || 'Bio Estéril', obs: 'enviada para esterilização' }); n++; }
+                try { await movCaixa(c, 'Esterilização', { destino: onde.trim() || 'BIOESTERIL CENTRAL DE ESTERILIZAÇÃO LTDA', obs: 'enviada para esterilização' }); n++; }
                 catch (e) { alert('⚠️ ' + (e.message || e)); break; }
             }
             lista.forEach(c => sel.delete(c.id)); _cxCache = null; await carregar();
@@ -24470,7 +24471,7 @@ else init();
             if (st === c.status) return;
             if (st === 'Disponível' && c.status === 'Em limpeza') await movCaixa(c, 'Limpeza', { obs: obs || 'limpa' });
             else if (st === 'Disponível' && c.status === 'Esterilização') await movCaixa(c, 'Esterilizada', { obs: obs || 'voltou esterilizada' });
-            else if (st === 'Esterilização') await movCaixa(c, 'Esterilização', { destino: 'Bio Estéril', obs: obs || 'enviada para esterilização' });
+            else if (st === 'Esterilização') await movCaixa(c, 'Esterilização', { destino: 'BIOESTERIL CENTRAL DE ESTERILIZAÇÃO LTDA', obs: obs || 'enviada para esterilização' });
             else if (st === 'Consignado') await movCaixa(c, 'Consignado', { obs: obs || 'deixada em consignado', nf: c.nf_atual });
             else if (st === 'Disponível') await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual', semLimpeza: true });
             else if (st === 'Em limpeza') await movCaixa(c, 'Retorno', { obs: obs || 'ajuste manual' });
