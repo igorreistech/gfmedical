@@ -1,4 +1,4 @@
-const CACHE = 'monitor-unificado-v65';
+const CACHE = 'monitor-unificado-v66';
 const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
   BASE,

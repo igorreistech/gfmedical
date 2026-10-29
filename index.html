@@ -10140,6 +10140,11 @@ async function _saveProcedureImpl(e) {
     // comercial@ compartilhada), então fica registrado em todo lançamento.
     proc.operadorNome = nomeOperadorForm;
 
+    if (!_isColeta && typeof window._volumeFichaValidar === 'function') {
+        const _msgVol = window._volumeFichaValidar(status);
+        if (_msgVol) { alert(_msgVol); const _b = document.getElementById('f-vol-bip'); if (_b) { _b.scrollIntoView({ block: 'center' }); _b.focus(); } return; }
+    }
+
     const dupsCheck = [
         ...verificarDuplicatas(proc.hospital, proc.medico, proc.data, editingDocId),
         ...verificarDuplicatasColeta(proc.coletaDataCirurgia, proc.coletaFornecedor, editingDocId),
@@ -23241,6 +23246,8 @@ else init();
         const sel = 'padding:6px 8px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--bg,#fff);color:var(--text);font-size:.74rem';
         const bt = 'padding:5px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.72rem;font-weight:700;cursor:pointer';
         box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span>📦 Volumes que vão:</span><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span></div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 6px"><input id="f-vol-bip" autocomplete="off" placeholder="🔫 Bipe o QR da caixa / bag / sacola e Enter" style="${sel};flex:1;min-width:230px;font-weight:700;border:2px solid #0d9488">
+            <span id="f-vol-bipmsg" style="font-weight:700;font-size:.72rem"></span></div>
           <div id="f-vol-linhas" style="display:flex;flex-direction:column;gap:5px"></div>
           <button type="button" id="f-vol-add" style="${bt};margin-top:5px">+ adicionar caixa, bag ou sacola</button>`;
         (document.getElementById('btn-etq-qr-ficha') || fnf).insertAdjacentElement('afterend', box);
@@ -23255,6 +23262,7 @@ else init();
                 return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                   <select data-vtipo="${i}" style="${sel}"><option value="">— tipo —</option>${['Caixa', 'Bag', 'Sacola'].map(t => `<option value="${t}" ${v.tipo === t ? 'selected' : ''}>${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t}</option>`).join('')}</select>
                   ${v.tipo ? `<select data-vcod="${i}" style="${sel};min-width:120px"><option value="">${ops.length ? `— escolha a ${v.tipo.toLowerCase()} —` : `nenhuma ${v.tipo.toLowerCase()} disponível`}</option>${ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.cod ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${pid && c.proc_id_atual === pid ? ' (já nesta cirurgia)' : ''}</option>`).join('')}</select>` : ''}
+                  ${v.cod ? (v.bipado ? '<span style="color:#16a34a;font-weight:800">✅ bipada</span>' : '<span style="color:#b45309;font-weight:700" title="Escolhida na lista — bipe o QR para confirmar">⚠ não bipada</span>') : ''}
                   <button type="button" data-vdel="${i}" title="Tirar este volume" style="${bt};padding:4px 8px">✕</button></div>`;
             }).join('');
             const n = vols.filter(v => v.cod).length;
@@ -23263,7 +23271,8 @@ else init();
         const recarregar = async () => {
             const r = await carregarCaixas(true).catch(() => null); carregou = !!(r && !r.erro); lista = carregou ? r : [];
             const pid = pidAtual();
-            vols = pid ? lista.filter(c => c.status === 'Fora' && c.proc_id_atual === pid).map(c => ({ tipo: c.tipo, cod: c.codigo })) : [];
+            vols = pid ? lista.filter(c => c.status === 'Fora' && c.proc_id_atual === pid).map(c => ({ tipo: c.tipo, cod: c.codigo, bipado: true })) : [];
+            const m = box.querySelector('#f-vol-bipmsg'); if (m) m.textContent = '';
             box.dataset.antes = JSON.stringify(vols.map(v => v.cod));
             desenhar();
         };
@@ -23271,14 +23280,36 @@ else init();
         linhasEl.addEventListener('change', e => {
             const t = e.target;
             if (t.dataset.vtipo !== undefined) { vols[+t.dataset.vtipo] = { tipo: t.value, cod: '' }; desenhar(); }
-            else if (t.dataset.vcod !== undefined) { vols[+t.dataset.vcod].cod = t.value; desenhar(); }
+            else if (t.dataset.vcod !== undefined) { vols[+t.dataset.vcod].cod = t.value; vols[+t.dataset.vcod].bipado = false; desenhar(); }
         });
         linhasEl.addEventListener('click', e => { const b = e.target.closest('[data-vdel]'); if (b) { vols.splice(+b.dataset.vdel, 1); desenhar(); } });
-        box._volumes = () => ({ carregou, cods: vols.map(v => v.cod).filter(Boolean), antes: JSON.parse(box.dataset.antes || '[]') });
+        // bipe: confere no cadastro e adiciona como bipada
+        box.querySelector('#f-vol-bip').addEventListener('keydown', async e => {
+            if (e.key !== 'Enter') return; e.preventDefault(); e.stopPropagation();
+            const inp = e.target, msg = box.querySelector('#f-vol-bipmsg'), cod = codigoBipado(inp.value); inp.value = ''; if (!cod) return;
+            if (!carregou) await recarregar();
+            const c = lista.find(x => x.codigo === cod), pid = pidAtual();
+            if (!c) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`; return; }
+            if (c.status !== 'Disponível' && !(pid && c.proc_id_atual === pid)) { msg.innerHTML = `<span style="color:#dc2626">⚠ ${esc(cod)} não está disponível (${esc(stNome(c.status))}${c.local_atual ? ' — ' + esc(c.local_atual) : ''})</span>`; return; }
+            const ja = vols.find(v => v.cod === cod);
+            if (ja) ja.bipado = true; else { const vazio = vols.find(v => !v.cod); if (vazio) Object.assign(vazio, { tipo: c.tipo, cod, bipado: true }); else vols.push({ tipo: c.tipo, cod, bipado: true }); }
+            msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(cod)} bipada</span>`; desenhar(); inp.focus();
+        });
+        box._volumes = () => ({ carregou, cods: vols.map(v => v.cod).filter(Boolean), bipados: vols.filter(v => v.cod && v.bipado).map(v => v.cod), antes: JSON.parse(box.dataset.antes || '[]') });
         box._recarregar = recarregar;
         // ficha aberta para outra cirurgia (ou nova): recarrega
         setInterval(() => { const id = pidAtual() + '|' + (document.getElementById('f-nf') ? '' : 'x'); if (id !== ultimoId && box.offsetParent) { ultimoId = id; recarregar(); } }, 700);
     }
+    // trava: material saindo (Em Trânsito / Em Procedimento) só grava com caixa/bag/sacola bipada
+    window._volumeFichaValidar = function (statusNovo) {
+        const SAI = ['em_transito', 'andamento'];
+        if (!SAI.includes(statusNovo)) return '';
+        let antes = null; try { antes = typeof editingDocId !== 'undefined' && editingDocId ? procPorId(editingDocId) : null; } catch (e) {}
+        if (antes && SAI.includes(antes.status)) return '';            // já tinha saído antes desta edição
+        const box = document.getElementById('f-volume-cad'); if (!box || !box._volumes) return '';
+        const v = box._volumes(); if (!v.carregou) return '';          // cadastro de caixas indisponível: não trava
+        return v.bipados.length ? '' : '🔒 O material está saindo do estoque.\n\nBipe o QR da caixa, bag ou sacola que vai com o material (campo "🔫 Bipe o QR…" em Volumes que vão) para liberar a gravação.';
+    };
     window._volumeFichaSalvar = function (proc) {
         const box = document.getElementById('f-volume-cad'); if (!box || !box._volumes || !proc || !(proc._docId || proc.id)) return;
         const { carregou, cods, antes } = box._volumes(); if (!carregou) return;
