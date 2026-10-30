@@ -830,13 +830,13 @@ function renderAberto(ap) {
         <td>${n.its.slice(0, 2).map(e => `<div>${esc(e.codigo_alt || e.codigo)} <span class="td-doc">${esc((e.descricao || '').slice(0, 42))}</span></div>`).join('')}${n.its.length > 2 ? `<div class="td-doc">+ ${n.its.length - 2} item(ns)</div>` : ''}${n.vencendo ? '<span class="mini warn">⌛ validade próxima</span>' : ''}</td>
         <td class="num">${qtd(n.enviado)}</td><td class="num">${n.devolvido ? `<span style="color:#15803d">${qtd(n.devolvido)}</span>` : '—'}</td><td class="num">${n.baixado ? qtd(n.baixado) : '—'}</td>
         <td class="num">${n.saldo > 0 ? `<span class="big" style="color:#b45309">${qtd(n.saldo)}</span>` : '<span class="mini ok">✔ fechada</span>'}</td><td class="num">${n.valorSaldo ? brl(n.valorSaldo) : '—'}</td></tr>
-        ${aberto ? `<tr class="det"><td colspan="9"><table><thead><tr><th>Código</th><th>Produto</th><th>Lote / validade</th><th class="num">Enviado</th><th class="num">Devolvido</th><th class="num">Baixado</th><th class="num">Em aberto</th><th></th></tr></thead><tbody>
+        ${aberto ? `<tr class="det"><td colspan="9"><table><thead><tr><th>Código</th><th>Produto</th><th>Lote / validade</th><th class="num">Enviado</th><th class="num">Devolvido</th><th class="num">Baixado</th><th class="num">Em aberto</th><th>${n.saldo > 0 && !_readOnly ? `<button class="tbtn" style="color:#15803d;border-color:#15803d" onclick="event.stopPropagation();devolverTudo('${n.id}')" title="Todos os itens desta NF voltaram">📥 Tudo devolvido</button>` : ''}</th></tr></thead><tbody>
           ${n.its.map(e => `<tr><td class="td-mono">${esc(e.codigo_alt || e.codigo)}${e.codigo_alt && e.codigo_alt !== e.codigo ? `<div class="td-doc">${esc(e.codigo)}</div>` : ''}</td><td>${esc(e.descricao || '')}<div class="td-doc">un ${brl(e.valor_unit)}</div></td>
             <td class="td-doc">${(e.lotes || []).map(x => `${esc(x.lote)}${x.qtd ? ' ×' + qtd(x.qtd) : ''}${x.validade ? ' · val ' + dataBR(x.validade) : ''}`).join('<br>') || '—'}${e.validadeProx != null && e.validadeProx <= 90 ? `<div><span class="mini ${e.validadeProx < 0 ? 'crit' : 'warn'}">⌛ ${e.validadeProx < 0 ? 'vencido' : 'vence em ' + e.validadeProx + ' dias'}</span></div>` : ''}</td>
             <td class="num">${qtd(e.enviado)}</td><td class="num">${e.devolvido ? `${qtd(e.devolvido)}<div class="td-doc">${e.devNFs.map(d => 'NF ' + fmtNF(d.numero) + ' ×' + qtd(d.qtd)).join(', ')}</div>` : '—'}</td>
             <td class="num">${e.baixas.length ? e.baixas.map(b => `<div>${qtd(b.quantidade)} ${b.motivo === 'usado' ? '🏥' : b.motivo === 'devolvido' ? '📥' : '✏️'} <span class="td-doc" title="${esc((b.obs || '') + ' · ' + (b.usuario || '') + ' · ' + dataHoraBR(b.criado_em))}">${esc((b.obs || '').slice(0, 24))}</span>${_readOnly ? '' : ` <a href="#" onclick="event.stopPropagation();excluirBaixa('${b.id}');return false" title="Desfazer baixa">✕</a>`}</div>`).join('') : '—'}</td>
             <td class="num">${e.saldo > 0 ? `<b style="color:#b45309">${qtd(e.saldo)}</b>` : '✔'}</td>
-            <td>${e.saldo > 0 && !_readOnly ? `<button class="tbtn" onclick="event.stopPropagation();abrirBaixa('${e.id}')">✔ Baixa</button>` : ''}</td></tr>`).join('')}
+            <td style="white-space:nowrap">${e.saldo > 0 && !_readOnly ? `<button class="tbtn" style="color:#15803d;border-color:#15803d" onclick="event.stopPropagation();abrirBaixa('${e.id}','devolvido')" title="O item voltou para o estoque">📥 Devolvido</button> <button class="tbtn" onclick="event.stopPropagation();abrirBaixa('${e.id}')">✔ Baixa</button>` : ''}</td></tr>`).join('')}
           </tbody></table></td></tr>` : ''}`; }).join('')}</tbody>
     <tfoot><tr><td colspan="4">Total (${l.length})</td><td class="num">${qtd(l.reduce((a, n) => a + n.enviado, 0))}</td><td class="num">${qtd(l.reduce((a, n) => a + n.devolvido, 0))}</td><td class="num">${qtd(l.reduce((a, n) => a + n.baixado, 0))}</td><td class="num">${qtd(l.reduce((a, n) => a + n.saldo, 0))}</td><td class="num">${brl(l.reduce((a, n) => a + n.valorSaldo, 0))}</td></tr></tfoot>`;
 }
@@ -969,10 +969,11 @@ window.excluirNF = async id => {
 
 // ───────── Baixa manual (usado em cirurgia lá, devolvido sem NF etc.) ─────────
 let _baixaItem = null;
-window.abrirBaixa = id => {
+window.abrirBaixa = (id, motivo = 'usado') => {
   const e = apurar().env.find(x => x.id === id); if (!e) return; _baixaItem = e;
+  $('bx-title').textContent = motivo === 'devolvido' ? '📥 Item devolvido' : '✔ Dar baixa';
   $('bx-info').innerHTML = `NF ${fmtNF(e.numero)} · <b>${esc(e.codigo_alt || e.codigo)}</b> ${esc(e.descricao || '')}<br>Em aberto: <b>${qtd(e.saldo)}</b>`;
-  $('bx-qtd').value = e.saldo; $('bx-qtd').max = e.saldo; $('bx-motivo').value = 'usado'; $('bx-obs').value = '';
+  $('bx-qtd').value = e.saldo; $('bx-qtd').max = e.saldo; $('bx-motivo').value = motivo; $('bx-obs').value = '';
   $('modal-baixa').classList.add('open');
 };
 window.salvarBaixa = async () => {
@@ -982,6 +983,15 @@ window.salvarBaixa = async () => {
   const { error } = await supabase.from(T.bx).insert({ filial: FILIAL, item_id: e.id, quantidade: q, motivo: $('bx-motivo').value, obs: $('bx-obs').value.trim() || null, usuario: quemSou(), criado_em: new Date().toISOString() });
   if (error) { toast('Não salvou: ' + error.message, 'err'); return; }
   $('modal-baixa').classList.remove('open'); toast('✔ Baixa registrada'); await carregarTudo();
+};
+window.devolverTudo = async nfId => {
+  const n = apurar().nfs.find(x => x.id === nfId), its = (n?.its || []).filter(e => e.saldo > 0); if (!its.length) return;
+  const obs = prompt(`Marcar como DEVOLVIDOS os ${its.length} item(ns) em aberto da NF ${fmtNF(its[0].numero)} (${qtd(its.reduce((a, e) => a + e.saldo, 0))} un.)?\n\nObservação (opcional — ex.: NF de devolução, quem trouxe):`, '');
+  if (obs === null) return;
+  const agora = new Date().toISOString();
+  const { error } = await supabase.from(T.bx).insert(its.map(e => ({ filial: FILIAL, item_id: e.id, quantidade: e.saldo, motivo: 'devolvido', obs: obs.trim() || null, usuario: quemSou(), criado_em: agora })));
+  if (error) { toast('Não salvou: ' + error.message, 'err'); return; }
+  toast(`📥 ${its.length} item(ns) marcados como devolvidos`); await carregarTudo();
 };
 window.excluirBaixa = async id => { if (!confirm('Desfazer esta baixa?')) return; const { error } = await supabase.from(T.bx).delete().eq('id', id); toast(error ? 'Não desfez: ' + error.message : '✔ Baixa desfeita', error ? 'err' : 'ok'); await carregarTudo(); };
 
