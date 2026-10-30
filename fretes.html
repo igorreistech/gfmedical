@@ -2630,10 +2630,49 @@ window.colarTextoCot = () => {
   if (r.valor) pos('valor_mercadoria', r.valor.toFixed(2));
   if (r.peso) pos('peso_kg', r.peso);
   if (r.m3) pos('volume_m3', +r.m3.toFixed(3)); // o campo aceita 3 casas (com 4 o navegador não deixava salvar)
+  if (r.vols.length && $('cot-vols')) { $('cot-vols').innerHTML = ''; r.vols.forEach(v => cotAddVol(v)); calcDimsCot(false); }
   const obs = obsTextoPedido(r);
   if (obs && $('fm-observacoes')) { const atual = $('fm-observacoes').value.trim(); if (!atual.includes(obs)) $('fm-observacoes').value = atual ? atual + ' · ' + obs : obs; $('fm-observacoes').classList.add('from-pdf'); }
   $('cot-lido').innerHTML = resumoTextoPedido(r) + '<br>Escolha a transportadora: a conferência abaixo mostra o valor pela tabela (e as outras transportadoras) — use “Usar valor da tabela”.';
   atualizarPreview();
+};
+// Dimensões dos volumes na cotação: somam o m³ (campo Volume) e ficam anotadas nas observações
+// ("2 volume(s): 1× 74x69x74 cm, …"), que é de onde o pedido de coleta e a reabertura leem.
+const RE_DIM_OBS = /(\d+)×\s*([\d.]+)x([\d.]+)x([\d.]+)\s*cm/g;
+function montarDimsCot(obs) {
+  const ref = $('fm-valor_mercadoria')?.closest('.fg'); if (!ref) return;
+  ref.insertAdjacentHTML('beforebegin', `<div class="fg s4" id="cot-dims"><label class="flbl">Dimensões dos volumes (cm) — calcula o volume (m³)</label>
+    <div class="sim-vol td-mono" style="margin-bottom:2px"><span>Qtd</span><span>Comprimento</span><span>Largura</span><span>Altura</span><span></span></div>
+    <div id="cot-vols"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="fchip" onclick="cotAddVol()">＋ volume</button><span class="td-mono" id="cot-cub"></span></div></div>`);
+  $('cot-vols').addEventListener('input', () => calcDimsCot(true));
+  const vs = [...String(obs || '').matchAll(RE_DIM_OBS)].map(m => ({ q: +m[1], c: +m[2], l: +m[3], a: +m[4] }));
+  if (vs.length) vs.forEach(v => cotAddVol(v)); else cotAddVol();
+  calcDimsCot(false);
+}
+window.cotAddVol = v => {
+  const d = document.createElement('div'); d.className = 'sim-vol';
+  d.innerHTML = `<input class="finput" data-v="q" type="number" min="1" step="1" value="${v?.q || 1}" aria-label="Quantidade de volumes" title="Quantidade">
+    <input class="finput" data-v="c" type="number" min="0" step="0.1" placeholder="Compr. cm" aria-label="Comprimento (cm)" value="${v?.c || ''}">
+    <input class="finput" data-v="l" type="number" min="0" step="0.1" placeholder="Largura cm" aria-label="Largura (cm)" value="${v?.l || ''}">
+    <input class="finput" data-v="a" type="number" min="0" step="0.1" placeholder="Altura cm" aria-label="Altura (cm)" value="${v?.a || ''}">
+    <button type="button" class="abtn del" title="Remover volume" onclick="this.parentElement.remove();calcDimsCot(true);atualizarPreview()">✕</button>`;
+  $('cot-vols').appendChild(d);
+};
+window.calcDimsCot = mexeu => {
+  let m3 = 0, n = 0; const vs = [];
+  $('cot-vols')?.querySelectorAll('.sim-vol').forEach(r => {
+    const g = k => num(r.querySelector(`[data-v="${k}"]`).value);
+    const q = Math.max(1, Math.round(g('q')) || 1);
+    if (g('c') && g('l') && g('a')) { m3 += q * g('c') * g('l') * g('a') / 1e6; n += q; vs.push(`${q}× ${g('c')}x${g('l')}x${g('a')} cm`); }
+  });
+  $('cot-cub').innerHTML = m3 ? `📦 ${n} volume(s) · <b>${m3.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} m³</b> · peso cubado a 300 kg/m³: <b>${(m3 * 300).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg</b> (cada tabela usa o fator dela)` : 'Preencha comprimento, largura e altura de cada volume.';
+  if (!mexeu) return;
+  const vol = $('fm-volume_m3'); if (vol) { vol.value = m3 ? +m3.toFixed(3) : ''; vol.classList.toggle('from-pdf', !!m3); }
+  const ob = $('fm-observacoes'); if (!ob) return;
+  const limpo = ob.value.replace(/\s*·?\s*\d+ volume\(s\)(?::\s*\d+×\s*[\d.]+x[\d.]+x[\d.]+\s*cm(?:,\s*\d+×\s*[\d.]+x[\d.]+x[\d.]+\s*cm)*)?/g, '').replace(/^\s*·\s*/, '').trim();
+  const txt = n ? `${n} volume(s): ${vs.join(', ')}` : '';
+  ob.value = [limpo, txt].filter(Boolean).join(' · ');
 };
 window.lerPdfPedidoCot = async inp => {
   const f = inp.files[0]; inp.value = ''; if (!f) return;
@@ -3918,6 +3957,7 @@ window.abrirModal = (tipo, id = null, prefill = null) => {
   if (tipo === 'cot') $('fm-valor_frete').addEventListener('input', e => { _modal.freteManual = e.target.value !== ''; e.target.classList.remove('from-pdf'); });
   if (tipo === 'cot') ligarOrigemDestino('fm-', atualizarPreview);
   if (tipo === 'cot') listaCtesCot();
+  if (tipo === 'cot') montarDimsCot(base.observacoes);
   if (tipo === 'cot') $('fpreview')?.insertAdjacentHTML('beforebegin', `<label class="fg s4 td-mono chk-coleta">
       <input type="checkbox" id="fm-coleta" ${/coleta no remetente/i.test(base.observacoes || '') ? 'checked' : ''} onchange="atualizarPreview()"> Com coleta no remetente (soma a taxa de coleta de quem cobra, ex.: Andorinha R$ 33,29)</label>`);
   if (tipo === 'cot' && !reg) $('modal-form').insertAdjacentHTML('afterbegin', `<details class="sim-colar fg s4" id="cot-colar-box">
