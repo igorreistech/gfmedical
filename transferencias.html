@@ -754,10 +754,11 @@ window.copiarSql = async () => { try { await navigator.clipboard.writeText($('sq
 // Saída (NF nossa para a outra filial) fica em aberto até voltar uma entrada do mesmo produto (e lote, se tiver), e vice-versa.
 // Baixa manual (usado em cirurgia lá, devolvido sem NF) tira o item do aberto antes da compensação.
 function apurar() {
-  const its = data.it.map(i => ({ ...i, qtd: num(i.quantidade), devolvido: 0, baixado: 0, comp: [], baixas: [] }));
+  const its = data.it.map(i => ({ ...i, qtd: num(i.quantidade), devolvido: 0, baixado: 0, devMan: 0, comp: [], baixas: [], devBaixas: [] }));
   const porId = new Map(its.map(e => [e.id, e]));
-  data.bx.forEach(b => { const e = porId.get(b.item_id); if (e) { e.baixado += num(b.quantidade); e.baixas.push(b); } });
-  its.forEach(e => { e.livre = Math.max(0, e.qtd - e.baixado); });
+  data.bx.forEach(b => { const e = porId.get(b.item_id); if (!e) return;
+    if (b.motivo === 'devolvido') { e.devMan += num(b.quantidade); e.devBaixas.push(b); } else { e.baixado += num(b.quantidade); e.baixas.push(b); } });
+  its.forEach(e => { e.livre = Math.max(0, e.qtd - e.baixado - e.devMan); });
   const lotesDe = i => new Set((i.lotes || []).map(l => norm(l.lote)).filter(Boolean));
   const filas = new Map(), sobras = [];
   its.slice().sort((a, b) => (a.data_emissao || '').localeCompare(b.data_emissao || '') || num(a.numero) - num(b.numero)).forEach(m => {
@@ -769,7 +770,7 @@ function apurar() {
     oposta.forEach(compensar);
     if (m.livre > 0) f[m.tipo].push(m);
   });
-  its.forEach(e => { e.enviado = e.qtd; e.saldo = e.livre; e.dias = diasDesde(e.data_emissao); e.valorSaldo = e.saldo * num(e.valor_unit); e.devNFs = e.comp;
+  its.forEach(e => { e.devolvido += e.devMan; e.enviado = e.qtd; e.saldo = e.livre; e.dias = diasDesde(e.data_emissao); e.valorSaldo = e.saldo * num(e.valor_unit); e.devNFs = e.comp;
     e.validadeProx = e.validade && e.saldo > 0 ? Math.floor((Date.parse(e.validade) - Date.parse(hojeISO())) / 864e5) : null; });
   const nfs = data.nf.map(n => { const l = its.filter(e => e.chave === n.chave), s = k => l.reduce((a, e) => a + num(e[k]), 0);
     return { ...n, its: l, enviado: s('enviado'), devolvido: s('devolvido'), baixado: s('baixado'), saldo: s('saldo'), valorSaldo: s('valorSaldo'), dias: diasDesde(n.data_emissao), vencendo: l.some(e => e.validadeProx != null && e.validadeProx <= 90) }; });
@@ -833,7 +834,7 @@ function renderAberto(ap) {
         ${aberto ? `<tr class="det"><td colspan="9"><table><thead><tr><th>Código</th><th>Produto</th><th>Lote / validade</th><th class="num">Enviado</th><th class="num">Devolvido</th><th class="num">Baixado</th><th class="num">Em aberto</th><th>${n.saldo > 0 && !_readOnly ? `<button class="tbtn" style="color:#15803d;border-color:#15803d" onclick="event.stopPropagation();devolverTudo('${n.id}')" title="Todos os itens desta NF voltaram">📥 Tudo devolvido</button>` : ''}</th></tr></thead><tbody>
           ${n.its.map(e => `<tr><td class="td-mono">${esc(e.codigo_alt || e.codigo)}${e.codigo_alt && e.codigo_alt !== e.codigo ? `<div class="td-doc">${esc(e.codigo)}</div>` : ''}</td><td>${esc(e.descricao || '')}<div class="td-doc">un ${brl(e.valor_unit)}</div></td>
             <td class="td-doc">${(e.lotes || []).map(x => `${esc(x.lote)}${x.qtd ? ' ×' + qtd(x.qtd) : ''}${x.validade ? ' · val ' + dataBR(x.validade) : ''}`).join('<br>') || '—'}${e.validadeProx != null && e.validadeProx <= 90 ? `<div><span class="mini ${e.validadeProx < 0 ? 'crit' : 'warn'}">⌛ ${e.validadeProx < 0 ? 'vencido' : 'vence em ' + e.validadeProx + ' dias'}</span></div>` : ''}</td>
-            <td class="num">${qtd(e.enviado)}</td><td class="num">${e.devolvido ? `${qtd(e.devolvido)}<div class="td-doc">${e.devNFs.map(d => 'NF ' + fmtNF(d.numero) + ' ×' + qtd(d.qtd)).join(', ')}</div>` : '—'}</td>
+            <td class="num">${qtd(e.enviado)}</td><td class="num">${e.devolvido ? `<span style="color:#15803d">${qtd(e.devolvido)}</span><div class="td-doc">${e.devNFs.map(d => 'NF ' + fmtNF(d.numero) + ' ×' + qtd(d.qtd)).join(', ')}</div>${e.devBaixas.map(b => `<div class="td-doc" title="${esc((b.obs || '') + ' · ' + (b.usuario || '') + ' · ' + dataHoraBR(b.criado_em))}">📥 ${qtd(b.quantidade)} ${esc((b.obs || 'sem NF').slice(0, 24))}${_readOnly ? '' : ` <a href="#" onclick="event.stopPropagation();excluirBaixa('${b.id}');return false" title="Desfazer devolução">✕</a>`}</div>`).join('')}` : '—'}</td>
             <td class="num">${e.baixas.length ? e.baixas.map(b => `<div>${qtd(b.quantidade)} ${b.motivo === 'usado' ? '🏥' : b.motivo === 'devolvido' ? '📥' : '✏️'} <span class="td-doc" title="${esc((b.obs || '') + ' · ' + (b.usuario || '') + ' · ' + dataHoraBR(b.criado_em))}">${esc((b.obs || '').slice(0, 24))}</span>${_readOnly ? '' : ` <a href="#" onclick="event.stopPropagation();excluirBaixa('${b.id}');return false" title="Desfazer baixa">✕</a>`}</div>`).join('') : '—'}</td>
             <td class="num">${e.saldo > 0 ? `<b style="color:#b45309">${qtd(e.saldo)}</b>` : '✔'}</td>
             <td style="white-space:nowrap">${e.saldo > 0 && !_readOnly ? `<button class="tbtn" style="color:#15803d;border-color:#15803d" onclick="event.stopPropagation();abrirBaixa('${e.id}','devolvido')" title="O item voltou para o estoque">📥 Devolvido</button> <button class="tbtn" onclick="event.stopPropagation();abrirBaixa('${e.id}')">✔ Baixa</button>` : ''}</td></tr>`).join('')}
